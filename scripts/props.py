@@ -2,7 +2,7 @@
 
 Lines: DraftKings player props as republished (free, no key) by ESPN's core API:
   sports.core.api.espn.com/v2/sports/{sport}/leagues/{lg}/events/{id}/competitions/{id}/odds/100/propBets
-(provider 100 = DraftKings). ESPN gives the line (current + opening target) and a lastUpdated stamp. NFL items carry no
+(provider 100 = DraftKings). ESPN gives the line (current + opening target) and a lastUpdated stamp (kept as "upd", but it runs hours ahead of real time, so the site shows our fetch time "gen"). NFL items carry no
 prices; NBA items carry two prices per line but don't say which one is the over, so prices are NOT shown anywhere.
 Over/under come as two duplicate items per player+market, so they're de-duplicated. Milestone ("15+"), alt, quarter /
 half, first-scorer and team props are skipped; only full-game player lines we can grade from box scores are kept.

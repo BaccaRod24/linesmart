@@ -36,8 +36,9 @@
   }
 
   const legend = `<div class="pp-legend"><span><i class="pp-dot pp-o"></i>Over</span><span><i class="pp-dot pp-u"></i>Under</span><span><i class="pp-dot pp-p"></i>Push / no game</span><span class="pp-lt">Latest game first · graded vs today's line</span></div>`;
-  function foot(doc, upd) {
-    const when = upd ? ` Updated ${A().fullET(upd.replace(/Z?$/, "Z"))}.` : "";
+  // ESPN's per-line lastUpdated stamps run hours ahead of real time, so show when we last fetched the lines instead.
+  function foot(doc) {
+    const when = doc && doc.gen ? ` Lines checked ${A().fullET(doc.gen)}.` : "";
     return `<div class="note pp-note">Lines: DraftKings, via ESPN's free odds feed.${when} Prices aren't shown. Past games are graded against the current line, so hit rates describe history, not a prediction. ${doc && doc.historyScope ? `History: ${esc(doc.historyScope)}.` : ""}</div>`;
   }
 
@@ -60,7 +61,7 @@
     const teams = [[g.away.id, g.away.abbr], [g.home.id, g.home.abbr]];
     const tabs = `<div class="pp-tabs" role="tablist"><button class="on" data-f="">All</button>${teams.map(([id, ab]) => `<button data-f="${esc(id)}">${esc(ab)}</button>`).join("")}</div>`;
     el.innerHTML = tabs + legend + `<div class="pp-list">${players.map(p => playerCard(lg, p)).join("")}</div>`
-      + `<button class="pp-more" hidden></button>` + foot(doc, (doc.games[String(g.id)] || {}).upd);
+      + `<button class="pp-more" hidden></button>` + foot(doc);
     let filt = "", open = false;
     const more = el.querySelector(".pp-more");
     const draw = () => {
@@ -91,7 +92,7 @@
       const opp = g ? (String(g.home.id) === String(player.t) ? `vs ${g.away.abbr}` : `@ ${g.home.abbr}`) : "";
       const hdr = g ? `<a class="pp-game" href="#/g/${esc(lg)}/${esc(gid)}"><b>${esc(opp)}</b><span>${esc(A().fullET(g.date))}</span><span class="pp-go">Game →</span></a>` : "";
       return hdr + playerCard(lg, player, { noLink: true });
-    }).join("") + foot(doc, (doc.games[games[0].gid] || {}).upd) + `</div>`;
+    }).join("") + foot(doc) + `</div>`;
   }
 
   window.LSProps = { SUPPORTED, gameSlot, mountGame, mountPlayer };

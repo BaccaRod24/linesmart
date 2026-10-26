@@ -293,9 +293,9 @@
     const openFor = bk => (fromOdds ? { hs: o.homeSpreadOpen, tot: o.totalOpen, hml: o.homeMLOpen, aml: o.awayMLOpen, dml: o.drawMLOpen } : (H.open || {})[bk] || {});
     const spreadLabel = kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread";
     const MARKETS = {
-      spread: { label: spreadLabel, series: [{ key: "hs", name: `${g.home.abbr} ${spreadLabel.toLowerCase()}`, color: "#22d3a6" }], f: line },
-      total: { label: "Total", series: [{ key: "tot", name: "Total (O/U)", color: "#38bdf8" }], f: v => String(v) },
-      ml: { label: "Moneyline", series: [{ key: "aml", name: `${g.away.abbr} ML`, color: "#fbbf24" }, { key: "hml", name: `${g.home.abbr} ML`, color: "#22d3a6" }].concat(kind === "soccer" ? [{ key: "dml", name: "Draw", color: "#a3a3a3" }] : []), f: am },
+      spread: { label: spreadLabel, series: [{ key: "hs", name: `${g.home.abbr} ${spreadLabel.toLowerCase()}`, color: "var(--chart-1)" }], f: line },
+      total: { label: "Total", series: [{ key: "tot", name: "Total (O/U)", color: "var(--chart-2)" }], f: v => String(v) },
+      ml: { label: "Moneyline", series: [{ key: "aml", name: `${g.away.abbr} ML`, color: "var(--chart-3)" }, { key: "hml", name: `${g.home.abbr} ML`, color: "var(--chart-1)" }].concat(kind === "soccer" ? [{ key: "dml", name: "Draw", color: "var(--chart-4)" }] : []), f: am },
     };
     const has = (bk, key) => pointsFor(bk).some(p => isNum(p.v[key])) || isNum(openFor(bk)[key]);
     let st = { bk: books[0], mk: has(books[0], "hs") ? "spread" : has(books[0], "tot") ? "total" : "ml" };
@@ -341,15 +341,15 @@
       if (isML) svg += `<text x="${L}" y="${T - 3}" class="ax">implied win %</text>`;
       M.series.forEach(s => {
         const ser = pts.filter(p => isNum(p.v[s.key]));
-        if (isNum(op[s.key])) { const y = Y(op[s.key]); svg += `<line x1="${L}" x2="${w - R}" y1="${y}" y2="${y}" stroke="${s.color}" class="openl"/><text x="${w - R - 2}" y="${y - 5}" class="ax" fill="${s.color}" text-anchor="end">open ${esc(M.f(op[s.key]))}</text>`; }
+        if (isNum(op[s.key])) { const y = Y(op[s.key]); svg += `<line x1="${L}" x2="${w - R}" y1="${y}" y2="${y}" style="stroke:${s.color}" class="openl"/><text x="${w - R - 2}" y="${y - 5}" class="ax" text-anchor="end">open ${esc(M.f(op[s.key]))}</text>`; }
         if (!ser.length) return;
         let dpath = `M${X(+ser[0].t)},${Y(ser[0].v[s.key])}`;
         ser.forEach((p, i) => { if (i) dpath += `H${X(+p.t)}V${Y(p.v[s.key])}`; });
         dpath += `H${X(+end)}`;
-        svg += `<path d="${dpath}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round"/>`;
-        ser.forEach(p => (svg += `<circle cx="${X(+p.t)}" cy="${Y(p.v[s.key])}" r="3.5" fill="${s.color}"><title>${esc(fullET(p.t.toISOString()))}: ${esc(s.name)} ${esc(M.f(p.v[s.key]))}</title></circle>`));
+        svg += `<path d="${dpath}" fill="none" style="stroke:${s.color}" stroke-width="2.5" stroke-linejoin="round"/>`;
+        ser.forEach(p => (svg += `<circle cx="${X(+p.t)}" cy="${Y(p.v[s.key])}" r="3.5" style="fill:${s.color}"><title>${esc(fullET(p.t.toISOString()))}: ${esc(s.name)} ${esc(M.f(p.v[s.key]))}</title></circle>`));
         const last = ser[ser.length - 1];
-        svg += `<circle cx="${X(+end)}" cy="${Y(last.v[s.key])}" r="4.5" fill="#0b0f17" stroke="${s.color}" stroke-width="2"><title>Current (checked ${esc(fullET(end.toISOString()))}): ${esc(M.f(last.v[s.key]))}</title></circle>`;
+        svg += `<circle cx="${X(+end)}" cy="${Y(last.v[s.key])}" r="4.5" style="fill:var(--bg);stroke:${s.color}" stroke-width="2"><title>Current (checked ${esc(fullET(end.toISOString()))}): ${esc(M.f(last.v[s.key]))}</title></circle>`;
       });
       return svg + `</svg>`;
     }

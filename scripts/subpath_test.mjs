@@ -342,7 +342,7 @@ for (const lg of ["nfl", "nba"]) {
   if (!gidP) { console.log(`  (props: no ${lg} game with player lines right now - skipped)`); continue; }
   const want = new Set(pd.games[gidP].props.map(r => r[0])).size;
   await page.goto(BASE + `#/g/${lg}/${gidP}`, { waitUntil: "networkidle" });
-  await page.waitForSelector(".pp-card", { timeout: 15000 }).catch(() => {});
+  await page.waitForSelector("#ppBox .pp-card", { timeout: 15000 }).catch(() => {});   // #ppBox: not a leftover card from the previous player page
   const s = await page.evaluate(() => ({ cards: document.querySelectorAll(".pp-card").length, shown: [...document.querySelectorAll(".pp-card")].filter(c => !c.hidden).length,
     boxes: [...document.querySelectorAll(".pp-card:not([hidden]) .pp-b")].map(b => b.className.replace("pp-b ", "")), sum: document.querySelector(".pp-xs")?.textContent || "",
     more: document.querySelector(".pp-more:not([hidden])")?.textContent || "", note: document.querySelector(".pp-note")?.textContent || "", title: document.getElementById("props")?.textContent || "" }));

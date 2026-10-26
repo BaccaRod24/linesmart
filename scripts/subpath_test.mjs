@@ -511,7 +511,7 @@ for (const lg of ["nfl", "nba"]) {
     check(cached.country === "US" && cached.region === "FL" && !cached.ip, "lookup cached as country/state only (no IP stored)", "geo");
     if (gid) {
       await p.goto(BASE + `#/g/nfl/${gid}`, { waitUntil: "networkidle" }); await p.waitForSelector(".match", { timeout: 15000 }).catch(() => {});
-      const g = await p.evaluate(() => ({ heads: [...document.querySelectorAll(".books thead th")].map(t => t.innerText.replace(/\s+/g, " ")), naCols: document.querySelectorAll(".books th.na-col").length,
+      const g = await p.evaluate(() => ({ heads: [...document.querySelectorAll(".books thead th")].map(t => t.textContent.replace(/\s+/g, " ")), naCols: document.querySelectorAll(".books th.na-col").length,
         bestNa: document.querySelectorAll(".books td.na-col.best").length, offer: [...document.querySelectorAll("[data-offers] [data-book]")].map(a => a.dataset.book) }));
       const dkHead = g.heads.find(h => /DraftKings/.test(h)) || "";
       check(/Not available in FL/.test(dkHead) && g.naCols >= 1 && g.bestNa === 0, `FL game: DraftKings column labeled "Not available in FL", never highlighted best (${dkHead})`, "geo");

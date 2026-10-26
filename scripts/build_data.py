@@ -33,6 +33,8 @@ import weather as WX
 import props as PR
 import odds_budget as OB
 import odds_props as OP
+import adv as ADV
+import linevalue as LV
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.environ.get("DATA_OUT") or os.path.join(ROOT, "site", "data")   # DATA_OUT: build elsewhere (local testing)
@@ -666,6 +668,9 @@ def main():
                     help="dir caching compact box scores for defense-vs-position (data-history branch); omit to fetch every game each run")
     ap.add_argument("--weather-cache-dir", default=os.environ.get("WEATHER_CACHE_DIR") or None,
                     help="dir caching venue coordinates and recent forecasts (data-history branch); omit to fetch every forecast each run")
+    ap.add_argument("--adv-cache-dir", default=os.environ.get("ADV_CACHE_DIR") or None,
+                    help="persistent dir for advanced stats (nflverse aggregate, ATS/O-U closing-line store)")
+    ap.add_argument("--no-adv", action="store_true", help="skip advanced stats (data/adv: NFL EPA, NBA ratings, ATS/O-U, usage)")
     ap.add_argument("--no-weather", action="store_true", help="skip game-day weather (Open-Meteo)")
     ap.add_argument("--no-matchups", action="store_true", help="skip the opponent defense-vs-position data (data/matchups)")
     ap.add_argument("--no-props", action="store_true", help="skip player prop lines + hit history (data/props)")
@@ -772,6 +777,25 @@ def main():
             except Exception as ex:
                 log(f"[{lg['key']}] props FAILED: {ex}")   # the previous file (if any) stays in place
                 meta["props"].setdefault(lg["key"], {})["error"] = str(ex)[:200]
+    if not a.no_adv and not a.search_only:
+        meta.setdefault("adv", {})
+        for lg in LEAGUES:
+            k = lg["key"]
+            if k not in want or k not in ADV.ATS_LEAGUES: continue
+            t0 = time.time()
+            try:
+                meta["adv"][k] = ADV.build(lg, getj, SITE, OUT, a.adv_cache_dir, history_dir=a.history_dir, games=MU.LAST_GAMES.get(k),
+                                           events=MU.LAST_EVENTS.get(k), log=log)
+                meta["adv"][k]["seconds"] = round(time.time() - t0, 1)
+            except Exception as ex:
+                log(f"[{k}] advanced stats FAILED: {ex}")   # the previous file (if any) stays in place
+                meta["adv"][k] = dict(error=str(ex)[:200])
+            if a.snap_dir and a.adv_cache_dir:            # re-applied after a push race, like the other caches
+                import shutil
+                os.makedirs(os.path.join(a.snap_dir, "_adv"), exist_ok=True)
+                for fn in (f"ats_{k}.json", "nfl_nflverse.json" if k == "nfl" else None):
+                    if fn and os.path.exists(os.path.join(a.adv_cache_dir, fn)):
+                        shutil.copy(os.path.join(a.adv_cache_dir, fn), os.path.join(a.snap_dir, "_adv", fn))
     if a.search_only:
         with open(meta_path, "w") as fh: json.dump(meta, fh, indent=1)
         return log("search index done ->", os.path.join(OUT, "search"))
@@ -794,6 +818,9 @@ def main():
     meta["untrackedBooks"] = []
     try: meta["slate"] = SL.build(OUT, meta["order"])   # home-page "Today's slate" + scores ticker (reads the files just written)
     except Exception as ex: log(f"[slate] FAILED: {ex}")
+    try:   # "Value spots": prices that beat the 3-book no-vig consensus (reuses this run's odds; no extra API calls)
+        if isinstance(meta.get("slate"), dict): meta["slate"]["value"] = LV.value_spots(OUT, meta["order"])
+    except Exception as ex: log(f"[value spots] FAILED: {ex}")
     with open(meta_path, "w") as fh: json.dump(meta, fh, indent=1)
     log("done ->", OUT)
 

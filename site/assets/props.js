@@ -58,7 +58,7 @@
   }
 
   function playerCard(lg, pl, opts = {}) {
-    return `<div class="pp-card" data-team="${esc(pl.t)}">
+    return `<div class="pp-card" data-team="${esc(pl.t)}" data-pid="${esc(pl.pid)}">
       <div class="pp-h">${opts.noLink ? `<b>${esc(pl.n)}</b>` : `<a href="#/p/${esc(lg)}/${esc(pl.pid)}">${esc(pl.n)}</a>`}<span class="pp-meta">${esc([pl.pos, pl.ta].filter(Boolean).join(" · "))}</span></div>
       ${pl.props.map(p => propRow(p, pl.log)).join("")}
     </div>`;
@@ -110,6 +110,7 @@
     const chips = mkts.length > 1 ? `<div class="pp-chips" role="group" aria-label="Prop type"><button class="on" data-m="" aria-pressed="true">All props</button>${mkts.map(m => `<button data-m="${esc(m)}" aria-pressed="false">${esc(doc.markets[m][1])}</button>`).join("")}</div>` : "";
     el.innerHTML = tabs + chips + legend + `<div class="pp-list">${players.map(p => playerCard(lg, p)).join("")}</div>`
       + `<div class="card note pp-empty" hidden></div><button class="pp-more" hidden></button>` + foot(doc);
+    if (window.LSAdv) window.LSAdv.decorateProps(el, lg).catch(() => {});   // usage chips (assets/adv.js)
     const f = { team: "", mk: "", hot: false };
     let open = false;
     const more = el.querySelector(".pp-more"), empty = el.querySelector(".pp-empty");

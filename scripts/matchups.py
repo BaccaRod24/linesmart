@@ -20,6 +20,8 @@ import concurrent.futures as cf, datetime as dt, json, os
 SUPPORTED = ("nfl", "nba")
 MAX_NEW = 400
 LAST_GAMES = {}   # league -> this run's compact games dict (reused by scripts/props.py for prop hit history)
+LAST_EVENTS = {}  # league -> this run's completed regular-season events {eid: {date, home, away, hs, as}} (reused by ats.py)
+NBA_ROW_LEN = 10  # NBA player rows: [pid, pos, pts, reb, ast, 3pm, min, fga, fta, tov]; older cached rows (6) are refetched
 
 # key, label, rank direction ("low": rank 1 = lowest value). Per league: position buckets and team-level stats.
 NFL_POS = {
@@ -80,7 +82,8 @@ def compact_nfl(m):
     return out
 
 def compact_nba(m):
-    """{teamId: {"p": [[pid, pos, pts, reb, ast, 3pm]], "t": [fgm, fga, fta, oreb, tov, pts]}}"""
+    """{teamId: {"p": [[pid, pos, pts, reb, ast, 3pm, min, fga, fta, tov]], "t": [fgm, fga, fta, oreb, tov]}}
+    (min/fga/fta/tov feed the player usage-rate trends in scripts/adv_nba.py)"""
     out = {}
     box = m.get("boxscore") or {}
     for t in box.get("players") or []:
@@ -94,7 +97,9 @@ def compact_nba(m):
                 if a.get("didNotPlay") or not st or not ath.get("id"): continue
                 v = dict(zip(keys, st))
                 rows.append([str(ath["id"]), (ath.get("position") or {}).get("abbreviation") or "", _n(v.get("points")), _n(v.get("rebounds")),
-                             _n(v.get("assists")), _pair(v.get("threePointFieldGoalsMade-threePointFieldGoalsAttempted"))[0]])
+                             _n(v.get("assists")), _pair(v.get("threePointFieldGoalsMade-threePointFieldGoalsAttempted"))[0],
+                             _n(v.get("minutes")), _pair(v.get("fieldGoalsMade-fieldGoalsAttempted"))[1],
+                             _pair(v.get("freeThrowsMade-freeThrowsAttempted"))[1], _n(v.get("turnovers"))])
         out.setdefault(tid, {})["p"] = rows
     for t in box.get("teams") or []:
         tid = str((t.get("team") or {}).get("id") or "")
@@ -138,7 +143,8 @@ def aggregate(lg_key, games, posmap):
                     D = A["pos"][bk]
                     for k, _ in POS[bk]: D[k] = D.get(k, 0) + p.get(k, 0)
             else:
-                for pid, pos, pts, reb, ast, tpm in b[off].get("p") or []:
+                for row in b[off].get("p") or []:
+                    pid, pos, pts, reb, ast, tpm = row[:6]
                     bk = NBA_POSMAP.get((pos or posmap.get(pid) or "").upper())
                     if not bk: continue
                     D = A["pos"][bk]
@@ -216,6 +222,9 @@ def build_matchups(lg, getj, site, out_dir, search_dir, cache_dir=None, snap_dir
     cached = (_load(cpath) if cpath else None) or {}
     games = dict(cached.get("games") or {}) if cached.get("season") == season else {}
     games = {k: v for k, v in games.items() if k in evs}                    # prune games no longer on the schedule
+    if key == "nba":                                                        # refetch box scores cached before minutes/FGA/FTA/TOV were kept
+        games = {k: v for k, v in games.items() if all(len(r) >= NBA_ROW_LEN for t in (v.get("b") or {}).values() for r in t.get("p") or [])}
+    LAST_EVENTS[key] = evs
     need = [k for k in sorted(evs, key=lambda k: evs[k]["date"] or "", reverse=True) if k not in games][:MAX_NEW]
     ok = fail = 0
     with cf.ThreadPoolExecutor(12) as ex:

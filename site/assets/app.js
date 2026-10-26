@@ -196,7 +196,7 @@
     }).join("");
     return `${tickerHtml(S)}<section class="slate" aria-label="Today's slate"><div class="sl-head"><div><span class="eyebrow">${ICON("trend", "ic")}Today's slate</span>
       <div class="sl-title">${esc(fmt(today, { weekday: "long", month: "long", day: "numeric" }))}</div><div class="sl-sub">Lines, props and form across ${META.order.length} leagues · times in ${TZL}</div></div></div>
-      <div class="sl-stats">${stats}</div>${chips ? `<nav class="sl-lgs" aria-label="Leagues playing today">${chips}</nav>` : ""}</section>`;
+      <div class="sl-stats">${stats}</div>${chips ? `<nav class="sl-lgs" aria-label="Leagues playing today">${chips}</nav>` : ""}</section>${window.LSAdv ? window.LSAdv.valueSpots(META) : ""}`;
   }
 
   // ---------- league view
@@ -262,7 +262,7 @@
           ${td(rec(t.awaySplit, kind))}${td(t.awaySplit ? `${fx(t.awaySplit.pf)} / ${fx(t.awaySplit.pa)}` : null)}
           ${td(t.streak)}<td data-v="${esc(b.form || "")}">${formDots(b.form) || NA}</td></tr>`;
       }).join("")}</tbody></table></div>
-      <div class="note">Computed from each team's completed games this season (ESPN team schedules${rows[0].t.seasonType ? ", " + esc(rows[0].t.seasonType) : ""}). Teams with no completed games show N/A. ATS records are not provided by ESPN's free feeds.</div>`;
+      <div class="note">Computed from each team's completed games this season (ESPN team schedules${rows[0].t.seasonType ? ", " + esc(rows[0].t.seasonType) : ""}). Teams with no completed games show N/A.${window.LSAdv && window.LSAdv.ADV_LGS.has(data.league.key) ? " ATS and over/under records are on each team page." : ""}</div>`;
   }
 
   function wireSort(tbl) {
@@ -320,7 +320,8 @@
     add("ATS record", atsA.length ? atsA.map(r => r.summary).join(" · ") : null, atsH.length ? atsH.map(r => r.summary).join(" · ") : null);
     if (det.predictor) add("ESPN win projection", isNum(det.predictor.away) ? det.predictor.away + "%" : null, isNum(det.predictor.home) ? det.predictor.home + "%" : null);
     html += `<div class="section-title">Head to head comparison</div><div class="card">${cmpTable(A, H, rows)}
-      <div class="note">Splits computed from completed ${esc(tH.seasonType || tA.seasonType || "season")} games via ESPN team schedules. ${atsA.length || atsH.length ? "" : "ATS: not available from ESPN's free feeds for this matchup."}</div></div>`;
+      <div class="note">Splits computed from completed ${esc(tH.seasonType || tA.seasonType || "season")} games via ESPN team schedules. ${atsA.length || atsH.length || (window.LSAdv && window.LSAdv.ADV_LGS.has(key)) ? "" : "ATS: not available from ESPN's free feeds for this matchup."}</div></div>`;
+    if (window.LSAdv) html += window.LSAdv.gameSlot(key, g);
 
     // ESPN season stats
     const sA = (det.teamStats || {})[A.id] || [], sH = (det.teamStats || {})[H.id] || [];
@@ -360,6 +361,8 @@
     window.scrollTo(0, 0);
     const km = document.getElementById("keyMu");
     if (km) { const tok = NAV; window.LSMatchup.keyMatchups(km, key, g, det, () => tok === NAV).catch(e => console.warn(e)); }
+    const av = document.getElementById("advGame");
+    if (av) { const tok = NAV; window.LSAdv.mountGame(av, key, g, () => tok === NAV).catch(e => console.warn(e)); }
     const pp = document.getElementById("ppBox");
     if (pp) { const tok = NAV; window.LSProps.mountGame(pp, key, g, () => tok === NAV).catch(e => { pp.innerHTML = notAvail("Player props", "Couldn't load player props right now."); console.warn(e); }); }
   }
@@ -512,20 +515,22 @@
     const B = Object.fromEntries(Object.entries(g.books || {}).filter(([, b]) => b && !b.stale));   // stale = game started since the pull
     const staleB = g.books || {};
     const markets = [];
+    const LV = window.LSAdv && kind !== "mma" ? window.LSAdv.booksExtra(B, kind) : null;   // implied %, fair line, edge, outliers (assets/adv.js)
     const sp = s => b => (isNum(b?.[s + "Spread"]) ? { disp: `${line(b[s + "Spread"])} <span class="na">${am(b[s + "SpreadOdds"]) ?? ""}</span>`, score: b[s + "Spread"] * 1000 + (b[s + "SpreadOdds"] ?? -110) } : null);
     const ml = s => b => (isNum(b?.[s + "ML"]) ? { disp: am(b[s + "ML"]), score: b[s + "ML"] } : null);
     const ov = b => (isNum(b?.total) ? { disp: `O ${b.total} <span class="na">${am(b.overOdds) ?? ""}</span>`, score: -b.total * 1000 + (b.overOdds ?? -110) } : null);
     const un = b => (isNum(b?.total) ? { disp: `U ${b.total} <span class="na">${am(b.underOdds) ?? ""}</span>`, score: b.total * 1000 + (b.underOdds ?? -110) } : null);
-    if (kind !== "soccer" && kind !== "mma") { markets.push([`${g.away.abbr} spread`, sp("away")], [`${g.home.abbr} spread`, sp("home")]); }
-    markets.push([`${g.away.abbr} ML`, ml("away")]);
-    if (kind === "soccer") markets.push(["Draw", ml("draw")]);
-    markets.push([`${g.home.abbr} ML`, ml("home")], ["Over", ov], ["Under", un]);
-    const rows = markets.map(([label, fn]) => {
+    if (kind !== "soccer" && kind !== "mma") { markets.push([`${g.away.abbr} spread`, sp("away"), "spread", "away"], [`${g.home.abbr} spread`, sp("home"), "spread", "home"]); }
+    markets.push([`${g.away.abbr} ML`, ml("away"), "ml", "away"]);
+    if (kind === "soccer") markets.push(["Draw", ml("draw"), "ml", "draw"]);
+    markets.push([`${g.home.abbr} ML`, ml("home"), "ml", "home"], ["Over", ov, "total", "over"], ["Under", un, "total", "under"]);
+    const lvOn = LV && LV.anyFair;
+    const rows = markets.map(([label, fn, mk, o]) => {
       const vals = books.map(bk => fn(B[bk.key]));
       // "best price" only among books legal in the visitor's state; out-of-state columns are reference data
       const have = vals.filter((v, i) => v && bookAvail(books[i].key));
       const best = have.length > 1 ? Math.max(...have.map(v => v.score)) : null;
-      return `<tr><td>${esc(label)}</td>${vals.map((v, i) => { const na = bookAvail(books[i].key) ? "" : " na-col"; return v ? `<td class="num${na} ${best !== null && v.score === best && !na ? "best" : ""}"><span class="px">${v.disp}</span></td>` : `<td class="${na.trim()}">${NA}</td>`; }).join("")}</tr>`;
+      return `<tr><td>${esc(label)}${lvOn ? LV.fairInline(mk, o) : ""}</td>${vals.map((v, i) => { const na = bookAvail(books[i].key) ? "" : " na-col"; return v ? `<td class="num${na} ${best !== null && v.score === best && !na ? "best" : ""}"><span class="px">${v.disp}</span>${lvOn ? LV.cell(mk, o, books[i].key) : ""}</td>` : `<td class="${na.trim()}">${NA}</td>`; }).join("")}${lvOn ? LV.fairCell(mk, o) : ""}</tr>`;
     }).join("");
     const sub = bk => {
       const b = B[bk.key], sb = staleB[bk.key];
@@ -549,8 +554,8 @@
                             : "Hard Rock Bet, FanDuel and DraftKings via The Odds API; no pull yet.") + pace;
     const dkNote = dkPaid ? "DraftKings' opening line (line movement) comes from ESPN. "
                  : B.draftkings ? "DraftKings here is ESPN's copy (The Odds API had no DraftKings line for this game at the last pull). " : "";
-    return `<div class="card"><h3>Odds comparison</h3><div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}${hrNote} ${dkNote}${outNote}</div>${affLine()}</div>`;
+    return `<div class="card"><h3>Odds comparison</h3><div class="tbl-wrap"><table class="books${lvOn ? " lv-on" : ""}"><thead><tr><th>Market</th>${head}${lvOn ? `<th class="lv-fair">Fair line<span class="src">no-vig consensus</span></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}${hrNote} ${dkNote}${outNote}</div>${lvOn ? LV.note : ""}${affLine()}</div>`;
   }
 
   function lastFive(t, det, ts) {
@@ -805,6 +810,7 @@
     else html += notAvail("No upcoming games", "Nothing on ESPN's schedule for this team right now (off-season or break).");
     // stats
     const ts = teamStats(st, kind, games);
+    if (window.LSAdv) html += window.LSAdv.teamSlot(lg);
     html += `<div class="section-title">Season stats${ts && ts.label ? ` <span class="st-sub">${esc(ts.label)}</span>` : ""}</div>` + (ts ? `<div class="statgrid">${ts.html}</div>` : notAvail("Season stats", "ESPN has no team stats for this season yet."));
     // results / schedule
     const recentHtml = done.length ? `<div class="grows">${done.slice(0, 6).map(g => gameRow(g, lg, idxIds.has(g.id), false)).join("")}</div>` : `<div class="na">No completed games this season yet.</div>`;
@@ -829,6 +835,8 @@
       html += notAvail("Roster", "ESPN didn't return a roster for this team.");
     }
     app.innerHTML = html;
+    const av = document.getElementById("advTeam");
+    if (av) window.LSAdv.mountTeam(av, lg, id, () => tok === NAV).catch(e => console.warn(e));
   }
 
   // ---------- player page
@@ -889,6 +897,7 @@
     let html = `${backLink()}<div class="phero" style="--tc:${hexOk(color) ? "#" + color : "#334155"}">${avatar(img, name, color, "xl")}<div class="ph-t"><h1>${esc(name)} ${status}</h1><div class="chips">${chips}</div></div></div>`;
     const MU = window.LSMatchup, muOn = !!(MU && MU.SUPPORTED.has(lg));
     if (muOn) html += `<div class="section-title" id="matchup">Matchup <span class="st-sub">next opponent</span></div><div class="mu" id="muBox"></div>`;
+    if (window.LSAdv) html += window.LSAdv.playerSlot(lg);
     if (window.LSProps && window.LSProps.SUPPORTED.has(lg)) html += `<div id="ppPlayer"></div>`;
     html += `<div class="section-title">Bio</div>` + (bioRows.length ? `<div class="card"><dl class="bio">${bioRows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl></div>` : notAvail("Bio", a ? "ESPN lists no bio details for this player." : "Bio not available from ESPN right now."));
     // season stats (overview splits) with headline boxes from the first split
@@ -905,6 +914,8 @@
     app.innerHTML = html;
     const ppEl = document.getElementById("ppPlayer");
     if (ppEl) window.LSProps.mountPlayer(ppEl, lg, String(id), () => tok === NAV).catch(e => console.warn(e));
+    const avP = document.getElementById("advPlayer");
+    if (avP) window.LSAdv.mountPlayer(avP, lg, String(id), () => tok === NAV).catch(e => console.warn(e));
     if (muOn) {
       const box = document.getElementById("muBox");
       if (wantMatchup) document.getElementById("matchup")?.scrollIntoView();

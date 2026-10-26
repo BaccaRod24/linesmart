@@ -16,7 +16,7 @@ Usage:
 
 Only uses the Python standard library.
 """
-import argparse, concurrent.futures as cf, datetime as dt, gzip, json, os, re, sys, time
+import argparse, concurrent.futures as cf, datetime as dt, gzip, json, os, re, sys, time, unicodedata
 import urllib.parse, urllib.request, urllib.error
 from zoneinfo import ZoneInfo
 
@@ -289,23 +289,54 @@ def odds_credits(key):
     _, hdr = get(f"{ODDS_API}/v4/sports/?apiKey={urllib.parse.quote(key)}")
     return _hdr(hdr, "x-requests-remaining"), _hdr(hdr, "x-requests-used")
 
-def match_event(ev, games):
-    h, a = norm_name(ev.get("home_team")), norm_name(ev.get("away_team"))
+# Odds API name -> ESPN name, for names token overlap can't bridge (normalized with team_tokens' folding)
+TEAM_ALIASES = {"sporting lisbon": "sporting cp", "los angeles fc": "lafc", "new york red bulls": "red bull new york",
+                "appalachian state mountaineers": "app state mountaineers", "inter milan": "internazionale"}
+_GENERIC = {"fc", "cf", "sc", "afc", "cd", "ac", "the", "de", "and", "club"}
+
+def _fold(s):
+    s = unicodedata.normalize("NFKD", (s or "").replace("ø", "o").replace("Ø", "O").replace("&", " and "))
+    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
+    return re.sub(r"[^a-z0-9]+", " ", s).strip()
+
+def team_tokens(name):
+    f = _fold(name); f = TEAM_ALIASES.get(f, f)
+    return {("st" if t in ("state", "saint") else t.rstrip("s") if len(t) > 3 else t) for t in f.split()} - _GENERIC
+
+def team_sim(a, b):
+    """1.0 for same/contained compact names; else token overlap / smaller token set."""
+    fa, fb = _fold(a).replace(" ", ""), _fold(b).replace(" ", "")
+    if fa and fb and (fa == fb or fa in fb or fb in fa): return 1.0
+    ta, tb = team_tokens(a), team_tokens(b)
+    if not ta or not tb: return 0.0
+    if ta == tb: return 1.0
+    return len(ta & tb) / min(len(ta), len(tb))
+
+def match_event(ev, games, min_sim=0.6):
+    """Best ESPN game for an Odds API event: both teams must match (either orientation: neutral sites
+    sometimes list home/away the other way round), kickoff within 6h. Returns (game, swapped) or (None, False)."""
     t0 = dt.datetime.fromisoformat(ev["commence_time"].replace("Z", "+00:00"))
+    best, best_sc, swapped = None, 0.0, False
     for g in games:
         gt = dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00"))
-        if abs((gt - t0).total_seconds()) > 6 * 3600: continue
-        gh, ga = norm_name(g["home"]["name"]), norm_name(g["away"]["name"])
-        if (h == gh or h in gh or gh in h) and (a == ga or a in ga or ga in a): return g
-    return None
+        dtsec = abs((gt - t0).total_seconds())
+        if dtsec > 6 * 3600: continue
+        gh, ga = g["home"]["name"], g["away"]["name"]
+        for sw, (x, y) in ((False, (gh, ga)), (True, (ga, gh))):
+            sh, sa = team_sim(ev.get("home_team"), x), team_sim(ev.get("away_team"), y)
+            if min(sh, sa) < min_sim: continue
+            sc = sh + sa - dtsec / 86400 - (0.01 if sw else 0)
+            if sc > best_sc: best, best_sc, swapped = g, sc, sw
+    return best, swapped
 
-def odds_book_record(ev, bk):
+def odds_book_record(ev, bk, swapped=False):
     h, a = norm_name(ev.get("home_team")), norm_name(ev.get("away_team"))
+    hk, ak = ("away", "home") if swapped else ("home", "away")   # map the event's sides onto ESPN's home/away
     r = dict(updated=bk.get("last_update"))
     for mk in bk.get("markets", []):
         for oc in mk.get("outcomes", []):
             nm = norm_name(oc.get("name"))
-            side = "home" if nm == h else ("away" if nm == a else ("draw" if nm == "draw" else None))
+            side = hk if nm == h else (ak if nm == a else ("draw" if nm == "draw" else None))
             if mk.get("key") == "h2h" and side: r[f"{side}ML"] = american(oc.get("price"))
             elif mk.get("key") == "spreads" and side in ("home", "away"):
                 r[f"{side}Spread"] = oc.get("point"); r[f"{side}SpreadOdds"] = american(oc.get("price"))
@@ -332,9 +363,9 @@ def odds_pull_league(lg, games, pull, t):
     for ev in data or []:
         bk = next((b for b in ev.get("bookmakers", []) if b.get("key") == ODDS_BOOK), None)
         if not bk: continue
-        g = match_event(ev, games)
-        if not g: unmatched += 1; continue
-        out[g["id"]] = dict(date=g["date"], home=g["home"]["abbr"], away=g["away"]["abbr"], line=odds_book_record(ev, bk))
+        g, sw = match_event(ev, games)
+        if not g: unmatched += 1; log(f"[{lg['key']}] odds: no ESPN match for {ev.get('away_team')} @ {ev.get('home_team')} {ev.get('commence_time')}"); continue
+        out[g["id"]] = dict(date=g["date"], home=g["home"]["abbr"], away=g["away"]["abbr"], line=odds_book_record(ev, bk, sw))
     pull["pulled"].append(lg["key"])
     entry = dict(pulledAt=t, events=len(data or []), matched=len(out), unmatched=unmatched, cost=last, remainingAfter=pull["remaining"], games=out)
     return entry, f"pulled {len(data or [])} events, {len(out)} matched, cost {last}, credits remaining {pull['remaining']}"

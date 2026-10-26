@@ -2,6 +2,7 @@
 // Usage: mkdir -p /tmp/ghp && ln -sfn "$PWD/site" /tmp/ghp/linesmart && python3 -m http.server 8799 -d /tmp/ghp &
 //        BASE=http://localhost:8799/linesmart/ node scripts/subpath_test.mjs
 //        Root path (like https://linesmart.app/): python3 -m http.server 8798 -d site & then BASE=http://localhost:8798/ node scripts/subpath_test.mjs
+//        CHECK_LINKS=1 also fetches every external link on the Responsible Gambling page (expects HTTP 200).
 //        Search/team/player checks need a data dir with search/ built: DATA_DIR=/path/to/data (e.g. DATA_OUT=... build_data.py --search-only)
 import { chromium } from "playwright";
 import fs from "fs";
@@ -19,6 +20,63 @@ page.on("console", m => m.type() === "error" && errors.push(m.text()));
 page.on("response", r => { const u = r.url(); if (u.startsWith(new URL(BASE).origin)) { if (r.status() >= 400) bad.push(`${r.status()} ${u}`); else ok.add(new URL(u).pathname); } });
 page.on("response", r => { if (!r.url().startsWith(new URL(BASE).origin) && r.status() >= 400) console.log(`  (external ${r.status()} ${r.url()})`); });
 page.on("requestfailed", r => { if (r.url().startsWith(new URL(BASE).origin)) bad.push(`FAILED ${r.url()}`); });
+const pwaFail = [];
+const check = (ok, msg, tag = "pwa") => { console.log(`${ok ? "PASS" : "FAIL"} ${tag}: ${msg}`); if (!ok) pwaFail.push(`${tag}: ${msg}`); };
+const LEGAL = [["responsible-gambling.html", "Responsible Gambling"], ["privacy.html", "Privacy Policy"], ["terms.html", "Terms of Use"], ["affiliate-disclosure.html", "Affiliate Disclosure"]];
+const CONTACT = "Copenhaverrodney24@yahoo.com";
+// compliance footer: same block on every view (SPA routes and legal pages)
+let footerRef = null;
+const footerOk = async where => {
+  const f = await page.$eval("#siteFooter", el => {
+    const r = el.getBoundingClientRect();
+    return { text: el.innerText.replace(/\s+/g, " "), html: el.outerHTML, shown: r.height > 0 && getComputedStyle(el).display !== "none",
+      hrefs: [...el.querySelectorAll("a")].map(a => a.getAttribute("href")) };
+  }).catch(() => null);
+  if (!f) return check(false, `${where}: #siteFooter missing`, "footer");
+  const need = ["tel:18004262537", "https://www.1800gambler.net", "tel:18337529947", "https://playwise.org/", "tel:18882364848", "https://gamblinghelp.org/", ...LEGAL.map(l => l[0])];
+  const miss = need.filter(h => !f.hrefs.includes(h));
+  const words = ["21+ only. Gambling problem? Call or text 1-800-GAMBLER", "is an informational site and does not accept wagers. Odds are for reference and may change; confirm with the sportsbook.", "1-888-ADMIT-IT", "Florida Council on Compulsive Gambling"];
+  const missW = words.filter(w => !f.text.includes(w));
+  footerRef ??= f.html;
+  check(f.shown && !miss.length && !missW.length && f.html === footerRef, `${where}: footer ok${miss.length ? " missing links " + miss : ""}${missW.length ? " missing text " + JSON.stringify(missW) : ""}${f.html !== footerRef ? " (differs from first view)" : ""}`, "footer");
+};
+
+// ---------- 21+ notice: shown once on first visit, accessible, dismissible, remembered; not a gate
+await page.goto(BASE, { waitUntil: "networkidle" });
+await page.waitForSelector("#ageNotice [role=dialog]", { timeout: 10000 }).catch(() => {});
+const dlg = await page.evaluate(() => {
+  const d = document.querySelector("#ageNotice [role=dialog]"); if (!d) return null;
+  const lab = document.getElementById(d.getAttribute("aria-labelledby") || "");
+  return { modal: d.getAttribute("aria-modal"), label: lab && lab.textContent, desc: !!document.getElementById(d.getAttribute("aria-describedby") || ""),
+    focus: document.activeElement && document.activeElement.id, appInert: document.getElementById("app").closest("[inert]") !== null,
+    appInDom: document.querySelectorAll("#app .game, #app .empty").length, tels: [...d.querySelectorAll('a[href^="tel:"]')].map(a => a.getAttribute("href")) };
+});
+check(!!dlg, "age notice shown on first visit", "age");
+if (dlg) {
+  check(dlg.modal === "true" && /21/.test(dlg.label || "") && dlg.desc, `dialog semantics: aria-modal=${dlg.modal} label="${dlg.label}"`, "age");
+  check(dlg.focus === "ageOk" && dlg.appInert, `focus on confirm button (${dlg.focus}), background inert=${dlg.appInert}`, "age");
+  check(dlg.appInDom > 0, `page content still rendered behind notice (${dlg.appInDom} items) — not a hard gate`, "age");
+  check(dlg.tels.includes("tel:18004262537"), "notice links 1-800-GAMBLER", "age");
+  await page.keyboard.press("Tab"); await page.keyboard.press("Tab"); await page.keyboard.press("Tab");
+  check(await page.evaluate(() => !!document.activeElement.closest("#ageNotice")), "Tab keeps focus inside the notice", "age");
+  await page.click("#ageOk");
+}
+const aged = await page.evaluate(() => ({ gone: !document.getElementById("ageNotice"), stored: localStorage.getItem("ls-age-ok"), inert: document.querySelectorAll("[inert]").length }));
+check(aged.gone && !!aged.stored && aged.inert === 0, `dismissed: removed=${aged.gone} ls-age-ok=${aged.stored ? "set" : "missing"} inert left=${aged.inert}`, "age");
+await page.reload({ waitUntil: "networkidle" }); await page.waitForTimeout(400);
+check(!(await page.$("#ageNotice")), "not shown again after reload", "age");
+{ // Esc dismisses too (fresh profile, landing directly on a legal page)
+  const ctx2 = await browser.newContext(); const p2 = await ctx2.newPage();
+  p2.on("pageerror", e => errors.push(e.message)); p2.on("console", m => m.type() === "error" && errors.push(m.text()));
+  await p2.goto(BASE + "privacy.html", { waitUntil: "networkidle" });
+  const shown = !!(await p2.waitForSelector("#ageNotice", { timeout: 5000 }).catch(() => null));
+  const crawl = await p2.evaluate(() => document.querySelector("main h1").textContent);
+  await p2.keyboard.press("Escape");
+  const after = await p2.evaluate(() => ({ gone: !document.getElementById("ageNotice"), stored: !!localStorage.getItem("ls-age-ok") }));
+  check(shown && after.gone && after.stored && crawl === "Privacy Policy", `legal page: notice shown, Esc dismisses + remembers, content in DOM ("${crawl}")`, "age");
+  await ctx2.close();
+}
+
 for (const r of routes) {
   await page.goto(BASE + r, { waitUntil: "networkidle" });
   if (r) await page.evaluate(() => window.dispatchEvent(new HashChangeEvent("hashchange")));
@@ -26,11 +84,11 @@ for (const r of routes) {
   const n = await page.$$eval(".game", els => els.length);
   const loading = await page.$(".loading");
   console.log(`route ${r || "(root)"}: .game=${n} loadingStuck=${!!loading}`);
+  await footerOk(`route ${r || "(root)"}`);
+  if (r.startsWith("#/g/")) check(!(await page.$(".aff-disc:not([hidden])")) && (await page.$$(".books")).length > 0, "game page: affiliate disclosure hidden (affiliate.enabled=false)", "affiliate");
 }
 
 // ---------- search + team + player pages (ESPN client-side; needs DATA_DIR with search/ built by build_data.py)
-const pwaFail = [];
-const check = (ok, msg, tag = "pwa") => { console.log(`${ok ? "PASS" : "FAIL"} ${tag}: ${msg}`); if (!ok) pwaFail.push(`${tag}: ${msg}`); };
 const sx = lg => { try { return JSON.parse(fs.readFileSync(`${DATA}/search/${lg}.json`)); } catch { return null; } };
 const txt = sel => page.$eval(sel, e => e.textContent.trim()).catch(() => "");
 const waitView = () => page.waitForSelector(".phero, .empty", { timeout: 20000 }).then(() => page.waitForLoadState("networkidle")).catch(() => {});
@@ -40,6 +98,7 @@ await page.waitForSelector("#q", { timeout: 15000 });
 await page.fill("#q", "Eagles");
 await page.waitForSelector(".sr", { timeout: 15000 }).catch(() => {});
 const first = await txt(".sr .sr-t b");
+await footerOk("search view");
 check(/Eagles/.test(first), `type-ahead "Eagles" -> first result "${first}" (${(await page.$$(".sr")).length} results)`, "search");
 check(decodeURIComponent(await page.evaluate(() => location.hash)) === "#/search/Eagles", "query kept in hash", "search");
 await page.reload({ waitUntil: "networkidle" });
@@ -71,12 +130,14 @@ for (const lg of ["nfl", "nba", "epl"]) {
   // team page
   await page.goto(BASE + `#/t/${lg}/${t[0]}`, { waitUntil: "domcontentloaded" }); await waitView();
   const tn = await txt(".phero h1"), nRost = (await page.$$(".roster .pl")).length, nStat = (await page.$$(".stat")).length;
+  if (lg === "nfl") await footerOk("team view");
   check(tn.includes(t[1]) && nRost > 0, `team ${t[1]}: h1="${tn}" roster=${nRost} stats=${nStat} games=${(await page.$$(".grow")).length}`, lg);
   // roster -> player page
   await page.click(`.roster a[href="#/p/${lg}/${pl[0]}"]`).catch(() => page.goto(BASE + `#/p/${lg}/${pl[0]}`));
   await page.waitForFunction(n => (document.querySelector(".phero h1") || {}).textContent?.includes(n), pl[1], { timeout: 20000 }).catch(() => {});
   await page.waitForLoadState("networkidle").catch(() => {});
   const pn = await txt(".phero h1");
+  if (lg === "nfl") { await footerOk("team→player view"); }
   check(pn.includes(pl[1]), `player ${pl[1]}: h1="${pn}" stats=${(await page.$$(".stat")).length} gamelog=${(await page.$$(".glog tbody tr")).length} na=${(await page.$$(".na-card")).length}`, lg);
   // deep link reload of the player page
   await page.reload({ waitUntil: "domcontentloaded" }); await waitView();
@@ -114,6 +175,41 @@ for (const lg of ["nfl", "nba"]) {
   }
   check(!/\b(lock|bet now|guaranteed|best bet)\b/i.test(await txt("#muBox")), "no betting-encouragement wording", `mu-${lg}`);
 }
+// ---------- legal pages (static HTML, subpath-relative, same footer)
+for (const [file, title] of LEGAL) {
+  const res = await page.goto(BASE + file, { waitUntil: "networkidle" });
+  const info = await page.evaluate(() => ({ h1: document.querySelector("main h1")?.textContent, note: document.querySelector(".legal-note")?.textContent || "",
+    text: document.querySelector("main").innerText, hrefs: [...document.querySelectorAll("main a")].map(a => a.href), robots: document.querySelector('meta[name="robots"]')?.content || "" }));
+  check(res.status() === 200 && info.h1 === title && !/noindex/.test(info.robots), `${file}: HTTP ${res.status()} h1="${info.h1}" indexable`, "legal");
+  if (file !== "responsible-gambling.html") check(info.note === "This is a general template, not legal advice.", `${file}: template note`, "legal");
+  if (file === "privacy.html") check(info.text.includes(CONTACT) && info.text.includes("Effective date: October 26, 2026") && ["ls-recent", "ls-age-ok", "site.web.api.espn.com", "a.espncdn.com", "GitHub Pages"].every(w => info.text.includes(w)), "privacy: contact, date, storage keys, ESPN hosts, GitHub", "legal");
+  if (file === "terms.html") check(/Florida/.test(info.text) && /does not accept wagers/.test(info.text) && /21 or older/.test(info.text) && /Limitation of liability/i.test(info.text), "terms: Florida law, no wagers, 21+, liability", "legal");
+  if (file === "affiliate-disclosure.html") check(/no affiliate relationships/.test(info.text) && /at no extra cost to you/.test(info.text) && /won't change the odds shown/.test(info.text), "affiliate page: none now; commission/no cost/odds unchanged", "legal");
+  if (file === "responsible-gambling.html") {
+    const need = ["https://rg.hardrock.bet/", "https://www.1800gambler.net/", "https://www.ncpgambling.org/", "https://gamblersanonymous.org/", "https://playwise.org/", "https://gamblinghelp.org/"];
+    const miss = need.filter(h => !info.hrefs.includes(h));
+    check(!miss.length && /Self-exclusion/.test(info.text) && /Setting limits/.test(info.text), `responsible gambling: resources + limits + self-exclusion${miss.length ? " missing " + miss : ""}`, "legal");
+    if (process.env.CHECK_LINKS) for (const h of [...new Set(info.hrefs.filter(h => /^https:/.test(h) && !h.startsWith(BASE)))]) {
+      const r = await page.request.get(h, { timeout: 25000, headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36", accept: "text/html" } }).catch(e => ({ status: () => e.message }));
+      check(r.status() === 200, `external ${h} -> ${r.status()}`, "links");
+    }
+  }
+  await footerOk(file);
+  check(await page.$eval("[data-aff-disclosure]", e => e.hidden), `${file}: affiliate slot hidden`, "affiliate");
+}
+// the disclosure component appears only when config.js turns it on
+const affOn = await page.evaluate(() => {
+  const C = window.SITE_CONFIG.affiliate, was = C.enabled, off = window.LineSmart.affDisclosure();
+  C.enabled = true; window.LineSmart.applyAffSlots();
+  const el = document.querySelector("[data-aff-disclosure]"), on = window.LineSmart.affDisclosure();
+  const r = { off, slotShown: !el.hidden && el.textContent.includes("commission"), on: /commission/.test(on) && /affiliate-disclosure\.html/.test(on) };
+  C.enabled = was; window.LineSmart.applyAffSlots(); r.backHidden = el.hidden; return r;
+});
+check(affOn.off === "" && affOn.slotShown && affOn.on && affOn.backHidden, `config flag drives disclosure (off="" → on shows line → off hides)`, "affiliate");
+await page.click('.legal-links a[href="terms.html"]'); await page.waitForLoadState("networkidle");
+check(await page.evaluate(() => document.querySelector("main h1").textContent) === "Terms of Use", "footer link navigates between legal pages", "legal");
+await page.click('a.back'); await page.waitForSelector(".game, .empty", { timeout: 15000 });
+check(new URL(page.url()).pathname === new URL(BASE).pathname, "legal page back link returns to the app under the subpath", "legal");
 
 // ---------- PWA checks
 await page.goto(BASE, { waitUntil: "networkidle" });
@@ -160,6 +256,13 @@ if (ofTeam) {
   await page.reload({ waitUntil: "load" }); await waitView();
   check((await txt(".phero h1")).includes(ofTeam[1]) && (await page.$$(".roster .pl")).length > 0, `offline team page from SW cache (${ofTeam[1]})`);
 }
+await page.goto(BASE + "responsible-gambling.html", { waitUntil: "load" }).catch(() => {});
+check((await txt("main h1")) === "Responsible Gambling" && !!(await page.$("#siteFooter")), "offline: responsible-gambling.html from SW cache", "legal");
+await page.goto(BASE + "privacy.html", { waitUntil: "load" }).catch(() => {});
+check((await txt("main h1")) === "Privacy Policy", "offline: privacy.html from SW cache", "legal");
+await page.goto(BASE + "#/l/nfl", { waitUntil: "load" }).catch(() => {});
+await page.waitForSelector(".game, .empty", { timeout: 15000 }).catch(() => {});
+check((await page.$$(".game, .empty")).length > 0 && !(await page.$("main .legal")), "offline: app shell not overwritten by a legal page", "legal");
 // My Bets: on-device tracker (still offline here, so this also proves the route works from the SW cache)
 const shellUrls = await page.evaluate(async () => { for (const n of await caches.keys()) if (n.startsWith("linesmart-shell-")) return (await (await caches.open(n)).keys()).map(r => r.url); return []; });
 check(["assets/bets.js", "assets/bets-core.js"].every(f => shellUrls.includes(BASE + f)), "SW shell cache includes bets.js + bets-core.js", "bets");

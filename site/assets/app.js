@@ -448,7 +448,7 @@
     const hrNote = HR.asOf ? `Hard Rock Bet via The Odds API, pulled every other day (free plan); last pull ${esc(fullET(HR.asOf))}. Pre-game lines only: they're hidden once a game starts.`
                            : "Hard Rock Bet via The Odds API, pulled every other day (free plan); no pull yet.";
     return `<div class="card"><h3>Odds comparison</h3><div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}DraftKings via ESPN (refreshed about every 30 min, when ESPN's listed book is DraftKings). ${hrNote} FanDuel: not tracked (free plan).</div></div>`;
+      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}DraftKings via ESPN (refreshed about every 30 min, when ESPN's listed book is DraftKings). ${hrNote} FanDuel: not tracked (free plan).</div>${affLine()}</div>`;
   }
 
   function lastFive(t, det, ts) {
@@ -481,6 +481,8 @@
   };
   const PRO = new Set(["nfl", "nba", "nhl", "mlb", "epl", "mls", "ucl"]);
   const lgName = lg => (META.leagues[lg] || {}).name || lg.toUpperCase();
+  // affiliate disclosure line next to sportsbook prices; renders nothing until SITE_CONFIG.affiliate.enabled (site.js)
+  const affLine = () => (window.LineSmart && window.LineSmart.affDisclosure ? window.LineSmart.affDisclosure() : "");
   let NAV = 0; // bumps on every route; async views bail out if the user has moved on
   const espnCache = {};
   async function espn(path, ms = 12000) {
@@ -840,9 +842,7 @@
     el.hidden = false;
   }
   window.addEventListener("online", () => { const el = document.getElementById("offlineNote"); if (el && !el.hidden) location.reload(); });
-  if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(e => console.warn("SW registration failed", e)));
-  }
+  // service worker registration lives in assets/site.js (shared with the legal pages)
   const installBtn = document.getElementById("installBtn");
   const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
   let deferredPrompt = null;

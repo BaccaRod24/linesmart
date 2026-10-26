@@ -15,7 +15,8 @@ const ESPN_MAX = 150;
 const ESPN_HOST = "site.web.api.espn.com";
 const SHELL_FILES = [
   "./", "index.html", "manifest.webmanifest", "favicon.ico",
-  "assets/styles.css", "assets/theme.js", "assets/config.js", "assets/app.js", "assets/bets-core.js", "assets/bets.js", "assets/matchup-core.js", "assets/matchup.js", "assets/fonts/inter-latin-var.woff2",
+  "responsible-gambling.html", "privacy.html", "terms.html", "affiliate-disclosure.html",
+  "assets/styles.css", "assets/theme.js", "assets/config.js", "assets/site.js", "assets/app.js", "assets/bets-core.js", "assets/bets.js", "assets/matchup-core.js", "assets/matchup.js", "assets/fonts/inter-latin-var.woff2",
   "assets/brand/logo.svg", "assets/brand/icon.svg", "assets/brand/apple-touch-icon.png",
   "assets/brand/favicon-32.png", "assets/brand/favicon-16.png",
   "assets/brand/icon-192.png", "assets/brand/icon-512.png", "assets/brand/icon-maskable-512.png",
@@ -51,13 +52,18 @@ async function networkFirstData(req, name = DATA, max = DATA_MAX) {
     return new Response(await hit.blob(), { status: hit.status, statusText: hit.statusText, headers: h });
   }
 }
+// Navigations: network-first. Each shell page is cached under its own path (the app under index.html), so the
+// legal pages work offline too and never overwrite the cached app. Unknown paths fall back to the app.
+const PAGE_FILES = SHELL_FILES.filter(f => f.endsWith(".html"));
 async function networkFirstPage(req) {
+  const p = rel(new URL(req.url)) || "index.html";
+  const key = PAGE_FILES.includes(p) ? p : null;
   try {
     const res = await fetch(req);
-    if (res.ok) (await caches.open(SHELL)).put("index.html", res.clone());
+    if (res.ok && key) (await caches.open(SHELL)).put(key, res.clone());
     return res;
   } catch (err) {
-    return (await caches.match("index.html", { cacheName: SHELL })) || Response.error();
+    return (key && (await caches.match(key, { cacheName: SHELL }))) || (await caches.match("index.html", { cacheName: SHELL })) || Response.error();
   }
 }
 async function cacheFirst(req) {

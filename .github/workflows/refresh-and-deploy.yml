@@ -151,7 +151,7 @@ jobs:
         # New VERSION on every deploy -> browsers install the new worker and drop the old shell cache.
         # Format: <shell content hash>-<UTC build time>. Data JSON is network-first, so the 30-min refresh is unaffected.
         run: |
-          H=$(cat site/index.html site/manifest.webmanifest site/assets/*.css site/assets/*.js | sha256sum | cut -c1-10)
+          H=$(cat site/*.html site/manifest.webmanifest site/assets/*.css site/assets/*.js | sha256sum | cut -c1-10)
           V="$H-$(date -u +%Y%m%d%H%M%S)"
           sed -i "s/^const VERSION = \".*\";/const VERSION = \"$V\";/" site/sw.js
           grep -q "const VERSION = \"$V\";" site/sw.js && echo "sw.js VERSION=$V"

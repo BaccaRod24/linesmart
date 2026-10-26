@@ -118,6 +118,14 @@ Screenshots + comparison sheets (serve the site under `/linesmart/` first):
 - Tests: `node scripts/bets_test.mjs`; the subpath test also covers the route, the SW cache and adding a bet.
 - Screenshots use example data from `scripts/fixtures/demo-bets.json` (never shipped in `site/`): `BASE=... OUT=screenshots node scripts/screenshots_bets.mjs`.
 
+## Compliance pages (footer, 21+ notice, legal pages)
+
+- `scripts/build_pages.py` generates `site/responsible-gambling.html`, `privacy.html`, `terms.html`, `affiliate-disclosure.html` and the shared footer inside `site/index.html` (between the `footer:start`/`footer:end` markers). Edit the script, not the HTML, then run `python3 scripts/build_pages.py` (`--check` exits 1 if the files are out of date).
+- The contact email and effective date live at the top of the script (`CONTACT`, `EFFECTIVE`).
+- The one-time 21+ notice and the affiliate disclosure line are in `site/assets/site.js`. The notice is remembered in localStorage (`ls-age-ok`). It is not a hard gate, and the page HTML stays crawlable.
+- Affiliate disclosure: set `affiliate.enabled: true` in `site/assets/config.js` when the first affiliate link goes live. The disclosure line then appears in the footer and under the sportsbook card on game pages.
+- These pages are templates, not legal advice. Have them reviewed before applying to affiliate programs.
+
 ## Limitations
 - ESPN reports one book per game. Hard Rock Bet is refreshed only every other day (free plan). FanDuel is not tracked.
 - Lines appear only once the book posts them. NBA, NHL and NCAAB lines usually show up a day or so before the game.

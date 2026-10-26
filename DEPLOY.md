@@ -89,7 +89,7 @@ Failed builds don't write history. The history steps are `continue-on-error`, so
 gh api "repos/BaccaRod24/linesmart/contents/history?ref=data-history" --jq '.[] | "\(.name) \(.size)"'
 git fetch origin data-history && git log --oneline -5 origin/data-history
 ```
-Hard Rock Bet and FanDuel history get one point per pull (about every 30 min), timestamped at the pull time.
+Hard Rock Bet, FanDuel and DraftKings (Odds API) history get one point per pull (about every 30 min), timestamped at the pull time.
 
 ## Day-to-day
 

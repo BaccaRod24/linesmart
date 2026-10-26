@@ -1,5 +1,5 @@
 """Dev tool: run the real build (scripts/build_data.py main) with a FAKE Odds API, to preview the paid-plan site
-(Hard Rock + FanDuel game lines and player props) without a key and without spending credits.
+(Hard Rock + FanDuel + DraftKings game lines and player props) without a key and without spending credits.
 
 Every request to api.the-odds-api.com is answered locally from the ESPN games/props in a data mirror
 (FIXTURE_MIRROR, default /tmp/ghroot/data): Hard Rock and FanDuel lines are DraftKings' nudged a little.
@@ -45,7 +45,7 @@ def ev_of(g, t):
 def nudge_price(p, d):
     if p is None: return None
     q = p + d
-    if -100 < q < 100: q = q + 200 if d > 0 else q - 200
+    if -100 < q < 100: q = q + 200 if d > 0 or (d == 0 and q < 0) else q - 200
     return q
 
 def game_book(g, bk):
@@ -83,6 +83,7 @@ def props_event(lg, gid, books, markets):
             if not name: continue
             j = h(gid, pid, mk, bk)
             if bk == "fanduel" and j % 5 == 0: continue        # FanDuel doesn't post every prop
+            if bk == "draftkings" and j % 4 == 0: continue     # nor does DraftKings on the Odds API (site falls back to ESPN's line)
             if mk == "anytime_td":
                 yes = 100 + j % 250
                 oc = [dict(name="Yes", description=name, price=yes), dict(name="No", description=name, price=-(yes + 40))]

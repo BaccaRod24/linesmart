@@ -43,7 +43,7 @@ FOOTER = f"""<footer class="footer" id="siteFooter">
     <p><strong data-brand>LineSmart</strong> is an informational site and does not accept wagers. Odds are for reference and may change; confirm with the sportsbook.</p>
     <p class="aff-disc" data-aff-disclosure hidden></p>
     <nav class="legal-links" aria-label="Legal">{" ".join(f'<a href="{f}">{n}</a>' for f, n in PAGES)}</nav>
-    <p class="src">Data: ESPN public endpoints (DraftKings lines via ESPN); Hard Rock Bet and FanDuel lines and props via The Odds API; weather by Open-Meteo. Independent: not owned by or affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
+    <p class="src">Data: ESPN public endpoints (schedules, stats, DraftKings opening lines and fallback lines); Hard Rock Bet, FanDuel and DraftKings lines and props via The Odds API; weather by Open-Meteo. Independent: not owned by or affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
   </div>
 </footer>"""
 
@@ -303,7 +303,7 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
   <h2>Where the data comes from</h2>
   <ul>
     <li><b>ESPN</b> public endpoints: schedules, scores, team and player stats, injuries, and <b>DraftKings</b> odds and player props as published by ESPN.</li>
-    <li><b>Hard Rock Bet</b> and <b>FanDuel</b> odds and player props via {ext("https://the-odds-api.com/", "The Odds API")}.</li>
+    <li><b>Hard Rock Bet</b>, <b>FanDuel</b> and <b>DraftKings</b> odds and player props via {ext("https://the-odds-api.com/", "The Odds API")}.</li>
     <li><b>Weather</b> by {ext("https://open-meteo.com/", "Open-Meteo")}.</li>
   </ul>
   <p>Data can be delayed or wrong. Always confirm odds with the sportsbook before you bet.</p>

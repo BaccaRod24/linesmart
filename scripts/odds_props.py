@@ -1,7 +1,7 @@
-"""Hard Rock Bet + FanDuel player props from The Odds API (paid plan) - NFL and NBA only.
+"""Hard Rock Bet + FanDuel + DraftKings player props from The Odds API (paid plan) - NFL and NBA only.
 
-Per-event endpoint: GET /v4/sports/{sport}/events/{eventId}/odds?bookmakers=hardrockbet,fanduel&markets=...
-Cost (v4 docs): unique markets RETURNED x regions; bookmakers= with up to 10 books = 1 region, so FanDuel is free on
+Per-event endpoint: GET /v4/sports/{sport}/events/{eventId}/odds?bookmakers=hardrockbet,fanduel,draftkings&markets=...
+Cost (v4 docs): unique markets RETURNED x regions; bookmakers= with up to 10 books = 1 region, so FanDuel and DraftKings are free on
 top of Hard Rock; an event with no props posted costs 0. We keep a short list of popular markets per league and only
 pull events starting within WINDOW_H hours, at most every PROPS_INTERVAL minutes (budget guard: scripts/odds_budget.py).
 
@@ -14,7 +14,7 @@ Cache entry per league (same shape as hardrockbet.json so line_history.py apply-
 import datetime as dt, json, os, re, unicodedata, urllib.parse
 
 CACHE_FILE = "props_oddsapi.json"
-BOOKS = ("hardrockbet", "fanduel")
+BOOKS = ("hardrockbet", "fanduel", "draftkings")
 WINDOW_H = 36
 PROPS_INTERVAL = 120
 # Odds API market key -> props.py market key. Kept short on purpose: every market returned costs 1 credit per event.
@@ -124,6 +124,6 @@ def pull_league(lg, events, games, pull, t, get, match_event, note_headers, scru
         if gid not in done and gid not in out: out[gid] = v
     if errs: pull["errors"].append(f"{key}-props")
     entry = dict(pulledAt=t, events=len(todo), fetched=n_ok, withProps=len(out), refreshed=sorted(done), skipped=n_skip, cost=spent, games=out)
-    msg = (f"props: {n_ok}/{len(todo)} events in {WINDOW_H}h fetched, {len(out)} with Hard Rock/FanDuel props, cost {spent}"
+    msg = (f"props: {n_ok}/{len(todo)} events in {WINDOW_H}h fetched, {len(out)} with Odds API (Hard Rock/FanDuel/DraftKings) props, cost {spent}"
            + (f", {n_skip} skipped (cap/floor)" if n_skip else "") + (f", errors {errs[:2]}" if errs else ""))
     return (entry if n_ok else None), msg

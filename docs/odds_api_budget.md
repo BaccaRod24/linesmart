@@ -1,9 +1,9 @@
-# The Odds API: paid 100K plan budget (Hard Rock Bet + FanDuel)
+# The Odds API: paid 100K plan budget (Hard Rock Bet + FanDuel + DraftKings)
 
 Plan: **100K, $59/month, 100,000 credits**. Credits reset on the subscription day of each month, which is the **26th** (subscribed 2026-10-26; `ODDS_BILLING_DAY=26`).
 LineSmart plans to use at most **80,000** credits per cycle (`ODDS_BUDGET`). That leaves 20K of headroom for manual force pulls and surprises.
 
-DraftKings still comes free from ESPN on every run. UFC stays DraftKings-only: `ODDS_MMA` stays off.
+DraftKings prices also come from The Odds API, in the same requests (no extra credits, see below). ESPN (free, every run) still supplies DraftKings' opening line for line movement, and is the fallback when the Odds API has no DraftKings line for a game or prop (ESPN props are line only). UFC stays ESPN/DraftKings-only: `ODDS_MMA` stays off.
 
 ## What one request costs (sources)
 
@@ -11,14 +11,16 @@ From the v4 guide, <https://the-odds-api.com/liveapi/guides/v4/>:
 
 - **`/v4/sports/{sport}/odds`** costs `[number of unique markets returned] x [number of regions]`.
   The `bookmakers` parameter replaces `regions`: *"Every group of 10 bookmakers is the equivalent of 1 region."*
-  So `bookmakers=hardrockbet,fanduel` costs the same as `bookmakers=hardrockbet`.
-  For `markets=h2h,spreads,totals` that is **3 credits per league for both books**.
-  In short, **FanDuel is free in the same request.**
+  So `bookmakers=hardrockbet,fanduel,draftkings` (3 of 10) costs the same as `bookmakers=hardrockbet`.
+  For `markets=h2h,spreads,totals` that is **3 credits per league for all three books**.
+  In short, **FanDuel and DraftKings are free in the same request**; adding DraftKings changed no number in the tables below.
 - **`/v4/sports`** and **`/v4/sports/{sport}/events`** don't count against the quota.
   They are used every run to read `x-requests-remaining`/`x-requests-used` and to find leagues with events in the next 7 days.
 - **Empty responses don't cost credits.** A league with no events, or an event with no props posted yet, costs 0.
 - **`/v4/sports/{sport}/events/{id}/odds`** (player props) costs `[unique markets returned] x [regions]`.
   For NFL that is at most 5 credits per event; for NBA, at most 4. Markets a book hasn't posted aren't charged.
+  Markets are counted once however many books return them, so DraftKings adds nothing; at most it can turn a market none of
+  Hard Rock/FanDuel posted into a returned one, which the estimate already assumes (it charges every market on every event).
 - Every response carries the `x-requests-remaining`, `x-requests-used` and `x-requests-last` headers.
 
 Credits reset monthly on the subscription date: FAQ, <https://the-odds-api.com/manage/faqs.html>.
@@ -27,7 +29,7 @@ Credits reset monthly on the subscription date: FAQ, <https://the-odds-api.com/m
 
 | Pull | Request | When | Window |
 |---|---|---|---|
-| Game lines (h2h, spreads, totals), HR + FD | 1 per league, 3 credits | every **30 min** (each refresh run) | leagues with events in the next 7 days |
+| Game lines (h2h, spreads, totals), HR + FD + DK | 1 per league, 3 credits | every **30 min** (each refresh run) | leagues with events in the next 7 days |
 | NFL props: `player_pass_yds, player_rush_yds, player_reception_yds, player_receptions, player_anytime_td` | 1 per event, at most 5 credits | every **2 h** per event | events starting within **36 h** |
 | NBA props: `player_points, player_rebounds, player_assists, player_threes` | 1 per event, at most 4 credits | every **2 h** per event | events starting within **36 h** |
 

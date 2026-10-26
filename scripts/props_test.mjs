@@ -74,6 +74,14 @@ const bks = [{ key: "hardrockbet", line: 24.5, over: -110, under: -110 }, { key:
 check(eq(P.bestPrice(bks, 24.5), { over: "fanduel", under: "hardrockbet" }), "best over / under price");
 check(eq(P.bestPrice(bks, 24.5, k => k !== "fanduel"), { over: null, under: null }), "best price ignores books not legal in the state");
 check(P.forPlayer(mdoc, "a", ["hardrockbet"])[0].props[0].line === 25.5, "forPlayer honours prefer");
+// Odds API DraftKings (with prices) competes for best price; ESPN-only DraftKings (no prices) never does
+const dkRow = ["a", "points", 24.5, 23.5, [3, 2, 0, 5], { draftkings: [24.5, -102, -118, null], hardrockbet: [24.5, -110, -110, null], fanduel: [25.5, -115, -105, [2, 3, 0, 5]] }];
+const dkb = P.rowBooks(dkRow);
+check(eq(dkb.find(b => b.key === "draftkings"), { key: "draftkings", line: 24.5, over: -102, under: -118, tally: [3, 2, 0, 5] }), "Odds API DraftKings row: prices + row tally");
+check(eq(P.bestPrice(dkb, 24.5), { over: "draftkings", under: "hardrockbet" }), "DraftKings prices count for best price");
+check(eq(P.bestPrice(dkb, 24.5, k => k === "hardrockbet"), { over: null, under: null }), "Florida: DraftKings price ignored for best price");
+const espnDk = P.rowBooks(["a", "points", 24.5, 23.5, [3, 2, 0, 5], { draftkings: [24.5, null, null, null], hardrockbet: [24.5, -110, -105, null] }]);
+check(P.bestPrice(espnDk, 24.5).over === null, "ESPN DraftKings fallback (line only) isn't priced");
 
 console.log(fails ? `\n${fails} FAILED` : "\nALL PASS");
 process.exit(fails ? 1 : 0);

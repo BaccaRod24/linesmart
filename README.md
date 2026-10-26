@@ -55,16 +55,17 @@ Built by `scripts/ufc.py`. Each bout is a "game": away = red corner (order 1), h
 
 Odds come from the single sportsbook ESPN lists (currently DraftKings). It is labeled with the provider name ESPN reports.
 
-## Hard Rock Bet + FanDuel: The Odds API v4 (paid 100K plan)
-DraftKings comes from ESPN on every run. Hard Rock Bet and FanDuel come from The Odds API, which is the paid 100K plan with 100,000 credits a month. The full budget, cadence and math are in [`docs/odds_api_budget.md`](docs/odds_api_budget.md).
+## Hard Rock Bet + FanDuel + DraftKings: The Odds API v4 (paid 100K plan)
+Hard Rock Bet, FanDuel and DraftKings prices come from The Odds API, which is the paid 100K plan with 100,000 credits a month. The full budget, cadence and math are in [`docs/odds_api_budget.md`](docs/odds_api_budget.md).
+ESPN still supplies DraftKings' opening line (line movement) and is the DraftKings fallback when the Odds API has no DraftKings line for a game or prop (ESPN props are line only, no prices).
 
-- **Game lines:** each league makes one request, `GET /v4/sports/{sport_key}/odds?bookmakers=hardrockbet,fanduel&markets=h2h,spreads,totals&oddsFormat=american`.
-  - Every 10 bookmakers count as 1 region, so FanDuel costs nothing extra. That makes **3 credits per league**.
+- **Game lines:** each league makes one request, `GET /v4/sports/{sport_key}/odds?bookmakers=hardrockbet,fanduel,draftkings&markets=h2h,spreads,totals&oddsFormat=american`.
+  - Every 10 bookmakers count as 1 region, so FanDuel and DraftKings cost nothing extra. That makes **3 credits per league**.
   - It runs every 30 min, but only for leagues with events in the next 7 days. That check uses the free `/events` endpoint.
   - Events are matched to ESPN games by start time and team names.
-- **Player props (NFL/NBA):** each event makes one request to `GET /v4/sports/{sport}/events/{id}/odds`, with Hard Rock + FanDuel and a short market list.
+- **Player props (NFL/NBA):** each event makes one request to `GET /v4/sports/{sport}/events/{id}/odds`, with Hard Rock + FanDuel + DraftKings and a short market list.
   - It runs every 2 h, for events starting within 36 h.
-  - The lines are merged by player name into `data/props/<lg>.json`, next to DraftKings (ESPN). Each book's line and price is shown.
+  - The lines are merged by player name into `data/props/<lg>.json`, with DraftKings' ESPN line as the fallback. Each book's line and price is shown.
 - **Budget guard:** the free `/sports` call reads `x-requests-remaining`/`x-requests-used`, and these values are persisted.
   - The guard plans against an 80K/month budget. It pauses props first, then slows game lines (30 → 360 min).
   - It stops below the 300-credit floor, or when the balance is unknown.
@@ -150,7 +151,7 @@ Screenshots + comparison sheets (serve the site under `/linesmart/` first):
 - Affiliate disclosure: set `affiliate.enabled: true` in `site/assets/config.js` when the first affiliate link goes live. The disclosure line then appears in the footer and under the sportsbook card on game pages.
 
 ## Limitations
-- ESPN reports one book per game (DraftKings, with no prop prices). Hard Rock Bet and FanDuel refresh about every 30 min (game lines) and 2 h (props), and less often if the budget guard throttles. BetMGM appears only as an official-site link in the state-aware offers; there is no BetMGM odds data.
+- ESPN reports one book per game (DraftKings, with no prop prices); it is the fallback when the Odds API lacks DraftKings. Hard Rock Bet, FanDuel and DraftKings (Odds API) refresh about every 30 min (game lines) and 2 h (props), and less often if the budget guard throttles. BetMGM appears only as an official-site link in the state-aware offers; there is no BetMGM odds data.
 - Lines appear only once the book posts them. NBA, NHL and NCAAB lines usually show up a day or so before the game.
 - ESPN's free feeds return empty ATS records, so the site shows N/A for ATS.
 - Detailed summaries are capped at 150 games per league per run (`MAX_SUMMARIES`). This affects NCAAB.

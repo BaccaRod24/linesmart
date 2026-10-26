@@ -309,7 +309,7 @@
     catch (e) { return (GAMES[lg] = { kind: "", games: [] }); }
   }
   const evOf = (g, lg) => ({ id: String(g.id), lg, date: g.date, name: `${g.away.abbr} @ ${g.home.abbr}`, home: { id: g.home.id, abbr: g.home.abbr, name: g.home.name, short: g.home.short }, away: { id: g.away.id, abbr: g.away.abbr, name: g.away.name, short: g.away.short } });
-  // price for a market from the book the user picked (DraftKings via ESPN, Hard Rock / FanDuel via The Odds API); else ESPN's listed book
+  // price for a market from the book the user picked (Hard Rock / FanDuel / DraftKings via The Odds API; DraftKings falls back to ESPN); else ESPN's listed book
   function quote(g, book) {
     if (!g) return null;
     const B = g.books || {}, key = { draftkings: "draftkings", hardrock: "hardrockbet", fanduel: "fanduel" }[book];

@@ -69,7 +69,7 @@
   }
 
   const BOOK_ORDER = ["hardrockbet", "draftkings", "fanduel"];
-  /** Per-book lines of one prop row: [{key, line, over, under, tally}] (DraftKings has no prices: ESPN's feed has none).
+  /** Per-book lines of one prop row: [{key, line, over, under, tally}] (DraftKings has prices only from the Odds API; ESPN's copy has none).
    *  Rows without the 6th element (keyless builds) are DraftKings-only. */
   function rowBooks(row, order = BOOK_ORDER) {
     const [, , line, , tally, books] = row;

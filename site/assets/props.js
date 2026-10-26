@@ -17,8 +17,8 @@
   const avail = k => !G() || G().isAvailable(k);
   // books the visitor can bet, in state order (Florida: Hard Rock Bet only); the first that posted a prop sets its graded line
   const prefer = () => (G() ? G().sortBooks(C.BOOK_ORDER).filter(avail) : null);
-  const multi = doc => ((doc && doc.books) || []).some(k => k !== "draftkings");
-  let MULTI = false;   // set per render: the file carries Hard Rock / FanDuel lines, so show every row's per-book lines
+  const multi = doc => !!(doc && (doc.altAt || doc.dkPriced)) || ((doc && doc.books) || []).some(k => k !== "draftkings");
+  let MULTI = false;   // set per render: the file carries Odds API lines (Hard Rock / FanDuel / DraftKings prices), so show every row's per-book lines
   const am = v => (C.isNum(v) ? (v > 0 ? `+${v}` : `${v}`) : "");
 
   /** One row's per-book lines: "Hard Rock 31.5  o-115 u-105 · FanDuel 30.5 ... · DK 30.5 (no prices)". */
@@ -29,7 +29,7 @@
       const na = avail(b.key) ? "" : G().naLabel(b.key);
       const px = td ? (C.isNum(b.over) ? `<span class="pp-px${best.over === b.key ? " best" : ""}">Yes ${esc(am(b.over))}</span>` : `<span class="pp-px pp-nopx">no price</span>`)
         : C.isNum(b.over) || C.isNum(b.under) ? `<span class="pp-px${best.over === b.key ? " best" : ""}">o${esc(am(b.over) || "—")}</span><span class="pp-px${best.under === b.key ? " best" : ""}">u${esc(am(b.under) || "—")}</span>`
-        : `<span class="pp-px pp-nopx">${b.key === "draftkings" ? "line only" : "no price"}</span>`;
+        : `<span class="pp-px pp-nopx">${b.key === "draftkings" ? "line only (ESPN)" : "no price"}</span>`;
       const ln = td ? "" : `<b>${esc(C.fmtNum(b.line))}</b>`;
       return `<span class="pp-bk${b.key === p.book && !na ? " prim" : ""}${na ? " na" : ""}"${na ? ` title="${esc(na)}"` : ""}><span class="pp-bn">${esc(BKS[b.key] || b.key)}</span>${ln}${px}${na ? `<span class="na-st">${esc(na)}</span>` : ""}</span>`;
     };
@@ -71,9 +71,10 @@
     const hist = doc && doc.historyScope ? ` History: ${esc(doc.historyScope)}.` : "";
     if (!multi(doc)) return `<div class="note pp-note">Lines: DraftKings, via ESPN's free odds feed.${when} Prices aren't shown. Past games are graded against the current line, so hit rates describe history, not a prediction.${hist}</div>`;
     const alt = doc.altAt ? ` (last pull ${A().fullET(doc.altAt)})` : "";
+    const dkFb = "; when The Odds API has no DraftKings line, DraftKings falls back to ESPN's free feed (line only, no prices), which also gives DraftKings' opening line";
     const ev = G() ? G().current() : null, out = ev && ev.state ? C.BOOK_ORDER.filter(k => !avail(k)) : [];
     const outNote = out.length ? ` ${out.map(k => BK[k]).join(" and ")} ${out.length > 1 ? "don't" : "doesn't"} run a legal online sportsbook in ${esc(ev.stateName)}; ${out.length > 1 ? "their" : "its"} lines are shown dimmed, for reference only.` : "";
-    return `<div class="note pp-note">Lines: DraftKings via ESPN's free odds feed (line only, no prices); Hard Rock Bet and FanDuel via The Odds API with prices, refreshed about every 2 h for games in the next 36 h${alt}. Each prop is graded against the first book you can bet in your state that posted it (labelled next to the market); best over/under price on that line is green.${outNote}${when} Past games are graded against the current line, so hit rates describe history, not a prediction.${hist}</div>`;
+    return `<div class="note pp-note">Lines: Hard Rock Bet, FanDuel and DraftKings via The Odds API with prices, refreshed about every 2 h for games in the next 36 h${alt}${dkFb}. Each prop is graded against the first book you can bet in your state that posted it (labelled next to the market); best over/under price on that line is green.${outNote}${when} Past games are graded against the current line, so hit rates describe history, not a prediction.${hist}</div>`;
   }
   /** Section subtitle: the books in this file, legal-in-state first, others tagged "Not available in XX". */
   function subTitle(doc) {

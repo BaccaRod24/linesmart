@@ -1,4 +1,4 @@
-"""Offline tests for the paid Odds API upgrade: budget/throttle (odds_budget.py), Hard Rock + FanDuel game-line pull,
+"""Offline tests for the paid Odds API upgrade: budget/throttle (odds_budget.py), Hard Rock + FanDuel + DraftKings game-line pull,
 props pull + parse (odds_props.py), props merge next to DraftKings (props.py), key scrubbing, apply-odds merge.
 Never calls The Odds API: every request goes to a fake `get`. Usage: env -u ODDS_API_KEY python3 scripts/odds_paid_test.py"""
 import datetime as dt, json, os, sys, tempfile, urllib.parse
@@ -59,7 +59,7 @@ msg = BD.scrub(f"HTTP 401 for https://api.the-odds-api.com/v4/sports/?apiKey={ur
 check(K not in msg and urllib.parse.quote(K) not in msg and "apiKey=***" in msg, f"scrub: {msg}", "scrub")
 check("abc" not in BD.scrub("…?apiKey=abc&regions=us", None), "scrub masks apiKey= even without the key", "scrub")
 
-# ================================================================ game lines: Hard Rock + FanDuel in ONE request
+# ================================================================ game lines: Hard Rock + FanDuel + DraftKings in ONE request
 L = {l["key"]: l for l in BD.LEAGUES}
 games = [dict(id="501", date="2026-10-27T00:15Z", state="pre", home=dict(name="Kansas City Chiefs", abbr="KC"), away=dict(name="Washington Commanders", abbr="WSH")),
          dict(id="502", date="2026-10-26T17:00Z", state="in", home=dict(name="Buffalo Bills", abbr="BUF"), away=dict(name="Miami Dolphins", abbr="MIA"))]
@@ -69,7 +69,7 @@ def bk(key, ml, sp, tot):
         dict(key="spreads", outcomes=[dict(name="Kansas City Chiefs", price=-110, point=sp), dict(name="Washington Commanders", price=-110, point=-sp)]),
         dict(key="totals", outcomes=[dict(name="Over", price=-108, point=tot), dict(name="Under", price=-112, point=tot)])])
 EV = [dict(id="ev1", commence_time="2026-10-27T00:15:00Z", home_team="Kansas City Chiefs", away_team="Washington Commanders",
-           bookmakers=[bk("hardrockbet", (-190, 160), -4.0, 47.5), bk("fanduel", (-180, 152), -3.5, 48.0), bk("betmgm", (-200, 170), -4.5, 47.0)])]
+           bookmakers=[bk("hardrockbet", (-190, 160), -4.0, 47.5), bk("fanduel", (-180, 152), -3.5, 48.0), bk("draftkings", (-185, 155), -3.5, 47.5), bk("betmgm", (-200, 170), -4.5, 47.0)])]
 urls = []
 def fake_get(url):
     urls.append(url)
@@ -79,11 +79,13 @@ BD.get = fake_get
 pull = dict(key=K, remaining=100000, used=0, spent=0, pulled=[], skipped=[], errors=[], due={"nfl"}, floor=300, cap=250)
 entry, msg = BD.odds_pull_league(L["nfl"], games, pull, "2026-10-26T16:00:00Z")
 q = urllib.parse.parse_qs(urllib.parse.urlparse(urls[-1]).query)
-check(q["bookmakers"] == ["hardrockbet,fanduel"] and q["markets"] == ["h2h,spreads,totals"] and "commenceTimeTo" in q, f"one request, both books: {sorted(q)}", "games")
+check(q["bookmakers"] == ["hardrockbet,fanduel,draftkings"] and q["markets"] == ["h2h,spreads,totals"] and "commenceTimeTo" in q, f"one request, three books: {sorted(q)}", "games")
+check(len(q["bookmakers"][0].split(",")) <= 10, "<= 10 bookmakers = 1 region (v4 docs): cost = 3 markets x 1", "games")
 g = entry["games"]["501"]
-check(set(g["lines"]) == {"hardrockbet", "fanduel"} and g["line"] == g["lines"]["hardrockbet"], "both books stored; v1 'line' = Hard Rock", "games")
+check(set(g["lines"]) == {"hardrockbet", "fanduel", "draftkings"} and g["line"] == g["lines"]["hardrockbet"], "three books stored (BetMGM dropped); v1 'line' = Hard Rock", "games")
+check(g["lines"]["draftkings"]["homeML"] == -185 and g["lines"]["draftkings"]["awayML"] == 155 and g["lines"]["draftkings"]["overOdds"] == -108, "DraftKings prices parsed", "games")
 check(g["lines"]["fanduel"]["homeML"] == -180 and g["lines"]["fanduel"]["homeSpread"] == -3.5 and g["lines"]["fanduel"]["total"] == 48.0, "FanDuel prices parsed", "games")
-check(pull["spent"] == 3 and pull["spentBy"] == {"games": 3} and pull["remaining"] == 99970 and pull["used"] == 30, "3 credits for both books, headers tracked", "games")
+check(pull["spent"] == 3 and pull["spentBy"] == {"games": 3} and pull["remaining"] == 99970 and pull["used"] == 30, "still 3 credits for all three books, headers tracked", "games")
 pull2 = dict(pull, due={"nba"}, spent=0, pulled=[], skipped=[])
 e2, m2 = BD.odds_pull_league(L["nfl"], games, pull2, "t")
 check(e2 is None and "not due" in m2 and len(urls) == 1, "interval gate: league not due -> no request", "games")
@@ -106,6 +108,20 @@ gs = [dict(x, books={"fanduel": dict(homeML=-999, source="ESPN (FanDuel)")}) for
 fresh, stale = BD.apply_cached_odds(L["nfl"], gs, cache, T(2026, 10, 26, 16))
 check(fresh == 1 and stale == 1 and gs[0]["books"]["fanduel"]["homeML"] == -180 and gs[0]["books"]["fanduel"]["source"] == "The Odds API", "fresh: FanDuel from the Odds API", "apply")
 check(gs[1]["books"]["hardrockbet"]["stale"] and gs[1]["books"]["fanduel"]["stale"] and "homeML" not in gs[1]["books"]["fanduel"], "started: stale markers, no numbers", "apply")
+# DraftKings: paid prices replace ESPN's numbers but keep ESPN's opening line; ESPN fallback when the pull lacks DraftKings
+espn_dk = dict(homeML=-170, awayML=145, homeMLOpen=-160, awayMLOpen=135, homeSpreadOpen=-3.0, totalOpen=46.5, homeSpread=-3.5, source="ESPN (DraftKings)", provider="DraftKings")
+gs = [dict(x, books={"draftkings": dict(espn_dk)}) for x in games]
+BD.apply_cached_odds(L["nfl"], gs, cache, T(2026, 10, 26, 16))
+d0 = gs[0]["books"]["draftkings"]
+check(d0["homeML"] == -185 and d0["source"] == "The Odds API" and d0["asOf"] == entry["pulledAt"], "fresh: DraftKings prices from the Odds API", "apply")
+check(d0["homeMLOpen"] == -160 and d0["totalOpen"] == 46.5 and d0["openSource"] == "ESPN (DraftKings)", "ESPN opening line kept on the paid DraftKings entry", "apply")
+check(gs[1]["books"]["draftkings"] == espn_dk, "started game: ESPN DraftKings entry left as it was", "apply")
+nodk = dict(v=1, leagues={"nfl": dict(entry, games={"501": dict(entry["games"]["501"], lines={k: v for k, v in g["lines"].items() if k != "draftkings"})})})
+gs = [dict(games[0], books={"draftkings": dict(espn_dk)})]
+BD.apply_cached_odds(L["nfl"], gs, nodk, T(2026, 10, 26, 16))
+check(gs[0]["books"]["draftkings"] == espn_dk and gs[0]["books"]["hardrockbet"]["source"] == "The Odds API", "pull without DraftKings: ESPN DraftKings fallback", "apply")
+snap = LH.snapshot_from_games([dict(games[0], books={"draftkings": d0})])
+check(snap["501"]["open"]["draftkings"] and snap["501"]["bt"]["draftkings"] == entry["pulledAt"], "line history: paid DraftKings point at pull time, ESPN open kept", "apply")
 v1 = dict(v=1, leagues={"nfl": dict(pulledAt="2026-10-25T15:10:00Z", games={"501": dict(date=games[0]["date"], line=dict(homeML=-150))})})
 gs = [dict(games[0], books={})]
 BD.apply_cached_odds(L["nfl"], gs, v1, T(2026, 10, 26, 16))
@@ -163,7 +179,8 @@ PEV = dict(id="pe1", bookmakers=[
     dict(key="fanduel", markets=[dict(key="player_points", outcomes=[oc("Over", "Luka Doncic", -112, 32.5), oc("Under", "Luka Doncic", -108, 32.5)])]),
     dict(key="draftkings", markets=[dict(key="player_points", outcomes=[oc("Over", "Luka Doncic", -110, 30.5)])])])
 P = OP.parse_event_odds("nba", PEV)
-check(set(P) == {"hardrockbet", "fanduel"}, "only Hard Rock + FanDuel kept", "props")
+check(set(P) == {"hardrockbet", "fanduel", "draftkings"}, "Hard Rock + FanDuel + DraftKings kept", "props")
+check(P["draftkings"]["points"]["Luka Doncic"] == [30.5, -110, None], "DraftKings prop with price", "props")
 check(P["hardrockbet"]["points"]["Luka Dončić"] == [31.5, -115, -105], "main line = most balanced over/under pair", "props")
 check(P["hardrockbet"]["rebounds"]["Luka Dončić"] == [8.5, -120, None] and "blocks" not in P["hardrockbet"], "one-sided line kept, unused market ignored", "props")
 TD = dict(bookmakers=[dict(key="fanduel", markets=[dict(key="player_anytime_td", outcomes=[oc("Yes", "Kenneth Walker III", +120), oc("No", "Kenneth Walker III", -160)])])])
@@ -182,8 +199,8 @@ prev = dict(pulledAt="old", games={"900": dict(date=soon, at="old", books={}), "
 ent, msg = OP.pull_league(dict(key="nba", odds_key="basketball_nba"), pev, idx_games, pull, "t9", fake_props_get, BD.match_event,
                           BD.odds_note_headers, BD.scrub, nowz, BD.ODDS_API, prev=prev)
 q = urllib.parse.parse_qs(urllib.parse.urlparse(urls[0]).query)
-check(len(urls) == 1 and "/events/pe1/odds" in urls[0] and q["bookmakers"] == ["hardrockbet,fanduel"] and q["markets"] == ["player_points,player_rebounds,player_assists,player_threes"],
-      "per-event endpoint, 36h window, both books, 4 NBA markets", "props")
+check(len(urls) == 1 and "/events/pe1/odds" in urls[0] and q["bookmakers"] == ["hardrockbet,fanduel,draftkings"] and q["markets"] == ["player_points,player_rebounds,player_assists,player_threes"],
+      "per-event endpoint, 36h window, three books, 4 NBA markets", "props")
 check(pull["spentBy"] == {"props": 3} and ent["cost"] == 3, "cost tracked from x-requests-last", "props")
 check(ent["games"]["901"]["at"] == "t9" and ent["games"]["900"]["at"] == "old", "refreshed game replaced, others kept from previous pull", "props")
 check(K not in json.dumps(ent) and K not in msg, "key not in props entry/message", "props")
@@ -216,7 +233,7 @@ with tempfile.TemporaryDirectory() as td:
     doc = json.load(open(os.path.join(td, "props", "nba.json")))
 rows = {(r[0], r[1]): r for r in doc["games"]["901"]["props"]}
 r = rows[("100", "points")]
-check(r[2] == 30.5 and r[3] == 29.5 and r[5]["draftkings"] == [30.5, None, None, None], "DraftKings line stays the row line (with its open)", "merge")
+check(r[2] == 30.5 and r[3] == 29.5 and r[5]["draftkings"] == [30.5, None, None, None], "no Odds API DraftKings: ESPN DraftKings fallback (line only) stays the row line, with its open", "merge")
 check(r[5]["hardrockbet"][:3] == [31.5, -115, -105] and r[5]["hardrockbet"][3] == [1, 0, 0, 1], "Hard Rock line + prices + its own tally (33 > 31.5)", "merge")
 check(r[5]["fanduel"] == [30.5, -112, -108, None], "FanDuel same line as DraftKings -> tally null (reuse row's)", "merge")
 r = rows[("200", "points")]
@@ -226,6 +243,23 @@ check("902" not in doc["games"] or all(len(x) < 6 for x in doc["games"]["902"]["
 check(rep["altUnmatchedNames"] == 2 and rep["hardrockFanduelRows"] == 3, f"unmatched names counted (Nobody Here + Luka listed under a game he is not in): {rep['altUnmatchedNames']}", "merge")
 check(doc["books"] == ["draftkings", "hardrockbet", "fanduel"] and doc["altAt"] == "2026-10-26T16:00:00Z" and "Hard Rock Bet" in doc["book"], f"doc books {doc['books']}", "merge")
 check("200" in doc["players"] and doc["players"]["200"]["ta"] == "MEM", "Hard Rock-only player gets his history", "merge")
+check(doc["dkPriced"] == 0, "dkPriced 0 without Odds API DraftKings", "merge")
+# Odds API DraftKings present: it becomes the row line (with prices); ESPN open kept; tallies follow
+extra_dk = json.loads(json.dumps(extra)); extra_dk["games"]["901"]["books"]["draftkings"] = {"points": {"Luka Doncic": [31.5, -118, -102]}, "assists": {"Jaren Jackson Jr.": [1.5, -130, 110]}}
+with tempfile.TemporaryDirectory() as td:
+    sd = os.path.join(td, "search"); os.makedirs(sd)
+    json.dump(dict(teams=[["1", "Mavericks", "DAL"], ["2", "Grizzlies", "MEM"]],
+                   players=[["100", "Luka Dončić", 0, "G"], ["200", "Jaren Jackson Jr.", 1, "F"]]), open(os.path.join(sd, "nba.json"), "w"))
+    rep_dk = PR.build_props(dict(key="nba", path="basketball/nba"), getj, os.path.join(td, "props"), sd, games=hist_games,
+                            index=dict(games=idx_games), now=nowz, log=lambda *a: None, extra=extra_dk)
+    ddk = json.load(open(os.path.join(td, "props", "nba.json")))
+rk = {(r[0], r[1]): r for r in ddk["games"]["901"]["props"]}
+r = rk[("100", "points")]
+check(r[2] == 31.5 and r[3] == 29.5 and r[5]["draftkings"] == [31.5, -118, -102, None] and r[4] == [1, 0, 0, 1], "Odds API DraftKings: row line + prices, ESPN open kept, tally vs 31.5", "merge")
+check(r[5]["fanduel"][3] == [1, 0, 0, 1] and r[5]["hardrockbet"][3] is None, "other books' tallies relative to the new row line", "merge")
+r = rk[("200", "assists")]
+check(r[2] == 1.5 and r[3] is None and r[5] == {"draftkings": [1.5, -130, 110, None]}, "DraftKings-only (Odds API) market added with prices, no open", "merge")
+check(ddk["dkPriced"] == 2 and rep_dk["draftkingsPricedRows"] == 2 and ddk["books"][0] == "draftkings" and ddk["books"].count("draftkings") == 1, f"dkPriced counted, books {ddk['books']}", "merge")
 # no extra -> identical to the DraftKings-only format
 with tempfile.TemporaryDirectory() as td:
     sd = os.path.join(td, "search"); os.makedirs(sd)

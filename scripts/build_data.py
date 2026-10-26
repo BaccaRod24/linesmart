@@ -6,8 +6,8 @@ Fetches REAL data from ESPN's free public JSON endpoints (no API key) and writes
 static JSON files to site/data/ that the static front-end reads.
 
 Optional: if the env var ODDS_API_KEY is set (paid 100K plan), also pulls Hard Rock Bet + FanDuel game lines from
-The Odds API (v4) - bookmakers=hardrockbet,fanduel is ONE region (up to 10 books = 1 region), so 3 credits per league
-request (h2h,spreads,totals), 0 when no events - every ~30 min, and Hard Rock + FanDuel NFL/NBA player props every ~2 h
+The Odds API (v4) - bookmakers=hardrockbet,fanduel,draftkings is ONE region (up to 10 books = 1 region), so 3 credits per league
+request (h2h,spreads,totals), 0 when no events - every ~30 min, and Hard Rock + FanDuel + DraftKings NFL/NBA player props every ~2 h
 (scripts/odds_props.py). A budget guard (scripts/odds_budget.py) paces spending against an 80K/month budget.
 Every pull is persisted in --odds-cache-dir and merged into every build, so keyless runs keep showing it ("as of" the
 pull time). See docs/odds_api_budget.md for the cadence and credit math.
@@ -292,7 +292,7 @@ def norm_name(s):
 
 ODDS_API = "https://api.the-odds-api.com"
 ODDS_BOOK = "hardrockbet"            # primary pulled book (cache file name kept for the data-history branch)
-ODDS_BOOKS = ("hardrockbet", "fanduel")  # pulled together: bookmakers= with <=10 books counts as ONE region (v4 docs)
+ODDS_BOOKS = ("hardrockbet", "fanduel", "draftkings")  # pulled together: bookmakers= with <=10 books counts as ONE region (v4 docs)
 ODDS_REGION = "us2"                  # ignored when bookmakers= is given (bookmakers takes priority); kept as a fallback
 ODDS_MARKETS = "h2h,spreads,totals"  # 3 markets x 1 region = 3 credits per league request (0 if no events)
 ODDS_COST = 3
@@ -397,7 +397,7 @@ def odds_note_headers(pull, hdr, kind):
     return last
 
 def odds_pull_league(lg, games, pull, t):
-    """One game-line pull for a league: Hard Rock Bet + FanDuel in ONE request (3 credits, 0 if no events).
+    """One game-line pull for a league: Hard Rock Bet + FanDuel + DraftKings in ONE request (3 credits, 0 if no events).
     Returns (cache entry, message); entry None if skipped/failed. pull["due"] (if set) limits which leagues pull."""
     rem, cost, markets = pull.get("remaining"), lg.get("odds_cost", ODDS_COST), lg.get("odds_markets", ODDS_MARKETS)
     books = lg.get("odds_books", ",".join(ODDS_BOOKS))
@@ -451,8 +451,10 @@ def odds_cache_save(d, c):
     with open(tmp, "w") as fh: json.dump(c, fh, indent=1, sort_keys=True)
     os.replace(tmp, p)
 
+ESPN_OPEN_BOOKS = ("draftkings",)   # books ESPN also reports (with the opening line): paid entry is a price overlay
+
 def apply_cached_odds(lg, games, cache, now):
-    """Put the last Hard Rock / FanDuel pull into each game's books (overrides ESPN's copy of the same book);
+    """Put the last Hard Rock / FanDuel / DraftKings pull into each game's books (overrides ESPN's copy of the same book);
     started games get a stale marker without numbers. Counts are per game (Hard Rock or FanDuel present)."""
     e = (cache or {}).get("leagues", {}).get(lg["key"])
     if not e: return 0, 0
@@ -464,8 +466,16 @@ def apply_cached_odds(lg, games, cache, now):
         if not lines: continue
         started = g.get("state") != "pre" or dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00")) <= now
         for bk, line in lines.items():
+            if started and bk in ESPN_OPEN_BOOKS:
+                continue                      # DraftKings: leave ESPN's entry as it was before the paid feed
             if started:
                 g.setdefault("books", {})[bk] = dict(stale=True, asOf=e["pulledAt"], source="The Odds API", reason="game started")
+            elif bk in ESPN_OPEN_BOOKS:
+                # DraftKings: paid prices replace ESPN's copy, but ESPN's opening line (line movement) is kept
+                esp = (g.get("books") or {}).get(bk) or {}
+                opn = {k: v for k, v in esp.items() if k.endswith("Open") and v is not None}
+                g.setdefault("books", {})[bk] = dict(line, **opn, asOf=e["pulledAt"], source="The Odds API",
+                                                     **({"openSource": esp.get("source")} if opn else {}))
             else:
                 g.setdefault("books", {})[bk] = dict(line, asOf=e["pulledAt"], source="The Odds API")
         if started: stale += 1
@@ -583,14 +593,14 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
             k = book_key_for(o.get("provider"))
             if k and k not in books: books[k] = dict(o, source=f"ESPN ({o.get('provider')})")
         g["books"] = books
-    # Hard Rock Bet + FanDuel: pull from The Odds API when this league is due (interval gate + budget); every run merges the last persisted pull
+    # Hard Rock Bet + FanDuel + DraftKings: pull from The Odds API when this league is due (interval gate + budget); every run merges the last persisted pull
     run_t = run_t or LH.now_iso()
     if pull:
         entry, msg = odds_pull_league(lg, games, pull, run_t)
         if entry is not None and odds_cache is not None: odds_cache["leagues"][lg["key"]] = entry
         report["oddsApi"] = msg
     else:
-        report["oddsApi"] = "no paid pull this run (using last persisted Hard Rock/FanDuel pull)"
+        report["oddsApi"] = "no paid pull this run (using last persisted Hard Rock/FanDuel/DraftKings pull)"
     fresh, stale = apply_cached_odds(lg, games, odds_cache, dt.datetime.now(dt.timezone.utc))
     le = (odds_cache or {}).get("leagues", {}).get(lg["key"]) or {}
     report["hardrock"] = dict(asOf=le.get("pulledAt"), shown=fresh, stale=stale)
@@ -671,7 +681,7 @@ def main():
     if key:
         pull, check, budget, prop_events = odds_plan_run(key, want, cache, pcache, run_t)
     else:
-        log("[odds] no ODDS_API_KEY for this run; using the last persisted Hard Rock/FanDuel pull" + ("" if cache is not None else " - none available"))
+        log("[odds] no ODDS_API_KEY for this run; using the last persisted Hard Rock/FanDuel/DraftKings pull" + ("" if cache is not None else " - none available"))
     os.makedirs(OUT, exist_ok=True)
     meta_path = os.path.join(OUT, "meta.json")
     meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {"leagues": {}}
@@ -691,7 +701,7 @@ def main():
         except Exception as ex:
             log(f"[{lg['key']}] FAILED: {ex}")
             meta["leagues"].setdefault(lg["key"], dict(name=lg["name"], full=lg["full"], games=0, upcoming=0, withOdds=0, providers=[]))["error"] = str(ex)
-    # Hard Rock + FanDuel player props (NFL/NBA): after the league builds, so events match the fresh ESPN games
+    # Hard Rock + FanDuel + DraftKings player props (NFL/NBA): after the league builds, so events match the fresh ESPN games
     props_pulled = []
     if pull and budget and budget.get("props") and not a.no_props and pcache is not None:
         for lg in LEAGUES:

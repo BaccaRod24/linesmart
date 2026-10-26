@@ -461,7 +461,7 @@
         <div class="lmplot"></div>
         <div class="tbl-wrap"><table class="lmstats"><thead><tr><th>Line</th><th>Open</th><th>Current</th><th>Change</th><th>Biggest move</th><th>Last change</th></tr></thead><tbody>${stats()}</tbody></table></div>
         ${changes()}
-        <div class="note">${since}. Open = opening line as reported by ESPN (<span class="na">*</span> = ESPN open not available, first recorded value used). Lines are snapshotted about every 30 min (DraftKings via ESPN; Hard Rock Bet and FanDuel via The Odds API, budget permitting); points mark recorded changes. Times in ${TZL}.</div>`;
+        <div class="note">${since}. Open = opening line as reported by ESPN (<span class="na">*</span> = ESPN open not available, first recorded value used). Lines are snapshotted about every 30 min (Hard Rock Bet, FanDuel and DraftKings via The Odds API, budget permitting; DraftKings via ESPN when the Odds API lacks it); points mark recorded changes. Times in ${TZL}.</div>`;
       const plot = el.querySelector(".lmplot");
       plot.innerHTML = chart(Math.max(280, Math.floor(plot.clientWidth)));
       el.querySelectorAll("[data-mk]").forEach(b => (b.onclick = () => { st.mk = b.dataset.mk; draw(); }));
@@ -542,10 +542,13 @@
     const OA = META.oddsApi || {}, every = OA.gameInterval || (OA.cadence || {}).games || 30;
     const pace = OA.level === "stop" ? " Odds API pulls are paused for the rest of the billing month (credit budget reached); showing the last pull."
                : OA.level === "slow-games" ? ` Refresh slowed to about every ${every >= 60 ? `${+(every / 60).toFixed(1)} h` : `${every} min`} to stay within this month's credit budget.` : "";
-    const hrNote = (HR.asOf ? `Hard Rock Bet and FanDuel via The Odds API, refreshed about every ${every >= 60 ? `${+(every / 60).toFixed(1)} h` : `${every} min`}; last pull ${esc(fullET(HR.asOf))}. Pre-game lines only: they're hidden once a game starts.`
-                            : "Hard Rock Bet and FanDuel via The Odds API; no pull yet.") + pace;
+    const dkPaid = B.draftkings && B.draftkings.source === "The Odds API";
+    const hrNote = (HR.asOf ? `Hard Rock Bet, FanDuel and DraftKings via The Odds API, refreshed about every ${every >= 60 ? `${+(every / 60).toFixed(1)} h` : `${every} min`}; last pull ${esc(fullET(HR.asOf))}. Pre-game lines only: they're hidden once a game starts.`
+                            : "Hard Rock Bet, FanDuel and DraftKings via The Odds API; no pull yet.") + pace;
+    const dkNote = dkPaid ? "DraftKings' opening line (line movement) comes from ESPN. "
+                 : B.draftkings ? "DraftKings here is ESPN's copy (The Odds API had no DraftKings line for this game at the last pull). " : "";
     return `<div class="card"><h3>Odds comparison</h3><div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}DraftKings via ESPN (refreshed about every 30 min, when ESPN's listed book is DraftKings). ${hrNote}${outNote}</div>${affLine()}</div>`;
+      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}${hrNote} ${dkNote}${outNote}</div>${affLine()}</div>`;
   }
 
   function lastFive(t, det, ts) {

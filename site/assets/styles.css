@@ -818,7 +818,7 @@ a[href^="tel:"]{white-space:nowrap}
 .pp-hot.on .pp-n{background:rgba(0,0,0,.18);color:inherit}
 .pp-hot-tag{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#04170c;background:var(--win);border-radius:4px;padding:1px 5px;align-self:flex-end}
 .pp-empty[hidden]{display:none}
-/* per-book prop lines (Hard Rock Bet / FanDuel via The Odds API, DraftKings via ESPN); .na = not legal online in the visitor's state */
+/* per-book prop lines (The Odds API; DraftKings falls back to ESPN, line only); .na = not legal online in the visitor's state */
 .pp-bks{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:-2px}
 .pp-bk{display:inline-flex;align-items:baseline;gap:5px;font-size:11.5px;color:var(--mute);background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-xs);padding:3px 7px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .pp-bk.prim{border-color:color-mix(in srgb,var(--accent) 60%,transparent)}

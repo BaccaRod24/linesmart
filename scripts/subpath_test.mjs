@@ -354,6 +354,37 @@ for (const lg of ["nfl", "nba"]) {
     await page.click(".pp-more");
     check(await page.$$eval(".pp-card", e => e.filter(c => !c.hidden).length) === s.cards, `${lg} Show all expands`, "props");
   }
+  // Hot filter (4/5+ over, or same share with fewer games), combined with the prop-type chips and the team filter
+  const vis = () => page.evaluate(() => {
+    const rows = [...document.querySelectorAll("#ppBox .pp-card:not([hidden]) .pp-row:not([hidden])")];
+    return { rows: rows.length, hot: rows.filter(r => r.dataset.hot === "1").length, mks: [...new Set(rows.map(r => r.dataset.mk))],
+      teams: [...new Set(rows.map(r => r.closest(".pp-card").dataset.team))],
+      overs: rows.map(r => [r.querySelectorAll(".pp-o").length, r.querySelectorAll(".pp-o,.pp-u,.pp-p").length]),
+      label: document.querySelector("#ppBox .pp-hot")?.textContent || "", empty: !document.querySelector("#ppBox .pp-empty").hidden };
+  });
+  const expHot = pd.games[gidP].props.filter(r => {
+    const g5 = (pd.players[r[0]].log || []).slice(0, 5).map(x => x[3] && typeof x[3][r[1]] === "number" ? x[3][r[1]] : null).filter(v => v !== null);
+    return g5.length >= 2 && g5.filter(v => v > r[2]).length >= Math.ceil(0.8 * g5.length - 1e-9);
+  }).length;
+  if (await page.$("#ppBox .pp-more:not([hidden])")) await page.click("#ppBox .pp-more");
+  await page.click("#ppBox .pp-hot");
+  const h = await vis();
+  check(/Hot: 4\/5\+ over/.test(h.label) && h.label.includes(String(expHot)), `${lg} Hot toggle "${h.label.trim()}" (expected ${expHot})`, "props");
+  check(h.rows === h.hot && h.overs.every(([o, n]) => n >= 2 && o >= Math.ceil(0.8 * n - 1e-9)) && (h.rows > 0 || h.empty), `${lg} Hot shows only 4/5+ (or 3/3) props: ${h.rows} rows`, "props");
+  const hotMk = pd.games[gidP].props.find(r => { const g5 = (pd.players[r[0]].log || []).slice(0, 5).map(x => x[3] && x[3][r[1]]).filter(v => typeof v === "number"); return g5.length >= 2 && g5.filter(v => v > r[2]).length >= Math.ceil(0.8 * g5.length - 1e-9); });
+  if (hotMk) {
+    const short = pd.markets[hotMk[1]][1];
+    await page.click(`#ppBox .pp-chips [data-m="${hotMk[1]}"]`);
+    const hm = await vis();
+    check(hm.rows > 0 && hm.mks.join() === hotMk[1] && hm.rows === hm.hot, `${lg} Hot + "${short}" chip: ${hm.rows} hot ${short} rows`, "props");
+    const team = pd.players[hotMk[0]].t;
+    await page.click(`#ppBox .pp-tabs [data-f="${team}"]`);
+    const ht = await vis();
+    check(ht.rows > 0 && ht.teams.join() === String(team) && ht.mks.join() === hotMk[1] && ht.rows === ht.hot, `${lg} Hot + chip + team ${team}: ${ht.rows} rows`, "props");
+    await page.click("#ppBox .pp-hot");
+    const off = await vis();
+    check(off.rows >= ht.rows && off.mks.join() === hotMk[1] && off.teams.join() === String(team), `${lg} Hot off keeps chip + team (${off.rows} rows)`, "props");
+  }
   const pid = pd.games[gidP].props[0][0];
   await page.goto(BASE + `#/p/${lg}/${pid}`, { waitUntil: "networkidle" });
   await page.waitForSelector("#ppPlayer .pp-card", { timeout: 15000 }).catch(() => {});

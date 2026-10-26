@@ -40,6 +40,15 @@
     return { ...r, text: `${r.o}/${r.n} over` };
   }
 
+  /** "Hot" = went over in at least 4 of his last 5 games played, or the same share when he has fewer (3/3, 4/4, 2/2).
+   *  Needs at least HOT_MIN games; DNPs in the last 5 don't count either way. */
+  const HOT_SHARE = 0.8, HOT_MIN = 2;
+  const hotNeed = n => Math.ceil(HOT_SHARE * n - 1e-9);
+  function isHot(log, mk, line) {
+    const r = rate(log, mk, line, 5);
+    return r.n >= HOT_MIN && r.o >= hotNeed(r.n);
+  }
+
   /** Season tally [over, under, push, games] from the build -> {o, n, pct, text} */
   function season(t) {
     if (!Array.isArray(t) || !t[3]) return { o: 0, n: 0, pct: null, text: "—" };
@@ -91,5 +100,5 @@
     return out;
   }
 
-  return { isNum, grade, strip, rate, summary, season, fmtNum, lineText, moveText, byPlayer, forPlayer };
+  return { isNum, grade, strip, rate, summary, HOT_SHARE, HOT_MIN, hotNeed, isHot, season, fmtNum, lineText, moveText, byPlayer, forPlayer };
 });

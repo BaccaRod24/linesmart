@@ -1,5 +1,6 @@
 // Player props screenshots (iPhone 13). Serve a site whose data/ was built with props (never commit live data), e.g.
 //   BASE=http://localhost:8798/ NFL_G=401873009 NBA_G=401909868 node scripts/props_screens.mjs   (PLAYER=nba/<id> optional)
+// Also writes props-hot-{nfl,nba}-game-mobile.png with the Hot toggle on.
 import { chromium, devices } from "playwright";
 import fs from "fs";
 const BASE = process.env.BASE || "http://localhost:8798/";
@@ -8,7 +9,7 @@ const out = "screenshots"; fs.mkdirSync(out, { recursive: true });
 const phone = devices["iPhone 13"];
 const browser = await chromium.launch();
 const errors = [];
-async function shot(name, hash, sel, maxH = 1500) {
+async function shot(name, hash, sel, maxH = 1500, act) {
   const ctx = await browser.newContext(phone);
   await ctx.addInitScript(() => { try { localStorage.setItem("ls-age-ok", new Date().toISOString()); } catch (e) {} });
   const page = await ctx.newPage();
@@ -17,6 +18,7 @@ async function shot(name, hash, sel, maxH = 1500) {
   if (typeof hash === "function") hash = await hash(page);
   await page.goto(BASE + hash, { waitUntil: "networkidle" });
   await page.waitForSelector(sel + " .pp-card", { timeout: 20000 });
+  if (act) await act(page);
   await page.waitForTimeout(500);
   const r = await page.evaluate(s => {
     const t = document.getElementById("props").getBoundingClientRect(), box = document.querySelector(s).getBoundingClientRect();
@@ -28,6 +30,9 @@ async function shot(name, hash, sel, maxH = 1500) {
   await ctx.close();
 }
 await shot("props-nfl-game-mobile", `#/g/nfl/${NFL_G}`, "#ppBox");
+// Hot filter on (4/5+ over, or 3/3 / 4/4 with fewer games), all teams and prop types
+await shot("props-hot-nfl-game-mobile", `#/g/nfl/${NFL_G}`, "#ppBox", 1500, p => p.click("#ppBox .pp-hot"));
+await shot("props-hot-nba-game-mobile", `#/g/nba/${NBA_G}`, "#ppBox", 1500, p => p.click("#ppBox .pp-hot"));
 await shot("props-nba-game-mobile", `#/g/nba/${NBA_G}`, "#ppBox");
 await shot("props-player-mobile", async page => {
   if (process.env.PLAYER) return `#/p/${process.env.PLAYER}`;

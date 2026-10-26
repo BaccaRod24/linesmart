@@ -26,6 +26,17 @@ check(P.lineText("pass_yds", 266.5) === "O/U 266.5" && P.lineText("anytime_td", 
 check(P.moveText(25.5, 24.5) === "opened 24.5 ▲" && P.moveText(23.5, 24.5) === "opened 24.5 ▼" && P.moveText(24.5, 24.5) === "" && P.moveText(24.5, null) === "", "opening line move");
 check(P.fmtNum(3) === "3" && P.fmtNum(2.25) === "2.3" && P.fmtNum(null) === "—", "fmtNum");
 
+// ---------- "Hot" filter: over in >= 4 of last 5 played, or the same share (80%) with fewer games; min 2 games
+check([1, 2, 3, 4, 5].map(P.hotNeed).join() === "1,2,3,4,4", `hotNeed by games played: ${[1, 2, 3, 4, 5].map(P.hotNeed)}`);
+const L = vals => vals.map((v, i) => [`2026-10-${20 - i}`, "OPP", "vs", v === null ? null : { points: v }]);
+check(P.isHot(L([30, 30, 30, 30, 10]), "points", 24.5) === true, "4/5 over is hot");
+check(P.isHot(L([30, 30, 30, 10, 10]), "points", 24.5) === false, "3/5 over is not hot");
+check(P.isHot(L([30, 30, 30]), "points", 24.5) === true && P.isHot(L([30, 30, 10]), "points", 24.5) === false, "3/3 hot, 2/3 not");
+check(P.isHot(L([30, null, 30, 30, 30]), "points", 24.5) === true && P.isHot(L([30, null, 30, 30, 10]), "points", 24.5) === false, "DNP skipped: 4/4 hot, 3/4 not");
+check(P.isHot(L([30]), "points", 24.5) === false && P.isHot([], "points", 1) === false, "one game is not enough");
+check(P.isHot(L([25, 25, 25, 25, 25]), "points", 25) === false, "pushes are not overs");
+check(P.isHot(L([30, 30, 30, 30, 10, 10, 10, 10]), "points", 24.5) === true, "only the last 5 count");
+
 const doc = {
   lg: "nfl", markets: { pass_yds: ["Passing yards", "Pass yds"], rec_yds: ["Receiving yards", "Rec yds"], anytime_td: ["Anytime TD", "Any TD"] },
   games: { "9": { props: [["wr", "rec_yds", 60.5, null, [1, 1, 0, 2]], ["qb", "pass_yds", 250.5, 245.5, [2, 0, 0, 2]], ["wr", "anytime_td", 0.5, null, [0, 2, 0, 2]],

@@ -21,10 +21,11 @@
     const s = C.strip(log, p.mk, p.line, 5), sm = C.summary(log, p.mk, p.line, 5), l10 = C.rate(log, p.mk, p.line, 10), se = C.season(p.tally);
     const mv = C.moveText(p.line, p.open);
     const cls = sm.n ? (sm.o / sm.n > 0.5 ? "hot" : sm.o / sm.n < 0.5 ? "cold" : "") : "";
-    return `<div class="pp-row" data-mk="${esc(p.mk)}">
+    const hot = C.isHot(log, p.mk, p.line);
+    return `<div class="pp-row${hot ? " is-hot" : ""}" data-mk="${esc(p.mk)}" data-hot="${hot ? 1 : 0}">
       <div class="pp-mk"><span class="pp-lab">${esc(p.label)}</span><span class="pp-line">${esc(C.lineText(p.mk, p.line))}</span>${mv ? `<span class="pp-mv">${esc(mv)}</span>` : ""}</div>
       <div class="pp-strip" role="list" aria-label="Last 5 games vs this line">${s.length ? s.map(b => box(b, p.mk)).join("") : `<span class="pp-none">No games yet this season</span>`}</div>
-      <div class="pp-sum"><b class="pp-xs ${cls}">${esc(sm.text)}</b><span>L10 ${l10.n ? `${l10.o}/${l10.n}` : "—"}</span><span>Season ${esc(se.text)}</span></div>
+      <div class="pp-sum">${hot ? `<span class="pp-hot-tag">Hot</span>` : ""}<b class="pp-xs ${cls}">${esc(sm.text)}</b><span>L10 ${l10.n ? `${l10.o}/${l10.n}` : "—"}</span><span>Season ${esc(se.text)}</span></div>
     </div>`;
   }
 
@@ -59,21 +60,36 @@
       return;
     }
     const teams = [[g.away.id, g.away.abbr], [g.home.id, g.home.abbr]];
-    const tabs = `<div class="pp-tabs" role="tablist"><button class="on" data-f="">All</button>${teams.map(([id, ab]) => `<button data-f="${esc(id)}">${esc(ab)}</button>`).join("")}</div>`;
-    el.innerHTML = tabs + legend + `<div class="pp-list">${players.map(p => playerCard(lg, p)).join("")}</div>`
-      + `<button class="pp-more" hidden></button>` + foot(doc);
-    let filt = "", open = false;
-    const more = el.querySelector(".pp-more");
+    const mkts = Object.keys(doc.markets || {}).filter(m => players.some(p => p.props.some(x => x.mk === m)));
+    const nHot = players.reduce((a, p) => a + p.props.filter(x => C.isHot(p.log, x.mk, x.line)).length, 0);
+    const tabs = `<div class="pp-tabs" role="group" aria-label="Team">${[["", "All"], ...teams].map(([id, ab], i) => `<button class="${i ? "" : "on"}" data-f="${esc(id)}" aria-pressed="${!i}">${esc(ab)}</button>`).join("")}`
+      + `<button class="pp-hot" data-hot aria-pressed="false" title="Only props that went over in at least 4 of his last 5 games (or all of them, with 2-4 games played)">Hot: 4/5+ over <span class="pp-n">${nHot}</span></button></div>`;
+    const chips = mkts.length > 1 ? `<div class="pp-chips" role="group" aria-label="Prop type"><button class="on" data-m="" aria-pressed="true">All props</button>${mkts.map(m => `<button data-m="${esc(m)}" aria-pressed="false">${esc(doc.markets[m][1])}</button>`).join("")}</div>` : "";
+    el.innerHTML = tabs + chips + legend + `<div class="pp-list">${players.map(p => playerCard(lg, p)).join("")}</div>`
+      + `<div class="card note pp-empty" hidden></div><button class="pp-more" hidden></button>` + foot(doc);
+    const f = { team: "", mk: "", hot: false };
+    let open = false;
+    const more = el.querySelector(".pp-more"), empty = el.querySelector(".pp-empty");
     const draw = () => {
-      const cards = [...el.querySelectorAll(".pp-card")].filter(c => { const m = !filt || c.dataset.team === filt; c.hidden = !m; return m; });
+      const cards = [...el.querySelectorAll(".pp-card")].filter(c => {
+        let any = false;
+        c.querySelectorAll(".pp-row").forEach(r => { const m = (!f.mk || r.dataset.mk === f.mk) && (!f.hot || r.dataset.hot === "1"); r.hidden = !m; any = any || m; });
+        const m = any && (!f.team || c.dataset.team === f.team); c.hidden = !m; return m;
+      });
       cards.forEach((c, i) => { if (!open && i >= SHOW) c.hidden = true; });
       more.hidden = open || cards.length <= SHOW;
       more.textContent = `Show all ${cards.length} players`;
+      empty.hidden = cards.length > 0;
+      empty.textContent = f.hot ? "No props over the line in 4 of the last 5 games (or every game, for players with fewer) for this selection." : "No props match this selection.";
     };
-    el.querySelectorAll(".pp-tabs button").forEach(b => b.addEventListener("click", () => {
-      el.querySelectorAll(".pp-tabs button").forEach(x => x.classList.toggle("on", x === b));
-      filt = b.dataset.f; draw();
+    const group = (sel, key, attr) => el.querySelectorAll(sel).forEach(b => b.addEventListener("click", () => {
+      el.querySelectorAll(sel).forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", String(x === b)); });
+      f[key] = b.dataset[attr]; draw();
     }));
+    group(".pp-tabs [data-f]", "team", "f");
+    group(".pp-chips [data-m]", "mk", "m");
+    const hb = el.querySelector(".pp-hot");
+    hb.addEventListener("click", () => { f.hot = !f.hot; hb.classList.toggle("on", f.hot); hb.setAttribute("aria-pressed", String(f.hot)); draw(); });
     more.addEventListener("click", () => { open = true; draw(); });
     draw();
   }

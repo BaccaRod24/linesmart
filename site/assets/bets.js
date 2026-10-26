@@ -1,4 +1,5 @@
-/* LineSmart "My Bets": a private bet tracker. Bets live only in this browser (localStorage); nothing is sent anywhere.
+/* LineSmart "My Bets": a private bet tracker. Bets live in this browser (localStorage); nothing is sent anywhere unless the
+   visitor signs in on the Account tab, which syncs them to their own account (assets/account.js).
  * Routes: #/bets (overview), #/bets/list, #/bets/add[?lg=&ev=&mk=&side=&ln=&od=&bk=[&pid=&pm=&pn=]], #/bets/edit/<id>
  *   (mk=prop + pid/pm = a player prop from data/props/<lg>.json; pn = player name when he isn't in the feed)
  * Pure math/settlement lives in bets-core.js (window.BetCore); app helpers come from window.LSApp. */
@@ -35,15 +36,46 @@
 
   // ---------- storage (this device only)
   const DEMO_KEY = "ls-bets-demo";   // set only by scripts/screenshots_bets.mjs to label example data
+  // Each bet carries a stable id + updatedAt (for optional Account sync, assets/account.js). Deletions leave a small
+  // tombstone (id -> time) until they're pushed, so a delete on one device removes the bet on the others.
+  const AC = window.AcctCore || null;
+  let SIG = {};
+  const readTombs = () => { try { return JSON.parse(localStorage.getItem(AC ? AC.TOMB_KEY : "ls-bets-tomb-v1") || "{}") || {}; } catch (e) { return {}; } };
+  const writeTombs = t => { try { if (Object.keys(t).length) localStorage.setItem(AC.TOMB_KEY, JSON.stringify(t)); else localStorage.removeItem(AC.TOMB_KEY); } catch (e) {} };
+  const writeRaw = bets => localStorage.setItem(C.KEY, JSON.stringify({ v: 1, saved: new Date().toISOString(), bets }));
   function load() {
-    try { const d = JSON.parse(localStorage.getItem(C.KEY) || "null"); return Array.isArray(d && d.bets) ? d.bets.map(C.normalizeBet).filter(Boolean) : []; }
-    catch (e) { return []; }
+    let bets;
+    try { const d = JSON.parse(localStorage.getItem(C.KEY) || "null"); bets = Array.isArray(d && d.bets) ? d.bets.map(C.normalizeBet).filter(Boolean) : []; }
+    catch (e) { bets = []; }
+    if (AC) { const m = AC.migrate(bets, new Date().toISOString(), C.uid); bets = m.bets; if (m.changed) try { writeRaw(bets); } catch (e) {} SIG = AC.snapshot(bets); }
+    return bets;
   }
   let BETS = load();
   function save() {
-    try { localStorage.setItem(C.KEY, JSON.stringify({ v: 1, saved: new Date().toISOString(), bets: BETS })); return true; }
+    try {
+      if (AC) {
+        const now = new Date().toISOString(), st = AC.stamp(SIG, BETS, now);
+        BETS = st.bets;
+        writeRaw(BETS); SIG = st.sig;
+        if (st.removed.length) { const t = readTombs(); for (const id of st.removed) t[id] = now; writeTombs(t); }
+        window.dispatchEvent(new CustomEvent("ls-bets-changed"));
+      } else writeRaw(BETS);
+      return true;
+    }
     catch (e) { toast("Couldn't save: this browser's storage is full or blocked."); return false; }
   }
+  // for assets/account.js: a consistent read of this device's bets, and a guarded write of the merged result
+  function syncState() { const bets = load(); return { bets, tombs: readTombs(), raw: localStorage.getItem(C.KEY) || "" }; }
+  function applySync(bets, tombs, raw) {
+    if ((localStorage.getItem(C.KEY) || "") !== raw) return false;          // edited meanwhile: the caller syncs again
+    try { writeRaw(bets); } catch (e) { return false; }
+    writeTombs(tombs || {});
+    BETS = bets; SIG = AC.snapshot(bets);
+    const seg = location.hash.replace(/^#\/?/, "").split("?")[0].split("/");
+    if (seg[0] === "bets" && seg[1] !== "add" && seg[1] !== "edit") view();   // never wipe a form in progress
+    return true;
+  }
+
   window.addEventListener("storage", e => { if (e.key === C.KEY) { BETS = load(); if (/^#\/bets/.test(location.hash)) view(); } });
   const isDemo = () => localStorage.getItem(DEMO_KEY) === "1";
   const prefs = () => { try { return JSON.parse(localStorage.getItem("ls-bets-prefs") || "{}"); } catch (e) { return {}; } };
@@ -119,12 +151,15 @@
   let LISTF = "all";
   function shell(active, body) {
     const demo = isDemo() ? `<div class="bt-demo" role="note"><b>Example data</b> These are sample bets for screenshots only, not real wagers.</div>` : "";
-    return `<div class="page-head bt-head"><div><h1>My Bets</h1><div class="sub">Private tracker · stored only on this device</div></div>
+    return `<div class="page-head bt-head"><div><h1>My Bets</h1><div class="sub">${signedIn() ? "Private tracker · synced to your account" : "Private tracker · stored on this device"}</div></div>
       <a class="bt-add" href="#/bets/add">+ Add bet</a></div>
       <nav class="seg bt-tabs" aria-label="My Bets sections"><a href="#/bets" class="${active === "ov" ? "on" : ""}">Overview</a><a href="#/bets/list" class="${active === "list" ? "on" : ""}">Bets${BETS.length ? ` <span class="na">${BETS.length}</span>` : ""}</a><a href="#/bets/add" class="${active === "add" ? "on" : ""}">Add</a></nav>
       ${demo}${body}`;
   }
-  const privacyNote = `<div class="note bt-priv">Your bets are saved only in this browser on this device. They aren't uploaded, synced or linked to any sportsbook account (sportsbooks don't offer a public way to connect). Clearing browser data deletes them, so export a backup from time to time.</div>`;
+  const privacyNote = () => signedIn()
+    ? `<div class="note bt-priv">Your bets are saved in this browser and synced to your LineSmart account, so they show up wherever you sign in. Manage sync on the <a href="#/account">Account</a> tab. They aren't linked to any sportsbook account.</div>`
+    : `<div class="note bt-priv">Your bets are saved only in this browser on this device. They aren't linked to any sportsbook account (sportsbooks don't offer a public way to connect). Clearing browser data deletes them, so export a backup, or <a href="#/account">sign in</a> (optional) to keep the same bets on your phone and computer.</div>`;
+  const signedIn = () => { try { return !!localStorage.getItem(AC ? AC.AUTH_KEY : "ls-sb-auth"); } catch (e) { return false; } };
   const rgNote = `<div class="note bt-rg">Tracking shows what betting really costs you over time. Set a budget you're comfortable losing, and take a break if it stops being fun. Gambling problem? Call <a href="tel:18004262537">1-800-GAMBLER</a>.</div>`;
 
   function filterBar(all) {
@@ -146,7 +181,7 @@
     const list = C.filterBets(BETS, FILT), s = C.summarize(list);
     if (!BETS.length) {
       app.innerHTML = shell("ov", `<div class="empty bt-empty"><h3>No bets tracked yet</h3>Log a bet you've placed at any sportsbook to see your profit and loss, record and ROI over time.
-        <div style="margin-top:16px"><a class="bt-add" href="#/bets/add">+ Add your first bet</a></div></div>${privacyNote}${dataCard()}${rgNote}`);
+        <div style="margin-top:16px"><a class="bt-add" href="#/bets/add">+ Add your first bet</a></div></div>${privacyNote()}${dataCard()}${rgNote}`);
       wireData(app); return;
     }
     const rec = `${s.won}-${s.lost}-${s.push}`;
@@ -167,7 +202,7 @@
     const byLg = C.groupBy(list, b => (b.type === "parlay" ? "parlay" : b.league || "other")).map(r => ({ ...r, name: r.key === "parlay" ? "Parlays (multi)" : r.key === "other" ? "Other / manual" : lgName(r.key) }));
     const byType = C.groupBy(list, b => b.type).map(r => ({ ...r, name: C.TYPES[r.key] || r.key }));
     html += `<div class="section-title">Breakdown</div><div class="cols bt-cols">${tbl("By sportsbook", byBook, "Book")}${tbl("By league", byLg, "League")}</div><div class="cols bt-cols" style="margin-top:16px">${tbl("By bet type", byType, "Type")}${recentCard(list)}</div>`;
-    html += privacyNote + dataCard() + rgNote;
+    html += privacyNote() + dataCard() + rgNote;
     app.innerHTML = shell("ov", html);
     wireFilters(app, () => viewOverview(app));
     wireData(app);
@@ -235,7 +270,7 @@
       .sort((a, b) => (b.status === "pending") - (a.status === "pending") || String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)));
     let html = filterBar(BETS) + `<div class="chips bt-lf" role="group" aria-label="Show">${[["all", "All"], ["pending", "Open"], ["settled", "Settled"]].map(([k, l]) => `<button type="button" class="chip${LISTF === k ? " on" : ""}" data-lf="${k}">${l} <b>${counts[k]}</b></button>`).join("")}</div>`;
     html += shown.length ? `<div class="bt-list">${shown.map(betCard).join("")}</div>` : `<div class="empty"><h3>${BETS.length ? "No bets match these filters" : "No bets tracked yet"}</h3>${BETS.length ? "Try a wider date range." : `<a class="lnk" href="#/bets/add">Add a bet</a> you've placed to start tracking.`}</div>`;
-    html += `<div class="note">Moneyline, spread and total bets linked to a game settle automatically once ESPN posts the final score. NFL and NBA player props picked from a game settle from ESPN's box score; if a player isn't in the box score (didn't play) or the game wasn't completed, the bet is marked "Needs review" for you to grade. Other props and manual entries: tap Settle.</div>` + privacyNote;
+    html += `<div class="note">Moneyline, spread and total bets linked to a game settle automatically once ESPN posts the final score. NFL and NBA player props picked from a game settle from ESPN's box score; if a player isn't in the box score (didn't play) or the game wasn't completed, the bet is marked "Needs review" for you to grade. Other props and manual entries: tap Settle.</div>` + privacyNote();
     app.innerHTML = shell("list", html);
     wireFilters(app, () => viewList(app));
     app.querySelectorAll("[data-lf]").forEach(b => (b.onclick = () => { LISTF = b.dataset.lf; viewList(app); }));
@@ -317,7 +352,7 @@
     };
     const clr = app.querySelector("[data-clear]");
     if (clr) clr.onclick = () => {
-      if (!confirm(`Delete all ${BETS.length} bets from this device? Export a backup first if you want to keep them.`)) return;
+      if (!confirm(signedIn() ? `Delete all ${BETS.length} bets? You're signed in, so they'll also be deleted from your account and your other devices. Export a backup first if you want to keep them.` : `Delete all ${BETS.length} bets from this device? Export a backup first if you want to keep them.`)) return;
       BETS = []; save(); localStorage.removeItem(DEMO_KEY); view();
     };
   }
@@ -500,7 +535,7 @@
       <label class="bt-f"><span class="bt-lbl">Notes <span class="na">(optional)</span></span><input data-f="notes" value="${esc(F.notes)}" placeholder="e.g. bet ID, boost, reasoning" autocomplete="off"></label>
       <div class="bt-err" role="alert"></div>
       <div class="bt-actions"><a class="chip" href="${F.id ? "#/bets/list" : "#/bets"}">Cancel</a><button type="submit" class="bt-add">${F.id ? "Save changes" : "Save bet"}</button></div>
-      <div class="note">Saved only on this device. ${F.type === "prop" || F.type === "parlay" ? "NFL and NBA player props picked from a game settle automatically from ESPN's box score; anything it can't grade (player didn't play, prop not in the box score) is flagged for you to settle. Other props and manual entries are settled by you from the Bets list." : "Moneyline, spread and total bets linked to a game settle automatically from ESPN final scores."}</div></form>`;
+      <div class="note">${signedIn() ? "Saved on this device and synced to your account. " : "Saved on this device. "}${F.type === "prop" || F.type === "parlay" ? "NFL and NBA player props picked from a game settle automatically from ESPN's box score; anything it can't grade (player didn't play, prop not in the box score) is flagged for you to settle. Other props and manual entries are settled by you from the Bets list." : "Moneyline, spread and total bets linked to a game settle automatically from ESPN final scores."}</div></form>`;
     app.innerHTML = shell("add", h);
     const form = $(".bt-form", app);
     updateToWin(form);
@@ -686,5 +721,5 @@
     return `<div class="section-title">Track a bet</div><div class="card bt-track"><h3>Placed a bet on this game? <a class="lnk bt-more" href="${esc(trackHref(lg, g))}">Other bet ›</a></h3>
       ${out.join("") || (hidden ? `<div class="na">Shortcuts appear only for sportsbooks that are legal online in ${esc((GEO.current() || {}).stateName || "your state")}. You can still log a bet.</div>` : `<div class="na">No book prices for this game yet. You can still log it.</div>`)}<div class="note">Tap the line you bet to log it in My Bets (saved only on this device). Your stake and the exact odds on your slip come next.</div></div>`;
   }
-  window.LSBets = { view, trackHref, trackCard, propHref, cellHref };
+  window.LSBets = { view, trackHref, trackCard, propHref, cellHref, syncState, applySync };
 })();

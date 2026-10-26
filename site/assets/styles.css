@@ -1218,3 +1218,41 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .books a.trk::before{content:"+"}
 .books a.trk:hover,.books a.trk:focus-visible{opacity:1;background:var(--accent-soft)}
 @media (pointer:coarse){.books a.trk{width:26px;height:26px;opacity:.85}}
+
+/* ---------- Account tab (#/account, assets/account.js) */
+.acct-btn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.acct-btn{padding:0 14px 0 11px}
+@media (max-width:1100px){.acct-btn span{display:none}.acct-btn{width:36px;padding:0;justify-content:center}}
+.ac-wrap{max-width:560px;display:flex;flex-direction:column;gap:14px}
+.ac-wrap .section-title{margin:6px 0 -4px}
+.ac-card.bt-form{max-width:none}
+.ac-card h3{font-size:17px}
+.ac-p{margin:0 0 4px;color:var(--mute);font-size:14px;line-height:1.5}
+.ac-card input{width:100%}
+.ac-code{font:700 22px/1 var(--mono,ui-monospace,monospace)!important;letter-spacing:.28em;text-align:center;min-height:52px!important}
+.ac-code::placeholder{letter-spacing:.04em;font-weight:500;font-size:15px}
+.ac-actions{justify-content:flex-start;flex-wrap:wrap}
+.ac-actions .bt-add{min-width:130px}
+.bt-add:disabled,.chip:disabled{opacity:.55;cursor:default}
+.ac-msg{margin-top:10px;padding:10px 12px;border-radius:var(--r-sm);font-size:13.5px;line-height:1.45}
+.ac-err{background:color-mix(in srgb,var(--neg) 12%,transparent);border:1px solid color-mix(in srgb,var(--neg) 40%,transparent);color:var(--txt)}
+.ac-info{background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);color:var(--txt)}
+.ac-resend{margin-top:12px;font-size:13px}
+.ac-resend .lnk{background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--accent2);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.ac-resend .lnk:disabled{color:var(--dim);text-decoration:none;cursor:default}
+.ac-email{font-size:16px;font-weight:700;word-break:break-all;margin:-4px 0 12px}
+.ac-sync{padding:12px 14px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--line);font-size:13.5px;display:flex;flex-direction:column;gap:4px}
+.ac-line{display:flex;align-items:center;gap:8px;font-weight:650}
+.ac-dot{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:none}
+.ac-dot.ac-ok{background:var(--pos);box-shadow:0 0 8px color-mix(in srgb,var(--pos) 70%,transparent)}
+.ac-dot.ac-bad{background:var(--warn)}
+.ac-dot.ac-busy{background:var(--accent2);animation:acpulse 1s ease-in-out infinite}
+@keyframes acpulse{50%{opacity:.35}}
+.ac-btns{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 4px}
+.ac-btns .chip{min-height:40px;padding:0 16px}
+.ac-danger{border-color:color-mix(in srgb,var(--neg) 30%,var(--line))}
+.ac-danger .chip{min-height:40px;padding:0 16px;margin-top:8px}
+.ac-note{margin-top:0}
+@media (max-width:760px){.ac-card input{font-size:16px}.ac-code{font-size:22px!important}}
+.legal-btn{display:inline-flex;align-items:center;min-height:40px;padding:0 16px;border-radius:999px;border:1px solid color-mix(in srgb,var(--neg) 45%,var(--line2));color:var(--neg)!important;font-weight:700;text-decoration:none!important}
+.ac-wrap .note a,.ac-p a{color:var(--accent2);font-weight:650;text-decoration:underline;text-underline-offset:2px}

@@ -76,6 +76,30 @@ python3 scripts/line_history.py apply --snap-dir /tmp/linesnap --history-dir ../
 - Team and player stats, schedules, bios and game logs are fetched in the browser from `site.web.api.espn.com` (CORS-enabled; `site.api.espn.com` is not). The service worker caches those responses network-first, so recently viewed pages open offline. MLB uses `seasontype=2` (regular season) because ESPN defaults to the postseason. Soccer team stats are computed from the competition's results, and upcoming soccer fixtures come from `?fixture=true`.
 - Next-game lines on a team page come only from our own league data (the 10-day window). They are never invented.
 
+## Player matchups (NFL, NBA)
+
+The player page (`#/p/{league}/{id}`; `#/p/{league}/{id}/m` jumps to the section) has a **Matchup** section for the player's next opponent. Game pages list **Key player matchups**, the season leaders for each side with links to that view.
+
+- **Next game:** opponent, date and time (ET), and home or away. When the game is in our 10-day window, it also shows the DraftKings and Hard Rock spread, moneyline and total from site data. Otherwise it falls back to the ESPN team schedule, with no lines. A player listed on the game's injury report, or with a non-active ESPN status, is flagged.
+- **Form:** averages for the season, last 5, last 10, vs this opponent, and home/away. ▲/▼ marks a value more than 10% above or below the season average.
+  - L5/L10 span seasons.
+  - Home/away uses this season once a player has 6 or more games. Before that it uses the last 20 games.
+  - If a player has no games yet this season, the most recent season stands in.
+- **History vs opponent:** every meeting in the last 3 seasons, playoffs included. The data comes from ESPN game logs (`common/v3/sports/{path}/athletes/{id}/gamelog?season=`), fetched in the browser. Preseason and All-Star games are excluded.
+- **Hit rate:** pick a stat and a number to see how many of the last 10 games went over it. It describes past results only.
+- **Opponent defense vs position:** per-game stats allowed and the league rank for each.
+  - NFL: QB/RB/WR/TE pass, rush and receiving stats, plus team points and yards.
+  - NBA: G/F/C points, rebounds, assists and threes, plus opponent PPG, opponent FG%, and estimated defensive rating and pace.
+  - Rank 1 is the toughest defense: fewest allowed, or most interceptions forced. For pace, rank 1 is the slowest team. Tags mark the top third as Tough and the bottom third as Soft.
+  - `scripts/matchups.py` builds `site/data/matchups/{league}.json` (about 10 KB per league) from ESPN box scores of completed regular-season games. It runs as part of `build_data.py`, including `--search-only`; `--no-matchups` skips it.
+  - Compact box scores are cached (`--matchup-cache-dir`, env `MATCHUP_CACHE_DIR`; in CI under `matchups/` on `data-history`), so each run only fetches newly finished games. The first full build takes about 20 s for NFL+NBA. NFL positions come from the search index rosters because NFL box scores carry none.
+- Tests: `node scripts/matchup_test.mjs` and `python3 scripts/matchups_test.py`. Screenshots: `BASE=... node scripts/matchup_screens.mjs` → `screenshots/matchup-*.png`.
+- Limitations:
+  - Early-season samples are small (NBA teams have 2 to 4 games in late October).
+  - Players traded mid-season are bucketed by their current roster position.
+  - Pace and defensive rating are box-score estimates.
+  - MLB, NHL, college and soccer aren't covered yet.
+
 ## Color themes
 
 All colors are CSS custom properties in `site/assets/styles.css` (`:root`). Alternate themes override them via `:root[data-theme="…"]`; `site/assets/theme.js` applies one from `?theme=` (not persisted). The default (no query) is **Midnight Blue**; the logo, favicons and PWA icons are drawn in its colors (re-render rasters with `node branding/render-icons.js` after editing `site/assets/brand/icon.svg`/`logo.svg`).

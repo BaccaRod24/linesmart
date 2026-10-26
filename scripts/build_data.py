@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import line_history as LH
 import search_index as SI
+import matchups as MU
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.environ.get("DATA_OUT") or os.path.join(ROOT, "site", "data")   # DATA_OUT: build elsewhere (local testing)
@@ -223,7 +224,9 @@ def parse_summary(lg, g, m):
         tid = (blk.get("team") or {}).get("id")
         for cat in blk.get("leaders", []) or []:
             top = (cat.get("leaders") or [{}])[0]
-            if top: leaders.append(dict(teamId=tid, cat=cat.get("displayName"), player=(top.get("athlete") or {}).get("displayName"), value=top.get("displayValue")))
+            ath = (top.get("athlete") or {}) if top else {}
+            if top: leaders.append(dict(teamId=tid, cat=cat.get("displayName"), player=ath.get("displayName"), value=top.get("displayValue"),
+                                        id=str(ath["id"]) if ath.get("id") else None, pos=(ath.get("position") or {}).get("abbreviation")))
     det["leaders"] = leaders
     return det
 
@@ -505,8 +508,11 @@ def main():
                     help="dir caching team rosters for the search index (data-history branch); omit to fetch fresh every run")
     ap.add_argument("--roster-max-age-hours", type=float, default=float(os.environ.get("ROSTER_MAX_AGE_H") or 20),
                     help="re-fetch rosters when the cached copy is older than this")
+    ap.add_argument("--matchup-cache-dir", default=os.environ.get("MATCHUP_CACHE_DIR") or None,
+                    help="dir caching compact box scores for defense-vs-position (data-history branch); omit to fetch every game each run")
+    ap.add_argument("--no-matchups", action="store_true", help="skip the opponent defense-vs-position data (data/matchups)")
     ap.add_argument("--no-search", action="store_true", help="skip the team/player search index")
-    ap.add_argument("--search-only", action="store_true", help="only (re)build the search index; leave game data and odds untouched")
+    ap.add_argument("--search-only", action="store_true", help="only (re)build the search index and matchups (opponent defense); leave game data and odds untouched")
     a = ap.parse_args()
     run_t = LH.now_iso()
     want = a.leagues.split(",")
@@ -560,6 +566,16 @@ def main():
             except Exception as ex:
                 log(f"[{lg['key']}] search index FAILED: {ex}")   # the previous file (if any) stays in place
                 meta["search"].setdefault(lg["key"], {})["error"] = str(ex)[:200]
+    if not a.no_matchups:
+        meta.setdefault("matchups", {})
+        for lg in LEAGUES:
+            if lg["key"] not in want or lg["key"] not in MU.SUPPORTED: continue
+            try:
+                meta["matchups"][lg["key"]] = MU.build_matchups(lg, getj, SITE, os.path.join(OUT, "matchups"), os.path.join(OUT, "search"),
+                                                                a.matchup_cache_dir, a.snap_dir, log, teams_list=SI._teams_list)
+            except Exception as ex:
+                log(f"[{lg['key']}] matchups FAILED: {ex}")   # the previous file (if any) stays in place
+                meta["matchups"].setdefault(lg["key"], {})["error"] = str(ex)[:200]
     if a.search_only:
         with open(meta_path, "w") as fh: json.dump(meta, fh, indent=1)
         return log("search index done ->", os.path.join(OUT, "search"))

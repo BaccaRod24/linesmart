@@ -264,6 +264,7 @@
       const by = t => det.leaders.filter(x => x.teamId === t.id);
       const lc = t => `<div class="card"><h3>${logo(t)}${esc(t.name)}</h3><table><tbody>${by(t).map(x => `<tr><td>${esc(x.cat)}</td><td style="text-align:left">${esc(x.player)}</td><td class="num">${esc(x.value)}</td></tr>`).join("") || `<tr><td>${NA}</td></tr>`}</tbody></table></div>`;
       html += `<div class="section-title">Season leaders</div><div class="cols">${lc(A)}${lc(H)}</div>`;
+      if (window.LSMatchup && window.LSMatchup.SUPPORTED.has(key)) html += `<div id="keyMu"></div>`;
     }
     if ((det.seasonSeries || []).length) {
       html += `<div class="section-title">Season series</div><div class="card">${det.seasonSeries.map(s => `<div><b>${esc(s.title || "")}</b> ${esc(s.summary || "")}<div class="note">${(s.events || []).map(e => `${e.date ? fmt(e.date, { month: "short", day: "numeric", year: "numeric" }) : ""}: ${esc(e.score)}`).join(" · ")}</div></div>`).join("")}</div>`;
@@ -272,6 +273,8 @@
     app.innerHTML = html;
     lm.wire();
     window.scrollTo(0, 0);
+    const km = document.getElementById("keyMu");
+    if (km) { const tok = NAV; window.LSMatchup.keyMatchups(km, key, g, det, () => tok === NAV).catch(e => console.warn(e)); }
   }
 
   // ---------- line movement (game detail)
@@ -747,8 +750,8 @@
     }).join("");
     return { n: list.length, html: `<div class="tbl-wrap"><table class="ptbl glog"><thead>${catRow(gl.categories, labels.length, 3)}<tr><th>Date</th><th>Opp</th><th>Result</th>${labels.map((l, i) => `<th title="${esc(names[i] || l)}">${esc(l)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>` };
   }
-  async function viewPlayer(lg, id) {
-    const tok = NAV; renderTabs(lg); window.scrollTo(0, 0);
+  async function viewPlayer(lg, id, sub) {
+    const tok = NAV, wantMatchup = sub === "m"; renderTabs(lg); window.scrollTo(0, 0);
     if (!LG[lg]) return (app.innerHTML = `<div class="empty"><h3>Unknown league</h3></div>`);
     const [path, kind] = LG[lg], base = `common/v3/sports/${path}/athletes/${id}`;
     app.innerHTML = skelGame();
@@ -773,6 +776,8 @@
       ["Birthplace", at.displayBirthPlace], ["College", (at.college && (at.college.name || at.college.shortName)) || ""], ["Draft", at.displayDraft], ["Experience", at.displayExperience],
       ["Bats / throws", at.displayBatsThrows || ""], ["Hand", at.hand && at.hand.displayValue], ["Citizenship", at.citizenship]].filter(r => r[1]);
     let html = `${backLink()}<div class="phero" style="--tc:${hexOk(color) ? "#" + color : "#334155"}">${avatar(img, name, color, "xl")}<div class="ph-t"><h1>${esc(name)} ${status}</h1><div class="chips">${chips}</div></div></div>`;
+    const MU = window.LSMatchup, muOn = !!(MU && MU.SUPPORTED.has(lg));
+    if (muOn) html += `<div class="section-title" id="matchup">Matchup <span class="st-sub">next opponent</span></div><div class="mu" id="muBox"></div>`;
     html += `<div class="section-title">Bio</div>` + (bioRows.length ? `<div class="card"><dl class="bio">${bioRows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl></div>` : notAvail("Bio", a ? "ESPN lists no bio details for this player." : "Bio not available from ESPN right now."));
     // season stats (overview splits) with headline boxes from the first split
     const s = ov && ov.statistics, tbl = statTable(s);
@@ -786,6 +791,13 @@
     html += `<div class="section-title">Game log ${glh ? `<span class="st-sub">${glh.n === 1 ? "last game" : `last ${glh.n} games`}</span>` : ""}</div>` + (glh ? `<div class="card">${glh.html}</div>` : notAvail("Game log", "No game-by-game stats from ESPN for this player yet."));
     html += `<div class="note">Player data from ESPN, loaded live. Times in ${TZL}.</div>`;
     app.innerHTML = html;
+    if (muOn) {
+      const box = document.getElementById("muBox");
+      if (wantMatchup) document.getElementById("matchup")?.scrollIntoView();
+      MU.mount(box, { lg, id: String(id), teamId: tid, teamAbbr: (it && it.abbr) || team.abbreviation || "", teamName: tname, name, pos: (p && p.pos) || (at.position || {}).abbreviation || "",
+        status: at.status && at.status.name && !/^active$/i.test(at.status.name) ? at.status.name : "", rookie: /rookie|^1st/i.test(at.displayExperience || "") || (at.experience && at.experience.years === 0),
+        gamelog: gl, index: li, alive: () => tok === NAV }).then(() => { if (wantMatchup && tok === NAV) document.getElementById("matchup")?.scrollIntoView(); }, e => { box.innerHTML = notAvail("Matchup", "Couldn't load matchup stats right now."); console.warn(e); });
+    }
   }
 
   // ---------- router
@@ -803,7 +815,7 @@
     if (h[0] === "bets") return window.LSBets ? window.LSBets.view() : (app.innerHTML = `<div class="empty"><h3>My Bets didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "search") return viewSearch(decodeURIComponent(h.slice(1).join("/") || ""));
     if (h[0] === "t" && h[1] && h[2]) return viewTeam(h[1], h[2]);
-    if (h[0] === "p" && h[1] && h[2]) return viewPlayer(h[1], h[2]);
+    if (h[0] === "p" && h[1] && h[2]) return viewPlayer(h[1], h[2], h[3]);
     if (h[0] === "g" && h[1] && h[2]) return viewGame(h[1], h[2]);
     if (h[0] === "l" && h[1]) return viewLeague(h[1]);
     const def = (META.leagues[CFG.defaultLeague]?.upcoming ? CFG.defaultLeague : META.order.find(k => META.leagues[k]?.upcoming)) || META.order[0];
@@ -811,7 +823,7 @@
   }
   window.addEventListener("hashchange", route);
   // helpers shared with the My Bets tracker (assets/bets.js)
-  window.LSApp = { esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, nav: () => NAV };
+  window.LSApp = { esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, nav: () => NAV, espn, crest, notAvail, sidx };
   // "/" opens search from anywhere (unless typing in a field)
   document.addEventListener("keydown", e => {
     if (e.key === "/" && !e.metaKey && !e.ctrlKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "")) {

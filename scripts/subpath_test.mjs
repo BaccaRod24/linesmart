@@ -82,6 +82,38 @@ for (const lg of ["nfl", "nba", "epl"]) {
   check((await txt(".phero h1")).includes(pl[1]), "player deep link survives reload", lg);
 }
 
+// ---------- player matchups (NFL/NBA): game-page key matchups -> player matchup section (needs DATA_DIR with matchups/ built)
+for (const lg of ["nfl", "nba"]) {
+  if (!fs.existsSync(`${DATA}/matchups/${lg}.json`)) { console.log(`SKIP matchups ${lg}: ${DATA}/matchups/${lg}.json not built`); continue; }
+  const mu = JSON.parse(fs.readFileSync(`${DATA}/matchups/${lg}.json`));
+  check(mu.v === 1 && mu.nTeams >= 20 && Object.values(mu.teams).every(t => t.gp > 0), `matchups data: ${mu.games} games, ${mu.nTeams} teams`, `mu-${lg}`);
+  const li = JSON.parse(fs.readFileSync(`${DATA}/${lg}/index.json`));
+  const g = li.games.find(x => x.state === "pre" && fs.existsSync(`${DATA}/${lg}/games/${x.id}.json`) && (JSON.parse(fs.readFileSync(`${DATA}/${lg}/games/${x.id}.json`)).detail || {}).leaders?.length);
+  if (!g) { console.log(`SKIP matchups ${lg}: no upcoming game with leaders`); continue; }
+  await page.goto(BASE + `#/g/${lg}/${g.id}`, { waitUntil: "networkidle" });
+  await page.waitForSelector("#keyMu .mu-km", { timeout: 15000 }).catch(() => {});
+  const km = await page.$$eval("#keyMu .mu-km", a => a.map(x => x.getAttribute("href")));
+  check(km.length > 0 && km.every(h => new RegExp(`^#/p/${lg}/\\d+/m$`).test(h)), `game ${g.shortName}: ${km.length} key matchups linking to #/p/${lg}/{id}/m`, `mu-${lg}`);
+  if (!km.length) continue;
+  await page.click("#keyMu .mu-km");
+  await page.waitForSelector("#muBox .mu-next", { timeout: 20000 }).catch(() => {});
+  await page.waitForLoadState("networkidle").catch(() => {});
+  const nx = await txt("#muBox .mu-next");
+  const vsOpp = [g.home.name, g.away.name].some(n => nx.includes(n));
+  check(vsOpp && /ET/.test(nx), `player matchup header names the opponent: "${nx.replace(/\s+/g, " ").slice(0, 80)}"`, `mu-${lg}`);
+  const inView = await page.$eval("#matchup", e => { const r = e.getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; }).catch(() => false);
+  check(inView, "/m deep link scrolls the matchup section into view", `mu-${lg}`);
+  const hasForm = await page.$("#muBox .mu-tbl"), hasDef = /defense/i.test(await txt("#muBox"));
+  check(!!hasForm && hasDef, `form table + opponent defense rendered (${(await page.$$("#muBox table")).length} tables)`, `mu-${lg}`);
+  if (await page.$("#muBox .mu-x")) {
+    const before = await txt("#muBox .mu-hit-sum");
+    await page.fill("#muBox .mu-x", "0");
+    const after = await txt("#muBox .mu-hit-sum");
+    check(before !== after && /^Over 0 /.test(after), `hit-rate threshold is adjustable ("${after}")`, `mu-${lg}`);
+  }
+  check(!/\b(lock|bet now|guaranteed|best bet)\b/i.test(await txt("#muBox")), "no betting-encouragement wording", `mu-${lg}`);
+}
+
 // ---------- PWA checks
 await page.goto(BASE, { waitUntil: "networkidle" });
 const manHref = await page.$eval('link[rel="manifest"]', l => l.href).catch(() => null);
@@ -130,6 +162,7 @@ if (ofTeam) {
 // My Bets: on-device tracker (still offline here, so this also proves the route works from the SW cache)
 const shellUrls = await page.evaluate(async () => { for (const n of await caches.keys()) if (n.startsWith("linesmart-shell-")) return (await (await caches.open(n)).keys()).map(r => r.url); return []; });
 check(["assets/bets.js", "assets/bets-core.js"].every(f => shellUrls.includes(BASE + f)), "SW shell cache includes bets.js + bets-core.js", "bets");
+check(["assets/matchup.js", "assets/matchup-core.js"].every(f => shellUrls.includes(BASE + f)), "SW shell cache includes matchup.js + matchup-core.js", "matchup");
 await page.goto(BASE + "#/bets", { waitUntil: "load" });
 await page.waitForSelector(".bt-empty, .bt-stats", { timeout: 15000 }).catch(() => {});
 check(!!(await page.$(".bt-empty")), "offline: #/bets renders the empty state", "bets");

@@ -333,6 +333,33 @@ errors.length = errsOnline; // network errors while deliberately offline (e.g. E
     check(c.length > 0 && c.every(t => t === "Indoor"), `NBA cards all Indoor (${c.length})`, "weather");
   }
 }
+// ---------- player props (DraftKings via ESPN): section on game pages, last-5 strip, player-page card
+for (const lg of ["nfl", "nba"]) {
+  let pd = null;
+  try { pd = JSON.parse(fs.readFileSync(`${DATA}/props/${lg}.json`)); } catch (e) {}
+  if (!pd) { check(false, `no ${DATA}/props/${lg}.json (build without --no-props)`, "props"); continue; }
+  const gidP = Object.keys(pd.games).find(k => pd.games[k].props.some(r => (pd.players[r[0]].log || []).some(x => x[3])));
+  if (!gidP) { console.log(`  (props: no ${lg} game with player lines right now - skipped)`); continue; }
+  const want = new Set(pd.games[gidP].props.map(r => r[0])).size;
+  await page.goto(BASE + `#/g/${lg}/${gidP}`, { waitUntil: "networkidle" });
+  await page.waitForSelector(".pp-card", { timeout: 15000 }).catch(() => {});
+  const s = await page.evaluate(() => ({ cards: document.querySelectorAll(".pp-card").length, shown: [...document.querySelectorAll(".pp-card")].filter(c => !c.hidden).length,
+    boxes: [...document.querySelectorAll(".pp-card:not([hidden]) .pp-b")].map(b => b.className.replace("pp-b ", "")), sum: document.querySelector(".pp-xs")?.textContent || "",
+    more: document.querySelector(".pp-more:not([hidden])")?.textContent || "", note: document.querySelector(".pp-note")?.textContent || "", title: document.getElementById("props")?.textContent || "" }));
+  check(s.cards === want && /Player props/.test(s.title), `${lg} game ${gidP}: Player props section, ${s.cards}/${want} players`, "props");
+  check(s.boxes.length > 0 && s.boxes.every(c => /^pp-[oupx]$/.test(c)) && s.boxes.some(c => c === "pp-o" || c === "pp-u"), `${lg} last-5 boxes coloured (${s.boxes.length}: ${[...new Set(s.boxes)]})`, "props");
+  check(/^\d+\/\d+ over$|^No recent games$/.test(s.sum) && /DraftKings/.test(s.note), `${lg} summary "${s.sum}" + DraftKings source note`, "props");
+  if (s.cards > 6) {
+    check(s.shown === 6 && /Show all/.test(s.more), `${lg} collapsed to 6 with "${s.more}"`, "props");
+    await page.click(".pp-more");
+    check(await page.$$eval(".pp-card", e => e.filter(c => !c.hidden).length) === s.cards, `${lg} Show all expands`, "props");
+  }
+  const pid = pd.games[gidP].props[0][0];
+  await page.goto(BASE + `#/p/${lg}/${pid}`, { waitUntil: "networkidle" });
+  await page.waitForSelector("#ppPlayer .pp-card", { timeout: 15000 }).catch(() => {});
+  const pp = await page.evaluate(() => ({ rows: document.querySelectorAll("#ppPlayer .pp-row").length, game: document.querySelector("#ppPlayer .pp-game")?.getAttribute("href") || "" }));
+  check(pp.rows > 0 && pp.game.includes(`/${lg}/`), `${lg} player ${pid} page: ${pp.rows} prop rows linking to ${pp.game}`, "props");
+}
 await browser.close();
 if (pwaFail.length) console.log("PWA failures:", pwaFail);
 const outside = [...ok].filter(p => !p.startsWith(new URL(BASE).pathname));

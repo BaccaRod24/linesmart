@@ -217,6 +217,7 @@
     if (window.LSBets) html += window.LSBets.trackCard(key, g, kind);
     const lm = lineMoveSection(d, g, kind);
     html += lm.html;
+    if (window.LSProps) html += window.LSProps.gameSlot(key, g);
     if (window.LSWeather) html += window.LSWeather.section(g, kind);
 
     // side-by-side
@@ -277,6 +278,8 @@
     window.scrollTo(0, 0);
     const km = document.getElementById("keyMu");
     if (km) { const tok = NAV; window.LSMatchup.keyMatchups(km, key, g, det, () => tok === NAV).catch(e => console.warn(e)); }
+    const pp = document.getElementById("ppBox");
+    if (pp) { const tok = NAV; window.LSProps.mountGame(pp, key, g, () => tok === NAV).catch(e => { pp.innerHTML = notAvail("Player props", "Couldn't load player props right now."); console.warn(e); }); }
   }
 
   // ---------- line movement (game detail)
@@ -782,6 +785,7 @@
     let html = `${backLink()}<div class="phero" style="--tc:${hexOk(color) ? "#" + color : "#334155"}">${avatar(img, name, color, "xl")}<div class="ph-t"><h1>${esc(name)} ${status}</h1><div class="chips">${chips}</div></div></div>`;
     const MU = window.LSMatchup, muOn = !!(MU && MU.SUPPORTED.has(lg));
     if (muOn) html += `<div class="section-title" id="matchup">Matchup <span class="st-sub">next opponent</span></div><div class="mu" id="muBox"></div>`;
+    if (window.LSProps && window.LSProps.SUPPORTED.has(lg)) html += `<div id="ppPlayer"></div>`;
     html += `<div class="section-title">Bio</div>` + (bioRows.length ? `<div class="card"><dl class="bio">${bioRows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl></div>` : notAvail("Bio", a ? "ESPN lists no bio details for this player." : "Bio not available from ESPN right now."));
     // season stats (overview splits) with headline boxes from the first split
     const s = ov && ov.statistics, tbl = statTable(s);
@@ -795,6 +799,8 @@
     html += `<div class="section-title">Game log ${glh ? `<span class="st-sub">${glh.n === 1 ? "last game" : `last ${glh.n} games`}</span>` : ""}</div>` + (glh ? `<div class="card">${glh.html}</div>` : notAvail("Game log", "No game-by-game stats from ESPN for this player yet."));
     html += `<div class="note">Player data from ESPN, loaded live. Times in ${TZL}.</div>`;
     app.innerHTML = html;
+    const ppEl = document.getElementById("ppPlayer");
+    if (ppEl) window.LSProps.mountPlayer(ppEl, lg, String(id), () => tok === NAV).catch(e => console.warn(e));
     if (muOn) {
       const box = document.getElementById("muBox");
       if (wantMatchup) document.getElementById("matchup")?.scrollIntoView();

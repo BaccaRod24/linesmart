@@ -19,6 +19,7 @@ import concurrent.futures as cf, datetime as dt, json, os
 
 SUPPORTED = ("nfl", "nba")
 MAX_NEW = 400
+LAST_GAMES = {}   # league -> this run's compact games dict (reused by scripts/props.py for prop hit history)
 
 # key, label, rank direction ("low": rank 1 = lowest value). Per league: position buckets and team-level stats.
 NFL_POS = {
@@ -223,6 +224,7 @@ def build_matchups(lg, getj, site, out_dir, search_dir, cache_dir=None, snap_dir
             eid = futs[f]
             try: games[eid] = compact_game(key, f.result(), evs[eid]); ok += 1
             except Exception: fail += 1
+    LAST_GAMES[key] = games
     rep["boxScores"] = f"{len(games)} games ({len(games) - ok} cached, {ok} fetched" + (f", {fail} failed" if fail else "") + ")"
     if cpath and ok:
         blob = dict(league=key, season=season, updated=t0.isoformat(), games=games)

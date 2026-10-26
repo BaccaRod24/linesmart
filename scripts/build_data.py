@@ -25,6 +25,7 @@ import line_history as LH
 import search_index as SI
 import matchups as MU
 import weather as WX
+import props as PR
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.environ.get("DATA_OUT") or os.path.join(ROOT, "site", "data")   # DATA_OUT: build elsewhere (local testing)
@@ -526,6 +527,7 @@ def main():
                     help="dir caching venue coordinates and recent forecasts (data-history branch); omit to fetch every forecast each run")
     ap.add_argument("--no-weather", action="store_true", help="skip game-day weather (Open-Meteo)")
     ap.add_argument("--no-matchups", action="store_true", help="skip the opponent defense-vs-position data (data/matchups)")
+    ap.add_argument("--no-props", action="store_true", help="skip player prop lines + hit history (data/props)")
     ap.add_argument("--no-search", action="store_true", help="skip the team/player search index")
     ap.add_argument("--search-only", action="store_true", help="only (re)build the search index and matchups (opponent defense); leave game data and odds untouched")
     a = ap.parse_args()
@@ -591,6 +593,16 @@ def main():
             except Exception as ex:
                 log(f"[{lg['key']}] matchups FAILED: {ex}")   # the previous file (if any) stays in place
                 meta["matchups"].setdefault(lg["key"], {})["error"] = str(ex)[:200]
+    if not a.no_props and not a.search_only:
+        meta.setdefault("props", {})
+        for lg in LEAGUES:
+            if lg["key"] not in want or lg["key"] not in PR.SUPPORTED: continue
+            try:
+                meta["props"][lg["key"]] = PR.build_props(lg, getj, os.path.join(OUT, "props"), os.path.join(OUT, "search"),
+                                                          games=MU.LAST_GAMES.get(lg["key"]), matchup_cache_dir=a.matchup_cache_dir, log=log)
+            except Exception as ex:
+                log(f"[{lg['key']}] props FAILED: {ex}")   # the previous file (if any) stays in place
+                meta["props"].setdefault(lg["key"], {})["error"] = str(ex)[:200]
     if a.search_only:
         with open(meta_path, "w") as fh: json.dump(meta, fh, indent=1)
         return log("search index done ->", os.path.join(OUT, "search"))

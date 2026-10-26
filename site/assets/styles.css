@@ -687,7 +687,6 @@ html.age-open{overflow:hidden}
 .legal b{color:var(--txt)}
 .legal a{color:var(--accent);font-weight:600}
 .legal code{font-size:13px;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;color:var(--txt)}
-.legal-note{display:inline-block;margin:18px 0 0;font-size:12.5px;font-weight:600;color:var(--warn);background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:999px;padding:4px 12px}
 .legal .legal-date{color:var(--dim);font-size:13px;margin:0}
 .legal .legal-lead{font-size:16.5px;color:var(--txt);margin:14px 0 4px}
 .help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:22px 0 6px}
@@ -1074,3 +1073,21 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .st-act .st-save{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .top-about{flex:none;color:var(--mute);font-weight:650;font-size:13px;padding:6px 4px}
 @media (max-width:760px){.top-about{display:none}}
+
+/* static homepage intro (crawlable, visible without JS; compact on the JS home view) */
+.intro{padding-top:18px;padding-bottom:2px}
+.intro h1{margin:0 0 8px;font-size:22px;line-height:1.2;font-weight:800;letter-spacing:-.025em;color:var(--txt)}
+.intro p{margin:0 0 8px;font-size:14px;line-height:1.55;color:var(--mute);max-width:820px}
+.intro p strong{color:var(--txt);font-weight:600}
+.intro .intro-rg{font-size:12.5px;color:var(--dim)}
+.intro .intro-rg .age-pill{margin-right:6px;vertical-align:1px}
+.intro .intro-rg a{color:var(--accent)}
+.intro.js{padding-top:14px}
+.intro.js h1{font-size:18px;margin-bottom:6px}
+.intro.js p{font-size:13px;margin-bottom:6px}
+.intro[hidden]{display:none}
+.nojs-note{margin:8px auto 0;font-size:13.5px;color:var(--warn)}
+@media (max-width:760px){
+  .intro h1{font-size:19px}
+  .intro.js .intro-more{display:none}
+}

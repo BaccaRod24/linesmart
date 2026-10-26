@@ -14,7 +14,7 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
   const OUTSIDE = "XX";   // picker value for "Outside the US"
-  const BOOK_KEYS = ["hardrockbet", "draftkings", "fanduel"];
+  const BOOK_KEYS = ["hardrockbet", "draftkings", "fanduel", "betmgm"];
 
   // A saved override wins over the geo-IP lookup. Returns { country, region, source } or null.
   function resolve(override, lookup) {

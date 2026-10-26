@@ -185,7 +185,7 @@ for (const [file, title] of LEGAL) {
   const info = await page.evaluate(() => ({ h1: document.querySelector("main h1")?.textContent, note: document.querySelector(".legal-note")?.textContent || "",
     text: document.querySelector("main").innerText, hrefs: [...document.querySelectorAll("main a")].map(a => a.href), robots: document.querySelector('meta[name="robots"]')?.content || "" }));
   check(res.status() === 200 && info.h1 === title && !/noindex/.test(info.robots), `${file}: HTTP ${res.status()} h1="${info.h1}" indexable`, "legal");
-  if (file !== "responsible-gambling.html" && file !== "about.html") check(info.note === "This is a general template, not legal advice.", `${file}: template note`, "legal");
+  check(info.note === "" && !/general template|not legal advice/i.test(info.text), `${file}: no template / "not legal advice" banner`, "legal");
   if (file === "privacy.html") { const need = ["Last updated: October 26, 2026", CONTACT, "Cloudflare Web Analytics", "does not use cookies", "ipdata.info", "ls-geo", "ls-state", "ls-bets-v1", "ls-recent", "ls-age-ok", "site.web.api.espn.com", "a.espncdn.com", "GitHub Pages", "affiliate tracking links", "may then set cookies", "LineSmart does not set cookies"]; const miss = need.filter(w => !info.text.includes(w));
     check(!miss.length && !/we don't use analytics/i.test(info.text), `privacy: analytics, location, device storage, affiliate cookies, contact, date${miss.length ? " missing " + JSON.stringify(miss) : ""}`, "legal"); }
   if (file === "about.html") { const need = ["Rod Copenhaver Jr.", "sole proprietor in Riverview, Florida", "ESPN", "DraftKings", "Hard Rock Bet", "The Odds API", "Open-Meteo", "affiliate links", "21 and older", "1-800-GAMBLER", "1-833-PLAYWISE", CONTACT]; const miss = need.filter(w => !info.text.includes(w));
@@ -218,6 +218,26 @@ check(await page.evaluate(() => document.querySelector("main h1").textContent) =
 await page.click('a.back'); await page.waitForSelector(".game, .empty", { timeout: 15000 });
 check(new URL(page.url()).pathname === new URL(BASE).pathname, "legal page back link returns to the app under the subpath", "legal");
 
+// ---------- SEO: robots.txt, sitemap.xml, static homepage intro (no JS)
+{
+  const rb = await page.request.get(BASE + "robots.txt"), rt = await rb.text();
+  check(rb.status() === 200 && /User-agent: \*/.test(rt) && /Allow: \//.test(rt) && /Sitemap: https:\/\/linesmart\.app\/sitemap\.xml/.test(rt), "robots.txt: allow all + sitemap line", "seo");
+  const sm = await page.request.get(BASE + "sitemap.xml"), st = await sm.text();
+  const locs = [...st.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]);
+  const want = ["", "about.html", "responsible-gambling.html", "privacy.html", "terms.html", "affiliate-disclosure.html"].map(f => "https://linesmart.app/" + f);
+  check(sm.status() === 200 && want.every(u => locs.includes(u)) && !locs.some(u => u.includes("#")), `sitemap.xml: ${locs.length} pages, no hash routes`, "seo");
+  const nctx = await browser.newContext({ javaScriptEnabled: false }); const np = await nctx.newPage();
+  await np.goto(BASE, { waitUntil: "load" });
+  const nj = await np.evaluate(() => { const i = document.getElementById("intro"); const r = i && i.getBoundingClientRect();
+    return { h1: document.querySelector("h1")?.textContent || "", text: i ? i.innerText : "", vis: !!r && r.height > 0, desc: document.querySelector('meta[name="description"]')?.content || "" }; });
+  check(nj.vis && /odds comparison/i.test(nj.h1) && ["DraftKings", "Hard Rock Bet", "player props", "hit rates", "matchups", "weather", "UFC", "bet tracker", "21+", "1-800-GAMBLER"].every(w => nj.text.includes(w)), "no-JS homepage: H1 + intro text visible", "seo");
+  check(nj.desc.length > 50 && !/fanduel/i.test(nj.desc + nj.text), "meta description present; intro/meta make no FanDuel odds claim", "seo");
+  await nctx.close();
+  await page.goto(BASE + "#/search", { waitUntil: "networkidle" });
+  check(await page.$eval("#intro", e => e.hidden), "intro hidden off the home route (JS)", "seo");
+  await page.goto(BASE + "#/", { waitUntil: "networkidle" });
+  check(!(await page.$eval("#intro", e => e.hidden)), "intro shown on the home route (JS)", "seo");
+}
 // ---------- PWA checks
 await page.goto(BASE, { waitUntil: "networkidle" });
 const manHref = await page.$eval('link[rel="manifest"]', l => l.href).catch(() => null);
@@ -476,8 +496,8 @@ for (const lg of ["nfl", "nba"]) {
     return { ctx, p, seen };
   };
   const offers = p => p.evaluate(() => { const c = document.querySelector("[data-offers]"); return c ? { status: c.dataset.status || "ok", books: [...c.querySelectorAll("[data-book]")].map(a => a.dataset.book), text: c.innerText, hrefs: [...c.querySelectorAll("a[data-book]")].map(a => a.href) } : null; });
-  // any link to DraftKings/FanDuel: sportsbook URLs or bet-tracker quick-log shortcuts (bk=draftkings)
-  const dkfdLinks = p => p.$$eval("a[href]", as => as.map(a => a.href).filter(h => /draftkings|fanduel/i.test(h)));
+  // any link to DraftKings/FanDuel/BetMGM: sportsbook URLs or bet-tracker quick-log shortcuts (bk=draftkings)
+  const dkfdLinks = p => p.$$eval("a[href]", as => as.map(a => a.href).filter(h => /draftkings|fanduel|betmgm/i.test(h)));
   { // Florida visitor via (stubbed) geo-IP lookup
     const { ctx, p, seen } = await mk(FL_RESP);
     await p.goto(BASE, { waitUntil: "networkidle" }); await p.waitForSelector("[data-offers]", { timeout: 15000 }).catch(() => {});
@@ -485,7 +505,7 @@ for (const lg of ["nfl", "nba"]) {
     check(o && JSON.stringify(o.books) === '["hardrockbet"]' && /Hard Rock Bet/.test(o.text), `FL home: only Hard Rock Bet offer (${o && o.books})`, "geo");
     check(o && /21\+/.test(o.text) && /Gambling problem\? Call 1-800-GAMBLER/.test(o.text) && /PLAYWISE/.test(o.text), "FL offer shows 21+ and 1-800-GAMBLER (+ FL helpline)", "geo");
     check(o && o.hrefs[0] === "https://www.hardrock.bet/" && !/\$\d|bonus|promo/i.test(o.text), "FL offer: official site, no bonus/promo claims", "geo");
-    check(!(await dkfdLinks(p)).length, "FL home: no DraftKings/FanDuel links", "geo");
+    check(!(await dkfdLinks(p)).length, "FL home: no DraftKings/FanDuel/BetMGM links", "geo");
     check((await p.$eval("#stateBtn .st-l", e => e.textContent)) === "FL" && seen.some(u => /ipdata/.test(u)), "FL: lookup used (stubbed) and header shows FL", "geo");
     const cached = await p.evaluate(() => JSON.parse(localStorage.getItem("ls-geo") || "{}"));
     check(cached.country === "US" && cached.region === "FL" && !cached.ip, "lookup cached as country/state only (no IP stored)", "geo");
@@ -501,10 +521,12 @@ for (const lg of ["nfl", "nba"]) {
       await p.click("#stateBtn"); await p.waitForSelector("#stateDlg[open] #stSel");
       await p.selectOption("#stSel", "NJ"); await p.click("#stSave"); await p.waitForTimeout(600);
       const nj = await offers(p);
-      check(nj && JSON.stringify([...nj.books].sort()) === '["draftkings","fanduel","hardrockbet"]', `override NJ: all three offers (${nj && nj.books})`, "geo");
+      check(nj && JSON.stringify([...nj.books].sort()) === '["betmgm","draftkings","fanduel","hardrockbet"]', `override NJ: all four offers incl. BetMGM (${nj && nj.books})`, "geo");
+      check(nj && nj.hrefs.includes("https://sports.betmgm.com/") && /21\+/.test(nj.text) && /1-800-GAMBLER/.test(nj.text) && !/\$\d|bonus|promo/i.test(nj.text), "NJ: BetMGM official link, 21+ and helpline, no bonus claims", "geo");
+      check(!(await p.$$eval(".books thead th", ths => ths.filter(t => /BetMGM/i.test(t.innerText)).length)), "NJ game: no BetMGM odds column", "geo");
       check(await p.evaluate(() => localStorage.getItem("ls-state")) === "NJ" && (await p.$$(".books th.na-col")).length === 0, "override NJ saved; no columns marked unavailable", "geo");
       await p.reload({ waitUntil: "networkidle" }); await p.waitForSelector("[data-offers]", { timeout: 15000 }).catch(() => {});
-      check(((await offers(p)) || {}).books?.length === 3, "override persists over the FL lookup after reload", "geo");
+      check(((await offers(p)) || {}).books?.length === 4, "override persists over the FL lookup after reload", "geo");
       // non-legal state
       await p.click("#stateBtn"); await p.selectOption("#stSel", "TX"); await p.click("#stSave"); await p.waitForTimeout(600);
       const tx = await offers(p);

@@ -11,19 +11,22 @@ const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const ev = (override, lookup) => G.evaluate(DOC, OFFERS, G.resolve(override, lookup));
 const keys = e => e.offers.map(o => o.key);
 
-// Florida: Hard Rock only, first and default; DraftKings/FanDuel hidden and labeled
+// Florida: Hard Rock only, first and default; DraftKings/FanDuel/BetMGM hidden and labeled
 const fl = ev(null, { country: "US", region: "FL" });
 check(fl.status === "ok" && fl.state === "FL" && fl.source === "lookup", "FL lookup resolves to FL");
 check(eq(keys(fl), ["hardrockbet"]), "FL: only a Hard Rock Bet offer");
-check(!keys(fl).includes("draftkings") && !keys(fl).includes("fanduel"), "FL hides DraftKings and FanDuel offers");
+check(!keys(fl).includes("draftkings") && !keys(fl).includes("fanduel") && !keys(fl).includes("betmgm"), "FL hides DraftKings, FanDuel and BetMGM offers");
 check(fl.defaultBook === "hardrockbet" && fl.available[0] === "hardrockbet", "FL: Hard Rock Bet first and default");
-check(G.naLabel(fl, "draftkings") === "Not available in FL" && G.naLabel(fl, "fanduel") === "Not available in FL" && G.naLabel(fl, "hardrockbet") === "", "FL: DK/FD labeled not available");
-check(eq(G.sortBooks(fl, ["draftkings", "hardrockbet", "fanduel"]), ["hardrockbet", "draftkings", "fanduel"]), "FL: book columns sort Hard Rock first");
+check(G.naLabel(fl, "draftkings") === "Not available in FL" && G.naLabel(fl, "fanduel") === "Not available in FL" && G.naLabel(fl, "betmgm") === "Not available in FL" && G.naLabel(fl, "hardrockbet") === "", "FL: DK/FD/BetMGM labeled not available");
+check(eq(G.sortBooks(fl, ["draftkings", "hardrockbet", "fanduel", "betmgm"]), ["hardrockbet", "draftkings", "fanduel", "betmgm"]), "FL: book columns sort Hard Rock first");
 check(fl.offers[0].url === "https://www.hardrock.bet/" && fl.offers[0].affiliate === false, "FL: no affiliate URL yet -> official site, not marked affiliate");
 
-// New Jersey: all three
+// New Jersey: all four
 const nj = ev("NJ", null);
-check(nj.status === "ok" && eq(keys(nj).sort(), ["draftkings", "fanduel", "hardrockbet"]), "NJ shows all three books");
+check(nj.status === "ok" && eq(keys(nj).sort(), ["betmgm", "draftkings", "fanduel", "hardrockbet"]), "NJ shows all four books (incl. BetMGM)");
+const njMgm = nj.offers.find(o => o.key === "betmgm");
+check(njMgm && njMgm.url === "https://sports.betmgm.com/" && njMgm.affiliate === false, "NJ: BetMGM links to its official site, not an affiliate link");
+check(eq(keys(nj), ["hardrockbet", "draftkings", "fanduel", "betmgm"]), "NJ: offers follow config order, BetMGM last");
 check(nj.unavailable.length === 0 && G.naLabel(nj, "draftkings") === "", "NJ: nothing labeled unavailable");
 
 // non-legal states: no offers, neutral status
@@ -32,11 +35,22 @@ for (const st of ["TX", "CA", "GA", "UT", "WA", "MS", "WI"]) {
   check(e.status === "notlegal" && e.offers.length === 0 && e.available.length === 0, `${st}: not legal online -> no offers`);
 }
 // legal but none of our books
-for (const st of ["NV", "DE", "RI"]) { const e = ev(st); check(e.status === "nobooks" && e.offers.length === 0, `${st}: legal online, none of our books -> no offers`); }
+for (const st of ["DE", "RI"]) { const e = ev(st); check(e.status === "nobooks" && e.offers.length === 0, `${st}: legal online, none of our books -> no offers`); }
+const nv = ev("NV");
+check(nv.status === "ok" && eq(keys(nv), ["betmgm"]) && nv.uncertain, "NV: BetMGM only, flagged uncertain");
 // mixed states
-check(eq(keys(ev("NY")).sort(), ["draftkings", "fanduel"]), "NY: DraftKings + FanDuel, no Hard Rock");
+check(eq(keys(ev("NY")).sort(), ["betmgm", "draftkings", "fanduel"]), "NY: DraftKings + FanDuel + BetMGM, no Hard Rock");
 check(eq(keys(ev("NH")), ["draftkings"]) && eq(keys(ev("OR")), ["draftkings"]), "NH/OR: DraftKings only");
 check(eq(keys(ev("ME")), ["draftkings"]), "ME: DraftKings, not FanDuel");
+// BetMGM: shown only where it runs a legal online sportsbook; never FL; hidden elsewhere
+for (const st of ["AZ", "CO", "DC", "IL", "IN", "IA", "KS", "KY", "LA", "MD", "MA", "MI", "MO", "NV", "NJ", "NY", "NC", "OH", "PA", "TN", "VA", "WV", "WY", "PR"])
+  check(keys(ev(st)).includes("betmgm"), `${st}: BetMGM shown`);
+for (const st of ["FL", "CT", "VT", "ME", "NH", "OR", "AR", "DE", "RI", "MS", "TX", "CA"]) {
+  const e = ev(st);
+  check(!keys(e).includes("betmgm") && !e.available.includes("betmgm"), `${st}: BetMGM hidden`);
+}
+check(G.naLabel(ev("CT"), "betmgm") === "Not available in CT" && G.naLabel(ev("NJ"), "betmgm") === "", "BetMGM N/A label in CT, none in NJ");
+check(!DOC.states.FL.books.includes("betmgm") && ev(null, { country: "US", region: "FL" }).offers.every(o => o.key !== "betmgm"), "BetMGM never in Florida (data + lookup)");
 
 // unknown / non-US: no offers until a state is picked
 check(ev(null, null).status === "unknown" && ev(null, null).offers.length === 0, "no lookup -> unknown, no offers");
@@ -47,7 +61,7 @@ check(ev(G.OUTSIDE, { country: "US", region: "NJ" }).status === "nonus", "picker
 
 // manual override beats the lookup
 const ov = ev("NJ", { country: "US", region: "FL" });
-check(ov.state === "NJ" && ov.source === "override" && keys(ov).length === 3, "override NJ beats FL lookup");
+check(ov.state === "NJ" && ov.source === "override" && keys(ov).length === 4, "override NJ beats FL lookup");
 const ov2 = ev("FL", { country: "US", region: "NJ" });
 check(ov2.state === "FL" && eq(keys(ov2), ["hardrockbet"]), "override FL beats NJ lookup");
 check(ev("TX", { country: "US", region: "NJ" }).offers.length === 0, "override to a non-legal state hides offers");
@@ -65,9 +79,11 @@ check(aff.offers[0].affiliate === true && aff.offers[0].url === "https://example
 check(G.evaluate(DOC, { ...OFFERS, books: { ...OFFERS.books, hardrockbet: { name: "x", officialUrl: "http://insecure" } } }, G.resolve("FL")).offers.length === 0, "non-https offer URL is dropped");
 const bad = Object.entries(DOC.states).filter(([, s]) => !s.onlineLegal && s.books.length);
 check(bad.length === 0, "no books listed in a state without legal online betting");
-check(Object.keys(DOC.states).length === 52 && DOC.asOf && DOC.sources.hardrockbet.length && DOC.sources.draftkings.length && DOC.sources.fanduel.length, "data file: 50 states + DC + PR, dated, sourced");
+check(Object.keys(DOC.states).length === 52 && DOC.asOf && DOC.sources.hardrockbet.length && DOC.sources.draftkings.length && DOC.sources.fanduel.length && DOC.sources.betmgm.length, "data file: 50 states + DC + PR, dated, sourced");
 check(eq(DOC.states.FL.books, ["hardrockbet"]), "data: Florida = Hard Rock Bet only");
 check(!JSON.stringify(OFFERS).match(/\$\d|bonus|promo/i), "offers config has no bonus or promo claims");
+check(OFFERS.books.betmgm && OFFERS.books.betmgm.affiliateUrl === "" && OFFERS.books.betmgm.officialUrl === "https://sports.betmgm.com/", "BetMGM config: official URL, no affiliate link");
+check(eq(G.BOOK_KEYS, ["hardrockbet", "draftkings", "fanduel", "betmgm"]), "BOOK_KEYS include BetMGM");
 
 console.log(`${fail ? "FAIL" : "PASS"} geo: ${pass}/${pass + fail}`);
 process.exit(fail ? 1 : 0);

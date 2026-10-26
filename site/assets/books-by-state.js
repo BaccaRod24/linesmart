@@ -1,16 +1,17 @@
-/* Where DraftKings, FanDuel and Hard Rock Bet run legal ONLINE sportsbooks, by US state (window.BOOKS_BY_STATE;
+/* Where Hard Rock Bet, DraftKings, FanDuel and BetMGM run legal ONLINE sportsbooks, by US state (window.BOOKS_BY_STATE;
  * require() in Node tests). A .js data file (not .json) so the deploy's content hash and service-worker version
  * change whenever it changes. Sources, method and uncertain entries: docs/books_by_state.md. Not legal advice. */
 (function (root, data) {
   if (typeof module === "object" && module.exports) module.exports = data;
   else root.BOOKS_BY_STATE = data;
 })(typeof self !== "undefined" ? self : this, {
- "_about": "Where DraftKings, FanDuel and Hard Rock Bet run legal ONLINE sportsbooks, by US state/territory. Used by assets/geo-core.js / geo.js for state-aware offers. Not legal advice; each book geolocates bettors itself. Re-verify before changing and update asOf. Sources and method: docs/books_by_state.md.",
+ "_about": "Where Hard Rock Bet, DraftKings, FanDuel and BetMGM run legal ONLINE sportsbooks, by US state/territory. Used by assets/geo-core.js / geo.js for state-aware offers. Not legal advice; each book geolocates bettors itself. Re-verify before changing and update asOf. Sources and method: docs/books_by_state.md.",
  "asOf": "2026-10-26",
  "books": {
   "hardrockbet": "Hard Rock Bet",
   "draftkings": "DraftKings",
-  "fanduel": "FanDuel"
+  "fanduel": "FanDuel",
+  "betmgm": "BetMGM"
  },
  "sources": {
   "hardrockbet": [
@@ -24,6 +25,10 @@
   "fanduel": [
    "https://sportsbook.fanduel.com/select-region (FanDuel Sportsbook state picker, checked 2026-10-26)",
    "https://www.fanduel.com/legal-sports-betting-us-map (Sportsbook vs Predicts by state)"
+  ],
+  "betmgm": [
+   "https://sports.betmgm.com/en/sports (BetMGM's official 'Where are you playing from?' location selector, Sports tab, checked 2026-10-26: AZ, CO, DC, IL, IN, IA, KS, KY, LA, MD, MA, MI, MS, MO, NV, NJ, NY, NC, OH, PA, PR, TN, VA, WV, WY; Florida is listed under horse racing only)",
+   "https://www.sharpfootballanalysis.com/sportsbook/guides/betmgm-legal-states/ (BetMGM legal states, updated Oct 2026; secondary cross-check)"
   ],
   "onlineLegal": [
    "https://www.americangaming.org/ (AGA State of Play map: authoritative reference)",
@@ -47,7 +52,8 @@
    "books": [
     "hardrockbet",
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "AR": {
@@ -70,7 +76,8 @@
    "books": [
     "hardrockbet",
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "CT": {
@@ -85,14 +92,15 @@
    "name": "Delaware",
    "onlineLegal": true,
    "books": [],
-   "note": "Single online operator (not DraftKings, FanDuel or Hard Rock Bet)."
+   "note": "Single online operator (not Hard Rock Bet, DraftKings, FanDuel or BetMGM)."
   },
   "DC": {
    "name": "District of Columbia",
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "FL": {
@@ -124,7 +132,8 @@
    "books": [
     "hardrockbet",
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "IN": {
@@ -133,7 +142,8 @@
    "books": [
     "hardrockbet",
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "IA": {
@@ -141,7 +151,8 @@
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "KS": {
@@ -149,7 +160,8 @@
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "KY": {
@@ -157,7 +169,8 @@
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "LA": {
@@ -165,7 +178,8 @@
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ],
    "note": "Online betting is allowed only in parishes that approved it; DraftKings and FanDuel geofence the rest. Parish-level detail is not modeled.",
    "uncertain": true
@@ -183,7 +197,8 @@
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "MA": {
@@ -191,7 +206,8 @@
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "MI": {
@@ -200,7 +216,8 @@
    "books": [
     "hardrockbet",
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "MN": {
@@ -212,14 +229,15 @@
    "name": "Mississippi",
    "onlineLegal": false,
    "books": [],
-   "note": "Mobile betting only on casino premises; no statewide online betting."
+   "note": "Mobile betting only on casino premises; no statewide online betting. BetMGM's Mississippi app works only on casino property, so it gets no offer."
   },
   "MO": {
    "name": "Missouri",
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "MT": {
@@ -236,8 +254,11 @@
   "NV": {
    "name": "Nevada",
    "onlineLegal": true,
-   "books": [],
-   "note": "Online betting is legal, but apps require in-person registration at a casino. None of the three books here operate in Nevada."
+   "books": [
+    "betmgm"
+   ],
+   "note": "Online betting is legal, but Nevada apps have their own sign-up rules (some require registering in person at a casino). Of the books we list, only BetMGM runs a Nevada sportsbook app.",
+   "uncertain": true
   },
   "NH": {
    "name": "New Hampshire",
@@ -253,7 +274,8 @@
    "books": [
     "hardrockbet",
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "NM": {
@@ -266,7 +288,8 @@
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "NC": {
@@ -274,7 +297,8 @@
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "ND": {
@@ -289,7 +313,8 @@
    "books": [
     "hardrockbet",
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "OK": {
@@ -310,14 +335,15 @@
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "RI": {
    "name": "Rhode Island",
    "onlineLegal": true,
    "books": [],
-   "note": "Online betting through the state lottery's operator (not DraftKings, FanDuel or Hard Rock Bet)."
+   "note": "Online betting through the state lottery's operator (not Hard Rock Bet, DraftKings, FanDuel or BetMGM)."
   },
   "SC": {
    "name": "South Carolina",
@@ -335,7 +361,8 @@
    "books": [
     "hardrockbet",
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "TX": {
@@ -362,7 +389,8 @@
    "books": [
     "hardrockbet",
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "WA": {
@@ -376,7 +404,8 @@
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "WI": {
@@ -391,7 +420,8 @@
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ]
   },
   "PR": {
@@ -399,9 +429,10 @@
    "onlineLegal": true,
    "books": [
     "draftkings",
-    "fanduel"
+    "fanduel",
+    "betmgm"
    ],
-   "note": "US territory; DraftKings and FanDuel list Puerto Rico. Regulation differs from the states, so confirm locally.",
+   "note": "US territory; DraftKings, FanDuel and BetMGM list Puerto Rico. Regulation differs from the states, so confirm locally.",
    "uncertain": true
   }
  }

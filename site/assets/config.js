@@ -34,11 +34,13 @@ window.SITE_CONFIG = {
   // aren't in an approved, current offer. When any affiliateUrl is set, also set affiliate.enabled = true.
   offers: {
     enabled: true,
-    order: ["hardrockbet", "draftkings", "fanduel"],
+    order: ["hardrockbet", "draftkings", "fanduel", "betmgm"],
     books: {
       hardrockbet: { name: "Hard Rock Bet", officialUrl: "https://www.hardrock.bet/", affiliateUrl: "" },
       draftkings: { name: "DraftKings Sportsbook", officialUrl: "https://sportsbook.draftkings.com/", affiliateUrl: "" },
       fanduel: { name: "FanDuel Sportsbook", officialUrl: "https://sportsbook.fanduel.com/", affiliateUrl: "" },
+      // BetMGM: offers + state book list only (no BetMGM odds data, so no odds column). Never shown in FL.
+      betmgm: { name: "BetMGM Sportsbook", officialUrl: "https://sports.betmgm.com/", affiliateUrl: "" },
     },
   },
 };

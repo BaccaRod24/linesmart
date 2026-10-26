@@ -99,7 +99,7 @@
   const current = () => EV || G.evaluate(DOC, OC, null);
   const naLabel = key => G.naLabel(current(), key);
   const naTag = key => { const t = naLabel(key); return t ? ` <span class="na-st">${esc(t)}</span>` : ""; };
-  const providerKey = name => (/draftkings/i.test(name || "") ? "draftkings" : /fanduel/i.test(name || "") ? "fanduel" : /hard ?rock/i.test(name || "") ? "hardrockbet" : null);
+  const providerKey = name => (/draftkings/i.test(name || "") ? "draftkings" : /fanduel/i.test(name || "") ? "fanduel" : /hard ?rock/i.test(name || "") ? "hardrockbet" : /betmgm/i.test(name || "") ? "betmgm" : null);
   const RG = st => `<p class="of-rg"><span class="of-21">21+</span> Must be 21 or older and physically in ${esc(st || "a state where it's legal")}. Gambling problem? Call <a href="tel:18004262537">1-800-GAMBLER</a>.${st === "Florida" ? ` Florida: <a href="tel:18337529947">1-833-PLAYWISE</a>.` : ""} <a href="responsible-gambling.html">Responsible gambling</a></p>`;
   function offersHTML(ctx) {
     const ev = current();
@@ -113,7 +113,7 @@
         ${RG(ev.stateName)}${aff}</section>`;
     }
     const msg = ev.status === "notlegal" ? `Online sports betting isn't legal in ${esc(ev.stateName)}, so we don't show sportsbook offers there. Odds and stats are for reference only.`
-      : ev.status === "nobooks" ? `None of the sportsbooks we track (Hard Rock Bet, DraftKings, FanDuel) run a legal online sportsbook in ${esc(ev.stateName)}, so we don't show offers there. Odds are for reference only.`
+      : ev.status === "nobooks" ? `None of the sportsbooks we list (Hard Rock Bet, DraftKings, FanDuel, BetMGM) run a legal online sportsbook in ${esc(ev.stateName)}, so we don't show offers there. Odds are for reference only.`
       : ev.status === "nonus" ? "You appear to be outside the US. We only show sportsbook offers in US states where they're legal."
       : "We only show sportsbooks where they're legal. Pick your state to see which ones run there.";
     return `<section class="card offers of-none" data-offers="${esc(ctx)}" data-status="${esc(ev.status)}"><div class="of-head"><p class="of-msg">${msg}</p>${change}</div></section>`;

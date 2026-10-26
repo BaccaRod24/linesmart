@@ -7,7 +7,7 @@ One source of truth for the compliance footer: it is written into site/index.htm
 Run after editing:  python3 scripts/build_pages.py        (--check: exit 1 if files are out of date)
 
 Helpline numbers/URLs were verified on Oct 26, 2026 (see the compliance commit message); re-check them
-before changing. These pages are plain templates, not legal advice.
+before changing.
 """
 import re
 import sys
@@ -47,9 +47,7 @@ FOOTER = f"""<footer class="footer" id="siteFooter">
   </div>
 </footer>"""
 
-TEMPLATE_NOTE = '<p class="legal-note" role="note">This is a general template, not legal advice.</p>'
-
-def page(file, title, desc, body, show_note=True):
+def page(file, title, desc, body):
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -91,7 +89,6 @@ def page(file, title, desc, body, show_note=True):
 <main class="wrap" id="app">
 <article class="legal">
   <a class="back" href="./">← Odds &amp; lines</a>
-  {TEMPLATE_NOTE if show_note else ""}
   <h1>{title}</h1>
 {body}
 </article>
@@ -264,7 +261,7 @@ TERMS = f"""  <p class="legal-date">Effective date: {EFFECTIVE}</p>
 """
 
 AFFILIATE = f"""  <p class="legal-date">Effective date: {EFFECTIVE}</p>
-  <p class="legal-lead"><b>Right now, LineSmart has no affiliate relationships.</b> We don't earn money from any sportsbook, and no links on the site are affiliate links. In states where a sportsbook is legal, we link to its official website; those links don't pay us and carry no tracking code.</p>
+  <p class="legal-lead"><b>Right now, LineSmart has no affiliate relationships.</b> We don't earn money from any sportsbook, and no links on the site are affiliate links. In states where a sportsbook is legal, we link to its official website; those links don't pay us and carry no tracking code. The sportsbooks we link to are Hard Rock Bet, DraftKings, FanDuel and BetMGM.</p>
   <p>LineSmart plans to make money through affiliate links to licensed sportsbooks. This page will be updated, and the links labeled, before any go live.</p>
 
   <h2>If that changes</h2>
@@ -313,7 +310,7 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
 
   <h2>How LineSmart makes money</h2>
   <p>LineSmart is free to use. It plans to earn money through affiliate links to licensed sportsbooks: if you sign up through one, LineSmart may earn a commission at no cost to you. Affiliate links are labeled and never change the odds we show. Today there are no affiliate links. See our <a href="affiliate-disclosure.html">Affiliate Disclosure</a>.</p>
-  <p>Sportsbook links appear only in states where that sportsbook runs a legal online sportsbook. In Florida, that means Hard Rock Bet only.</p>
+  <p>We link to the official sites of Hard Rock Bet, DraftKings, FanDuel and BetMGM, and each link appears only in states where that sportsbook runs a legal online sportsbook. In Florida, that means Hard Rock Bet only. Listing a sportsbook doesn't mean we show its odds: odds comparison covers DraftKings and Hard Rock Bet only.</p>
 
   <h2>Responsible gambling</h2>
   <p><b>LineSmart is for adults 21 and older.</b> Only bet where it's legal, and only what you can afford to lose. Gambling problem? Call or text {GAMBLER_TEL}. In Florida, call or text {PLAYWISE_TEL}, or the Florida Council on Compulsive Gambling at {ADMIT_TEL}. More help and tips: <a href="responsible-gambling.html">Responsible Gambling</a>.</p>
@@ -323,19 +320,19 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
 """
 
 CONTENT = {
-    "about.html": ("About LineSmart", "LineSmart is a free, independent sports odds, props, matchups and betting-tools site run by Rod Copenhaver Jr. in Riverview, FL.", ABOUT, False),
-    "responsible-gambling.html": ("Responsible Gambling", "Tips, limits, self-exclusion and free 24/7 helplines, including 1-800-GAMBLER and Florida resources.", RG, False),
-    "privacy.html": ("Privacy Policy", "Cookieless analytics, approximate location for state-aware offers, data kept on your device, and affiliate links.", PRIVACY, True),
-    "terms.html": ("Terms of Use", "Terms for using LineSmart, an informational sports odds site that does not accept wagers.", TERMS, True),
-    "affiliate-disclosure.html": ("Affiliate Disclosure", "How LineSmart handles affiliate links. Currently there are none.", AFFILIATE, True),
+    "about.html": ("About LineSmart", "LineSmart is a free, independent sports odds, props, matchups and betting-tools site run by Rod Copenhaver Jr. in Riverview, FL.", ABOUT),
+    "responsible-gambling.html": ("Responsible Gambling", "Tips, limits, self-exclusion and free 24/7 helplines, including 1-800-GAMBLER and Florida resources.", RG),
+    "privacy.html": ("Privacy Policy", "Cookieless analytics, approximate location for state-aware offers, data kept on your device, and affiliate links.", PRIVACY),
+    "terms.html": ("Terms of Use", "Terms for using LineSmart, an informational sports odds site that does not accept wagers.", TERMS),
+    "affiliate-disclosure.html": ("Affiliate Disclosure", "How LineSmart handles affiliate links. Currently there are none.", AFFILIATE),
 }
 
 def main():
     check = "--check" in sys.argv
     out = {}
     for f, _ in PAGES:
-        title, desc, body, note = CONTENT[f]
-        out[SITE / f] = page(f, title, desc, body, note)
+        title, desc, body = CONTENT[f]
+        out[SITE / f] = page(f, title, desc, body)
     idx = SITE / "index.html"
     s = idx.read_text()
     block = f"<!-- footer:start (generated by scripts/build_pages.py) -->\n{FOOTER}\n<!-- footer:end -->"

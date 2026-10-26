@@ -135,10 +135,9 @@ Screenshots + comparison sheets (serve the site under `/linesmart/` first):
 - The contact email and effective date live at the top of the script (`CONTACT`, `EFFECTIVE`).
 - The one-time 21+ notice and the affiliate disclosure line are in `site/assets/site.js`. The notice is remembered in localStorage (`ls-age-ok`). It is not a hard gate, and the page HTML stays crawlable.
 - Affiliate disclosure: set `affiliate.enabled: true` in `site/assets/config.js` when the first affiliate link goes live. The disclosure line then appears in the footer and under the sportsbook card on game pages.
-- These pages are templates, not legal advice. Have them reviewed before applying to affiliate programs.
 
 ## Limitations
-- ESPN reports one book per game. Hard Rock Bet is refreshed only every other day (free plan). FanDuel is not tracked.
+- ESPN reports one book per game. Hard Rock Bet is refreshed only every other day (free plan). FanDuel is not tracked. BetMGM (like FanDuel) appears only as an official-site link in the state-aware offers; there is no BetMGM odds data.
 - Lines appear only once the book posts them. NBA, NHL and NCAAB lines usually show up a day or so before the game.
 - ESPN's free feeds return empty ATS records, so the site shows N/A for ATS.
 - Detailed summaries are capped at 150 games per league per run (`MAX_SUMMARIES`). This affects NCAAB.

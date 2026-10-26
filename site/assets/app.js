@@ -7,7 +7,9 @@
   let netGen = 0;  // bumped when the browser comes back online
   let META = null;
 
-  document.title = CFG.name;
+  if (!document.title.startsWith(CFG.name)) document.title = CFG.name;   // keep the descriptive static <title> (SEO)
+  const intro = document.getElementById("intro");
+  if (intro) intro.classList.add("js");
   document.querySelectorAll("[data-brand]").forEach(e => (e.textContent = CFG.name));
   document.querySelectorAll("[data-brand-alt]").forEach(e => (e.alt = CFG.name));
   document.querySelectorAll("[data-brand-title]").forEach(e => (e.title = CFG.name + " — home"));
@@ -359,7 +361,7 @@
   }
 
   // ---------- line movement (game detail)
-  const BOOKNAME = k => ({ draftkings: "DraftKings", fanduel: "FanDuel", hardrockbet: "Hard Rock Bet" }[k] || k.replace(/^espn-/, "ESPN · "));
+  const BOOKNAME = k => ({ draftkings: "DraftKings", fanduel: "FanDuel", hardrockbet: "Hard Rock Bet", betmgm: "BetMGM" }[k] || k.replace(/^espn-/, "ESPN · "));
   const shortET = d => fmt(d.toISOString(), { weekday: "short", hour: "numeric", minute: "2-digit" });
   function lineMoveSection(d, g, kind) {
     const H = d.history, o = g.odds;
@@ -530,7 +532,7 @@
       return "no data";
     };
     const head = books.map(bk => `<th${bookAvail(bk.key) ? "" : ' class="na-col"'}>${esc(bk.name)}${naTag(bk.key)}<span class="src">${sub(bk)}</span></th>`).join("");
-    const ev = GEO() ? GEO().current() : null, out = ev && ev.state ? ["draftkings", "fanduel", "hardrockbet"].filter(k => !bookAvail(k)) : [];
+    const ev = GEO() ? GEO().current() : null, out = ev && ev.state ? books.map(b => b.key).filter(k => !bookAvail(k)) : [];   // only books with a column here (FanDuel/BetMGM have no odds data)
     const outNote = out.length ? ` ${out.map(k => BOOKNAME(k)).join(" and ")} ${out.length > 1 ? "don't" : "doesn't"} run a legal online sportsbook in ${esc(ev.stateName)}; ${out.length > 1 ? "their" : "its"} lines are shown for reference only.` : "";
     const nHave = books.filter(bk => B[bk.key]).length;
     const hrNote = HR.asOf ? `Hard Rock Bet via The Odds API, pulled every other day (free plan); last pull ${esc(fullET(HR.asOf))}. Pre-game lines only: they're hidden once a game starts.`
@@ -914,6 +916,7 @@
     const sb = document.getElementById("searchBtn"); if (sb) sb.classList.toggle("on", h[0] === "search");
     const bb = document.getElementById("betsBtn"); if (bb) bb.classList.toggle("on", h[0] === "bets");
     const navOn = h[0] === "search" || h[0] === "bets" ? h[0] : !h[0] ? "home" : "";
+    if (intro) intro.hidden = navOn !== "home";   // static SEO intro: home only
     document.querySelectorAll("#bnav [data-nav]").forEach(a => { const on = a.dataset.nav === navOn; a.classList.toggle("on", on); if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     if (h[0] === "bets") return window.LSBets ? window.LSBets.view() : (app.innerHTML = `<div class="empty"><h3>My Bets didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "search") return viewSearch(decodeURIComponent(h.slice(1).join("/") || ""));

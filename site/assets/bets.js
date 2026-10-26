@@ -337,7 +337,7 @@
       F = { id: ex.id, book: ex.book, bookOther: ex.bookOther || "", type: ex.type, date: ex.date || today(), stake: ex.stake, odds: ex.odds ?? "", oddsManual: !!ex.oddsManual, notes: ex.notes || "",
         legs: ex.type === "parlay" ? ex.legs.map(l => ({ ...toLeg(l), mk: l.type || "ml" })) : [toLeg(ex)] };
     } else {
-      F = { book: p.book || "draftkings", bookOther: p.bookOther || "", type: "ml", date: today(), stake: p.stake || "", odds: "", oddsManual: false, notes: "", legs: [newLeg()] };
+      F = { book: p.book || (window.LSGeo && window.LSGeo.defaultBetBook()) || "draftkings", bookOther: p.bookOther || "", type: "ml", date: today(), stake: p.stake || "", odds: "", oddsManual: false, notes: "", legs: [newLeg()] };
       if (qs && qs.get("lg")) {
         const leg = F.legs[0]; leg.league = qs.get("lg"); leg.eventId = qs.get("ev") || "";
         const mk = qs.get("mk"); if (C.TYPES[mk] && mk !== "parlay") { F.type = mk; leg.mk = mk; }
@@ -527,9 +527,13 @@
   function trackCard(lg, g, kind) {
     if (g.state === "post") return `<div class="section-title">Track a bet</div><div class="card bt-track"><h3>Bet on this game? <a class="lnk bt-more" href="${esc(trackHref(lg, g))}">Log it ›</a></h3><div class="note">Moneyline, spread and total bets on finished games are graded from the final score as soon as you save them.</div></div>`;
     const soccer = kind === "soccer", mma = kind === "mma", out = [];
-    const books = [["draftkings", "draftkings"], ["hardrock", "hardrockbet"]];
-    for (const [bk, key] of books) {
-      const b = (g.books || {})[key]; if (!b || b.stale) continue;
+    const GEO = window.LSGeo, map = { draftkings: "draftkings", hardrockbet: "hardrock" };
+    // one-tap shortcuts only for books that are legal online in the visitor's state (Hard Rock first in FL)
+    const keys = GEO ? GEO.sortBooks(["draftkings", "hardrockbet"]) : ["draftkings", "hardrockbet"];
+    let hidden = 0;
+    for (const key of keys) {
+      const bk = map[key], b = (g.books || {})[key]; if (!b || b.stale) continue;
+      if (GEO && !GEO.isAvailable(key)) { hidden++; continue; }
       const q = { o: b }, row = [];
       const add = (mk, side, label) => { const pr = priceFor(q, mk, side); if (isNum(pr.odds) || (mk !== "ml" && isNum(pr.line))) row.push(`<a class="oc bt-q" href="${esc(trackHref(lg, g, mk, side, bk, pr))}"><b>${esc(label(pr))}</b><small>${esc(am(pr.odds) || "")}</small></a>`); };
       if (!soccer && !mma) { add("spread", "away", pr => `${g.away.abbr} ${ln(pr.line)}`); add("spread", "home", pr => `${g.home.abbr} ${ln(pr.line)}`); }
@@ -538,7 +542,7 @@
       if (row.length) out.push(`<div class="bt-qrow"><span class="bt-qb">${esc(C.BOOKS[bk])}</span><div class="bt-qgrid">${row.join("")}</div></div>`);
     }
     return `<div class="section-title">Track a bet</div><div class="card bt-track"><h3>Placed a bet on this game? <a class="lnk bt-more" href="${esc(trackHref(lg, g))}">Other bet ›</a></h3>
-      ${out.join("") || `<div class="na">No book prices for this game yet. You can still log it.</div>`}<div class="note">Tap the line you bet to log it in My Bets (saved only on this device). Your stake and the exact odds on your slip come next.</div></div>`;
+      ${out.join("") || (hidden ? `<div class="na">Shortcuts appear only for sportsbooks that are legal online in ${esc((GEO.current() || {}).stateName || "your state")}. You can still log a bet.</div>` : `<div class="na">No book prices for this game yet. You can still log it.</div>`)}<div class="note">Tap the line you bet to log it in My Bets (saved only on this device). Your stake and the exact odds on your slip come next.</div></div>`;
   }
   window.LSBets = { view, trackHref, trackCard };
 })();

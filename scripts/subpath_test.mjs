@@ -19,11 +19,15 @@ page.on("pageerror", e => errors.push(e.message));
 page.on("console", m => m.type() === "error" && errors.push(m.text()));
 page.on("response", r => { const u = r.url(); if (u.startsWith(new URL(BASE).origin)) { if (r.status() >= 400) bad.push(`${r.status()} ${u}`); else ok.add(new URL(u).pathname); } });
 page.on("response", r => { if (!r.url().startsWith(new URL(BASE).origin) && r.status() >= 400) console.log(`  (external ${r.status()} ${r.url()})`); });
+// analytics beacon / geo lookup must never be called by tests (beacon is host-gated to linesmart.app; geo too)
+const thirdParty = [];
+page.on("request", r => { if (/cloudflareinsights\.com|ipdata\.info/.test(r.url())) thirdParty.push(r.url()); });
 page.on("requestfailed", r => { if (r.url().startsWith(new URL(BASE).origin)) bad.push(`FAILED ${r.url()}`); });
 const pwaFail = [];
 const check = (ok, msg, tag = "pwa") => { console.log(`${ok ? "PASS" : "FAIL"} ${tag}: ${msg}`); if (!ok) pwaFail.push(`${tag}: ${msg}`); };
-const LEGAL = [["responsible-gambling.html", "Responsible Gambling"], ["privacy.html", "Privacy Policy"], ["terms.html", "Terms of Use"], ["affiliate-disclosure.html", "Affiliate Disclosure"]];
+const LEGAL = [["about.html", "About LineSmart"], ["responsible-gambling.html", "Responsible Gambling"], ["privacy.html", "Privacy Policy"], ["terms.html", "Terms of Use"], ["affiliate-disclosure.html", "Affiliate Disclosure"]];
 const CONTACT = "contact@linesmart.app";
+const window_token = () => (fs.readFileSync("site/assets/config.js", "utf8").match(/cfToken:\s*"([^"]*)"/) || [])[1];
 // compliance footer: same block on every view (SPA routes and legal pages)
 let footerRef = null;
 const footerOk = async where => {
@@ -181,8 +185,11 @@ for (const [file, title] of LEGAL) {
   const info = await page.evaluate(() => ({ h1: document.querySelector("main h1")?.textContent, note: document.querySelector(".legal-note")?.textContent || "",
     text: document.querySelector("main").innerText, hrefs: [...document.querySelectorAll("main a")].map(a => a.href), robots: document.querySelector('meta[name="robots"]')?.content || "" }));
   check(res.status() === 200 && info.h1 === title && !/noindex/.test(info.robots), `${file}: HTTP ${res.status()} h1="${info.h1}" indexable`, "legal");
-  if (file !== "responsible-gambling.html") check(info.note === "This is a general template, not legal advice.", `${file}: template note`, "legal");
-  if (file === "privacy.html") check(info.text.includes(CONTACT) && info.text.includes("Effective date: October 26, 2026") && ["ls-recent", "ls-age-ok", "site.web.api.espn.com", "a.espncdn.com", "GitHub Pages"].every(w => info.text.includes(w)), "privacy: contact, date, storage keys, ESPN hosts, GitHub", "legal");
+  if (file !== "responsible-gambling.html" && file !== "about.html") check(info.note === "This is a general template, not legal advice.", `${file}: template note`, "legal");
+  if (file === "privacy.html") { const need = ["Last updated: October 26, 2026", CONTACT, "Cloudflare Web Analytics", "does not use cookies", "ipdata.info", "ls-geo", "ls-state", "ls-bets-v1", "ls-recent", "ls-age-ok", "site.web.api.espn.com", "a.espncdn.com", "GitHub Pages", "affiliate tracking links", "may then set cookies", "LineSmart does not set cookies"]; const miss = need.filter(w => !info.text.includes(w));
+    check(!miss.length && !/we don't use analytics/i.test(info.text), `privacy: analytics, location, device storage, affiliate cookies, contact, date${miss.length ? " missing " + JSON.stringify(miss) : ""}`, "legal"); }
+  if (file === "about.html") { const need = ["Rod Copenhaver Jr.", "sole proprietor in Riverview, Florida", "ESPN", "DraftKings", "Hard Rock Bet", "The Odds API", "Open-Meteo", "affiliate links", "21 and older", "1-800-GAMBLER", "1-833-PLAYWISE", CONTACT]; const miss = need.filter(w => !info.text.includes(w));
+    check(!miss.length, `about: owner, data sources, money, 21+, helplines, contact${miss.length ? " missing " + JSON.stringify(miss) : ""}`, "legal"); }
   if (file === "terms.html") check(/Florida/.test(info.text) && /does not accept wagers/.test(info.text) && /21 or older/.test(info.text) && /Limitation of liability/i.test(info.text), "terms: Florida law, no wagers, 21+, liability", "legal");
   if (file === "affiliate-disclosure.html") check(/no affiliate relationships/.test(info.text) && /at no extra cost to you/.test(info.text) && /won't change the odds shown/.test(info.text), "affiliate page: none now; commission/no cost/odds unchanged", "legal");
   if (file === "responsible-gambling.html") {
@@ -455,6 +462,88 @@ for (const lg of ["nfl", "nba"]) {
     } else check(false, "no search/ufc.json", "ufc");
   }
 }
+// ---------- state-aware offers (geo lookup stubbed; never reaches ipdata.info) + analytics host gate
+{
+  const FL_RESP = { country_code: "US", region_code: "FL", ip: "203.0.113.7" };
+  const mk = async (geo, extra = {}) => {
+    const ctx = await browser.newContext({ serviceWorkers: "block", ...extra });
+    const seen = [];
+    await ctx.route(/ipdata\.info/, r => { seen.push(r.request().url()); return geo === "fail" ? r.abort() : r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(geo) }); });
+    await ctx.route(/cloudflareinsights\.com/, r => { seen.push(r.request().url()); return r.fulfill({ status: 200, contentType: "text/javascript", body: "" }); });
+    await ctx.addInitScript(() => { localStorage.setItem("ls-age-ok", "1"); localStorage.setItem("ls-geo-force", "1"); });
+    const p = await ctx.newPage();
+    p.on("pageerror", e => errors.push("geo: " + e.message));
+    return { ctx, p, seen };
+  };
+  const offers = p => p.evaluate(() => { const c = document.querySelector("[data-offers]"); return c ? { status: c.dataset.status || "ok", books: [...c.querySelectorAll("[data-book]")].map(a => a.dataset.book), text: c.innerText, hrefs: [...c.querySelectorAll("a[data-book]")].map(a => a.href) } : null; });
+  // any link to DraftKings/FanDuel: sportsbook URLs or bet-tracker quick-log shortcuts (bk=draftkings)
+  const dkfdLinks = p => p.$$eval("a[href]", as => as.map(a => a.href).filter(h => /draftkings|fanduel/i.test(h)));
+  { // Florida visitor via (stubbed) geo-IP lookup
+    const { ctx, p, seen } = await mk(FL_RESP);
+    await p.goto(BASE, { waitUntil: "networkidle" }); await p.waitForSelector("[data-offers]", { timeout: 15000 }).catch(() => {});
+    const o = await offers(p);
+    check(o && JSON.stringify(o.books) === '["hardrockbet"]' && /Hard Rock Bet/.test(o.text), `FL home: only Hard Rock Bet offer (${o && o.books})`, "geo");
+    check(o && /21\+/.test(o.text) && /Gambling problem\? Call 1-800-GAMBLER/.test(o.text) && /PLAYWISE/.test(o.text), "FL offer shows 21+ and 1-800-GAMBLER (+ FL helpline)", "geo");
+    check(o && o.hrefs[0] === "https://www.hardrock.bet/" && !/\$\d|bonus|promo/i.test(o.text), "FL offer: official site, no bonus/promo claims", "geo");
+    check(!(await dkfdLinks(p)).length, "FL home: no DraftKings/FanDuel links", "geo");
+    check((await p.$eval("#stateBtn .st-l", e => e.textContent)) === "FL" && seen.some(u => /ipdata/.test(u)), "FL: lookup used (stubbed) and header shows FL", "geo");
+    const cached = await p.evaluate(() => JSON.parse(localStorage.getItem("ls-geo") || "{}"));
+    check(cached.country === "US" && cached.region === "FL" && !cached.ip, "lookup cached as country/state only (no IP stored)", "geo");
+    if (gid) {
+      await p.goto(BASE + `#/g/nfl/${gid}`, { waitUntil: "networkidle" }); await p.waitForSelector(".match", { timeout: 15000 }).catch(() => {});
+      const g = await p.evaluate(() => ({ heads: [...document.querySelectorAll(".books thead th")].map(t => t.innerText.replace(/\s+/g, " ")), naCols: document.querySelectorAll(".books th.na-col").length,
+        bestNa: document.querySelectorAll(".books td.na-col.best").length, offer: [...document.querySelectorAll("[data-offers] [data-book]")].map(a => a.dataset.book) }));
+      const dkHead = g.heads.find(h => /DraftKings/.test(h)) || "";
+      check(/Not available in FL/.test(dkHead) && g.naCols >= 1 && g.bestNa === 0, `FL game: DraftKings column labeled "Not available in FL", never highlighted best (${dkHead})`, "geo");
+      check(g.heads.findIndex(h => /Hard Rock/.test(h)) < g.heads.findIndex(h => /DraftKings/.test(h)), "FL game: Hard Rock Bet column first", "geo");
+      check(JSON.stringify(g.offer) === '["hardrockbet"]' && !(await dkfdLinks(p)).length, "FL game: Hard Rock offer only, no DK/FD links", "geo");
+      // manual override through the picker: New Jersey
+      await p.click("#stateBtn"); await p.waitForSelector("#stateDlg[open] #stSel");
+      await p.selectOption("#stSel", "NJ"); await p.click("#stSave"); await p.waitForTimeout(600);
+      const nj = await offers(p);
+      check(nj && JSON.stringify([...nj.books].sort()) === '["draftkings","fanduel","hardrockbet"]', `override NJ: all three offers (${nj && nj.books})`, "geo");
+      check(await p.evaluate(() => localStorage.getItem("ls-state")) === "NJ" && (await p.$$(".books th.na-col")).length === 0, "override NJ saved; no columns marked unavailable", "geo");
+      await p.reload({ waitUntil: "networkidle" }); await p.waitForSelector("[data-offers]", { timeout: 15000 }).catch(() => {});
+      check(((await offers(p)) || {}).books?.length === 3, "override persists over the FL lookup after reload", "geo");
+      // non-legal state
+      await p.click("#stateBtn"); await p.selectOption("#stSel", "TX"); await p.click("#stSave"); await p.waitForTimeout(600);
+      const tx = await offers(p);
+      check(tx && tx.status === "notlegal" && !tx.books.length && /isn't legal in Texas/.test(tx.text) && !(await dkfdLinks(p)).length && !(await p.$$("a[href*='hardrock.bet']")).length, "TX: no offers, neutral note, no sportsbook links", "geo");
+      // back to automatic
+      await p.click("#stateBtn"); await p.selectOption("#stSel", ""); await p.click("#stSave"); await p.waitForTimeout(600);
+      check(((await offers(p)) || {}).books?.join() === "hardrockbet", "picker 'Automatic' returns to the FL lookup", "geo");
+    }
+    await ctx.close();
+  }
+  { // lookup fails -> unknown: no offers until a state is picked
+    const { ctx, p } = await mk("fail");
+    await p.goto(BASE, { waitUntil: "networkidle" }); await p.waitForSelector("[data-offers]", { timeout: 15000 }).catch(() => {});
+    const o = await offers(p);
+    check(o && o.status === "unknown" && !o.books.length && !(await dkfdLinks(p)).length, "lookup failure: no offers, prompt to pick a state", "geo");
+    await ctx.close();
+  }
+  { // non-US visitor
+    const { ctx, p } = await mk({ country_code: "CA", region_code: "ON" });
+    await p.goto(BASE, { waitUntil: "networkidle" }); await p.waitForSelector("[data-offers]", { timeout: 15000 }).catch(() => {});
+    const o = await offers(p);
+    check(o && o.status === "nonus" && !o.books.length, "non-US visitor: no offers", "geo");
+    await ctx.close();
+  }
+  { // production host: the beacon is injected (stubbed here, never sent to Cloudflare), with the configured token
+    const { ctx, p, seen } = await mk(FL_RESP);
+    await ctx.route(/^https:\/\/linesmart\.app\//, async r => { const u = new URL(r.request().url()); const res = await ctx.request.get(BASE + u.pathname.slice(1) + u.search); return r.fulfill({ status: res.status(), headers: res.headers(), body: await res.body() }); });
+    for (const path of ["", "privacy.html"]) {
+      await p.goto("https://linesmart.app/" + path, { waitUntil: "load" }); await p.waitForTimeout(500);
+      const b = await p.evaluate(() => { const s = document.querySelector("script[data-cf-beacon]"); return s ? { src: s.src, type: s.type, cfg: s.getAttribute("data-cf-beacon"), last: s.parentElement === document.body } : null; });
+      check(b && b.src === "https://static.cloudflareinsights.com/beacon.min.js" && b.type === "module" && JSON.parse(b.cfg).token === window_token() && b.last, `linesmart.app/${path}: beacon injected before </body> with token`, "analytics");
+    }
+    check(seen.some(u => /static\.cloudflareinsights\.com/.test(u)), "beacon request intercepted by the stub (not sent)", "analytics");
+    await ctx.close();
+  }
+}
+// the local/test hosts must never have loaded the beacon or called the geo service
+check(!thirdParty.length, `no requests to cloudflareinsights.com / ipdata.info from the test host${thirdParty.length ? ": " + thirdParty : ""}`, "analytics");
+check(!(await page.$("script[data-cf-beacon]")), "no beacon script on the test host", "analytics");
 await browser.close();
 if (pwaFail.length) console.log("PWA failures:", pwaFail);
 const outside = [...ok].filter(p => !p.startsWith(new URL(BASE).pathname));

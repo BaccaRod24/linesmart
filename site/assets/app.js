@@ -131,7 +131,9 @@
     const hr = (g.books || {}).hardrockbet, hrLive = hr && !hr.stale && hr.asOf;
     const mv = moveOf(g), hasMv = mv && (mv.spread || mv.total);
     const wx = window.LSWeather && g.state !== "post" ? window.LSWeather.chip(g) : "";
-    const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}"><span class="bk">${esc(o.provider || "provider n/a")}</span>${hrLive ? '<span class="bk hr">Hard Rock Bet</span>' : ""}${sparks(g)}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
+    const pk = GEO() ? GEO().providerKey(o && o.provider) : null, pNa = pk && !bookAvail(pk) ? GEO().naLabel(pk) : "";
+    const pTag = o ? `<span class="bk${pNa ? " bk-na" : ""}"${pNa ? ` title="${esc(pNa)}"` : ""}>${esc(o.provider || "provider n/a")}${pNa ? `<span class="sr-only"> (${esc(pNa)})</span>` : ""}</span>` : "", hrTag = hrLive ? '<span class="bk hr">Hard Rock Bet</span>' : "";
+    const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}">${pNa ? hrTag + pTag : pTag + hrTag}${sparks(g)}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
                    : `<div class="noline">Lines not posted yet</div>${wx ? `<div class="tfoot has-wx wx-only">${wx}</div>` : ""}`;
     const net = esc([g.note, (g.broadcasts || []).slice(0, 2).join(", ")].filter(Boolean).join(" · "));
     return `<a class="game c${cols.length}${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
@@ -216,7 +218,7 @@
       <span class="chip"><b>${data.report.withOdds}</b> with lines</span>
       <span class="chip">Lines: <b>${esc((data.report.providers || []).join(", ") || "none")}</b></span>
       <span class="chip">Next ${data.windowDays} days</span></div>`;
-    let html = `${home ? slateHtml() : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(data.league.full)}</h1><div class="sub">Upcoming games, lines and form · times in ${TZL}</div></div>
+    let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(data.league.full)}</h1><div class="sub">Upcoming games, lines and form · times in ${TZL}</div></div>
       <div class="seg"><button data-f="upcoming" class="${filter === "upcoming" ? "on" : ""}">Upcoming & live</button><button data-f="all" class="${filter === "all" ? "on" : ""}">Incl. today's finals</button></div></div>${chips}`;
     if (!games.length) {
       html += `<div class="empty" style="margin-top:16px"><h3>No ${esc(data.league.name)} games in the next ${data.windowDays} days</h3>
@@ -287,7 +289,7 @@
         <div class="mteam home">${logo(H)}<div><div class="nm">${H.rank ? `<span class="rk" style="color:var(--warn)">#${H.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${H.id}">${esc(H.name)}</a></div><div class="rec">${esc(H.record || "—")} · Home ${esc(H.homeRecord || "—")}${formDots(H.form)}</div></div></div>
       </div>`;
 
-    html += `<div class="section-title">Betting lines</div><div class="cols">${linesCard(g, kind)}${booksCard(g, kind)}</div>`;
+    html += `<div class="section-title">Betting lines</div><div class="cols">${linesCard(g, kind)}${booksCard(g, kind)}</div>${offersSlot("game")}`;
     if (window.LSBets) html += window.LSBets.trackCard(key, g, kind);
     const lm = lineMoveSection(d, g, kind);
     html += lm.html;
@@ -367,6 +369,7 @@
     let books = H && H.books ? Object.keys(H.books) : [];
     const order = ["draftkings", "hardrockbet", "fanduel"];
     books.sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+    books = sortByState(books);   // books legal in the visitor's state first (Hard Rock Bet in FL)
     const fromOdds = !books.length;   // no history file: show ESPN open -> current only
     if (fromOdds) books = ["current"];
     const pointsFor = bk => {
@@ -489,13 +492,16 @@
     body += r(kind === "soccer" ? "Moneyline (3-way)" : "Moneyline", `${am(o.awayML) ?? NA}${mv(o.awayML, o.awayMLOpen, false)}`, `${am(o.homeML) ?? NA}${mv(o.homeML, o.homeMLOpen, false)}`);
     if (kind === "soccer") body += `<tr><td>Draw</td><td class="num" colspan="2" style="text-align:center">${am(o.drawML) ?? NA}${mv(o.drawML, o.drawMLOpen, false)}</td></tr>`;
     body += `<tr><td>${kind === "mma" ? "Total rounds" : "Total"}</td><td class="num">O ${fx(o.total) ?? NA} <span class="na">${am(o.overOdds) ?? ""}</span></td><td class="num">U ${fx(o.total) ?? NA} <span class="na">${am(o.underOdds) ?? ""}</span>${isNum(o.totalOpen) && o.totalOpen !== o.total ? `<div class="move">open ${o.totalOpen} → ${o.total}</div>` : ""}</td></tr>`;
-    return `<div class="card"><h3>Current line · ${esc(o.provider || "provider n/a")}</h3>
+    const pk = GEO() ? GEO().providerKey(o.provider) : null, pNa = pk && !bookAvail(pk);
+    return `<div class="card${pNa ? " na-st-card" : ""}"><h3>Current line · ${esc(o.provider || "provider n/a")}${pk ? naTag(pk) : ""}</h3>
       <table class="books"><thead><tr><th>Market</th><th>${esc(g.away.abbr)}</th><th>${esc(g.home.abbr)}</th></tr></thead><tbody>${body}</tbody></table>
       <div class="note">Source: ${esc(g.oddsSource || "ESPN")} — as reported by ${esc(o.provider || "the listed book")}. "open" = opening line (line movement).</div></div>`;
   }
 
   function booksCard(g, kind) {
-    const books = (META.targetBooks || [{ key: "draftkings", name: "DraftKings" }, { key: "hardrockbet", name: "Hard Rock Bet" }]).filter(bk => bk.key !== "fanduel");
+    let books = (META.targetBooks || [{ key: "draftkings", name: "DraftKings" }, { key: "hardrockbet", name: "Hard Rock Bet" }]).filter(bk => bk.key !== "fanduel");
+    const ord = sortByState(books.map(b => b.key));
+    books = ord.map(k => books.find(b => b.key === k));   // legal-in-your-state books first
     const HR = META.hardrock || {};
     const B = Object.fromEntries(Object.entries(g.books || {}).filter(([, b]) => b && !b.stale));   // stale = game started since the pull
     const staleB = g.books || {};
@@ -510,9 +516,10 @@
     markets.push([`${g.home.abbr} ML`, ml("home")], ["Over", ov], ["Under", un]);
     const rows = markets.map(([label, fn]) => {
       const vals = books.map(bk => fn(B[bk.key]));
-      const have = vals.filter(Boolean);
+      // "best price" only among books legal in the visitor's state; out-of-state columns are reference data
+      const have = vals.filter((v, i) => v && bookAvail(books[i].key));
       const best = have.length > 1 ? Math.max(...have.map(v => v.score)) : null;
-      return `<tr><td>${esc(label)}</td>${vals.map(v => (v ? `<td class="num ${best !== null && v.score === best ? "best" : ""}"><span class="px">${v.disp}</span></td>` : `<td>${NA}</td>`)).join("")}</tr>`;
+      return `<tr><td>${esc(label)}</td>${vals.map((v, i) => { const na = bookAvail(books[i].key) ? "" : " na-col"; return v ? `<td class="num${na} ${best !== null && v.score === best && !na ? "best" : ""}"><span class="px">${v.disp}</span></td>` : `<td class="${na.trim()}">${NA}</td>`; }).join("")}</tr>`;
     }).join("");
     const sub = bk => {
       const b = B[bk.key], sb = staleB[bk.key];
@@ -522,12 +529,14 @@
       if (bk.key === "hardrockbet") return HR.asOf ? "not posted at last pull" : "no pull yet";
       return "no data";
     };
-    const head = books.map(bk => `<th>${esc(bk.name)}<span class="src">${sub(bk)}</span></th>`).join("");
+    const head = books.map(bk => `<th${bookAvail(bk.key) ? "" : ' class="na-col"'}>${esc(bk.name)}${naTag(bk.key)}<span class="src">${sub(bk)}</span></th>`).join("");
+    const ev = GEO() ? GEO().current() : null, out = ev && ev.state ? ["draftkings", "fanduel", "hardrockbet"].filter(k => !bookAvail(k)) : [];
+    const outNote = out.length ? ` ${out.map(k => BOOKNAME(k)).join(" and ")} ${out.length > 1 ? "don't" : "doesn't"} run a legal online sportsbook in ${esc(ev.stateName)}; ${out.length > 1 ? "their" : "its"} lines are shown for reference only.` : "";
     const nHave = books.filter(bk => B[bk.key]).length;
     const hrNote = HR.asOf ? `Hard Rock Bet via The Odds API, pulled every other day (free plan); last pull ${esc(fullET(HR.asOf))}. Pre-game lines only: they're hidden once a game starts.`
                            : "Hard Rock Bet via The Odds API, pulled every other day (free plan); no pull yet.";
     return `<div class="card"><h3>Odds comparison</h3><div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}DraftKings via ESPN (refreshed about every 30 min, when ESPN's listed book is DraftKings). ${hrNote} FanDuel: not tracked (free plan).</div>${affLine()}</div>`;
+      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}DraftKings via ESPN (refreshed about every 30 min, when ESPN's listed book is DraftKings). ${hrNote} FanDuel: not tracked (free plan).${outNote}</div>${affLine()}</div>`;
   }
 
   function lastFive(t, det, ts) {
@@ -562,6 +571,11 @@
   const PRO = new Set(["nfl", "nba", "nhl", "mlb", "epl", "mls", "ucl"]);
   const lgName = lg => (META.leagues[lg] || {}).name || lg.toUpperCase();
   // affiliate disclosure line next to sportsbook prices; renders nothing until SITE_CONFIG.affiliate.enabled (site.js)
+  const GEO = () => window.LSGeo || null;
+  const naTag = k => (GEO() ? GEO().naTag(k) : "");
+  const bookAvail = k => (GEO() ? GEO().isAvailable(k) : true);
+  const sortByState = keys => (GEO() ? GEO().sortBooks(keys) : keys);
+  const offersSlot = ctx => (GEO() ? GEO().offersHTML(ctx) : "");
   const affLine = () => (window.LineSmart && window.LineSmart.affDisclosure ? window.LineSmart.affDisclosure() : "");
   let NAV = 0; // bumps on every route; async views bail out if the user has moved on
   const espnCache = {};
@@ -888,6 +902,7 @@
 
   // ---------- router
   async function route() {
+    if (GEO()) await GEO().ready;
     if (!META) {
       try { META = await getJSON("data/meta.json"); }
       catch (e) { app.innerHTML = `<div class="empty"><h3>No data yet</h3>Run <code>python3 scripts/build_data.py</code> then reload.</div>`; return; }
@@ -910,6 +925,13 @@
     return viewLeague(def, true);
   }
   window.addEventListener("hashchange", route);
+  // visitor state changed (lookup finished or picker): re-render odds/offers views in place (not the bet form or search)
+  window.addEventListener("ls-state-change", () => {
+    const h0 = location.hash.replace(/^#\/?/, "").split("/")[0];
+    if (h0 === "bets" || h0 === "search") return;
+    const y = window.scrollY;
+    Promise.resolve(route()).then(() => window.scrollTo(0, y));
+  });
   // helpers shared with the My Bets tracker (assets/bets.js)
   window.LSApp = { esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, nav: () => NAV, espn, crest, notAvail, sidx, linesCard, booksCard, lineMoveSection };
   // "/" opens search from anywhere (unless typing in a field)

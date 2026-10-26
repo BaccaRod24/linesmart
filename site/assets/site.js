@@ -2,6 +2,7 @@
  * - One-time 21+ notice: an accessible dialog, not a gate. The page content stays in the DOM (so it is
  *   readable by search engines and screen readers once dismissed). Dismissal is remembered in localStorage.
  * - Affiliate disclosure component, driven by SITE_CONFIG.affiliate.enabled (config.js).
+ * - Cloudflare Web Analytics beacon, only on the production hostnames (SITE_CONFIG.analytics).
  * - Service worker registration (same worker/scope as the app). */
 (function () {
   "use strict";
@@ -77,11 +78,27 @@
     wrap.querySelector("#ageOk").focus();
   }
 
-  window.LineSmart = Object.assign(window.LineSmart || {}, { affDisclosure, applyAffSlots, showAgeNotice, AGE_KEY });
+  // ---------- Cloudflare Web Analytics (cookieless). Same as the official snippet
+  // <script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "…"}'></script>
+  // placed before </body>, but injected only when a token is set AND we're on a production host.
+  const AN = CFG.analytics || {};
+  const analyticsAllowed = () => !!AN.cfToken && (AN.hosts || []).includes(location.hostname);
+  function loadAnalytics() {
+    if (!analyticsAllowed() || document.querySelector("script[data-cf-beacon]")) return false;
+    const s = document.createElement("script");
+    s.type = "module";
+    s.src = "https://static.cloudflareinsights.com/beacon.min.js";
+    s.setAttribute("data-cf-beacon", JSON.stringify({ token: AN.cfToken }));
+    document.body.appendChild(s);
+    return true;
+  }
+
+  window.LineSmart = Object.assign(window.LineSmart || {}, { affDisclosure, applyAffSlots, showAgeNotice, AGE_KEY, analyticsAllowed });
   const init = () => {
     document.querySelectorAll("[data-brand]").forEach(e => (e.textContent = CFG.name || "LineSmart"));
     applyAffSlots();
     showAgeNotice();
+    loadAnalytics();
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 

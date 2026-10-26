@@ -46,7 +46,7 @@
   /** Placeholder on the game page; mount() fills it. */
   function gameSlot(lg, g) {
     if (!SUPPORTED.has(lg) || !g || g.state !== "pre") return "";
-    return `<div class="section-title" id="props">Player props <span class="st-sub">DraftKings · last 5 vs line</span></div><div id="ppBox" class="pp"><div class="card note">Loading player props…</div></div>`;
+    return `<div class="section-title" id="props">Player props <span class="st-sub">DraftKings · last 5 vs line${window.LSGeo ? window.LSGeo.naTag("draftkings") : ""}</span></div><div id="ppBox" class="pp"><div class="card note">Loading player props…</div></div>`;
   }
 
   async function mountGame(el, lg, g, alive = () => true) {
@@ -103,7 +103,7 @@
     const games = C.forPlayer(doc, pid);
     if (!games.length) return;
     const byId = new Map(((idx && idx.games) || []).map(x => [String(x.id), x]));
-    el.innerHTML = `<div class="section-title" id="props">Prop lines <span class="st-sub">DraftKings · last 5 vs line</span></div><div class="pp">${legend}` + games.map(({ gid, player }) => {
+    el.innerHTML = `<div class="section-title" id="props">Prop lines <span class="st-sub">DraftKings · last 5 vs line${window.LSGeo ? window.LSGeo.naTag("draftkings") : ""}</span></div><div class="pp">${legend}` + games.map(({ gid, player }) => {
       const g = byId.get(String(gid));
       const opp = g ? (String(g.home.id) === String(player.t) ? `vs ${g.away.abbr}` : `@ ${g.home.abbr}`) : "";
       const hdr = g ? `<a class="pp-game" href="#/g/${esc(lg)}/${esc(gid)}"><b>${esc(opp)}</b><span>${esc(A().fullET(g.date))}</span><span class="pp-go">Game →</span></a>` : "";

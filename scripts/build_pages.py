@@ -3,7 +3,7 @@
 
 One source of truth for the compliance footer: it is written into site/index.html (between the
 <!-- footer:start --> / <!-- footer:end --> markers) and into every legal page generated here:
-  site/responsible-gambling.html, site/privacy.html, site/terms.html, site/affiliate-disclosure.html
+  site/about.html, site/responsible-gambling.html, site/privacy.html, site/terms.html, site/affiliate-disclosure.html
 Run after editing:  python3 scripts/build_pages.py        (--check: exit 1 if files are out of date)
 
 Helpline numbers/URLs were verified on Oct 26, 2026 (see the compliance commit message); re-check them
@@ -29,6 +29,7 @@ ADMIT_TEL = '<a href="tel:18882364848">1-888-ADMIT-IT</a>'
 ADMIT_WEB = ext("https://gamblinghelp.org/", "gamblinghelp.org")
 
 PAGES = [  # (file, nav label)
+    ("about.html", "About"),
     ("responsible-gambling.html", "Responsible Gambling"),
     ("privacy.html", "Privacy Policy"),
     ("terms.html", "Terms of Use"),
@@ -42,7 +43,7 @@ FOOTER = f"""<footer class="footer" id="siteFooter">
     <p><strong data-brand>LineSmart</strong> is an informational site and does not accept wagers. Odds are for reference and may change; confirm with the sportsbook.</p>
     <p class="aff-disc" data-aff-disclosure hidden></p>
     <nav class="legal-links" aria-label="Legal">{" ".join(f'<a href="{f}">{n}</a>' for f, n in PAGES)}</nav>
-    <p class="src">Data: ESPN public endpoints; Hard Rock Bet lines via The Odds API. Not affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
+    <p class="src">Data: ESPN public endpoints (DraftKings lines via ESPN); Hard Rock Bet lines via The Odds API; weather by Open-Meteo. Independent: not owned by or affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
   </div>
 </footer>"""
 
@@ -83,6 +84,7 @@ def page(file, title, desc, body, show_note=True):
 <header class="topbar">
   <div class="wrap topbar-inner">
     <a class="brand" href="./" title="LineSmart — home"><img class="brand-logo" src="assets/brand/logo.svg" alt="LineSmart" width="277" height="64"></a>
+    <a class="legal-nav-a" href="about.html">About</a>
     <a class="search-btn" href="./#/search" aria-label="Search teams and players" title="Search teams and players"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="sb-l">Search</span></a>
   </div>
 </header>
@@ -163,18 +165,33 @@ RG = f"""  <p class="legal-lead">Betting should be entertainment, not a way to m
   <p>You must be 21 or older to bet on sports in the US where it is legal. LineSmart is meant for adults 21+. Parents can use device parental controls to block gambling sites and apps.</p>
 """
 
-PRIVACY = f"""  <p class="legal-date">Effective date: {EFFECTIVE}</p>
-  <p class="legal-lead">LineSmart is a static website with sports odds and stats. It has no accounts, no sign-up and no ads. This policy explains what happens to information when you use it.</p>
+PRIVACY = f"""  <p class="legal-date">Last updated: {EFFECTIVE}</p>
+  <p class="legal-lead">LineSmart is a free website with sports odds, props, matchups and betting tools. It has no accounts, no sign-up and no ads. This policy explains what information is involved when you use it.</p>
 
-  <h2>What we collect</h2>
-  <p>We don't collect personal information. LineSmart has no accounts, no forms and no server of its own. We don't set cookies and we don't use analytics, advertising or tracking tools.</p>
+  <h2>Summary</h2>
+  <ul>
+    <li>We don't ask for your name, email or any account details, and we don't sell or rent data.</li>
+    <li>We use Cloudflare Web Analytics, which is cookieless, to count page views in aggregate.</li>
+    <li>Your browser asks a geolocation service for your approximate state, so we only show sportsbooks that are legal there. You can set your state by hand instead.</li>
+    <li>Your bet tracker and preferences stay in your browser on your device.</li>
+    <li>LineSmart sets no cookies today. Sportsbook sites you visit from our links have their own policies.</li>
+  </ul>
+
+  <h2 id="analytics">Analytics (Cloudflare Web Analytics)</h2>
+  <p>On linesmart.app we use {ext("https://www.cloudflare.com/web-analytics/", "Cloudflare Web Analytics")} to understand overall traffic. It does not use cookies or other storage on your device, does not fingerprint you, and does not track you across other websites. Your browser loads a small script from <code>static.cloudflareinsights.com</code> and sends a page-view report to <code>cloudflareinsights.com</code>. We see only aggregate reports: page views and visits, the referring site, device type, browser and operating system, country, and page-load performance. Cloudflare processes this data under the {ext("https://www.cloudflare.com/privacypolicy/", "Cloudflare Privacy Policy")}. We don't use the data for advertising, and we don't sell it.</p>
+
+  <h2 id="location">Approximate location (state-aware offers)</h2>
+  <p>Sports betting is legal only in some states, and each sportsbook runs only in certain states. To show only sportsbooks that are legal where you are, your browser sends a request to {ext("https://ipdata.info/", "ipdata.info")}, a free IP geolocation service. ipdata.info sees your IP address and returns your approximate country and state. Under its {ext("https://ipdata.info/privacy", "privacy policy")}, it keeps IP addresses only briefly for rate limiting.</p>
+  <p>We keep only the country and state code, in your browser (localStorage, <code>ls-geo</code>), for up to 24 hours. It is never sent to us. If the lookup fails, we show no sportsbook offers until you pick a state. You can choose your state with the <b>Your state</b> picker (stored as <code>ls-state</code>); that choice replaces the lookup. IP location is approximate. Sportsbooks verify your location themselves before you can bet.</p>
 
   <h2>Hosting (GitHub Pages)</h2>
   <p>The site is hosted on GitHub Pages. Like most web hosts, GitHub may log technical data when your browser requests a page, such as your IP address, browser type and the page requested. It uses this data for security and to run the service. We don't receive these logs. See the {ext("https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement", "GitHub Privacy Statement")}.</p>
 
   <h2>Data stored on your device</h2>
-  <p>A few small items are saved in your browser so the site works better. They stay on your device and are never sent to us:</p>
+  <p>These items are saved in your browser so the site works. They stay on your device and are never sent to us:</p>
   <ul>
+    <li><b>Bet tracker</b> (localStorage, <code>ls-bets-v1</code> and <code>ls-bets-prefs</code>): bets you log in My Bets and your tracker settings. They aren't uploaded, synced or linked to any sportsbook account. Use the tracker's export to keep a backup.</li>
+    <li><b>Your state</b> (localStorage, <code>ls-state</code>, and the cached lookup <code>ls-geo</code>): see above.</li>
     <li><b>Recently viewed</b> (localStorage, <code>ls-recent</code>): up to 8 teams or players you opened, shown on the search screen.</li>
     <li><b>21+ notice</b> (localStorage, <code>ls-age-ok</code>): the time you dismissed the age notice, so it isn't shown again.</li>
     <li><b>View preferences</b> (sessionStorage, <code>filter-&lt;league&gt;</code>): your "Upcoming" or "Incl. today's finals" choice on a league page. It is cleared when you close the tab.</li>
@@ -183,20 +200,24 @@ PRIVACY = f"""  <p class="legal-date">Effective date: {EFFECTIVE}</p>
   <p>You can delete all of this at any time by clearing this site's data in your browser settings.</p>
 
   <h2>Third-party requests (ESPN)</h2>
-  <p>Some content loads directly from ESPN. Your browser requests team logos and player photos from ESPN's image servers (such as <code>a.espncdn.com</code>). Team and player pages and search results load live data from <code>site.web.api.espn.com</code>. ESPN therefore receives standard request data, such as your IP address, browser type and the page you came from. ESPN's handling of that data is covered by the {ext("https://privacy.thewaltdisneycompany.com/en/", "Disney/ESPN privacy policy")}.</p>
-  <p>Odds and schedule files are built ahead of time on GitHub's servers from ESPN and The Odds API. Your browser does not contact The Odds API.</p>
+  <p>Some content loads directly from ESPN. Your browser requests team logos and player photos from ESPN's image servers (such as <code>a.espncdn.com</code>). Team and player pages, search results and bet grading load live data from <code>site.web.api.espn.com</code>. ESPN therefore receives standard request data, such as your IP address, browser type and the page you came from. ESPN's handling of that data is covered by the {ext("https://privacy.thewaltdisneycompany.com/en/", "Disney/ESPN privacy policy")}.</p>
+  <p>Odds, schedule and weather files are built ahead of time on GitHub's servers from ESPN, The Odds API and Open-Meteo. Your browser does not contact The Odds API or Open-Meteo.</p>
 
-  <h2>Links to other sites</h2>
-  <p>LineSmart links to helplines, sportsbooks and other sites. Their own privacy policies apply when you visit them.</p>
+  <h2 id="affiliate">Sportsbook and affiliate links</h2>
+  <p>LineSmart shows links to licensed sportsbooks, only in states where they're legal. <b>Today these links go to each sportsbook's official website and are not affiliate links.</b> We plan to add affiliate tracking links later. When we do, an affiliate link may carry a tracking code in the web address. The sportsbook or its affiliate network may then set cookies or use similar technology on <i>their</i> site to credit LineSmart for your sign-up. LineSmart itself sets no cookies, now or for affiliate links, and we will not receive your name, account or betting details from a sportsbook. Affiliate links will be labeled, and this page and our <a href="affiliate-disclosure.html">Affiliate Disclosure</a> will be updated before they go live.</p>
+  <p>Other links go to helplines and other sites. Their own privacy policies apply when you visit them.</p>
+
+  <h2>Cookies</h2>
+  <p>LineSmart does not set cookies. Cloudflare Web Analytics is cookieless. Sportsbook sites you visit from our links may set their own cookies, as described above.</p>
 
   <h2>Children</h2>
-  <p>LineSmart is meant for adults 21 and older and is not directed at children. We don't knowingly collect information from anyone, including minors.</p>
+  <p>LineSmart is meant for adults 21 and older and is not directed at children. We don't knowingly collect information from anyone under 21.</p>
 
   <h2>Selling or sharing data</h2>
-  <p>We don't sell or share personal information, because we don't collect any.</p>
+  <p>We don't sell, rent or share personal information. We don't collect names, emails or accounts. The services named above (Cloudflare, ipdata.info, GitHub and ESPN) receive standard request data only because your browser contacts them.</p>
 
   <h2>Changes</h2>
-  <p>If this policy changes, we'll update this page and the effective date above. If we ever add analytics or affiliate tracking, this page will say so before it goes live.</p>
+  <p>If this policy changes, we'll update this page and the "last updated" date above.</p>
 
   <h2>Contact</h2>
   <p>Questions? Email <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>
@@ -218,10 +239,13 @@ TERMS = f"""  <p class="legal-date">Effective date: {EFFECTIVE}</p>
   <p>You must be 21 or older to use LineSmart. Sports betting is legal only in some places. You are responsible for knowing and following the laws where you are.</p>
 
   <h2>Third-party data and trademarks</h2>
-  <p>Some data comes from third parties, including ESPN and The Odds API. That data, and all team, league and sportsbook names, logos and trademarks, belong to their owners. They are used only to identify the teams, leagues and sportsbooks.</p>
+  <p>Some data comes from third parties, including ESPN, The Odds API and Open-Meteo. That data, and all team, league and sportsbook names, logos and trademarks, belong to their owners. They are used only to identify the teams, leagues and sportsbooks.</p>
 
   <h2>No affiliation</h2>
-  <p>LineSmart is independent. It is not affiliated with, endorsed by or sponsored by any league, team, ESPN, The Odds API or sportsbook. If we join a sportsbook affiliate program, we'll say so on our <a href="affiliate-disclosure.html">Affiliate Disclosure</a> page.</p>
+  <p>LineSmart is independent and is not owned by any sportsbook. It is not affiliated with, endorsed by or sponsored by any league, team, ESPN, The Odds API or sportsbook. Links to sportsbooks currently go to their official websites and are not affiliate links. If we join a sportsbook affiliate program, those links will be labeled and listed on our <a href="affiliate-disclosure.html">Affiliate Disclosure</a> page.</p>
+
+  <h2>Sportsbook links and your location</h2>
+  <p>We show sportsbook links only in states where we believe that sportsbook runs a legal online sportsbook, based on an approximate location or the state you pick. This may be wrong. Sportsbooks verify your age and location themselves. Don't use LineSmart to decide whether betting is legal for you.</p>
 
   <h2>Links to other sites</h2>
   <p>We are not responsible for the content, offers or practices of sites we link to.</p>
@@ -240,7 +264,8 @@ TERMS = f"""  <p class="legal-date">Effective date: {EFFECTIVE}</p>
 """
 
 AFFILIATE = f"""  <p class="legal-date">Effective date: {EFFECTIVE}</p>
-  <p class="legal-lead"><b>Right now, LineSmart has no affiliate relationships.</b> We don't earn money from any sportsbook, and no links on the site are affiliate links.</p>
+  <p class="legal-lead"><b>Right now, LineSmart has no affiliate relationships.</b> We don't earn money from any sportsbook, and no links on the site are affiliate links. In states where a sportsbook is legal, we link to its official website; those links don't pay us and carry no tracking code.</p>
+  <p>LineSmart plans to make money through affiliate links to licensed sportsbooks. This page will be updated, and the links labeled, before any go live.</p>
 
   <h2>If that changes</h2>
   <p>We may later join affiliate programs with licensed sportsbooks. When we do:</p>
@@ -249,11 +274,13 @@ AFFILIATE = f"""  <p class="legal-date">Effective date: {EFFECTIVE}</p>
     <li>Affiliate links will be labeled, with a short disclosure next to them.</li>
     <li>Commissions <b>won't change the odds shown</b>. Odds come from the data sources named on each page, and the best price is highlighted whichever sportsbook offers it.</li>
     <li>We'll list our affiliate partners on this page and update the effective date.</li>
+    <li>An affiliate link may carry a tracking code, and the sportsbook or its affiliate network may set cookies on their own site to credit the referral. LineSmart sets no cookies. See our <a href="privacy.html#affiliate">Privacy Policy</a>.</li>
   </ul>
 
   <h2>Our standards</h2>
   <ul>
-    <li>Affiliate links will only go to sportsbooks licensed where they operate, for users 21+.</li>
+    <li>Affiliate links will only go to sportsbooks licensed where they operate, for users 21+, and only in states where that sportsbook is legal online.</li>
+    <li>We won't advertise bonus amounts or promotions that the sportsbook hasn't approved and currently offers.</li>
     <li>Responsible gambling information and helplines will stay on every page. See <a href="responsible-gambling.html">Responsible Gambling</a>.</li>
   </ul>
 
@@ -261,9 +288,44 @@ AFFILIATE = f"""  <p class="legal-date">Effective date: {EFFECTIVE}</p>
   <p>Questions? Email <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>
 """
 
+ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds, player props, matchups and betting tools. It isn't a sportsbook: it does not take bets or hold money.</p>
+
+  <h2>What LineSmart does</h2>
+  <ul>
+    <li><b>Odds and lines</b>: spreads, moneylines and totals for upcoming games across major US and international leagues, with line movement since the open.</li>
+    <li><b>Odds comparison</b>: DraftKings and Hard Rock Bet prices side by side, with the best available price highlighted.</li>
+    <li><b>Player props</b>: prop lines with each player's recent games against the line.</li>
+    <li><b>Matchups</b>: team form, home and away splits, injuries, season stats and head-to-head comparisons.</li>
+    <li><b>Game-day weather</b> for outdoor games.</li>
+    <li><b>My Bets</b>: a private bet tracker that stays in your browser on your device.</li>
+  </ul>
+
+  <h2>Who runs it</h2>
+  <p>LineSmart is an independent site run by Rod Copenhaver Jr., a sole proprietor in Riverview, Florida. It is not owned by, and does not own, any sportsbook, and it isn't affiliated with any league or team.</p>
+
+  <h2>Where the data comes from</h2>
+  <ul>
+    <li><b>ESPN</b> public endpoints: schedules, scores, team and player stats, injuries, and <b>DraftKings</b> odds and player props as published by ESPN.</li>
+    <li><b>Hard Rock Bet</b> odds via {ext("https://the-odds-api.com/", "The Odds API")}.</li>
+    <li><b>Weather</b> by {ext("https://open-meteo.com/", "Open-Meteo")}.</li>
+  </ul>
+  <p>Data can be delayed or wrong. Always confirm odds with the sportsbook before you bet.</p>
+
+  <h2>How LineSmart makes money</h2>
+  <p>LineSmart is free to use. It plans to earn money through affiliate links to licensed sportsbooks: if you sign up through one, LineSmart may earn a commission at no cost to you. Affiliate links are labeled and never change the odds we show. Today there are no affiliate links. See our <a href="affiliate-disclosure.html">Affiliate Disclosure</a>.</p>
+  <p>Sportsbook links appear only in states where that sportsbook runs a legal online sportsbook. In Florida, that means Hard Rock Bet only.</p>
+
+  <h2>Responsible gambling</h2>
+  <p><b>LineSmart is for adults 21 and older.</b> Only bet where it's legal, and only what you can afford to lose. Gambling problem? Call or text {GAMBLER_TEL}. In Florida, call or text {PLAYWISE_TEL}, or the Florida Council on Compulsive Gambling at {ADMIT_TEL}. More help and tips: <a href="responsible-gambling.html">Responsible Gambling</a>.</p>
+
+  <h2>Contact</h2>
+  <p>Questions, corrections or partnership inquiries: <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>
+"""
+
 CONTENT = {
+    "about.html": ("About LineSmart", "LineSmart is a free, independent sports odds, props, matchups and betting-tools site run by Rod Copenhaver Jr. in Riverview, FL.", ABOUT, False),
     "responsible-gambling.html": ("Responsible Gambling", "Tips, limits, self-exclusion and free 24/7 helplines, including 1-800-GAMBLER and Florida resources.", RG, False),
-    "privacy.html": ("Privacy Policy", "What LineSmart stores, what it doesn't, and which third parties your browser contacts.", PRIVACY, True),
+    "privacy.html": ("Privacy Policy", "Cookieless analytics, approximate location for state-aware offers, data kept on your device, and affiliate links.", PRIVACY, True),
     "terms.html": ("Terms of Use", "Terms for using LineSmart, an informational sports odds site that does not accept wagers.", TERMS, True),
     "affiliate-disclosure.html": ("Affiliate Disclosure", "How LineSmart handles affiliate links. Currently there are none.", AFFILIATE, True),
 }

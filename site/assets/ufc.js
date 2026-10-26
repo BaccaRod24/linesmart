@@ -54,7 +54,7 @@
     const st = g.state === "in" ? `<span class="status live">LIVE · ${esc(g.statusDetail || "")}</span>` : g.state === "post" ? `<span class="status final">Final</span>` : `<span class="status">${A().timeET(g.date)}</span>`;
     const tag = [g.mainEvent ? '<span class="uf-tag me">Main event</span>' : "", g.title ? '<span class="uf-tag ti">Title</span>' : ""].join("");
     const foot = g.state === "post" ? `<div class="tfoot uf-res"><span>${esc(resultLine(g))}</span></div>`
-      : o ? `<div class="tfoot"><span class="bk">${esc(o.provider || "provider n/a")}</span>${(g.books || {}).hardrockbet && !(g.books.hardrockbet.stale) ? '<span class="bk hr">Hard Rock Bet</span>' : ""}<span class="hint">${g.rounds || 3} rds</span></div>`
+      : o ? `<div class="tfoot"><span class="bk${window.LSGeo && !window.LSGeo.isAvailable(window.LSGeo.providerKey(o.provider)) ? " bk-na" : ""}"${window.LSGeo && window.LSGeo.naLabel(window.LSGeo.providerKey(o.provider)) ? ` title="${esc(window.LSGeo.naLabel(window.LSGeo.providerKey(o.provider)))}"` : ""}>${esc(o.provider || "provider n/a")}</span>${(g.books || {}).hardrockbet && !(g.books.hardrockbet.stale) ? '<span class="bk hr">Hard Rock Bet</span>' : ""}<span class="hint">${g.rounds || 3} rds</span></div>`
       : `<div class="noline">Lines not posted yet</div>`;
     return `<a class="game bout c${cols.length}" href="#/g/${key}/${g.id}" aria-label="${esc(g.name)}">
       <div class="game-top">${st}${tag}<span class="net">${esc([g.weightClass, g.rounds ? g.rounds + " rounds" : ""].filter(Boolean).join(" · "))}</span></div>

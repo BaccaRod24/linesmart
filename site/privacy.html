@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#050b1c">
 <title>Privacy Policy · LineSmart</title>
-<meta name="description" content="What LineSmart stores, what it doesn't, and which third parties your browser contacts.">
+<meta name="description" content="Cookieless analytics, approximate location for state-aware offers, data kept on your device, and affiliate links.">
 <link rel="canonical" href="https://linesmart.app/privacy.html">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" href="assets/brand/icon.svg" type="image/svg+xml">
@@ -18,7 +18,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="LineSmart">
 <meta property="og:title" content="Privacy Policy · LineSmart">
-<meta property="og:description" content="What LineSmart stores, what it doesn't, and which third parties your browser contacts.">
+<meta property="og:description" content="Cookieless analytics, approximate location for state-aware offers, data kept on your device, and affiliate links.">
 <meta property="og:url" content="https://linesmart.app/privacy.html">
 <meta property="og:image" content="https://linesmart.app/assets/brand/og-image.png">
 <link rel="preload" href="assets/fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin>
@@ -32,6 +32,7 @@
 <header class="topbar">
   <div class="wrap topbar-inner">
     <a class="brand" href="./" title="LineSmart — home"><img class="brand-logo" src="assets/brand/logo.svg" alt="LineSmart" width="277" height="64"></a>
+    <a class="legal-nav-a" href="about.html">About</a>
     <a class="search-btn" href="./#/search" aria-label="Search teams and players" title="Search teams and players"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="sb-l">Search</span></a>
   </div>
 </header>
@@ -40,18 +41,33 @@
   <a class="back" href="./">← Odds &amp; lines</a>
   <p class="legal-note" role="note">This is a general template, not legal advice.</p>
   <h1>Privacy Policy</h1>
-  <p class="legal-date">Effective date: October 26, 2026</p>
-  <p class="legal-lead">LineSmart is a static website with sports odds and stats. It has no accounts, no sign-up and no ads. This policy explains what happens to information when you use it.</p>
+  <p class="legal-date">Last updated: October 26, 2026</p>
+  <p class="legal-lead">LineSmart is a free website with sports odds, props, matchups and betting tools. It has no accounts, no sign-up and no ads. This policy explains what information is involved when you use it.</p>
 
-  <h2>What we collect</h2>
-  <p>We don't collect personal information. LineSmart has no accounts, no forms and no server of its own. We don't set cookies and we don't use analytics, advertising or tracking tools.</p>
+  <h2>Summary</h2>
+  <ul>
+    <li>We don't ask for your name, email or any account details, and we don't sell or rent data.</li>
+    <li>We use Cloudflare Web Analytics, which is cookieless, to count page views in aggregate.</li>
+    <li>Your browser asks a geolocation service for your approximate state, so we only show sportsbooks that are legal there. You can set your state by hand instead.</li>
+    <li>Your bet tracker and preferences stay in your browser on your device.</li>
+    <li>LineSmart sets no cookies today. Sportsbook sites you visit from our links have their own policies.</li>
+  </ul>
+
+  <h2 id="analytics">Analytics (Cloudflare Web Analytics)</h2>
+  <p>On linesmart.app we use <a href="https://www.cloudflare.com/web-analytics/" target="_blank" rel="noopener">Cloudflare Web Analytics</a> to understand overall traffic. It does not use cookies or other storage on your device, does not fingerprint you, and does not track you across other websites. Your browser loads a small script from <code>static.cloudflareinsights.com</code> and sends a page-view report to <code>cloudflareinsights.com</code>. We see only aggregate reports: page views and visits, the referring site, device type, browser and operating system, country, and page-load performance. Cloudflare processes this data under the <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare Privacy Policy</a>. We don't use the data for advertising, and we don't sell it.</p>
+
+  <h2 id="location">Approximate location (state-aware offers)</h2>
+  <p>Sports betting is legal only in some states, and each sportsbook runs only in certain states. To show only sportsbooks that are legal where you are, your browser sends a request to <a href="https://ipdata.info/" target="_blank" rel="noopener">ipdata.info</a>, a free IP geolocation service. ipdata.info sees your IP address and returns your approximate country and state. Under its <a href="https://ipdata.info/privacy" target="_blank" rel="noopener">privacy policy</a>, it keeps IP addresses only briefly for rate limiting.</p>
+  <p>We keep only the country and state code, in your browser (localStorage, <code>ls-geo</code>), for up to 24 hours. It is never sent to us. If the lookup fails, we show no sportsbook offers until you pick a state. You can choose your state with the <b>Your state</b> picker (stored as <code>ls-state</code>); that choice replaces the lookup. IP location is approximate. Sportsbooks verify your location themselves before you can bet.</p>
 
   <h2>Hosting (GitHub Pages)</h2>
   <p>The site is hosted on GitHub Pages. Like most web hosts, GitHub may log technical data when your browser requests a page, such as your IP address, browser type and the page requested. It uses this data for security and to run the service. We don't receive these logs. See the <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">GitHub Privacy Statement</a>.</p>
 
   <h2>Data stored on your device</h2>
-  <p>A few small items are saved in your browser so the site works better. They stay on your device and are never sent to us:</p>
+  <p>These items are saved in your browser so the site works. They stay on your device and are never sent to us:</p>
   <ul>
+    <li><b>Bet tracker</b> (localStorage, <code>ls-bets-v1</code> and <code>ls-bets-prefs</code>): bets you log in My Bets and your tracker settings. They aren't uploaded, synced or linked to any sportsbook account. Use the tracker's export to keep a backup.</li>
+    <li><b>Your state</b> (localStorage, <code>ls-state</code>, and the cached lookup <code>ls-geo</code>): see above.</li>
     <li><b>Recently viewed</b> (localStorage, <code>ls-recent</code>): up to 8 teams or players you opened, shown on the search screen.</li>
     <li><b>21+ notice</b> (localStorage, <code>ls-age-ok</code>): the time you dismissed the age notice, so it isn't shown again.</li>
     <li><b>View preferences</b> (sessionStorage, <code>filter-&lt;league&gt;</code>): your "Upcoming" or "Incl. today's finals" choice on a league page. It is cleared when you close the tab.</li>
@@ -60,20 +76,24 @@
   <p>You can delete all of this at any time by clearing this site's data in your browser settings.</p>
 
   <h2>Third-party requests (ESPN)</h2>
-  <p>Some content loads directly from ESPN. Your browser requests team logos and player photos from ESPN's image servers (such as <code>a.espncdn.com</code>). Team and player pages and search results load live data from <code>site.web.api.espn.com</code>. ESPN therefore receives standard request data, such as your IP address, browser type and the page you came from. ESPN's handling of that data is covered by the <a href="https://privacy.thewaltdisneycompany.com/en/" target="_blank" rel="noopener">Disney/ESPN privacy policy</a>.</p>
-  <p>Odds and schedule files are built ahead of time on GitHub's servers from ESPN and The Odds API. Your browser does not contact The Odds API.</p>
+  <p>Some content loads directly from ESPN. Your browser requests team logos and player photos from ESPN's image servers (such as <code>a.espncdn.com</code>). Team and player pages, search results and bet grading load live data from <code>site.web.api.espn.com</code>. ESPN therefore receives standard request data, such as your IP address, browser type and the page you came from. ESPN's handling of that data is covered by the <a href="https://privacy.thewaltdisneycompany.com/en/" target="_blank" rel="noopener">Disney/ESPN privacy policy</a>.</p>
+  <p>Odds, schedule and weather files are built ahead of time on GitHub's servers from ESPN, The Odds API and Open-Meteo. Your browser does not contact The Odds API or Open-Meteo.</p>
 
-  <h2>Links to other sites</h2>
-  <p>LineSmart links to helplines, sportsbooks and other sites. Their own privacy policies apply when you visit them.</p>
+  <h2 id="affiliate">Sportsbook and affiliate links</h2>
+  <p>LineSmart shows links to licensed sportsbooks, only in states where they're legal. <b>Today these links go to each sportsbook's official website and are not affiliate links.</b> We plan to add affiliate tracking links later. When we do, an affiliate link may carry a tracking code in the web address. The sportsbook or its affiliate network may then set cookies or use similar technology on <i>their</i> site to credit LineSmart for your sign-up. LineSmart itself sets no cookies, now or for affiliate links, and we will not receive your name, account or betting details from a sportsbook. Affiliate links will be labeled, and this page and our <a href="affiliate-disclosure.html">Affiliate Disclosure</a> will be updated before they go live.</p>
+  <p>Other links go to helplines and other sites. Their own privacy policies apply when you visit them.</p>
+
+  <h2>Cookies</h2>
+  <p>LineSmart does not set cookies. Cloudflare Web Analytics is cookieless. Sportsbook sites you visit from our links may set their own cookies, as described above.</p>
 
   <h2>Children</h2>
-  <p>LineSmart is meant for adults 21 and older and is not directed at children. We don't knowingly collect information from anyone, including minors.</p>
+  <p>LineSmart is meant for adults 21 and older and is not directed at children. We don't knowingly collect information from anyone under 21.</p>
 
   <h2>Selling or sharing data</h2>
-  <p>We don't sell or share personal information, because we don't collect any.</p>
+  <p>We don't sell, rent or share personal information. We don't collect names, emails or accounts. The services named above (Cloudflare, ipdata.info, GitHub and ESPN) receive standard request data only because your browser contacts them.</p>
 
   <h2>Changes</h2>
-  <p>If this policy changes, we'll update this page and the effective date above. If we ever add analytics or affiliate tracking, this page will say so before it goes live.</p>
+  <p>If this policy changes, we'll update this page and the "last updated" date above.</p>
 
   <h2>Contact</h2>
   <p>Questions? Email <a href="mailto:contact@linesmart.app">contact@linesmart.app</a>.</p>
@@ -86,8 +106,8 @@
     <p class="rg fl">Florida: call or text <a href="tel:18337529947">1-833-PLAYWISE</a> (<a href="https://playwise.org/" target="_blank" rel="noopener">playwise.org</a>), or the Florida Council on Compulsive Gambling helpline <a href="tel:18882364848">1-888-ADMIT-IT</a> (<a href="https://gamblinghelp.org/" target="_blank" rel="noopener">gamblinghelp.org</a>).</p>
     <p><strong data-brand>LineSmart</strong> is an informational site and does not accept wagers. Odds are for reference and may change; confirm with the sportsbook.</p>
     <p class="aff-disc" data-aff-disclosure hidden></p>
-    <nav class="legal-links" aria-label="Legal"><a href="responsible-gambling.html">Responsible Gambling</a> <a href="privacy.html">Privacy Policy</a> <a href="terms.html">Terms of Use</a> <a href="affiliate-disclosure.html">Affiliate Disclosure</a></nav>
-    <p class="src">Data: ESPN public endpoints; Hard Rock Bet lines via The Odds API. Not affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
+    <nav class="legal-links" aria-label="Legal"><a href="about.html">About</a> <a href="responsible-gambling.html">Responsible Gambling</a> <a href="privacy.html">Privacy Policy</a> <a href="terms.html">Terms of Use</a> <a href="affiliate-disclosure.html">Affiliate Disclosure</a></nav>
+    <p class="src">Data: ESPN public endpoints (DraftKings lines via ESPN); Hard Rock Bet lines via The Odds API; weather by Open-Meteo. Independent: not owned by or affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
   </div>
 </footer>
 </body>

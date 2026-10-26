@@ -12,4 +12,33 @@ window.SITE_CONFIG = {
     enabled: false,
     text: "Some links on LineSmart are affiliate links: we may earn a commission if you sign up, at no cost to you. It never changes the odds we show.",
   },
+  // Cloudflare Web Analytics (cookieless). `cfToken` is the PUBLIC site tag from the Cloudflare dashboard
+  // (Web Analytics > Manage site > JS snippet: data-cf-beacon token). Set "" to turn analytics off.
+  // site.js injects the beacon ONLY when location.hostname is in `hosts`, so local servers,
+  // previews and the test suites never load it and test traffic isn't counted.
+  analytics: {
+    cfToken: "353a52038b2e4d338fcc1ebde3aa17be",
+    hosts: ["linesmart.app", "www.linesmart.app"],
+  },
+  // Visitor state for state-aware offers (assets/geo.js). Free keyless HTTPS geo-IP lookup, cached in
+  // localStorage; the "Your state" picker overrides it. Lookups run only on `hosts` (tests set ls-geo-force).
+  geo: {
+    url: "https://ipdata.info/json",   // returns { country_code: "US", region_code: "FL", ... }
+    timeoutMs: 3500,
+    ttlHours: 24,
+    hosts: ["linesmart.app", "www.linesmart.app"],
+  },
+  // Sportsbook offers, shown only in states where that book runs a legal online sportsbook
+  // (assets/books-by-state.js). `affiliateUrl`: put the real tracking link here once approved; until then
+  // the card links to the book's official public site with no promo claims. Never add bonus amounts that
+  // aren't in an approved, current offer. When any affiliateUrl is set, also set affiliate.enabled = true.
+  offers: {
+    enabled: true,
+    order: ["hardrockbet", "draftkings", "fanduel"],
+    books: {
+      hardrockbet: { name: "Hard Rock Bet", officialUrl: "https://www.hardrock.bet/", affiliateUrl: "" },
+      draftkings: { name: "DraftKings Sportsbook", officialUrl: "https://sportsbook.draftkings.com/", affiliateUrl: "" },
+      fanduel: { name: "FanDuel Sportsbook", officialUrl: "https://sportsbook.fanduel.com/", affiliateUrl: "" },
+    },
+  },
 };

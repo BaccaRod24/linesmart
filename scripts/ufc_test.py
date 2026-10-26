@@ -147,6 +147,28 @@ check("ufc league registered", "ufc" in L and L["ufc"]["kind"] == "mma" and L["u
 check("ufc odds: h2h only, 1 credit", L["ufc"]["odds_markets"] == "h2h" and L["ufc"]["odds_cost"] == 1)
 check("ODDS_MMA off by default", BD.ODDS_MMA is False)
 check("other leagues keep 3-market pull", all(l.get("odds_cost", BD.ODDS_COST) == 3 for l in BD.LEAGUES if l["key"] != "ufc"))
+# Hard Rock (The Odds API) matching for MMA, against a fake API response: swapped corners, accents, card-level start time
+ng = [x for x in idx["games"] if x["state"] == "pre"]
+t0 = min(x["date"] for x in ng)
+fold = lambda n: n.replace("é", "e").replace("á", "a")
+def fake_odds(ev_list):
+    def _get(url):
+        assert "markets=h2h&" in url and "mma_mixed_martial_arts" in url, url
+        return ev_list, {"x-requests-remaining": "470", "x-requests-last": "1"}
+    return _get
+evs = []
+for i, x in enumerate(ng):
+    h, a = (x["away"], x["home"]) if i % 2 else (x["home"], x["away"])   # every other bout listed the other way round
+    evs.append(dict(id=f"e{i}", commence_time=t0, home_team=fold(h["name"]), away_team=fold(a["name"]), bookmakers=[dict(key="hardrockbet", last_update=t0,
+                markets=[dict(key="h2h", outcomes=[dict(name=fold(h["name"]), price=-150 - i), dict(name=fold(a["name"]), price=130 + i)])])]))
+evs.append(dict(id="pfl", commence_time=t0, home_team="Someone Else", away_team="Nobody Known", bookmakers=[dict(key="hardrockbet", markets=[])]))
+BD.get = fake_odds(evs)
+pull = dict(key="k", remaining=470, spent=0, pulled=[], skipped=[], errors=[])
+entry, msg = BD.odds_pull_league(L["ufc"], ng, pull, "2026-10-26T15:30:00Z")
+check("hard rock: every listed bout matched", entry and entry["matched"] == len(ng) and entry["unmatched"] == 1, msg)
+check("hard rock: 1 credit spent", pull["spent"] == 1 and pull["remaining"] == 470, pull)
+ok_sides = all(entry["games"][x["id"]]["line"][("away" if i % 2 else "home") + "ML"] == -150 - i and entry["games"][x["id"]]["line"][("home" if i % 2 else "away") + "ML"] == 130 + i for i, x in enumerate(ng))
+check("hard rock: prices land on the right fighter (swapped corners too)", ok_sides)
 import matchups as MU, props as PR
 check("matchups / props skip ufc", "ufc" not in MU.SUPPORTED and "ufc" not in PR.SUPPORTED)
 

@@ -1,7 +1,1762 @@
 {
  "book": "hardrockbet",
- "checks": [],
- "leagues": {},
- "updated": null,
+ "checks": [
+  {
+   "action": "pull",
+   "errors": [],
+   "pulled": [
+    "nfl",
+    "nba",
+    "ncaaf",
+    "ncaab",
+    "nhl",
+    "mlb",
+    "epl",
+    "mls",
+    "ucl"
+   ],
+   "remainingAfter": 473,
+   "remainingBefore": 500,
+   "skipped": [],
+   "spent": 27,
+   "t": "2026-10-26T03:04:57Z",
+   "used": 0
+  }
+ ],
+ "leagues": {
+  "epl": {
+   "cost": 3,
+   "events": 21,
+   "games": {
+    "401878761": {
+     "away": "CRY",
+     "date": "2026-10-31T17:30Z",
+     "home": "TOT",
+     "line": {
+      "awayML": 450,
+      "drawML": 350,
+      "homeML": -170,
+      "updated": "2026-10-26T03:05:13Z"
+     }
+    },
+    "401878762": {
+     "away": "EVE",
+     "date": "2026-11-02T20:00Z",
+     "home": "NEW",
+     "line": {
+      "awayML": 220,
+      "drawML": 275,
+      "homeML": 125,
+      "updated": "2026-10-26T03:05:13Z"
+     }
+    },
+    "401878763": {
+     "away": "IPS",
+     "date": "2026-10-31T15:00Z",
+     "home": "HUL",
+     "line": {
+      "awayML": 165,
+      "drawML": 260,
+      "homeML": 155,
+      "updated": "2026-10-26T03:05:13Z"
+     }
+    },
+    "401879245": {
+     "away": "BHA",
+     "date": "2026-10-31T15:00Z",
+     "home": "MNC",
+     "line": {
+      "awayML": 350,
+      "drawML": 325,
+      "homeML": -145,
+      "updated": "2026-10-26T03:05:13Z"
+     }
+    },
+    "401879246": {
+     "away": "ARS",
+     "date": "2026-11-01T16:30Z",
+     "home": "LIV",
+     "line": {
+      "awayML": 120,
+      "drawML": 275,
+      "homeML": 220,
+      "updated": "2026-10-26T03:05:13Z"
+     }
+    },
+    "401879247": {
+     "away": "SUN",
+     "date": "2026-10-31T15:00Z",
+     "home": "COV",
+     "line": {
+      "awayML": 150,
+      "drawML": 250,
+      "homeML": 190,
+      "updated": "2026-10-26T03:05:13Z"
+     }
+    },
+    "401879248": {
+     "away": "MAN",
+     "date": "2026-10-31T12:30Z",
+     "home": "CHE",
+     "line": {
+      "awayML": 275,
+      "drawML": 300,
+      "homeML": -110,
+      "updated": "2026-10-26T03:05:13Z"
+     }
+    },
+    "401879249": {
+     "away": "NFO",
+     "date": "2026-10-31T15:00Z",
+     "home": "BRE",
+     "line": {
+      "awayML": 250,
+      "drawML": 275,
+      "homeML": 105,
+      "updated": "2026-10-26T03:05:13Z"
+     }
+    },
+    "401879250": {
+     "away": "FUL",
+     "date": "2026-10-31T20:00Z",
+     "home": "AVL",
+     "line": {
+      "awayML": 275,
+      "drawML": 275,
+      "homeML": -110,
+      "updated": "2026-10-26T03:05:13Z"
+     }
+    },
+    "401879251": {
+     "away": "LEE",
+     "date": "2026-10-31T15:00Z",
+     "home": "BOU",
+     "line": {
+      "awayML": 250,
+      "drawML": 260,
+      "homeML": 115,
+      "updated": "2026-10-26T03:05:13Z"
+     }
+    }
+   },
+   "matched": 10,
+   "pulledAt": "2026-10-26T03:04:57Z",
+   "remainingAfter": 479,
+   "unmatched": 0
+  },
+  "mlb": {
+   "cost": 3,
+   "events": 1,
+   "games": {
+    "401908044": {
+     "away": "MIL",
+     "date": "2026-10-27T00:00Z",
+     "home": "TB",
+     "line": {
+      "awayML": 100,
+      "awaySpread": -1.5,
+      "awaySpreadOdds": 170,
+      "homeML": -120,
+      "homeSpread": 1.5,
+      "homeSpreadOdds": -210,
+      "overOdds": 115,
+      "total": 7.5,
+      "underOdds": -135,
+      "updated": "2026-10-26T03:04:21Z"
+     }
+    }
+   },
+   "matched": 1,
+   "pulledAt": "2026-10-26T03:04:57Z",
+   "remainingAfter": 482,
+   "unmatched": 0
+  },
+  "mls": {
+   "cost": 3,
+   "events": 30,
+   "games": {
+    "761905": {
+     "away": "ATL",
+     "date": "2026-10-28T23:30Z",
+     "home": "NYC",
+     "line": {
+      "awayML": 300,
+      "drawML": 300,
+      "homeML": -135,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761906": {
+     "away": "DC",
+     "date": "2026-10-28T23:30Z",
+     "home": "TOR",
+     "line": {
+      "awayML": 240,
+      "drawML": 275,
+      "homeML": -105,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761908": {
+     "away": "CIN",
+     "date": "2026-10-28T23:30Z",
+     "home": "MIA",
+     "line": {
+      "awayML": 400,
+      "drawML": 375,
+      "homeML": -190,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761910": {
+     "away": "RSL",
+     "date": "2026-10-29T00:30Z",
+     "home": "ATX",
+     "line": {
+      "awayML": 155,
+      "drawML": 260,
+      "homeML": 150,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761911": {
+     "away": "ORL",
+     "date": "2026-10-29T00:30Z",
+     "home": "CHI",
+     "line": {
+      "awayML": 300,
+      "drawML": 350,
+      "homeML": -150,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761912": {
+     "away": "CLB",
+     "date": "2026-10-29T00:30Z",
+     "home": "DAL",
+     "line": {
+      "awayML": 250,
+      "drawML": 300,
+      "homeML": -110,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761913": {
+     "away": "SKC",
+     "date": "2026-10-29T00:30Z",
+     "home": "MIN",
+     "line": {
+      "awayML": 500,
+      "drawML": 400,
+      "homeML": -240,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761914": {
+     "away": "PHI",
+     "date": "2026-10-29T00:30Z",
+     "home": "NSH",
+     "line": {
+      "awayML": 240,
+      "drawML": 275,
+      "homeML": -105,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761915": {
+     "away": "POR",
+     "date": "2026-10-29T00:30Z",
+     "home": "STL",
+     "line": {
+      "awayML": 325,
+      "drawML": 325,
+      "homeML": -150,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761916": {
+     "away": "HOU",
+     "date": "2026-10-29T02:30Z",
+     "home": "SEA",
+     "line": {
+      "awayML": 300,
+      "drawML": 275,
+      "homeML": -125,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761917": {
+     "away": "COL",
+     "date": "2026-10-29T02:30Z",
+     "home": "SJ",
+     "line": {
+      "awayML": 195,
+      "drawML": 275,
+      "homeML": 115,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761918": {
+     "away": "SD",
+     "date": "2026-10-29T02:30Z",
+     "home": "VAN",
+     "line": {
+      "awayML": 500,
+      "drawML": 400,
+      "homeML": -240,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761919": {
+     "away": "PHI",
+     "date": "2026-10-31T18:00Z",
+     "home": "CIN",
+     "line": {
+      "awayML": 100,
+      "drawML": 300,
+      "homeML": 220,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761922": {
+     "away": "ORL",
+     "date": "2026-10-31T17:00Z",
+     "home": "CLT",
+     "line": {
+      "awayML": 240,
+      "drawML": 300,
+      "homeML": -115,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761923": {
+     "away": "CHI",
+     "date": "2026-11-01T01:30Z",
+     "home": "COL",
+     "line": {
+      "awayML": 190,
+      "drawML": 260,
+      "homeML": 125,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761924": {
+     "away": "DC",
+     "date": "2026-10-31T18:00Z",
+     "home": "CLB",
+     "line": {
+      "awayML": 400,
+      "drawML": 350,
+      "homeML": -190,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761925": {
+     "away": "ATX",
+     "date": "2026-10-31T21:00Z",
+     "home": "LA",
+     "line": {
+      "awayML": 325,
+      "drawML": 325,
+      "homeML": -150,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761926": {
+     "away": "SD",
+     "date": "2026-10-31T19:00Z",
+     "home": "STL",
+     "line": {
+      "awayML": 350,
+      "drawML": 325,
+      "homeML": -160,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761927": {
+     "away": "SEA",
+     "date": "2026-11-01T21:30Z",
+     "home": "VAN",
+     "line": {
+      "awayML": 425,
+      "drawML": 350,
+      "homeML": -190,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761928": {
+     "away": "DAL",
+     "date": "2026-10-31T19:00Z",
+     "home": "SKC",
+     "line": {
+      "awayML": -105,
+      "drawML": 300,
+      "homeML": 230,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761929": {
+     "away": "RSL",
+     "date": "2026-10-31T21:00Z",
+     "home": "SJ",
+     "line": {
+      "awayML": 210,
+      "drawML": 300,
+      "homeML": 100,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761931": {
+     "away": "TOR",
+     "date": "2026-11-01T21:30Z",
+     "home": "ATL",
+     "line": {
+      "awayML": 250,
+      "drawML": 300,
+      "homeML": -115,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761932": {
+     "away": "MIA",
+     "date": "2026-11-02T00:00Z",
+     "home": "NE",
+     "line": {
+      "awayML": 125,
+      "drawML": 300,
+      "homeML": 165,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    },
+    "761933": {
+     "away": "HOU",
+     "date": "2026-11-02T02:45Z",
+     "home": "POR",
+     "line": {
+      "awayML": 220,
+      "drawML": 275,
+      "homeML": 105,
+      "updated": "2026-10-26T03:05:16Z"
+     }
+    }
+   },
+   "matched": 24,
+   "pulledAt": "2026-10-26T03:04:57Z",
+   "remainingAfter": 476,
+   "unmatched": 6
+  },
+  "nba": {
+   "cost": 3,
+   "events": 15,
+   "games": {
+    "401909867": {
+     "away": "MEM",
+     "date": "2026-10-26T01:00Z",
+     "home": "SAC",
+     "line": {
+      "awayML": -190,
+      "awaySpread": -3.5,
+      "awaySpreadOdds": -105,
+      "homeML": 145,
+      "homeSpread": 3.5,
+      "homeSpreadOdds": -125,
+      "overOdds": -125,
+      "total": 240.5,
+      "underOdds": -105,
+      "updated": "2026-10-26T03:04:33Z"
+     }
+    },
+    "401909868": {
+     "away": "WSH",
+     "date": "2026-10-26T23:00Z",
+     "home": "CHA",
+     "line": {
+      "awayML": 110,
+      "awaySpread": 2.5,
+      "awaySpreadOdds": -115,
+      "homeML": -130,
+      "homeSpread": -2.5,
+      "homeSpreadOdds": -105,
+      "overOdds": -115,
+      "total": 228.5,
+      "underOdds": 100,
+      "updated": "2026-10-26T03:04:33Z"
+     }
+    },
+    "401909870": {
+     "away": "CHI",
+     "date": "2026-10-26T23:30Z",
+     "home": "BOS",
+     "line": {
+      "awayML": 525,
+      "awaySpread": 13.5,
+      "awaySpreadOdds": -105,
+      "homeML": -750,
+      "homeSpread": -13.5,
+      "homeSpreadOdds": -115,
+      "overOdds": -110,
+      "total": 233.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:33Z"
+     }
+    },
+    "401909871": {
+     "away": "DAL",
+     "date": "2026-10-26T23:30Z",
+     "home": "MIA",
+     "line": {
+      "awayML": 260,
+      "awaySpread": 8.5,
+      "awaySpreadOdds": -110,
+      "homeML": -325,
+      "homeSpread": -8.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -115,
+      "total": 235.5,
+      "underOdds": 100,
+      "updated": "2026-10-26T03:04:33Z"
+     }
+    }
+   },
+   "matched": 4,
+   "pulledAt": "2026-10-26T03:04:57Z",
+   "remainingAfter": 494,
+   "unmatched": 0
+  },
+  "ncaab": {
+   "cost": 3,
+   "events": 7,
+   "games": {},
+   "matched": 0,
+   "pulledAt": "2026-10-26T03:04:57Z",
+   "remainingAfter": 488,
+   "unmatched": 0
+  },
+  "ncaaf": {
+   "cost": 3,
+   "events": 56,
+   "games": {
+    "401856733": {
+     "away": "MIZ",
+     "date": "2026-10-31T23:45Z",
+     "home": "ARK",
+     "line": {
+      "awayML": -375,
+      "awaySpread": -9.5,
+      "awaySpreadOdds": -110,
+      "homeML": 275,
+      "homeSpread": 9.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 48.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401856734": {
+     "away": "FLA",
+     "date": "2026-10-31T19:30Z",
+     "home": "UGA",
+     "line": {
+      "awayML": 325,
+      "awaySpread": 10.5,
+      "awaySpreadOdds": -110,
+      "homeML": -425,
+      "homeSpread": -10.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 55.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401856735": {
+     "away": "AUB",
+     "date": "2026-10-31T16:45Z",
+     "home": "MISS",
+     "line": {
+      "awayML": 400,
+      "awaySpread": 13.5,
+      "awaySpreadOdds": -110,
+      "homeML": -600,
+      "homeSpread": -13.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 57.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401856736": {
+     "away": "SC",
+     "date": "2026-10-31T20:15Z",
+     "home": "OU",
+     "line": {
+      "awayML": 165,
+      "awaySpread": 4.5,
+      "awaySpreadOdds": -105,
+      "homeML": -200,
+      "homeSpread": -4.5,
+      "homeSpreadOdds": -115,
+      "overOdds": -105,
+      "total": 44.5,
+      "underOdds": -115,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401856737": {
+     "away": "MSST",
+     "date": "2026-10-31T23:30Z",
+     "home": "TEX",
+     "line": {
+      "awayML": 800,
+      "awaySpread": 20.5,
+      "awaySpreadOdds": -110,
+      "homeML": -1400,
+      "homeSpread": -20.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -115,
+      "total": 50.5,
+      "underOdds": -105,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401856842": {
+     "away": "ARIZ",
+     "date": "2026-10-31T16:00Z",
+     "home": "TTU",
+     "line": {
+      "awayML": 145,
+      "awaySpread": 3.5,
+      "awaySpreadOdds": -110,
+      "homeML": -175,
+      "homeSpread": -3.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 55.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401856843": {
+     "away": "ASU",
+     "date": "2026-10-31T19:30Z",
+     "home": "BYU",
+     "line": {
+      "awayML": 500,
+      "awaySpread": 14.5,
+      "awaySpreadOdds": -110,
+      "homeML": -750,
+      "homeSpread": -14.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 49.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401856844": {
+     "away": "BAY",
+     "date": "2026-10-30T23:30Z",
+     "home": "UCF",
+     "line": {
+      "awayML": -120,
+      "awaySpread": -1.5,
+      "awaySpreadOdds": -105,
+      "homeML": -105,
+      "homeSpread": 1.5,
+      "homeSpreadOdds": -115,
+      "overOdds": -110,
+      "total": 48.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401856845": {
+     "away": "KU",
+     "date": "2026-10-31T19:30Z",
+     "home": "TCU",
+     "line": {
+      "awayML": 180,
+      "awaySpread": 4.5,
+      "awaySpreadOdds": -105,
+      "homeML": -225,
+      "homeSpread": -4.5,
+      "homeSpreadOdds": -115,
+      "overOdds": -125,
+      "total": 45.5,
+      "underOdds": 100,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401856846": {
+     "away": "KSU",
+     "date": "2026-10-31T18:00Z",
+     "home": "COLO",
+     "line": {
+      "awayML": -130,
+      "awaySpread": -2.5,
+      "awaySpreadOdds": -105,
+      "homeML": 105,
+      "homeSpread": 2.5,
+      "homeSpreadOdds": -115,
+      "overOdds": -115,
+      "total": 47.5,
+      "underOdds": -105,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401856847": {
+     "away": "OKST",
+     "date": "2026-10-31T23:00Z",
+     "home": "ISU",
+     "line": {
+      "awayML": -450,
+      "awaySpread": -9.5,
+      "awaySpreadOdds": -120,
+      "homeML": 325,
+      "homeSpread": 9.5,
+      "homeSpreadOdds": 100,
+      "overOdds": -110,
+      "total": 57.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401856848": {
+     "away": "UTAH",
+     "date": "2026-10-31T19:45Z",
+     "home": "CIN",
+     "line": {
+      "awayML": -250,
+      "awaySpread": -6.5,
+      "awaySpreadOdds": -110,
+      "homeML": 195,
+      "homeSpread": 6.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 56.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858277": {
+     "away": "CAL",
+     "date": "2026-10-31T16:00Z",
+     "home": "NCSU",
+     "line": {
+      "awayML": 250,
+      "awaySpread": 7.5,
+      "awaySpreadOdds": -110,
+      "homeML": -325,
+      "homeSpread": -7.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 57.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858278": {
+     "away": "SMU",
+     "date": "2026-10-31T16:00Z",
+     "home": "SYR",
+     "line": {
+      "awayML": -400,
+      "awaySpread": -9.5,
+      "awaySpreadOdds": -110,
+      "homeML": 300,
+      "homeSpread": 9.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -135,
+      "total": 56.5,
+      "underOdds": 110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858279": {
+     "away": "BC",
+     "date": "2026-10-31T16:00Z",
+     "home": "DUKE",
+     "line": {
+      "awayML": 260,
+      "awaySpread": 7.5,
+      "awaySpreadOdds": -110,
+      "homeML": -350,
+      "homeSpread": -7.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -115,
+      "total": 47.5,
+      "underOdds": -105,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858280": {
+     "away": "CLEM",
+     "date": "2026-10-31T23:00Z",
+     "home": "FSU",
+     "line": {
+      "awayML": 165,
+      "awaySpread": 5.5,
+      "awaySpreadOdds": -110,
+      "homeML": -210,
+      "homeSpread": -5.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 50.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858281": {
+     "away": "GT",
+     "date": "2026-10-31T23:30Z",
+     "home": "PITT",
+     "line": {
+      "awayML": 260,
+      "awaySpread": 7.5,
+      "awaySpreadOdds": -120,
+      "homeML": -350,
+      "homeSpread": -7.5,
+      "homeSpreadOdds": 100,
+      "overOdds": -110,
+      "total": 52.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858282": {
+     "away": "MIA",
+     "date": "2026-10-31T23:30Z",
+     "home": "UNC",
+     "line": {
+      "awayML": -750,
+      "awaySpread": -15.5,
+      "awaySpreadOdds": -110,
+      "homeML": 525,
+      "homeSpread": 15.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 52.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858283": {
+     "away": "STAN",
+     "date": "2026-10-31T19:15Z",
+     "home": "LOU",
+     "line": {
+      "awayML": 1100,
+      "awaySpread": 21.5,
+      "awaySpreadOdds": 100,
+      "homeML": -3000,
+      "homeSpread": -21.5,
+      "homeSpreadOdds": -120,
+      "overOdds": 100,
+      "total": 62.5,
+      "underOdds": -125,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858284": {
+     "away": "UVA",
+     "date": "2026-10-31T19:45Z",
+     "home": "WAKE",
+     "line": {
+      "awayML": 450,
+      "awaySpread": 13.5,
+      "awaySpreadOdds": -105,
+      "homeML": -650,
+      "homeSpread": -13.5,
+      "homeSpreadOdds": -120,
+      "overOdds": -115,
+      "total": 49.5,
+      "underOdds": -105,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858501": {
+     "away": "MINN",
+     "date": "2026-10-31T19:30Z",
+     "home": "IU",
+     "line": {
+      "awayML": 900,
+      "awaySpread": 19.5,
+      "awaySpreadOdds": -110,
+      "homeML": -2500,
+      "homeSpread": -19.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -105,
+      "total": 41.5,
+      "underOdds": -115,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858502": {
+     "away": "WIS",
+     "date": "2026-10-31T16:00Z",
+     "home": "IOWA",
+     "line": {
+      "awayML": 135,
+      "awaySpread": 3.5,
+      "awaySpreadOdds": -120,
+      "homeML": -165,
+      "homeSpread": -3.5,
+      "homeSpreadOdds": 100,
+      "overOdds": -105,
+      "total": 37.5,
+      "underOdds": -115,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858503": {
+     "away": "ILL",
+     "date": "2026-10-31T16:00Z",
+     "home": "MD",
+     "line": {
+      "awayML": -135,
+      "awaySpread": -2.5,
+      "awaySpreadOdds": -110,
+      "homeML": 110,
+      "homeSpread": 2.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 52.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858504": {
+     "away": "WASH",
+     "date": "2026-11-01T00:00Z",
+     "home": "NEB",
+     "line": {
+      "awayML": 300,
+      "awaySpread": 9.5,
+      "awaySpreadOdds": -110,
+      "homeML": -400,
+      "homeSpread": -9.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 49.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858505": {
+     "away": "NU",
+     "date": "2026-10-31T19:30Z",
+     "home": "ORE",
+     "line": {
+      "awayML": 145,
+      "awaySpread": 3.5,
+      "awaySpreadOdds": -110,
+      "homeML": -180,
+      "homeSpread": -3.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -105,
+      "total": 49.5,
+      "underOdds": -115,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858506": {
+     "away": "PUR",
+     "date": "2026-10-31T20:15Z",
+     "home": "PSU",
+     "line": {
+      "awayML": 240,
+      "awaySpread": 7.5,
+      "awaySpreadOdds": -110,
+      "homeML": -325,
+      "homeSpread": -7.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -120,
+      "total": 51.5,
+      "underOdds": 100,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858507": {
+     "away": "MICH",
+     "date": "2026-10-31T16:30Z",
+     "home": "RUTG",
+     "line": {
+      "awayML": -700,
+      "awaySpread": -13.5,
+      "awaySpreadOdds": -120,
+      "homeML": 475,
+      "homeSpread": 13.5,
+      "homeSpreadOdds": -105,
+      "overOdds": -110,
+      "total": 47.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858508": {
+     "away": "NEV",
+     "date": "2026-10-31T20:15Z",
+     "home": "UCLA",
+     "line": {
+      "awayML": 800,
+      "awaySpread": 21.5,
+      "awaySpreadOdds": -115,
+      "homeML": -1600,
+      "homeSpread": -21.5,
+      "homeSpreadOdds": -105,
+      "overOdds": -105,
+      "total": 44.5,
+      "underOdds": -115,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401858509": {
+     "away": "OSU",
+     "date": "2026-10-31T23:30Z",
+     "home": "USC",
+     "line": {
+      "awayML": -260,
+      "awaySpread": -6.5,
+      "awaySpreadOdds": -120,
+      "homeML": 210,
+      "homeSpread": 6.5,
+      "homeSpreadOdds": 100,
+      "overOdds": -110,
+      "total": 50.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401859185": {
+     "away": "ND",
+     "date": "2026-10-31T16:00Z",
+     "home": "NAVY",
+     "line": {
+      "awayML": -10000,
+      "awaySpread": -29.5,
+      "awaySpreadOdds": -110,
+      "homeML": 2000,
+      "homeSpread": 29.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -105,
+      "total": 54.5,
+      "underOdds": -115,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401860909": {
+     "away": "WSU",
+     "date": "2026-10-31T23:00Z",
+     "home": "SDSU",
+     "line": {
+      "awayML": 130,
+      "awaySpread": 2.5,
+      "awaySpreadOdds": 100,
+      "homeML": -155,
+      "homeSpread": -2.5,
+      "homeSpreadOdds": -125,
+      "overOdds": -110,
+      "total": 48.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401860910": {
+     "away": "CSU",
+     "date": "2026-10-31T19:30Z",
+     "home": "USU",
+     "line": {
+      "awayML": 185,
+      "awaySpread": 6.5,
+      "awaySpreadOdds": -110,
+      "homeML": -230,
+      "homeSpread": -6.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 63.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401860924": {
+     "away": "ORST",
+     "date": "2026-11-01T03:00Z",
+     "home": "FRES",
+     "line": {
+      "awayML": -275,
+      "awaySpread": -6.5,
+      "awaySpreadOdds": -115,
+      "homeML": 220,
+      "homeSpread": 6.5,
+      "homeSpreadOdds": -105,
+      "overOdds": -110,
+      "total": 56.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401861966": {
+     "away": "CONN",
+     "date": "2026-10-31T19:00Z",
+     "home": "AFA",
+     "line": {
+      "awayML": 125,
+      "awaySpread": 2.5,
+      "awaySpreadOdds": 105,
+      "homeML": -155,
+      "homeSpread": -2.5,
+      "homeSpreadOdds": -125,
+      "overOdds": -110,
+      "total": 53.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401862812": {
+     "away": "FAU",
+     "date": "2026-10-29T23:30Z",
+     "home": "UNT",
+     "line": {
+      "awayML": 350,
+      "awaySpread": 11.5,
+      "awaySpreadOdds": -110,
+      "homeML": -500,
+      "homeSpread": -11.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -115,
+      "total": 73.5,
+      "underOdds": -105,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401862813": {
+     "away": "TULN",
+     "date": "2026-10-30T23:00Z",
+     "home": "CLT",
+     "line": {
+      "awayML": -550,
+      "awaySpread": -10.5,
+      "awaySpreadOdds": -110,
+      "homeML": 375,
+      "homeSpread": 10.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 46.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401862815": {
+     "away": "TEM",
+     "date": "2026-10-31T19:00Z",
+     "home": "ECU",
+     "line": {
+      "awayML": 195,
+      "awaySpread": 6.5,
+      "awaySpreadOdds": -110,
+      "homeML": -250,
+      "homeSpread": -6.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 49.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401864530": {
+     "away": "NIU",
+     "date": "2026-11-01T02:30Z",
+     "home": "UNLV",
+     "line": {
+      "awayML": 1300,
+      "awaySpread": 24.5,
+      "awaySpreadOdds": -115,
+      "homeML": -5000,
+      "homeSpread": -24.5,
+      "homeSpreadOdds": -105,
+      "overOdds": -110,
+      "total": 53.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401864531": {
+     "away": "UTEP",
+     "date": "2026-10-31T19:30Z",
+     "home": "NDSU",
+     "line": {
+      "awaySpread": 25.5,
+      "awaySpreadOdds": -120,
+      "homeSpread": -25.5,
+      "homeSpreadOdds": -105,
+      "overOdds": 110,
+      "total": 45.5,
+      "underOdds": -135,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401866451": {
+     "away": "KENT",
+     "date": "2026-10-31T02:30Z",
+     "home": "SAC",
+     "line": {
+      "awayML": -500,
+      "awaySpread": -10.5,
+      "awaySpreadOdds": -110,
+      "homeML": 350,
+      "homeSpread": 10.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 46.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401866452": {
+     "away": "BGSU",
+     "date": "2026-10-31T16:00Z",
+     "home": "WMU",
+     "line": {
+      "awayML": 475,
+      "awaySpread": 13.5,
+      "awaySpreadOdds": 100,
+      "homeML": -700,
+      "homeSpread": -13.5,
+      "homeSpreadOdds": -120,
+      "overOdds": -110,
+      "total": 43.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401869944": {
+     "away": "CCU",
+     "date": "2026-10-31T18:00Z",
+     "home": "GAST",
+     "line": {
+      "awayML": 210,
+      "awaySpread": 6.5,
+      "awaySpreadOdds": -110,
+      "homeML": -260,
+      "homeSpread": -6.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -105,
+      "total": 59.5,
+      "underOdds": -115,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401869963": {
+     "away": "TROY",
+     "date": "2026-10-29T23:30Z",
+     "home": "JMU",
+     "line": {
+      "awayML": 1000,
+      "awaySpread": 20.5,
+      "awaySpreadOdds": 100,
+      "homeML": -2000,
+      "homeSpread": -20.5,
+      "homeSpreadOdds": -120,
+      "overOdds": -110,
+      "total": 51.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401871057": {
+     "away": "JXST",
+     "date": "2026-10-29T00:00Z",
+     "home": "NMSU",
+     "line": {
+      "awayML": -150,
+      "awaySpread": -2.5,
+      "awaySpreadOdds": -125,
+      "homeML": 125,
+      "homeSpread": 2.5,
+      "homeSpreadOdds": 100,
+      "overOdds": -115,
+      "total": 49.5,
+      "underOdds": -105,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401871058": {
+     "away": "KENN",
+     "date": "2026-10-28T23:00Z",
+     "home": "MTSU",
+     "line": {
+      "awayML": 115,
+      "awaySpread": 2.5,
+      "awaySpreadOdds": -105,
+      "homeML": -145,
+      "homeSpread": -2.5,
+      "homeSpreadOdds": -115,
+      "overOdds": -125,
+      "total": 49.5,
+      "underOdds": 105,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401871059": {
+     "away": "FIU",
+     "date": "2026-10-31T19:30Z",
+     "home": "LIB",
+     "line": {
+      "awayML": 450,
+      "awaySpread": 13.5,
+      "awaySpreadOdds": 100,
+      "homeML": -650,
+      "homeSpread": -13.5,
+      "homeSpreadOdds": -120,
+      "overOdds": -105,
+      "total": 45.5,
+      "underOdds": -115,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401871071": {
+     "away": "DEL",
+     "date": "2026-10-27T23:00Z",
+     "home": "WKU",
+     "line": {
+      "awayML": -120,
+      "awaySpread": -2.5,
+      "awaySpreadOdds": 105,
+      "homeML": -105,
+      "homeSpread": 2.5,
+      "homeSpreadOdds": -125,
+      "overOdds": 115,
+      "total": 58.5,
+      "underOdds": -140,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401871096": {
+     "away": "MRSH",
+     "date": "2026-10-31T17:00Z",
+     "home": "ODU",
+     "line": {
+      "awayML": -150,
+      "awaySpread": -2.5,
+      "awaySpreadOdds": -120,
+      "homeML": 120,
+      "homeSpread": 2.5,
+      "homeSpreadOdds": 100,
+      "overOdds": -110,
+      "total": 44.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    },
+    "401871097": {
+     "away": "LT",
+     "date": "2026-10-31T19:00Z",
+     "home": "USA",
+     "line": {
+      "awayML": -210,
+      "awaySpread": -4.5,
+      "awaySpreadOdds": -110,
+      "homeML": 170,
+      "homeSpread": 4.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -105,
+      "total": 57.5,
+      "underOdds": -115,
+      "updated": "2026-10-26T03:04:19Z"
+     }
+    }
+   },
+   "matched": 49,
+   "pulledAt": "2026-10-26T03:04:57Z",
+   "remainingAfter": 491,
+   "unmatched": 2
+  },
+  "nfl": {
+   "cost": 3,
+   "events": 14,
+   "games": {
+    "401873009": {
+     "away": "DAL",
+     "date": "2026-10-27T00:15Z",
+     "home": "PHI",
+     "line": {
+      "awayML": -230,
+      "awaySpread": -5.0,
+      "awaySpreadOdds": -110,
+      "homeML": 190,
+      "homeSpread": 5.0,
+      "homeSpreadOdds": -110,
+      "overOdds": -115,
+      "total": 44.0,
+      "underOdds": -105,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    },
+    "401873022": {
+     "away": "KC",
+     "date": "2026-10-26T00:20Z",
+     "home": "SEA",
+     "line": {
+      "awaySpread": 16.5,
+      "awaySpreadOdds": 150,
+      "homeSpread": -16.5,
+      "homeSpreadOdds": -195,
+      "overOdds": 130,
+      "total": 24.5,
+      "underOdds": -170,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    },
+    "401873023": {
+     "away": "CAR",
+     "date": "2026-10-30T00:15Z",
+     "home": "GB",
+     "line": {
+      "awayML": 170,
+      "awaySpread": 4.0,
+      "awaySpreadOdds": -110,
+      "homeML": -200,
+      "homeSpread": -4.0,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 47.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    },
+    "401873024": {
+     "away": "ARI",
+     "date": "2026-11-01T18:00Z",
+     "home": "DAL",
+     "line": {
+      "awayML": 250,
+      "awaySpread": 6.5,
+      "awaySpreadOdds": -110,
+      "homeML": -300,
+      "homeSpread": -6.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 53.0,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    },
+    "401873025": {
+     "away": "ATL",
+     "date": "2026-11-01T18:00Z",
+     "home": "TB",
+     "line": {
+      "awayML": 105,
+      "awaySpread": 2.0,
+      "awaySpreadOdds": -110,
+      "homeML": -125,
+      "homeSpread": -2.0,
+      "homeSpreadOdds": -110,
+      "overOdds": -115,
+      "total": 45.0,
+      "underOdds": 100,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    },
+    "401873026": {
+     "away": "BAL",
+     "date": "2026-11-01T18:00Z",
+     "home": "BUF",
+     "line": {
+      "awayML": 150,
+      "awaySpread": 3.5,
+      "awaySpreadOdds": -115,
+      "homeML": -180,
+      "homeSpread": -3.5,
+      "homeSpreadOdds": -105,
+      "overOdds": -115,
+      "total": 54.0,
+      "underOdds": -105,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    },
+    "401873027": {
+     "away": "CLE",
+     "date": "2026-11-01T18:00Z",
+     "home": "PIT",
+     "line": {
+      "awayML": 160,
+      "awaySpread": 4.0,
+      "awaySpreadOdds": -110,
+      "homeML": -195,
+      "homeSpread": -4.0,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 40.0,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    },
+    "401873028": {
+     "away": "IND",
+     "date": "2026-11-01T18:00Z",
+     "home": "JAX",
+     "line": {
+      "awayML": 300,
+      "awaySpread": 7.5,
+      "awaySpreadOdds": -110,
+      "homeML": -400,
+      "homeSpread": -7.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 47.0,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    },
+    "401873029": {
+     "away": "LV",
+     "date": "2026-11-01T18:00Z",
+     "home": "NYJ",
+     "line": {
+      "awayML": -105,
+      "awaySpread": 1.0,
+      "awaySpreadOdds": -110,
+      "homeML": -115,
+      "homeSpread": -1.0,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 44.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    },
+    "401873030": {
+     "away": "MIN",
+     "date": "2026-11-01T18:00Z",
+     "home": "DET",
+     "line": {
+      "awayML": 140,
+      "awaySpread": 3.0,
+      "awaySpreadOdds": -110,
+      "homeML": -160,
+      "homeSpread": -3.0,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 46.0,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    },
+    "401873031": {
+     "away": "TEN",
+     "date": "2026-11-01T18:00Z",
+     "home": "CIN",
+     "line": {
+      "awayML": 425,
+      "awaySpread": 10.5,
+      "awaySpreadOdds": -110,
+      "homeML": -600,
+      "homeSpread": -10.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -115,
+      "total": 46.5,
+      "underOdds": -105,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    },
+    "401873032": {
+     "away": "LAC",
+     "date": "2026-11-01T21:05Z",
+     "home": "LAR",
+     "line": {
+      "awayML": 275,
+      "awaySpread": 7.0,
+      "awaySpreadOdds": -105,
+      "homeML": -350,
+      "homeSpread": -7.0,
+      "homeSpreadOdds": -115,
+      "overOdds": -110,
+      "total": 44.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    },
+    "401873034": {
+     "away": "NE",
+     "date": "2026-11-01T21:25Z",
+     "home": "MIA",
+     "line": {
+      "awayML": -400,
+      "awaySpread": -7.5,
+      "awaySpreadOdds": -110,
+      "homeML": 300,
+      "homeSpread": 7.5,
+      "homeSpreadOdds": -110,
+      "overOdds": -110,
+      "total": 44.5,
+      "underOdds": -110,
+      "updated": "2026-10-26T03:04:00Z"
+     }
+    }
+   },
+   "matched": 13,
+   "pulledAt": "2026-10-26T03:04:57Z",
+   "remainingAfter": 497,
+   "unmatched": 0
+  },
+  "nhl": {
+   "cost": 3,
+   "events": 4,
+   "games": {
+    "401892581": {
+     "away": "MIN",
+     "date": "2026-10-26T02:00Z",
+     "home": "VAN",
+     "line": {
+      "awayML": -400,
+      "awaySpread": -1.5,
+      "awaySpreadOdds": -120,
+      "homeML": 260,
+      "homeSpread": 1.5,
+      "homeSpreadOdds": 100,
+      "overOdds": 105,
+      "total": 5.5,
+      "underOdds": -130,
+      "updated": "2026-10-26T03:04:36Z"
+     }
+    },
+    "401892582": {
+     "away": "LA",
+     "date": "2026-10-26T23:00Z",
+     "home": "NYR",
+     "line": {
+      "awayML": 110,
+      "awaySpread": 1.5,
+      "awaySpreadOdds": -230,
+      "homeML": -130,
+      "homeSpread": -1.5,
+      "homeSpreadOdds": 175,
+      "overOdds": -130,
+      "total": 5.5,
+      "underOdds": 105,
+      "updated": "2026-10-26T03:04:36Z"
+     }
+    },
+    "401892583": {
+     "away": "TOR",
+     "date": "2026-10-27T00:30Z",
+     "home": "CGY",
+     "line": {
+      "awayML": -150,
+      "awaySpread": -1.5,
+      "awaySpreadOdds": 140,
+      "homeML": 130,
+      "homeSpread": 1.5,
+      "homeSpreadOdds": -185,
+      "overOdds": -120,
+      "total": 6.5,
+      "underOdds": 100,
+      "updated": "2026-10-26T03:04:36Z"
+     }
+    },
+    "401892584": {
+     "away": "DET",
+     "date": "2026-10-27T01:30Z",
+     "home": "EDM",
+     "line": {
+      "awayML": 145,
+      "awaySpread": 1.5,
+      "awaySpreadOdds": -165,
+      "homeML": -175,
+      "homeSpread": -1.5,
+      "homeSpreadOdds": 130,
+      "overOdds": -120,
+      "total": 6.5,
+      "underOdds": 100,
+      "updated": "2026-10-26T03:04:36Z"
+     }
+    }
+   },
+   "matched": 4,
+   "pulledAt": "2026-10-26T03:04:57Z",
+   "remainingAfter": 485,
+   "unmatched": 0
+  },
+  "ucl": {
+   "cost": 3,
+   "events": 18,
+   "games": {
+    "401915308": {
+     "away": "ROMA",
+     "date": "2026-11-03T20:00Z",
+     "home": "MAN",
+     "line": {
+      "awayML": 195,
+      "drawML": 275,
+      "homeML": 125,
+      "updated": "2026-10-26T03:04:37Z"
+     }
+    },
+    "401915309": {
+     "away": "PSG",
+     "date": "2026-11-03T20:00Z",
+     "home": "VIL",
+     "line": {
+      "awayML": -170,
+      "drawML": 350,
+      "homeML": 375,
+      "updated": "2026-10-26T03:04:37Z"
+     }
+    },
+    "401915311": {
+     "away": "VFB",
+     "date": "2026-11-03T17:45Z",
+     "home": "GAL",
+     "line": {
+      "awayML": 180,
+      "drawML": 275,
+      "homeML": 130,
+      "updated": "2026-10-26T03:04:37Z"
+     }
+    },
+    "401915385": {
+     "away": "SLB",
+     "date": "2026-11-03T20:00Z",
+     "home": "LAS",
+     "line": {
+      "awayML": 550,
+      "drawML": 375,
+      "homeML": -225,
+      "updated": "2026-10-26T03:04:37Z"
+     }
+    },
+    "401915386": {
+     "away": "MUN",
+     "date": "2026-11-03T20:00Z",
+     "home": "ATM",
+     "line": {
+      "awayML": 100,
+      "drawML": 300,
+      "homeML": 225,
+      "updated": "2026-10-26T03:04:37Z"
+     }
+    },
+    "401915387": {
+     "away": "AVL",
+     "date": "2026-11-03T20:00Z",
+     "home": "BAR",
+     "line": {
+      "awayML": 1000,
+      "drawML": 600,
+      "homeML": -450,
+      "updated": "2026-10-26T03:04:37Z"
+     }
+    }
+   },
+   "matched": 6,
+   "pulledAt": "2026-10-26T03:04:57Z",
+   "remainingAfter": 473,
+   "unmatched": 12
+  }
+ },
+ "updated": "2026-10-26T03:04:57Z",
  "v": 1
 }

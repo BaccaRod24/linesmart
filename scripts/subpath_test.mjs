@@ -263,6 +263,23 @@ check((await txt("main h1")) === "Privacy Policy", "offline: privacy.html from S
 await page.goto(BASE + "#/l/nfl", { waitUntil: "load" }).catch(() => {});
 await page.waitForSelector(".game, .empty", { timeout: 15000 }).catch(() => {});
 check((await page.$$(".game, .empty")).length > 0 && !(await page.$("main .legal")), "offline: app shell not overwritten by a legal page", "legal");
+// back online → soft refresh: note clears, view re-renders, no full reload. Own context: Chromium skips the
+// "online" event for pages that have an extra CDP session attached (the installability check above).
+{
+  const c3 = await browser.newContext(); const p3 = await c3.newPage();
+  await c3.addInitScript(() => { try { localStorage.setItem("ls-age-ok", new Date().toISOString()); } catch (e) {} });
+  await p3.goto(BASE, { waitUntil: "networkidle" }); await p3.evaluate(() => navigator.serviceWorker.ready);
+  await p3.reload({ waitUntil: "networkidle" });
+  await c3.setOffline(true); await p3.reload({ waitUntil: "load" }); await p3.waitForSelector(".game, .empty", { timeout: 15000 });
+  const wasOff = await p3.$eval("#offlineNote", b => !b.hidden);
+  await p3.evaluate(() => { window.__sameDoc = 1; });
+  await c3.setOffline(false);
+  const cleared = await p3.waitForFunction(() => document.getElementById("offlineNote").hidden, null, { timeout: 8000 }).then(() => true, () => false);
+  await p3.waitForSelector(".game, .empty", { timeout: 15000 }).catch(() => {});
+  const same = await p3.evaluate(() => window.__sameDoc === 1).catch(() => false);
+  check(wasOff && cleared && same && (await p3.$$(".game, .empty")).length > 0, `back online: offline note cleared by soft refresh, same document (wasOff=${wasOff} cleared=${cleared} sameDoc=${same})`);
+  await c3.close();
+}
 // My Bets: on-device tracker (still offline here, so this also proves the route works from the SW cache)
 const shellUrls = await page.evaluate(async () => { for (const n of await caches.keys()) if (n.startsWith("linesmart-shell-")) return (await (await caches.open(n)).keys()).map(r => r.url); return []; });
 check(["assets/bets.js", "assets/bets-core.js"].every(f => shellUrls.includes(BASE + f)), "SW shell cache includes bets.js + bets-core.js", "bets");

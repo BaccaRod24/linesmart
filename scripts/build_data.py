@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import line_history as LH
+import slate as SL
 import ufc as UF
 import search_index as SI
 import matchups as MU
@@ -631,6 +632,8 @@ def main():
     meta["weather"] = dict(source="Open-Meteo.com", license="CC BY 4.0", enabled=not a.no_weather, cached=bool(a.weather_cache_dir))
     meta["targetBooks"] = [dict(key=k, name=n) for k, n in TARGET_BOOKS]
     meta["untrackedBooks"] = [dict(key="fanduel", name="FanDuel", why="not tracked (free plan)")]
+    try: meta["slate"] = SL.build(OUT, meta["order"])   # home-page "Today's slate" + scores ticker (reads the files just written)
+    except Exception as ex: log(f"[slate] FAILED: {ex}")
     with open(meta_path, "w") as fh: json.dump(meta, fh, indent=1)
     log("done ->", OUT)
 

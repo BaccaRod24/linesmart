@@ -4,6 +4,7 @@
   const TZ = CFG.timeZone, TZL = CFG.tzLabel || "ET";
   const app = document.getElementById("app");
   const cache = {};
+  let netGen = 0;  // bumped when the browser comes back online
   let META = null;
 
   document.title = CFG.name;
@@ -21,9 +22,9 @@
   const fx = (v, d = 1) => (isNum(v) ? Number(v).toFixed(d) : null);
   const getJSON = async url => {
     if (cache[url]) return cache[url];
-    const r = await fetch(url, { cache: "no-cache" });
+    const gen = netGen, r = await fetch(url, { cache: "no-cache" });
     if (!r.ok) throw new Error(url + " " + r.status);
-    if (r.headers.get("X-LineSmart-Offline")) showOffline();
+    if (r.headers.get("X-LineSmart-Offline") && gen === netGen) showOffline();  // ignore a stale offline reply that started before we came back online
     return (cache[url] = await r.json());
   };
   const fmt = (iso, opts) => new Intl.DateTimeFormat("en-US", { timeZone: TZ, ...opts }).format(new Date(iso));
@@ -72,6 +73,28 @@
   const totalArrow = g => { const m = moveOf(g); return m && m.total ? arrow(m.total.delta, `Total opened ${m.total.open}, now ${m.total.cur}`) : ""; };
   const notableBadge = g => { const m = moveOf(g); return m && (m.notable || []).length ? `<span class="mvbadge" title="${esc(m.notable.join(" · "))}">⚡ Line move</span>` : ""; };
 
+  // sparkline: tiny inline SVG of a line's path since open (move.spark from scripts/line_history.py)
+  const ICON = (id, cls = "ic") => `<svg class="${cls}" aria-hidden="true"><use href="#i-${id}"/></svg>`;
+  function sparkSvg(vals, W = 44, H = 16) {
+    const v = (vals || []).filter(isNum).map(Number);
+    if (v.length < 2) return "";
+    const lo = Math.min(...v), hi = Math.max(...v), span = hi - lo || 1, p = 2;
+    const pts = v.map((y, i) => [(i * (W - 2 * p)) / (v.length - 1) + p, hi === lo ? H / 2 : H - p - ((y - lo) * (H - 2 * p)) / span]);
+    const d = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" "), [ex, ey] = pts[pts.length - 1];
+    return `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true"><polygon class="area" points="${p},${H} ${d} ${W - p},${H}"/><polyline points="${d}"/><circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="1.9"/></svg>`;
+  }
+  function sparks(g) {
+    const m = g.move, sk = m && m.spark; if (!sk) return "";
+    const one = (lbl, vals, title) => {
+      const svg = sparkSvg(vals); if (!svg) return "";
+      const d = vals[vals.length - 1] - vals[0], dir = Math.abs(d) < 1e-9 ? "flat" : d > 0 ? "up" : "dn";
+      return `<span class="spk ${dir}" title="${esc(title)}">${lbl}${svg}</span>`;
+    };
+    const sp = sk.spread && m.spread ? one("SPR", sk.spread, `${g.home.abbr} spread: opened ${line(m.spread.open)}, now ${line(m.spread.cur)}`) : "";
+    const tt = sk.total && m.total ? one("TOT", sk.total, `Total: opened ${m.total.open}, now ${m.total.cur}`) : "";
+    return sp || tt ? `<span class="spks" aria-label="Line movement since open">${sp}${tt}</span>` : "";
+  }
+
   // odds chip: main value (+ move arrow) and an optional price underneath
   const chip = (main, sub, extra = "") => (main === null || main === undefined
     ? `<span class="oc na-oc" aria-label="not available">—</span>`
@@ -108,10 +131,10 @@
     const hr = (g.books || {}).hardrockbet, hrLive = hr && !hr.stale && hr.asOf;
     const mv = moveOf(g), hasMv = mv && (mv.spread || mv.total);
     const wx = window.LSWeather && g.state !== "post" ? window.LSWeather.chip(g) : "";
-    const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}"><span class="bk">${esc(o.provider || "provider n/a")}</span>${hrLive ? '<span class="bk hr">Hard Rock Bet</span>' : ""}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
+    const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}"><span class="bk">${esc(o.provider || "provider n/a")}</span>${hrLive ? '<span class="bk hr">Hard Rock Bet</span>' : ""}${sparks(g)}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
                    : `<div class="noline">Lines not posted yet</div>${wx ? `<div class="tfoot has-wx wx-only">${wx}</div>` : ""}`;
     const net = esc([g.note, (g.broadcasts || []).slice(0, 2).join(", ")].filter(Boolean).join(" · "));
-    return `<a class="game c${cols.length}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
+    return `<a class="game c${cols.length}${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
       <div class="game-top">${statusHtml(g)}${g.state === "pre" ? notableBadge(g) : ""}<span class="net">${net}</span></div>
       ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${foot}</a>`;
   }
@@ -123,8 +146,53 @@
   const showSkel = html => { if (!app.querySelector(".loading")) app.innerHTML = html; };
   const teamColor = (t, fb) => (/^[0-9a-f]{6}$/i.test(t.color || "") ? "#" + t.color : fb);
 
+  // ---------- home: scores ticker + "Today's slate" (meta.slate from scripts/slate.py; falls back to meta counts)
+  function tickerHtml(S) {
+    const items = (S && S.ticker) || [];
+    if (!items.length) return "";
+    const one = (t, hide) => {
+      const lgN = esc((META.leagues[t.lg] || {}).name || t.lg.toUpperCase());
+      const sc = t.st !== "pre" && t.a.s != null && t.h.s != null;
+      const aw = sc && +t.a.s > +t.h.s, hw = sc && +t.h.s > +t.a.s;
+      const mid = sc ? `<span class="${aw ? "w" : hw ? "l" : ""}">${esc(t.a.a)} <b>${esc(t.a.s)}</b></span><span class="${hw ? "w" : aw ? "l" : ""}">${esc(t.h.a)} <b>${esc(t.h.s)}</b></span>`
+                     : `<span>${esc(t.a.a)} @ ${esc(t.h.a)}</span>`;
+      const st = t.st === "in" ? `<span class="live-dot"></span><span class="ts">${esc(t.det || "Live")}</span>` : t.st === "post" ? `<span class="ts">${esc(t.det || "Final")}</span>`
+               : `<span class="ts">${esc(dayKey(t.d) === dayKey(new Date().toISOString()) ? timeET(t.d) : fmt(t.d, { weekday: "short" }) + " " + timeET(t.d))}</span>`;
+      return `<a class="tk${t.st === "in" ? " live" : ""}" href="#/g/${esc(t.lg)}/${esc(t.id)}"${hide ? ' tabindex="-1"' : ""}><i>${lgN}</i>${mid}${st}</a>`;
+    };
+    const set = hide => `<div class="tk-set"${hide ? ' aria-hidden="true"' : ""}>${items.map(t => one(t, hide)).join("")}</div>`;
+    const live = items.some(t => t.st === "in");
+    return `<div class="ticker" role="region" aria-label="Scores ticker"><span class="tk-lbl">${live ? '<span class="live-dot"></span>' : ICON("pulse", "ic")}<span class="tl-t">${live ? "LIVE" : "SCORES"}</span></span>
+      <div class="tk-vp"><div class="tk-track" style="--tk-dur:${Math.max(30, items.length * 5)}s">${set(false)}${set(true)}</div></div></div>`;
+  }
+  function slateHtml() {
+    const S = META.slate, L = META.leagues || {};
+    const sum = k => Object.values(L).reduce((a, x) => a + (x[k] || 0), 0);
+    const T = (S && S.totals) || { upcoming: sum("upcoming"), props: Object.values(META.props || {}).reduce((a, x) => a + (x.props || 0), 0) };
+    const ldat = k => ((S && S.leagues) || {})[k] || {};
+    const stat = (cls, icon, label, val, sub) => (val === undefined || val === null ? "" :
+      `<div class="st ${cls}"><span class="mlbl">${ICON(icon)}${esc(label)}</span><b>${esc(val)}</b>${sub ? `<small>${sub}</small>` : ""}</div>`);
+    const today = S && S.day ? new Date(S.day + "T12:00:00Z").toISOString() : new Date().toISOString();
+    const propLgs = Object.entries((S && S.leagues) || {}).filter(([, e]) => e.props).map(([k]) => esc((L[k] || {}).name || k)).join(" · ");
+    const stats = [
+      stat("", "cal", S ? "Games today" : "Upcoming", S ? T.today : T.upcoming, S ? `${esc(T.upcoming)} upcoming` : ""),
+      stat(T.live ? "live" : "", "pulse", "Live now", S ? T.live : null, T.live ? "in progress" : "none right now"),
+      stat("", "layers", "Props tracked", T.props, propLgs || "DraftKings"),
+      stat("hot", "bolt", "Hot props", S ? T.hot : null, "4/5+ over"),
+      stat("wxw", "cloud", "Weather watch", S ? T.wxWatch : null, "wind · cold · rain"),
+    ].join("");
+    // league chips: who plays today (needs meta.slate; the tabs above already carry upcoming counts)
+    const chips = META.order.filter(k => ldat(k).today).map(k => {
+      const x = L[k] || {}, e = ldat(k);
+      return `<a class="lgc" href="#/l/${k}" title="${esc(x.full || "")} · ${esc(e.today)} today${e.live ? `, ${esc(e.live)} live` : ""}">${e.live ? '<span class="live-dot"></span>' : ""}${esc(x.name || k.toUpperCase())}<span class="n today">${esc(e.today)}<small>today</small></span></a>`;
+    }).join("");
+    return `${tickerHtml(S)}<section class="slate" aria-label="Today's slate"><div class="sl-head"><div><span class="eyebrow">${ICON("trend", "ic")}Today's slate</span>
+      <div class="sl-title">${esc(fmt(today, { weekday: "long", month: "long", day: "numeric" }))}</div><div class="sl-sub">Lines, props and form across ${META.order.length} leagues · times in ${TZL}</div></div></div>
+      <div class="sl-stats">${stats}</div>${chips ? `<nav class="sl-lgs" aria-label="Leagues playing today">${chips}</nav>` : ""}</section>`;
+  }
+
   // ---------- league view
-  async function viewLeague(key) {
+  async function viewLeague(key, home = false) {
     renderTabs(key);
     const L = META.leagues[key];
     if (!cache[`data/${key}/index.json`]) showSkel(skelLeague());
@@ -148,7 +216,7 @@
       <span class="chip"><b>${data.report.withOdds}</b> with lines</span>
       <span class="chip">Lines: <b>${esc((data.report.providers || []).join(", ") || "none")}</b></span>
       <span class="chip">Next ${data.windowDays} days</span></div>`;
-    let html = `<div class="page-head"><div><h1>${esc(data.league.full)}</h1><div class="sub">Upcoming games, lines and form · times in ${TZL}</div></div>
+    let html = `${home ? slateHtml() : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(data.league.full)}</h1><div class="sub">Upcoming games, lines and form · times in ${TZL}</div></div>
       <div class="seg"><button data-f="upcoming" class="${filter === "upcoming" ? "on" : ""}">Upcoming & live</button><button data-f="all" class="${filter === "all" ? "on" : ""}">Incl. today's finals</button></div></div>${chips}`;
     if (!games.length) {
       html += `<div class="empty" style="margin-top:16px"><h3>No ${esc(data.league.name)} games in the next ${data.windowDays} days</h3>
@@ -161,7 +229,7 @@
     }
     html += teamTable(data, kind);
     app.innerHTML = html;
-    app.querySelectorAll(".seg button").forEach(b => (b.onclick = () => { sessionStorage.setItem("filter-" + key, b.dataset.f); viewLeague(key); }));
+    app.querySelectorAll(".seg button").forEach(b => (b.onclick = () => { sessionStorage.setItem("filter-" + key, b.dataset.f); viewLeague(key, home); }));
     wireSort(app.querySelector("#teamTbl"));
   }
 
@@ -502,9 +570,9 @@
     if (espnCache[url]) return espnCache[url];
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms);
     try {
-      const r = await fetch(url, { signal: ctl.signal });
+      const gen = netGen, r = await fetch(url, { signal: ctl.signal });
       if (!r.ok) throw new Error(url + " " + r.status);
-      if (r.headers.get("X-LineSmart-Offline")) showOffline();
+      if (r.headers.get("X-LineSmart-Offline") && gen === netGen) showOffline();
       return (espnCache[url] = await r.json());
     } finally { clearTimeout(t); }
   }
@@ -830,6 +898,8 @@
     NAV++;
     const sb = document.getElementById("searchBtn"); if (sb) sb.classList.toggle("on", h[0] === "search");
     const bb = document.getElementById("betsBtn"); if (bb) bb.classList.toggle("on", h[0] === "bets");
+    const navOn = h[0] === "search" || h[0] === "bets" ? h[0] : !h[0] ? "home" : "";
+    document.querySelectorAll("#bnav [data-nav]").forEach(a => { const on = a.dataset.nav === navOn; a.classList.toggle("on", on); if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     if (h[0] === "bets") return window.LSBets ? window.LSBets.view() : (app.innerHTML = `<div class="empty"><h3>My Bets didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "search") return viewSearch(decodeURIComponent(h.slice(1).join("/") || ""));
     if (h[0] === "t" && h[1] && h[2]) return viewTeam(h[1], h[2]);
@@ -837,7 +907,7 @@
     if (h[0] === "g" && h[1] && h[2]) return viewGame(h[1], h[2]);
     if (h[0] === "l" && h[1]) return viewLeague(h[1]);
     const def = (META.leagues[CFG.defaultLeague]?.upcoming ? CFG.defaultLeague : META.order.find(k => META.leagues[k]?.upcoming)) || META.order[0];
-    return viewLeague(def);
+    return viewLeague(def, true);
   }
   window.addEventListener("hashchange", route);
   // helpers shared with the My Bets tracker (assets/bets.js)
@@ -857,7 +927,12 @@
     el.textContent = `You're offline — showing saved data${gen}. Lines may have moved; reconnect to refresh.`;
     el.hidden = false;
   }
-  window.addEventListener("online", () => { const el = document.getElementById("offlineNote"); if (el && !el.hidden) location.reload(); });
+  // Back online: soft refresh (drop cached JSON, re-render the current view) instead of location.reload(),
+  // which keeps scroll/UI state and can't race a navigation the user starts at the same moment.
+  window.addEventListener("online", () => {
+    const el = document.getElementById("offlineNote"); if (!el || el.hidden) return;
+    netGen++; el.hidden = true; for (const c of [cache, espnCache]) for (const k of Object.keys(c)) delete c[k]; META = null; route();
+  });
   // service worker registration lives in assets/site.js (shared with the legal pages)
   const installBtn = document.getElementById("installBtn");
   const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;

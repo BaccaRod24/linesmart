@@ -134,6 +134,14 @@ def _crossed(a, b, k):
     a, b = abs(a), abs(b)
     return (a - k) * (b - k) < 0 or (a != b and (a == k or b == k))
 
+SPARK_MAX = 24   # points per sparkline series in index.json (tiles); the full series stays in the game file
+
+def spark(series, n=SPARK_MAX):
+    """Down-sample a value series to at most n points (first and last kept) for the tile sparklines."""
+    if len(series) <= n: return list(series)
+    step = (len(series) - 1) / (n - 1)
+    return [series[round(i * step)] for i in range(n)]
+
 def summarize(gh, kind, league):
     """Open / current / biggest-move summary for the primary book. gh: history entry (may be just this run)."""
     bk = _primary(gh)
@@ -149,6 +157,9 @@ def summarize(gh, kind, league):
         if o is None or c is None: continue
         big = max(series + [c], key=lambda v: abs(v - o))
         out[label] = dict(open=o, cur=c, delta=round(c - o, 2), maxMove=round(big - o, 2))
+        if label in ("spread", "total"):   # opening line first (ESPN's open can predate the tracked points), then the tracked series
+            sp = ([o] if series and series[0] != o else []) + series
+            if len(sp) >= 2: out.setdefault("spark", {})[label] = spark(sp)
     notes = []
     sp, tt = out.get("spread"), out.get("total")
     if sp and kind in ("football", "basketball"):

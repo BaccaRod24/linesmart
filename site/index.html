@@ -11,6 +11,12 @@
 <link rel="icon" href="assets/brand/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="icon" href="assets/brand/favicon-16.png" type="image/png" sizes="16x16">
 <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LineSmart">
+<meta name="application-name" content="LineSmart">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="LineSmart">
 <meta property="og:title" content="LineSmart — Betting data &amp; matchup intel">
@@ -34,9 +40,11 @@
     <a class="brand" href="#/" data-brand-title title="LineSmart"><img class="brand-logo" src="assets/brand/logo.svg" alt="LineSmart" data-brand-alt width="277" height="64"></a>
     <span class="brand-tag" data-tagline></span>
     <span class="updated" id="updated"></span>
+    <button class="install-btn" id="installBtn" type="button" hidden>Install app</button>
   </div>
   <nav class="league-nav" id="leagueNav" aria-label="Leagues"><div class="wrap league-nav-inner" id="leagueTabs"></div></nav>
 </header>
+<div class="offline-note" id="offlineNote" hidden></div>
 <main class="wrap" id="app"><div class="loading">Loading data…</div></main>
 <footer class="footer">
   <div class="wrap">

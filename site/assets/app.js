@@ -23,6 +23,7 @@
     if (cache[url]) return cache[url];
     const r = await fetch(url, { cache: "no-cache" });
     if (!r.ok) throw new Error(url + " " + r.status);
+    if (r.headers.get("X-LineSmart-Offline")) showOffline();
     return (cache[url] = await r.json());
   };
   const fmt = (iso, opts) => new Intl.DateTimeFormat("en-US", { timeZone: TZ, ...opts }).format(new Date(iso));
@@ -465,4 +466,30 @@
   }
   window.addEventListener("hashchange", route);
   route();
+
+  // ---------- PWA: offline note, service worker, install button
+  function showOffline() {
+    const el = document.getElementById("offlineNote"); if (!el) return;
+    const gen = META && META.generated ? " from " + fullET(META.generated) : "";
+    el.textContent = `You're offline — showing saved data${gen}. Lines may have moved; reconnect to refresh.`;
+    el.hidden = false;
+  }
+  window.addEventListener("online", () => { const el = document.getElementById("offlineNote"); if (el && !el.hidden) location.reload(); });
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(e => console.warn("SW registration failed", e)));
+  }
+  const installBtn = document.getElementById("installBtn");
+  const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  let deferredPrompt = null;
+  window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault(); deferredPrompt = e;
+    if (installBtn && !standalone()) installBtn.hidden = false;
+  });
+  installBtn && installBtn.addEventListener("click", async () => {
+    if (!deferredPrompt) return;
+    installBtn.hidden = true; deferredPrompt.prompt();
+    try { await deferredPrompt.userChoice; } catch (e) {}
+    deferredPrompt = null;
+  });
+  window.addEventListener("appinstalled", () => { deferredPrompt = null; if (installBtn) installBtn.hidden = true; });
 })();

@@ -77,3 +77,14 @@ python3 scripts/line_history.py apply --snap-dir /tmp/linesnap --history-dir ../
 - Unofficial ESPN endpoints may change without notice.
 
 Gamble responsibly. 21+. 1-800-GAMBLER.
+
+## Install as an app (PWA)
+
+LineSmart is an installable Progressive Web App (`site/manifest.webmanifest` + `site/sw.js`, all paths relative so it works under `/linesmart/`).
+
+- **iPhone/iPad:** open the site in Safari → Share → **Add to Home Screen**.
+- **Android:** open in Chrome → ⋮ menu → **Install app** (or tap the **Install app** button in the header when it appears).
+- **Desktop Chrome/Edge:** install icon in the address bar, or the header button.
+
+Caching: the app shell (HTML/CSS/JS/icons) is cache-first from a versioned cache. The workflow stamps `VERSION` in `sw.js` on every deploy (shell hash + build time), so each deploy installs a fresh worker. Page navigations and all `data/*.json` are network-first, so the 30-minute refresh shows up as soon as you reload. Cached data is used only when you're offline, with a banner saying so and showing when the data was generated.
+Icons are generated from `site/assets/brand/icon.svg` (192/512 "any" plus a 512 maskable icon with a full-bleed background). `scripts/subpath_test.mjs` checks the manifest, icons, SW registration/control, Chromium installability and offline rendering.

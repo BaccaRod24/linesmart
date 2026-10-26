@@ -72,42 +72,61 @@
   const totalArrow = g => { const m = moveOf(g); return m && m.total ? arrow(m.total.delta, `Total opened ${m.total.open}, now ${m.total.cur}`) : ""; };
   const notableBadge = g => { const m = moveOf(g); return m && (m.notable || []).length ? `<span class="mvbadge" title="${esc(m.notable.join(" · "))}">⚡ Line move</span>` : ""; };
 
-  function oddsBar(g, kind) {
-    const o = g.odds;
-    if (!o) return `<div class="prov">Lines not posted yet</div>`;
-    const sp = (v, p) => (v === null ? NA : `${line(v)}${p !== null && p !== undefined ? ` <span class="na">(${am(p)})</span>` : ""}`);
-    if (kind === "soccer") {
-      return `<div class="oddsbar soccer">
-        <div class="ocell"><div class="k">${esc(g.away.abbr)}</div><div class="v">${am(o.awayML) ?? NA}</div></div>
-        <div class="ocell"><div class="k">Draw</div><div class="v">${am(o.drawML) ?? NA}</div></div>
-        <div class="ocell"><div class="k">${esc(g.home.abbr)}</div><div class="v">${am(o.homeML) ?? NA}</div></div>
-        <div class="ocell"><div class="k">O/U</div><div class="v">${fx(o.total, 1) ?? NA}${totalArrow(g)}</div></div>
-      </div><div class="prov">3-way moneyline · ${esc(o.provider || "provider n/a")}</div>`;
-    }
-    const spreadLabel = kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread";
-    return `<div class="oddsbar">
-      <div class="ocell"><div class="k">${spreadLabel}</div><div class="v"><span>${esc(g.away.abbr)} ${o.awaySpread !== null ? line(o.awaySpread) : NA}${spreadArrow(g, "away")}</span><span>${esc(g.home.abbr)} ${o.homeSpread !== null ? line(o.homeSpread) : NA}${spreadArrow(g, "home")}</span></div></div>
-      <div class="ocell"><div class="k">Moneyline</div><div class="v"><span>${am(o.awayML) ?? NA}</span><span>${am(o.homeML) ?? NA}</span></div></div>
-      <div class="ocell"><div class="k">Total</div><div class="v"><span>O ${fx(o.total, 1) ?? NA}${totalArrow(g)}</span><span>U ${fx(o.total, 1) ?? NA}</span></div></div>
-    </div><div class="prov">${moveOf(g)?.spread || moveOf(g)?.total ? '<span class="na">▲▼ = move since open · </span>' : ""}${esc(o.provider || "provider n/a")}</div>`;
-  }
+  // odds chip: main value (+ move arrow) and an optional price underneath
+  const chip = (main, sub, extra = "") => (main === null || main === undefined
+    ? `<span class="oc na-oc" aria-label="not available">—</span>`
+    : `<span class="oc"><b>${main}${extra}</b>${sub ? `<small>${sub}</small>` : ""}</span>`);
+  const spreadLabelOf = kind => (kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread");
 
   function statusHtml(g) {
-    if (g.state === "in") return `<span class="status live">● LIVE · ${esc(g.statusDetail || "")}</span>`;
+    if (g.state === "in") return `<span class="status live">LIVE · ${esc(g.statusDetail || "")}</span>`;
     if (g.state === "post") return `<span class="status final">${esc(g.statusDetail || "Final")}</span>`;
     return `<span class="status">${timeET(g.date)}</span>`;
   }
 
-  function teamRow(t, g, showScore) {
-    return `<div class="trow">${logo(t)}<div><div class="tname">${t.rank ? `<span class="rk">#${t.rank}</span>` : ""}${esc(t.name)}</div>
+  function teamRow(t, g, side, kind) {
+    const o = g.odds, showScore = g.state !== "pre" && t.score != null;
+    const other = side === "home" ? g.away : g.home;
+    const lose = g.state === "post" && isNum(t.score) && isNum(other.score) && +t.score < +other.score;
+    let chips = "";
+    if (o) {
+      const tot = side === "away" ? chip(isNum(o.total) ? "O " + fx(o.total, 1) : null, am(o.overOdds), totalArrow(g))
+                                  : chip(isNum(o.total) ? "U " + fx(o.total, 1) : null, am(o.underOdds));
+      chips = kind === "soccer" ? chip(am(o[side + "ML"])) + tot
+        : chip(line(o[side + "Spread"]), am(o[side + "SpreadOdds"]), spreadArrow(g, side)) + chip(am(o[side + "ML"])) + tot;
+    }
+    return `<div class="trow ${lose ? "lose" : ""}">${logo(t, "tl")}<div class="tn"><div class="tname">${t.rank ? `<span class="rk">#${t.rank}</span>` : ""}<span class="nm-l">${esc(t.name)}</span><span class="nm-s">${esc(t.short || t.name)}</span></div>
       <div class="tmeta">${esc(t.record || "—")}${formDots(t.form)}</div></div>
-      <div class="tscore">${showScore && t.score != null ? esc(t.score) : ""}</div></div>`;
+      <div class="tscore">${showScore ? esc(t.score) : ""}</div>${chips}</div>`;
   }
+
+  function gameTile(g, key, kind) {
+    const o = g.odds, soccer = kind === "soccer";
+    const cols = !o ? [] : soccer ? ["1X2", "Total"] : [spreadLabelOf(kind), "Money", "Total"];
+    const head = cols.length ? `<div class="gt-head"><span></span><span></span><span></span>${cols.map(c => `<span>${esc(c)}</span>`).join("")}</div>` : "";
+    const draw = soccer && o ? `<div class="trow draw"><span class="tl"></span><div class="tn"><div class="tname">Draw</div></div><div class="tscore"></div>${chip(am(o.drawML))}<span></span></div>` : "";
+    const hr = (g.books || {}).hardrockbet, hrLive = hr && !hr.stale && hr.asOf;
+    const mv = moveOf(g), hasMv = mv && (mv.spread || mv.total);
+    const foot = o ? `<div class="tfoot"><span class="bk">${esc(o.provider || "provider n/a")}</span>${hrLive ? '<span class="bk hr">Hard Rock Bet</span>' : ""}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span></div>`
+                   : `<div class="noline">Lines not posted yet</div>`;
+    const net = esc([g.note, (g.broadcasts || []).slice(0, 2).join(", ")].filter(Boolean).join(" · "));
+    return `<a class="game c${cols.length}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
+      <div class="game-top">${statusHtml(g)}${g.state === "pre" ? notableBadge(g) : ""}<span class="net">${net}</span></div>
+      ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${foot}</a>`;
+  }
+
+  // ---------- skeleton loaders (shown while JSON loads)
+  const skTile = `<div class="skel-tile"><span class="sk" style="width:40%;height:12px"></span>${'<div class="r"><span class="sk"></span><span class="sk"></span><span class="sk c"></span><span class="sk c"></span><span class="sk c"></span></div>'.repeat(2)}</div>`;
+  const skelLeague = () => `<div class="loading" aria-busy="true"><span class="sr-only">Loading games…</span><div class="skel-head"><span class="sk"></span><span class="sk"></span></div><div class="grid">${skTile.repeat(6)}</div></div>`;
+  const skelGame = () => `<div class="loading" aria-busy="true"><span class="sr-only">Loading matchup…</span><span class="sk skel-hero"></span><div class="skel-cols"><span class="sk"></span><span class="sk"></span></div></div>`;
+  const showSkel = html => { if (!app.querySelector(".loading")) app.innerHTML = html; };
+  const teamColor = (t, fb) => (/^[0-9a-f]{6}$/i.test(t.color || "") ? "#" + t.color : fb);
 
   // ---------- league view
   async function viewLeague(key) {
     renderTabs(key);
     const L = META.leagues[key];
+    if (!cache[`data/${key}/index.json`]) showSkel(skelLeague());
     if (!L) return (app.innerHTML = `<div class="empty"><h3>Unknown league</h3></div>`);
     let data;
     try { data = await getJSON(`data/${key}/index.json`); }
@@ -130,11 +149,8 @@
         ${data.league.key === "mlb" ? "MLB is in its offseason / postseason window." : data.league.key === "ncaab" ? "The college basketball season is just getting started." : "The league may be on a break or out of season."} Check back after the next data refresh.</div>`;
     } else {
       for (const k of Object.keys(days)) {
-        html += `<div class="day">${dayLabel(days[k][0].date)}</div><div class="grid">` +
-          days[k].map(g => `<a class="game" href="#/g/${key}/${g.id}">
-            <div class="game-top">${statusHtml(g)}${g.state === "pre" ? notableBadge(g) : ""}<span class="net">${esc([g.note, g.broadcasts.slice(0, 2).join(", ")].filter(Boolean).join(" · "))}</span></div>
-            ${teamRow(g.away, g, g.state !== "pre")}${teamRow(g.home, g, g.state !== "pre")}
-            ${oddsBar(g, kind)}</a>`).join("") + `</div>`;
+        html += `<div class="day">${dayLabel(days[k][0].date)}<span class="dn">${days[k].length} game${days[k].length > 1 ? "s" : ""}</span></div><div class="grid">` +
+          days[k].map(g => gameTile(g, key, kind)).join("") + `</div>`;
       }
     }
     html += teamTable(data, kind);
@@ -180,16 +196,17 @@
   // ---------- game detail
   async function viewGame(key, id) {
     renderTabs(key);
+    if (!cache[`data/${key}/games/${id}.json`]) { showSkel(skelGame()); window.scrollTo(0, 0); }
     let d, idx;
     try { [d, idx] = await Promise.all([getJSON(`data/${key}/games/${id}.json`), getJSON(`data/${key}/index.json`)]); }
     catch (e) { return (app.innerHTML = `<a class="back" href="#/l/${key}">← Back</a><div class="empty"><h3>Game not found</h3>It may have dropped out of the data window. Refresh the data.</div>`); }
     const g = d.game, det = d.detail || {}, kind = idx.league.kind, u = unitWord(kind);
     const H = g.home, A = g.away, tH = d.teams[H.id] || {}, tA = d.teams[A.id] || {};
     const mid = g.state === "pre"
-      ? `<div class="vs">AT</div><div class="when">${fullET(g.date)}</div>`
+      ? `<div class="vs">${g.neutral ? "VS" : "AT"}</div><div class="when">${fullET(g.date)}</div>`
       : `<div class="score">${esc(A.score)} – ${esc(H.score)}</div><div class="when">${esc(g.statusDetail || "")}</div>`;
     let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>
-      <div class="match">
+      <div class="match" style="--ca:${teamColor(A, "#334155")};--ch:${teamColor(H, "#475569")}">
         <div class="mteam">${logo(A)}<div><div class="nm">${A.rank ? `<span class="rk" style="color:var(--warn)">#${A.rank} </span>` : ""}${esc(A.name)}</div><div class="rec">${esc(A.record || "—")} · Away ${esc(A.awayRecord || "—")}${formDots(A.form)}</div></div></div>
         <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}${g.neutral ? " (neutral)" : ""}</div><div class="where">${esc(g.broadcasts.join(", "))}</div>${g.note ? `<div class="where">${esc(g.note)}</div>` : ""}</div>
         <div class="mteam home">${logo(H)}<div><div class="nm">${H.rank ? `<span class="rk" style="color:var(--warn)">#${H.rank} </span>` : ""}${esc(H.name)}</div><div class="rec">${esc(H.record || "—")} · Home ${esc(H.homeRecord || "—")}${formDots(H.form)}</div></div></div>
@@ -412,7 +429,7 @@
       const vals = books.map(bk => fn(B[bk.key]));
       const have = vals.filter(Boolean);
       const best = have.length > 1 ? Math.max(...have.map(v => v.score)) : null;
-      return `<tr><td>${esc(label)}</td>${vals.map(v => (v ? `<td class="num ${best !== null && v.score === best ? "best" : ""}">${v.disp}</td>` : `<td>${NA}</td>`)).join("")}</tr>`;
+      return `<tr><td>${esc(label)}</td>${vals.map(v => (v ? `<td class="num ${best !== null && v.score === best ? "best" : ""}"><span class="px">${v.disp}</span></td>` : `<td>${NA}</td>`)).join("")}</tr>`;
     }).join("");
     const sub = bk => {
       const b = B[bk.key], sb = staleB[bk.key];
@@ -456,7 +473,7 @@
       try { META = await getJSON("data/meta.json"); }
       catch (e) { app.innerHTML = `<div class="empty"><h3>No data yet</h3>Run <code>python3 scripts/build_data.py</code> then reload.</div>`; return; }
       const gen = META.generated ? new Date(META.generated) : null;
-      if (gen) document.getElementById("updated").textContent = "Data updated " + fullET(gen.toISOString());
+      if (gen) { const iso = gen.toISOString(); const u = document.getElementById("updated"); u.title = "Data updated " + fullET(iso); u.innerHTML = `<span class="dot"></span><span><span class="u-long">Updated ${esc(fmt(iso, { weekday: "short", month: "short", day: "numeric" }))}, </span>${esc(timeET(iso))}</span>`; }
     }
     const h = location.hash.replace(/^#\/?/, "").split("/");
     if (h[0] === "g" && h[1] && h[2]) return viewGame(h[1], h[2]);

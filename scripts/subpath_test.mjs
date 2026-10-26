@@ -4,8 +4,9 @@
 import { chromium } from "playwright";
 import fs from "fs";
 const BASE = process.env.BASE || "http://localhost:8799/linesmart/";
-const meta = JSON.parse(fs.readFileSync("site/data/meta.json"));
-const nfl = JSON.parse(fs.readFileSync("site/data/nfl/index.json"));
+const DATA = process.env.DATA_DIR || "site/data";   // point at a mirror of live data to test with current games
+const meta = JSON.parse(fs.readFileSync(`${DATA}/meta.json`));
+const nfl = JSON.parse(fs.readFileSync(`${DATA}/nfl/index.json`));
 const gid = (nfl.games[0] || {}).id;
 const routes = ["", ...meta.order.map(k => `#/l/${k}`), gid ? `#/g/nfl/${gid}` : null].filter(r => r !== null);
 const browser = await chromium.launch();

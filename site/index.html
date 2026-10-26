@@ -31,6 +31,7 @@
 <meta name="twitter:description" content="Odds, lines and team stats for NFL, NBA, college, NHL, MLB and soccer.">
 <meta name="twitter:image" content="https://baccarod24.github.io/linesmart/assets/brand/og-image.png">
 <link rel="preconnect" href="https://a.espncdn.com">
+<link rel="preload" href="assets/fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/styles.css">
 <script src="assets/config.js"></script>
 </head>
@@ -45,7 +46,7 @@
   <nav class="league-nav" id="leagueNav" aria-label="Leagues"><div class="wrap league-nav-inner" id="leagueTabs"></div></nav>
 </header>
 <div class="offline-note" id="offlineNote" hidden></div>
-<main class="wrap" id="app"><div class="loading">Loading data…</div></main>
+<main class="wrap" id="app"><div class="loading" aria-busy="true"><span class="sr-only">Loading data…</span><div class="skel-head"><span class="sk"></span><span class="sk"></span></div><div class="grid"><div class="skel-tile"><span class="sk" style="width:40%;height:12px"></span><div class="r"><span class="sk"></span><span class="sk"></span><span class="sk c"></span><span class="sk c"></span><span class="sk c"></span></div><div class="r"><span class="sk"></span><span class="sk"></span><span class="sk c"></span><span class="sk c"></span><span class="sk c"></span></div></div><div class="skel-tile"><span class="sk" style="width:40%;height:12px"></span><div class="r"><span class="sk"></span><span class="sk"></span><span class="sk c"></span><span class="sk c"></span><span class="sk c"></span></div><div class="r"><span class="sk"></span><span class="sk"></span><span class="sk c"></span><span class="sk c"></span><span class="sk c"></span></div></div><div class="skel-tile"><span class="sk" style="width:40%;height:12px"></span><div class="r"><span class="sk"></span><span class="sk"></span><span class="sk c"></span><span class="sk c"></span><span class="sk c"></span></div><div class="r"><span class="sk"></span><span class="sk"></span><span class="sk c"></span><span class="sk c"></span><span class="sk c"></span></div></div><div class="skel-tile"><span class="sk" style="width:40%;height:12px"></span><div class="r"><span class="sk"></span><span class="sk"></span><span class="sk c"></span><span class="sk c"></span><span class="sk c"></span></div><div class="r"><span class="sk"></span><span class="sk"></span><span class="sk c"></span><span class="sk c"></span><span class="sk c"></span></div></div></div></div></main>
 <footer class="footer">
   <div class="wrap">
     <p><strong data-brand></strong> — data for informational and entertainment purposes only; no guarantee of accuracy. Lines change quickly; confirm with your sportsbook before betting.</p>

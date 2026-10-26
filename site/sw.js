@@ -10,7 +10,7 @@ const DATA = "linesmart-data-v1";
 const DATA_MAX = 400; // cap stored data responses (game pages add up)
 const SHELL_FILES = [
   "./", "index.html", "manifest.webmanifest", "favicon.ico",
-  "assets/styles.css", "assets/config.js", "assets/app.js",
+  "assets/styles.css", "assets/config.js", "assets/app.js", "assets/fonts/inter-latin-var.woff2",
   "assets/brand/logo.svg", "assets/brand/icon.svg", "assets/brand/apple-touch-icon.png",
   "assets/brand/favicon-32.png", "assets/brand/favicon-16.png",
   "assets/brand/icon-192.png", "assets/brand/icon-512.png", "assets/brand/icon-maskable-512.png",

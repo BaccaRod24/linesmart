@@ -39,7 +39,7 @@ FIELDS = {"hs": "homeSpread", "as": "awaySpread", "hso": "homeSpreadOdds", "aso"
           "hml": "homeML", "aml": "awayML", "dml": "drawML", "tot": "total", "ov": "overOdds", "un": "underOdds"}
 OPEN_FIELDS = {"hs": "homeSpreadOpen", "as": "awaySpreadOpen", "hml": "homeMLOpen", "aml": "awayMLOpen",
                "dml": "drawMLOpen", "tot": "totalOpen"}
-BOOK_ORDER = ["draftkings", "fanduel", "hardrockbet"]
+BOOK_ORDER = ["draftkings", "hardrockbet", "fanduel"]
 
 def now_iso():
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -56,10 +56,12 @@ def snapshot_from_games(games):
     snap = {}
     for g in games:
         if g.get("state") != "pre": continue          # in-play / final lines aren't line movement
-        books, opens = {}, {}
+        books, opens, bt = {}, {}, {}
         for bk, o in (g.get("books") or {}).items():
+            if o.get("stale"): continue
             pt = compact(o)
             if pt: books[bk] = pt
+            if pt and o.get("asOf"): bt[bk] = o["asOf"]      # persisted pull (Hard Rock): record at pull time, once
             op = compact(o, OPEN_FIELDS)
             if op: opens[bk] = op
         o = g.get("odds")
@@ -77,7 +79,7 @@ def snapshot_from_games(games):
             if op: opens[bk] = op
         if books:
             snap[g["id"]] = dict(date=g["date"], home=(g.get("home") or {}).get("abbr"), away=(g.get("away") or {}).get("abbr"),
-                                 books=books, open=opens)
+                                 books=books, open=opens, **({"bt": bt} if bt else {}))
     return snap
 
 def load(path, league):
@@ -97,11 +99,12 @@ def merge(hist, snap, t):
         if t > (g.get("lastSeen") or ""): g["lastSeen"] = t
         for bk, op in (s.get("open") or {}).items(): g["open"][bk] = op
         for bk, pt in s["books"].items():
+            tb = (s.get("bt") or {}).get(bk) or t         # per-book observation time (e.g. Hard Rock pull time)
             pts = g["books"].setdefault(bk, [])
-            if pts and pts[-1][0] >= t:                   # already have this (or a newer) run
+            if pts and pts[-1][0] >= tb:                  # already have this (or a newer) observation
                 continue
             if not pts or pts[-1][1] != pt:
-                pts.append([t, pt]); added += 1
+                pts.append([tb, pt]); added += 1
     hist["updated"] = max(hist.get("updated") or "", t)
     return added
 
@@ -166,9 +169,28 @@ def apply_dir(snap_dir, history_dir):
         h = load(path, lg); n = merge(h, s["games"], s["t"]); pr = prune(h); save(path, h)
         print(f"[{lg}] +{n} points, pruned {pr}, games {len(h['games'])}")
 
+def apply_odds(src_dir, dst_dir):
+    """Merge a run's persisted-pull snapshot (e.g. hardrockbet.json) into the branch copy: newer pulledAt per league wins."""
+    for f in sorted(glob.glob(os.path.join(src_dir, "*.json"))):
+        src = json.load(open(f)); path = os.path.join(dst_dir, os.path.basename(f))
+        try: dst = json.load(open(path))
+        except (OSError, ValueError): dst = dict(v=1, book=src.get("book"), leagues={}, checks=[])
+        for lg, e in (src.get("leagues") or {}).items():
+            if (e.get("pulledAt") or "") > ((dst["leagues"].get(lg) or {}).get("pulledAt") or ""): dst["leagues"][lg] = e
+        seen = {json.dumps(c, sort_keys=True) for c in dst.get("checks") or []}
+        dst["checks"] = sorted((dst.get("checks") or []) + [c for c in src.get("checks") or [] if json.dumps(c, sort_keys=True) not in seen],
+                               key=lambda c: c.get("t") or "")[-40:]
+        pulls = [e.get("pulledAt") for e in dst["leagues"].values() if e.get("pulledAt")]
+        dst["updated"] = max(pulls) if pulls else None
+        os.makedirs(dst_dir, exist_ok=True); tmp = path + ".tmp"
+        with open(tmp, "w") as fh: json.dump(dst, fh, indent=1, sort_keys=True)
+        os.replace(tmp, path); print(f"[odds] merged {os.path.basename(f)}: leagues {sorted(src.get('leagues') or {})}")
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("apply"); a.add_argument("--snap-dir", required=True); a.add_argument("--history-dir", required=True)
+    o = sub.add_parser("apply-odds"); o.add_argument("--src", required=True); o.add_argument("--dst", required=True)
     args = ap.parse_args()
     if args.cmd == "apply": apply_dir(args.snap_dir, args.history_dir)
+    elif args.cmd == "apply-odds": apply_odds(args.src, args.dst)

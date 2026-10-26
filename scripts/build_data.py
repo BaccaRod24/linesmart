@@ -5,8 +5,9 @@ LineSmart data builder.
 Fetches REAL data from ESPN's free public JSON endpoints (no API key) and writes
 static JSON files to site/data/ that the static front-end reads.
 
-Optional: if the env var ODDS_API_KEY is set, also pulls DraftKings / FanDuel /
-Hard Rock Bet lines from The Odds API (v4) for the odds-comparison table.
+Optional: if the env var ODDS_API_KEY is set, also pulls Hard Rock Bet lines from The Odds API (v4)
+(bookmakers=hardrockbet, 3 credits per league). The last pull is persisted in --odds-cache-dir and
+merged into every build, so keyless runs keep showing it ("as of" the pull time).
 
 Usage:
     python3 scripts/build_data.py                 # all leagues
@@ -40,7 +41,7 @@ LEAGUES = [
     dict(key="mls",   name="MLS",   full="Major League Soccer", path="soccer/usa.1", params="", kind="soccer", odds_key="soccer_usa_mls"),
     dict(key="ucl",   name="UCL",   full="UEFA Champions League", path="soccer/uefa.champions", params="", kind="soccer", odds_key="soccer_uefa_champs_league"),
 ]
-TARGET_BOOKS = [("draftkings", "DraftKings"), ("fanduel", "FanDuel"), ("hardrockbet", "Hard Rock Bet")]
+TARGET_BOOKS = [("draftkings", "DraftKings"), ("hardrockbet", "Hard Rock Bet")]  # FanDuel: not tracked (no free source)
 MAX_SUMMARIES = 150
 
 LOG = []
@@ -268,45 +269,115 @@ def team_splits(lg, tid):
 def norm_name(s):
     return re.sub(r"[^a-z0-9]", "", (s or "").lower().replace("&", "and").replace("saint", "st").replace("state", "st"))
 
-def odds_api(lg, games, key, report):
-    url = (f"https://api.the-odds-api.com/v4/sports/{lg['odds_key']}/odds/?apiKey={urllib.parse.quote(key)}"
-           f"&regions=us,us2&bookmakers={','.join(k for k, _ in TARGET_BOOKS)}&markets=h2h,spreads,totals&oddsFormat=american&dateFormat=iso")
+ODDS_API = "https://api.the-odds-api.com"
+ODDS_BOOK = "hardrockbet"            # only Hard Rock Bet is pulled (free plan); DraftKings comes from ESPN
+ODDS_REGION = "us2"                  # hardrockbet's region (bookmakers= takes priority anyway; 1 book = 1 region)
+ODDS_MARKETS = "h2h,spreads,totals"  # 3 markets x 1 region = 3 credits per league request (0 if no events)
+ODDS_COST = 3
+ODDS_MIN_CREDITS = int(os.environ.get("ODDS_MIN_CREDITS") or 35)  # skip the whole pull below this
+ODDS_CACHE_FILE = f"{ODDS_BOOK}.json"
+
+def _hdr(hdr, name):
+    for k, v in (hdr or {}).items():
+        if k.lower() == name:
+            try: return int(float(v))
+            except (TypeError, ValueError): return None
+    return None
+
+def odds_credits(key):
+    """Remaining credits via GET /v4/sports, which costs 0 credits but still returns the x-requests-* headers."""
+    _, hdr = get(f"{ODDS_API}/v4/sports/?apiKey={urllib.parse.quote(key)}")
+    return _hdr(hdr, "x-requests-remaining"), _hdr(hdr, "x-requests-used")
+
+def match_event(ev, games):
+    h, a = norm_name(ev.get("home_team")), norm_name(ev.get("away_team"))
+    t0 = dt.datetime.fromisoformat(ev["commence_time"].replace("Z", "+00:00"))
+    for g in games:
+        gt = dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00"))
+        if abs((gt - t0).total_seconds()) > 6 * 3600: continue
+        gh, ga = norm_name(g["home"]["name"]), norm_name(g["away"]["name"])
+        if (h == gh or h in gh or gh in h) and (a == ga or a in ga or ga in a): return g
+    return None
+
+def odds_book_record(ev, bk):
+    h, a = norm_name(ev.get("home_team")), norm_name(ev.get("away_team"))
+    r = dict(updated=bk.get("last_update"))
+    for mk in bk.get("markets", []):
+        for oc in mk.get("outcomes", []):
+            nm = norm_name(oc.get("name"))
+            side = "home" if nm == h else ("away" if nm == a else ("draw" if nm == "draw" else None))
+            if mk.get("key") == "h2h" and side: r[f"{side}ML"] = american(oc.get("price"))
+            elif mk.get("key") == "spreads" and side in ("home", "away"):
+                r[f"{side}Spread"] = oc.get("point"); r[f"{side}SpreadOdds"] = american(oc.get("price"))
+            elif mk.get("key") == "totals":
+                r["total"] = oc.get("point")
+                r["overOdds" if oc.get("name") == "Over" else "underOdds"] = american(oc.get("price"))
+    return r
+
+def odds_pull_league(lg, games, pull, t):
+    """One Hard Rock pull for a league (3 credits, 0 if no events). Returns a cache entry, or None if skipped/failed."""
+    rem = pull.get("remaining")
+    if rem is None or rem < ODDS_COST:
+        pull["skipped"].append(lg["key"]); return None, f"skipped (credits remaining {rem})"
+    url = (f"{ODDS_API}/v4/sports/{lg['odds_key']}/odds/?apiKey={urllib.parse.quote(pull['key'])}"
+           f"&regions={ODDS_REGION}&bookmakers={ODDS_BOOK}&markets={ODDS_MARKETS}&oddsFormat=american&dateFormat=iso")
     try:
         data, hdr = get(url)
     except Exception as ex:
-        report["oddsApi"] = f"error: {ex}"; return
-    report["oddsApi"] = f"{len(data)} events; credits remaining {hdr.get('x-requests-remaining') or hdr.get('X-Requests-Remaining')}"
-    matched = 0
-    for ev in data:
-        h, a = norm_name(ev.get("home_team")), norm_name(ev.get("away_team"))
-        t0 = dt.datetime.fromisoformat(ev["commence_time"].replace("Z", "+00:00"))
-        best = None
-        for g in games:
-            gt = dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00"))
-            if abs((gt - t0).total_seconds()) > 6 * 3600: continue
-            gh, ga = norm_name(g["home"]["name"]), norm_name(g["away"]["name"])
-            if (h == gh or h in gh or gh in h) and (a == ga or a in ga or ga in a): best = g; break
-        if not best: continue
-        matched += 1
-        books = best.setdefault("books", {})
-        for bk in ev.get("bookmakers", []):
-            r = dict(source="The Odds API", updated=bk.get("last_update"))
-            for mk in bk.get("markets", []):
-                for oc in mk.get("outcomes", []):
-                    nm = norm_name(oc.get("name"))
-                    side = "home" if nm == h else ("away" if nm == a else ("draw" if nm == "draw" else None))
-                    if mk["key"] == "h2h" and side: r[f"{side}ML"] = american(oc.get("price"))
-                    elif mk["key"] == "spreads" and side in ("home", "away"):
-                        r[f"{side}Spread"] = oc.get("point"); r[f"{side}SpreadOdds"] = american(oc.get("price"))
-                    elif mk["key"] == "totals":
-                        r["total"] = oc.get("point")
-                        r["overOdds" if oc.get("name") == "Over" else "underOdds"] = american(oc.get("price"))
-                r["updated"] = mk.get("last_update") or r["updated"]
-            books[bk["key"]] = r
-    report["oddsApiMatched"] = matched
+        pull["errors"].append(lg["key"]); return None, f"error: {str(ex).replace(pull['key'], '***')}"
+    r2, last = _hdr(hdr, "x-requests-remaining"), _hdr(hdr, "x-requests-last")
+    if r2 is not None: pull["remaining"] = r2
+    pull["spent"] += last or 0
+    out, unmatched = {}, 0
+    for ev in data or []:
+        bk = next((b for b in ev.get("bookmakers", []) if b.get("key") == ODDS_BOOK), None)
+        if not bk: continue
+        g = match_event(ev, games)
+        if not g: unmatched += 1; continue
+        out[g["id"]] = dict(date=g["date"], home=g["home"]["abbr"], away=g["away"]["abbr"], line=odds_book_record(ev, bk))
+    pull["pulled"].append(lg["key"])
+    entry = dict(pulledAt=t, events=len(data or []), matched=len(out), unmatched=unmatched, cost=last, remainingAfter=pull["remaining"], games=out)
+    return entry, f"pulled {len(data or [])} events, {len(out)} matched, cost {last}, credits remaining {pull['remaining']}"
+
+def odds_cache_load(d):
+    try:
+        with open(os.path.join(d, ODDS_CACHE_FILE)) as fh: c = json.load(fh)
+        if c.get("v") == 1 and isinstance(c.get("leagues"), dict): return c
+    except (OSError, ValueError, TypeError):
+        pass
+    return dict(v=1, book=ODDS_BOOK, leagues={}, checks=[])
+
+def odds_cache_prune(c, now):
+    for e in c["leagues"].values():
+        e["games"] = {k: v for k, v in (e.get("games") or {}).items()
+                      if v.get("date") and dt.datetime.fromisoformat(v["date"].replace("Z", "+00:00")) >= now - dt.timedelta(days=1)}
+    c["checks"] = (c.get("checks") or [])[-40:]
+
+def odds_cache_save(d, c):
+    os.makedirs(d, exist_ok=True)
+    p = os.path.join(d, ODDS_CACHE_FILE); tmp = p + ".tmp"
+    with open(tmp, "w") as fh: json.dump(c, fh, indent=1, sort_keys=True)
+    os.replace(tmp, p)
+
+def apply_cached_odds(lg, games, cache, now):
+    """Put the last Hard Rock pull into each game's books; started games get a stale marker without numbers."""
+    e = (cache or {}).get("leagues", {}).get(lg["key"])
+    if not e: return 0, 0
+    fresh = stale = 0
+    for g in games:
+        c = (e.get("games") or {}).get(g["id"])
+        if not c: continue
+        started = g.get("state") != "pre" or dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00")) <= now
+        if started:
+            g.setdefault("books", {})[ODDS_BOOK] = dict(stale=True, asOf=e["pulledAt"], source="The Odds API", reason="game started")
+            stale += 1
+        else:
+            g.setdefault("books", {})[ODDS_BOOK] = dict(c["line"], asOf=e["pulledAt"], source="The Odds API")
+            fresh += 1
+    return fresh, stale
 
 # ---------------------------------------------------------------- main
-def build_league(lg, days, odds_key, hist_dir=None, snap_dir=None, run_t=None):
+def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=None, run_t=None):
     t0 = time.time()
     report = dict(league=lg["key"], endpoints={})
     events, ok_days, errs = fetch_scoreboards(lg, days)
@@ -342,12 +413,18 @@ def build_league(lg, days, odds_key, hist_dir=None, snap_dir=None, run_t=None):
             k = book_key_for(o.get("provider"))
             if k and k not in books: books[k] = dict(o, source=f"ESPN ({o.get('provider')})")
         g["books"] = books
-    if odds_key:
-        odds_api(lg, games, odds_key, report)
-    else:
-        report["oddsApi"] = "skipped (no ODDS_API_KEY)"
-    # line movement: snapshot this run's pre-game lines, merge into persistent history (if any), summarize
+    # Hard Rock Bet: pull from The Odds API only on pull runs; every run merges the last persisted pull
     run_t = run_t or LH.now_iso()
+    if pull:
+        entry, msg = odds_pull_league(lg, games, pull, run_t)
+        if entry is not None and odds_cache is not None: odds_cache["leagues"][lg["key"]] = entry
+        report["oddsApi"] = msg
+    else:
+        report["oddsApi"] = "not a pull run (using last persisted Hard Rock pull)"
+    fresh, stale = apply_cached_odds(lg, games, odds_cache, dt.datetime.now(dt.timezone.utc))
+    le = (odds_cache or {}).get("leagues", {}).get(lg["key"]) or {}
+    report["hardrock"] = dict(asOf=le.get("pulledAt"), shown=fresh, stale=stale)
+    # line movement: snapshot this run's pre-game lines, merge into persistent history (if any), summarize
     snap = LH.snapshot_from_games(games)
     if snap_dir:
         os.makedirs(snap_dir, exist_ok=True)
@@ -390,27 +467,61 @@ def main():
                     help="dir with <league>.json line history (data-history branch checkout); omit to skip persistence")
     ap.add_argument("--snap-dir", default=os.environ.get("LINE_SNAP_DIR") or None,
                     help="also write this run's raw line snapshot per league here (for re-applying after a push race)")
+    ap.add_argument("--odds-cache-dir", default=os.environ.get("ODDS_CACHE_DIR") or None,
+                    help="dir holding the last Hard Rock pull (hardrockbet.json, data-history branch); merged into every build")
     a = ap.parse_args()
     run_t = LH.now_iso()
     want = a.leagues.split(",")
     key = os.environ.get("ODDS_API_KEY", "").strip() or None
+    cache = odds_cache_load(a.odds_cache_dir) if a.odds_cache_dir else None
+    pull, check = None, None
+    if key:
+        # credit guard: free call first; skip the whole pull if remaining credits are low or unknown
+        try:
+            rem, used = odds_credits(key)
+        except Exception as ex:
+            rem, used = None, None; log(f"[odds] credit check failed: {str(ex).replace(key, '***')}")
+        if rem is not None and rem >= ODDS_MIN_CREDITS:
+            pull = dict(key=key, remaining=rem, spent=0, pulled=[], skipped=[], errors=[])
+            log(f"[odds] credits remaining {rem} (used {used}); pulling Hard Rock Bet for {len(want)} leagues (~{len(want) * ODDS_COST} credits max)")
+        else:
+            log(f"[odds] credit guard: remaining={rem} (< {ODDS_MIN_CREDITS} or unknown); skipping Hard Rock pull")
+        check = dict(t=run_t, remainingBefore=rem, used=used, action="pull" if pull else "skipped (credit guard)")
+    else:
+        log("[odds] no ODDS_API_KEY for this run (not a pull run); using last persisted Hard Rock pull" + ("" if cache is not None else " - none available"))
     os.makedirs(OUT, exist_ok=True)
     meta_path = os.path.join(OUT, "meta.json")
     meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {"leagues": {}}
     for lg in LEAGUES:
         if lg["key"] not in want: continue
         try:
-            rep = build_league(lg, a.days, key, a.history_dir, a.snap_dir, run_t)
+            rep = build_league(lg, a.days, pull, cache, a.history_dir, a.snap_dir, run_t)
             meta["leagues"][lg["key"]] = dict(name=lg["name"], full=lg["full"], games=rep["games"], upcoming=rep["upcoming"],
                                               withOdds=rep["withOdds"], providers=rep["providers"], updated=dt.datetime.now(dt.timezone.utc).isoformat(), report=rep)
         except Exception as ex:
             log(f"[{lg['key']}] FAILED: {ex}")
             meta["leagues"].setdefault(lg["key"], dict(name=lg["name"], full=lg["full"], games=0, upcoming=0, withOdds=0, providers=[]))["error"] = str(ex)
+    if check is not None and pull:
+        check.update(remainingAfter=pull["remaining"], spent=pull["spent"], pulled=pull["pulled"], skipped=pull["skipped"], errors=pull["errors"])
+        log(f"[odds] pull done: spent {pull['spent']} credits, remaining {pull['remaining']}; pulled={pull['pulled']} skipped={pull['skipped']} errors={pull['errors']}")
+    if cache is not None:
+        if check is not None: cache.setdefault("checks", []).append(check)
+        odds_cache_prune(cache, dt.datetime.now(dt.timezone.utc))
+        pulls = [e.get("pulledAt") for e in cache["leagues"].values() if e.get("pulledAt")]
+        cache["updated"] = max(pulls) if pulls else None
+        odds_cache_save(a.odds_cache_dir, cache)
+        if pull and pull["pulled"] and a.snap_dir:     # this run's fresh leagues, for re-applying after a push race
+            odds_cache_save(os.path.join(a.snap_dir, "_odds"), dict(cache, leagues={k: cache["leagues"][k] for k in pull["pulled"]}))
     meta["order"] = [l["key"] for l in LEAGUES]
     meta["generated"] = dt.datetime.now(dt.timezone.utc).isoformat()
-    meta["oddsApiEnabled"] = bool(key)
+    lgs = (cache or {}).get("leagues", {})
+    meta["hardrock"] = dict(book=ODDS_BOOK, schedule="every other day (odd dates) ~11:10 AM ET + manual", pulledThisRun=bool(pull and pull["pulled"]),
+                            asOf=(cache or {}).get("updated"), leagues={k: v.get("pulledAt") for k, v in lgs.items()},
+                            lastCheck=((cache or {}).get("checks") or [None])[-1])
+    meta["oddsApiEnabled"] = bool(lgs)
     meta["historyEnabled"] = bool(a.history_dir)
     meta["targetBooks"] = [dict(key=k, name=n) for k, n in TARGET_BOOKS]
+    meta["untrackedBooks"] = [dict(key="fanduel", name="FanDuel", why="not tracked (free plan)")]
     with open(meta_path, "w") as fh: json.dump(meta, fh, indent=1)
     log("done ->", OUT)
 

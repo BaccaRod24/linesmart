@@ -4,9 +4,19 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      pull_odds:
+        description: 'Spend ~27 Odds API credits to pull Hard Rock Bet lines now (free plan: 500/month)'
+        type: boolean
+        default: false
   schedule:
-    # Every 30 minutes (UTC). GitHub may delay or skip scheduled runs under load.
+    # Every 30 minutes (UTC): ESPN data + DraftKings. Never uses the Odds API key.
+    # GitHub may delay or skip scheduled runs under load.
     - cron: '*/30 * * * *'
+    # Hard Rock Bet pull (The Odds API, free plan): 15:10 UTC on odd days of the month
+    # = 11:10 AM EDT / 10:10 AM EST. Offset from :00/:30 so it never coincides with the 30-min run.
+    # <=16 pulls/month x 27 credits = <=432 of 500 credits. Keep this string in sync with PULL_CRON below.
+    - cron: '10 15 1-31/2 * *'
 
 # Least privilege for the GITHUB_TOKEN by default; each job widens only what it needs.
 permissions:
@@ -43,8 +53,8 @@ jobs:
             git -C _history checkout -q --orphan data-history
             git -C _history rm -rfq --ignore-unmatch .
           fi
-          mkdir -p _history/history
-          ls -la _history/history
+          mkdir -p _history/history _history/odds
+          ls -la _history/history _history/odds
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -56,16 +66,26 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --disable-pip-version-check --quiet tzdata
 
-      - name: Build fresh data (ESPN + optional The Odds API)
+      # The Odds API key is exposed ONLY on the dedicated odds cron or a manual run with pull_odds=true,
+      # and only when the data-history checkout worked (so the pull can be persisted). Pushes and the
+      # 30-minute runs never see it; they reuse the last pull saved on data-history.
+      - name: Decide whether this run pulls Hard Rock odds
+        id: mode
+        env:
+          PULL: ${{ ((github.event_name == 'schedule' && github.event.schedule == '10 15 1-31/2 * *') || (github.event_name == 'workflow_dispatch' && inputs.pull_odds)) && steps.hist.outcome == 'success' }}
+        run: |
+          echo "pull=$PULL" >> "$GITHUB_OUTPUT"
+          echo "event=${{ github.event_name }} schedule='${{ github.event.schedule }}' pull_odds='${{ inputs.pull_odds }}' -> Hard Rock pull: $PULL"
+
+      - name: Build fresh data (ESPN + persisted Hard Rock pull)
         id: build
         continue-on-error: true
         env:
-          # Empty when the secret isn't set -> script skips The Odds API.
-          # Scheduled runs only spend Odds API credits if repo variable ODDS_ON_SCHEDULE == 'true'
-          # (the free tier is 500 credits/month and one refresh is ~27 credits).
-          ODDS_API_KEY: ${{ (github.event_name != 'schedule' || vars.ODDS_ON_SCHEDULE == 'true') && secrets.ODDS_API_KEY || '' }}
-          # History is only read/written when the history checkout succeeded.
+          ODDS_API_KEY: ${{ steps.mode.outputs.pull == 'true' && secrets.ODDS_API_KEY || '' }}
+          ODDS_MIN_CREDITS: '35'   # credit guard: skip the pull if fewer remain
+          # History / persisted odds are only read/written when the history checkout succeeded.
           LINE_HISTORY_DIR: ${{ steps.hist.outcome == 'success' && '_history/history' || '' }}
+          ODDS_CACHE_DIR: ${{ steps.hist.outcome == 'success' && '_history/odds' || '' }}
           LINE_SNAP_DIR: .linehist-snap
         run: python scripts/build_data.py
 
@@ -82,7 +102,7 @@ jobs:
           python - <<'PY'
           import json, glob
           meta = json.load(open("site/data/meta.json"))
-          print("generated:", meta.get("generated"), "| oddsApiEnabled:", meta.get("oddsApiEnabled"))
+          print("generated:", meta.get("generated"), "| hardrock:", json.dumps({k: v for k, v in (meta.get("hardrock") or {}).items() if k != "leagues"}))
           for k, v in meta.get("leagues", {}).items():
               print(f"  {k:6} games={v.get('games')} upcoming={v.get('upcoming')} withOdds={v.get('withOdds')} error={v.get('error')}")
           for f in glob.glob("site/data/*/index.json"):
@@ -99,19 +119,20 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           msg="line history snapshot $(date -u +%Y-%m-%dT%H:%MZ) (run ${{ github.run_id }})"
-          git add -A history
+          git add -A history odds
           if git diff --cached --quiet; then echo "No history changes."; exit 0; fi
           git commit -qm "$msg"
           for i in 1 2 3 4 5; do
             if git push -q origin HEAD:refs/heads/data-history; then
-              echo "Pushed: $(git log -1 --format='%h %s')"; ls -la history; exit 0
+              echo "Pushed: $(git log -1 --format='%h %s')"; ls -la history odds; exit 0
             fi
             echo "::warning::data-history push rejected (attempt $i); re-applying snapshot onto latest tip"
             sleep $((i * 5))
             git fetch --no-tags --depth=1 origin +data-history:refs/remotes/origin/data-history || continue
             git reset -q --hard origin/data-history
             python3 ../scripts/line_history.py apply --snap-dir ../.linehist-snap --history-dir history
-            git add -A history
+            if [ -d ../.linehist-snap/_odds ]; then python3 ../scripts/line_history.py apply-odds --src ../.linehist-snap/_odds --dst odds; fi
+            git add -A history odds
             if git diff --cached --quiet; then echo "Nothing left to push."; exit 0; fi
             git commit -qm "$msg"
           done

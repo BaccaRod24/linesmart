@@ -35,30 +35,34 @@ gh run watch --repo BaccaRod24/linesmart $(gh run list --repo BaccaRod24/linesma
 #    https://baccarod24.github.io/linesmart/
 ```
 
-## Optional: The Odds API key (FanDuel / Hard Rock Bet columns)
+## The Odds API key (Hard Rock Bet, free plan)
 
 ```bash
 gh secret set ODDS_API_KEY --repo BaccaRod24/linesmart      # paste the key when prompted
-gh workflow run refresh-and-deploy.yml --repo BaccaRod24/linesmart --ref main
+# manual pull (~27 credits):
+gh workflow run refresh-and-deploy.yml --repo BaccaRod24/linesmart --ref main -f pull_odds=true
 ```
 
-Credit budget: one full refresh is ~27 credits; the free tier is 500/month (~18 refreshes).
-A 30-minute schedule would be ~1,300 credits/day, so by default **scheduled runs do not use the key**;
-only pushes and manual runs do. To use the key on every scheduled run too (paid plan), set:
+The key is exposed to the build **only** on pull runs. The data-history checkout must also have succeeded, so a pull is always persisted. Pushes, plain manual runs and the 30-minute cron never see the key.
 
-```bash
-gh variable set ODDS_ON_SCHEDULE --body true --repo BaccaRod24/linesmart
-```
+| Trigger | Uses key? |
+|---|---|
+| cron `10 15 1-31/2 * *`, which is 15:10 UTC on odd dates (11:10 AM EDT, 10:10 AM EST after Nov 1) | yes |
+| workflow_dispatch with `pull_odds=true` | yes |
+| cron `*/30 * * * *`, push to main, workflow_dispatch without `pull_odds` | no (reuses the last pull) |
 
-Note: because data isn't committed, the next keyless scheduled run (≤30 min later) rebuilds without
-Odds API data, so the extra book columns go back to N/A until the next keyed run.
+The odds cron is offset from :00 and :30 so it never fires at the same moment as the 30-minute run.
+
+**Credit math:** each pull costs 3 markets × 1 bookmaker-region × 9 leagues = 27 credits, or less when a league is off-season, since empty responses are free. Odd dates mean 16 pulls in 31-day months (the 31st and the 1st are back to back), 15 in 30-day months and 14 in February. That is at most 16 × 27 = **432 of 500 credits**, which leaves about 68 for about 2 manual pulls. The guard (`ODDS_MIN_CREDITS=35`) refuses to start a pull that could run out.
+
+The last pull lives in `odds/hardrockbet.json` on `data-history`, and every run merges it in. The site shows Hard Rock "as of <pull time ET>" and hides lines for games that have started.
 
 ## Line-movement history (`data-history` branch)
 
 The build job has `contents: write` only so it can push history snapshots to the **`data-history`** branch. It never pushes to `main`. Each run does the following:
 1. Fetches `data-history` into a worktree at `_history/`. On the first run the branch doesn't exist yet, so it is created as an orphan branch.
 2. Builds with `LINE_HISTORY_DIR=_history/history` and writes this run's raw snapshot to `.linehist-snap/`.
-3. If the build succeeded, commits and pushes `history/*.json` as github-actions[bot]. If the push is rejected because another run got there first, it fetches the new tip, re-applies `.linehist-snap/` with `line_history.py apply`, and pushes again (up to 5 tries). It never force-pushes.
+3. If the build succeeded, commits and pushes `history/*.json` and `odds/hardrockbet.json` as github-actions[bot]. If the push is rejected because another run got there first, it fetches the new tip and re-applies `.linehist-snap/` with `line_history.py apply`. It also re-applies a fresh Hard Rock pull with `line_history.py apply-odds`, where the newer `pulledAt` per league wins. Then it pushes again, up to 5 tries. It never force-pushes.
 
 Failed builds don't write history. The history steps are `continue-on-error`, so they can never block the Pages deploy. The `pages` concurrency group already serializes runs.
 
@@ -66,7 +70,7 @@ Failed builds don't write history. The history steps are `continue-on-error`, so
 gh api "repos/BaccaRod24/linesmart/contents/history?ref=data-history" --jq '.[] | "\(.name) \(.size)"'
 git fetch origin data-history && git log --oneline -5 origin/data-history
 ```
-Hard Rock Bet / FanDuel history is only recorded on runs that use the Odds API key (see above). With keyless scheduled runs, those books' charts have gaps.
+Hard Rock Bet history gets one point per pull (every other day), timestamped at the pull time. FanDuel is not tracked.
 
 ## Day-to-day
 

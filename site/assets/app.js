@@ -264,7 +264,7 @@
     if (!o && !H) return none;
     // Build per-book data: change points + ESPN open
     let books = H && H.books ? Object.keys(H.books) : [];
-    const order = ["draftkings", "fanduel", "hardrockbet"];
+    const order = ["draftkings", "hardrockbet", "fanduel"];
     books.sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
     const fromOdds = !books.length;   // no history file: show ESPN open -> current only
     if (fromOdds) books = ["current"];
@@ -351,7 +351,7 @@
         <div class="lmplot"></div>
         <div class="tbl-wrap"><table class="lmstats"><thead><tr><th>Line</th><th>Open</th><th>Current</th><th>Change</th><th>Biggest move</th><th>Last change</th></tr></thead><tbody>${stats()}</tbody></table></div>
         ${changes()}
-        <div class="note">${since}. Open = opening line as reported by ESPN (<span class="na">*</span> = ESPN open not available, first recorded value used). Lines are snapshotted about every 30 min; points mark recorded changes. Times in ${TZL}.</div>`;
+        <div class="note">${since}. Open = opening line as reported by ESPN (<span class="na">*</span> = ESPN open not available, first recorded value used). Lines are snapshotted about every 30 min (Hard Rock Bet: every other day); points mark recorded changes. Times in ${TZL}.</div>`;
       const plot = el.querySelector(".lmplot");
       plot.innerHTML = chart(Math.max(280, Math.floor(plot.clientWidth)));
       el.querySelectorAll("[data-mk]").forEach(b => (b.onclick = () => { st.mk = b.dataset.mk; draw(); }));
@@ -394,8 +394,10 @@
   }
 
   function booksCard(g, kind) {
-    const books = (META.targetBooks || [{ key: "draftkings", name: "DraftKings" }, { key: "fanduel", name: "FanDuel" }, { key: "hardrockbet", name: "Hard Rock Bet" }]);
-    const B = g.books || {};
+    const books = (META.targetBooks || [{ key: "draftkings", name: "DraftKings" }, { key: "hardrockbet", name: "Hard Rock Bet" }]).filter(bk => bk.key !== "fanduel");
+    const HR = META.hardrock || {};
+    const B = Object.fromEntries(Object.entries(g.books || {}).filter(([, b]) => b && !b.stale));   // stale = game started since the pull
+    const staleB = g.books || {};
     const markets = [];
     const sp = s => b => (isNum(b?.[s + "Spread"]) ? { disp: `${line(b[s + "Spread"])} <span class="na">${am(b[s + "SpreadOdds"]) ?? ""}</span>`, score: b[s + "Spread"] * 1000 + (b[s + "SpreadOdds"] ?? -110) } : null);
     const ml = s => b => (isNum(b?.[s + "ML"]) ? { disp: am(b[s + "ML"]), score: b[s + "ML"] } : null);
@@ -411,10 +413,20 @@
       const best = have.length > 1 ? Math.max(...have.map(v => v.score)) : null;
       return `<tr><td>${esc(label)}</td>${vals.map(v => (v ? `<td class="num ${best !== null && v.score === best ? "best" : ""}">${v.disp}</td>` : `<td>${NA}</td>`)).join("")}</tr>`;
     }).join("");
-    const head = books.map(bk => `<th>${esc(bk.name)}<span class="src">${B[bk.key] ? esc(B[bk.key].source || "") : "no data"}</span></th>`).join("");
+    const sub = bk => {
+      const b = B[bk.key], sb = staleB[bk.key];
+      if (b && b.asOf) return `as of ${esc(fullET(b.asOf))}`;
+      if (b) return esc(b.source || "");
+      if (sb && sb.stale) return `closed · game started`;
+      if (bk.key === "hardrockbet") return HR.asOf ? "not posted at last pull" : "no pull yet";
+      return "no data";
+    };
+    const head = books.map(bk => `<th>${esc(bk.name)}<span class="src">${sub(bk)}</span></th>`).join("");
     const nHave = books.filter(bk => B[bk.key]).length;
+    const hrNote = HR.asOf ? `Hard Rock Bet via The Odds API, pulled every other day (free plan); last pull ${esc(fullET(HR.asOf))}. Pre-game lines only: they're hidden once a game starts.`
+                           : "Hard Rock Bet via The Odds API, pulled every other day (free plan); no pull yet.";
     return `<div class="card"><h3>Odds comparison</h3><div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}${META.oddsApiEnabled ? "Multi-book odds from The Odds API." : "N/A = no free source for that book. ESPN only reports one sportsbook per game; set <code>ODDS_API_KEY</code> (The Odds API) in the data-refresh script to fill in DraftKings, FanDuel and Hard Rock Bet."}</div></div>`;
+      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}DraftKings via ESPN (refreshed about every 30 min, when ESPN's listed book is DraftKings). ${hrNote} FanDuel: not tracked (free plan).</div></div>`;
   }
 
   function lastFive(t, det, ts) {

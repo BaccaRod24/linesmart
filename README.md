@@ -23,7 +23,7 @@ site/data/meta.json, site/data/<league>/index.json, site/data/<league>/games/<id
 python3 scripts/build_data.py                      # all leagues, today (ET) + next 9 days
 python3 scripts/build_data.py --leagues nfl,epl    # subset
 python3 scripts/build_data.py --days 7
-ODDS_API_KEY=xxxx python3 scripts/build_data.py    # also pull DraftKings/FanDuel/Hard Rock Bet from The Odds API
+ODDS_API_KEY=xxxx python3 scripts/build_data.py --odds-cache-dir /tmp/odds   # also pull Hard Rock Bet (27 credits)
 ```
 A full run takes about 2.5 minutes, with roughly 1,000 ESPN requests and no key needed. Lines move, so refresh as often as you like. Some ways to automate it:
 - cron: `*/30 * * * * cd /path/to/site && python3 scripts/build_data.py`
@@ -44,15 +44,16 @@ Publish the `site/` folder on Netlify, Cloudflare Pages or GitHub Pages. There i
 
 Odds come from the single sportsbook ESPN lists (currently DraftKings). It is labeled with the provider name ESPN reports.
 
-## Multi-book odds (optional): The Odds API v4
-When `ODDS_API_KEY` is set, the script calls `GET https://api.the-odds-api.com/v4/sports/{sport_key}/odds?bookmakers=draftkings,fanduel,hardrockbet&regions=us,us2&markets=h2h,spreads,totals&oddsFormat=american` for each league (`bookmakers` takes precedence over `regions`; `us2` is where Hard Rock Bet lives). It matches events to ESPN games by start time and team names, then fills the comparison table. The best price is highlighted.
+## Hard Rock Bet: The Odds API v4 (free plan)
+DraftKings comes from ESPN on every run. Hard Rock Bet comes from The Odds API, but only on **pull runs**. A pull run is the dedicated every-other-day cron, or a manual run with `pull_odds=true` (see `DEPLOY.md`). FanDuel is not tracked on the free plan, so it has no column.
 
-Without a key, the FanDuel and Hard Rock Bet columns show N/A. Odds are never faked.
-
-- Bookmaker keys: `draftkings`, `fanduel` (region `us`) and `hardrockbet` (region `us2`). There are also state-specific keys `hardrockbet_az`, `hardrockbet_fl` and `hardrockbet_oh`.
-- Cost: markets × regions per call. Up to 10 bookmakers count as one region. One full refresh is 3 markets × 9 leagues ≈ **27 credits**.
-- Free Starter tier: **500 credits/month**, which is about 18 full refreshes. Paid plans start at $30/mo for 20K credits.
-- Usage headers: `x-requests-remaining` and `x-requests-used`.
+- **Request:** each league calls `GET /v4/sports/{sport_key}/odds?bookmakers=hardrockbet&regions=us2&markets=h2h,spreads,totals&oddsFormat=american`. `bookmakers` takes priority over `regions`, and `hardrockbet` is in `us2`. There are also state keys `hardrockbet_az`, `hardrockbet_fl` and `hardrockbet_oh`. Events are matched to ESPN games by start time and team names.
+- **Cost:** markets × regions, so 3 credits per league and **27 credits** for all 9 leagues. A league with no events costs 0.
+- **Credit guard:** before pulling, the script calls `GET /v4/sports`, which is free and still returns `x-requests-remaining`. It skips the whole pull if fewer than `ODDS_MIN_CREDITS` (35) remain or the count is unknown. It also stops league by league if fewer than 3 remain, and logs the remaining and spent credits.
+- **Persistence:** the last pull is stored in `odds/hardrockbet.json` on the `data-history` branch. That file has a `pulledAt` per league, a `line` per ESPN game id, and a log of credit checks. It is read by `--odds-cache-dir` / `ODDS_CACHE_DIR`, and every build merges it in, so the 30-minute keyless runs keep the Hard Rock column populated. The site labels it "as of <pull time ET>".
+- **Started games:** once a game starts (ESPN state isn't `pre`, or kickoff has passed), its cached Hard Rock line is replaced by a `stale` marker and the site shows "closed · game started". Old pre-game lines are never presented as live.
+- **History:** Hard Rock points are recorded in line history at the pull time, once per pull. Repeat keyless runs add nothing.
+- Odds are never faked. With no pull yet, the column says "no pull yet".
 
 ## Line movement
 Every refresh snapshots each pre-game line (spread, moneyline and total, per book) with a UTC timestamp and merges it into `history/<league>.json`.
@@ -68,7 +69,7 @@ python3 scripts/line_history.py apply --snap-dir /tmp/linesnap --history-dir ../
 - **Detail page:** a step chart of spread, total or moneyline over time. The moneyline is plotted as implied win %, because American odds jump from -100 to +100. A book toggle appears when more than one book has data. Below the chart are open, current, change, biggest move and last change, in ET.
 
 ## Limitations
-- ESPN reports one book per game. FanDuel and Hard Rock Bet need The Odds API.
+- ESPN reports one book per game. Hard Rock Bet is refreshed only every other day (free plan). FanDuel is not tracked.
 - Lines appear only once the book posts them. NBA, NHL and NCAAB lines usually show up a day or so before the game.
 - ESPN's free feeds return empty ATS records, so the site shows N/A for ATS.
 - Detailed summaries are capped at 150 games per league per run (`MAX_SUMMARIES`). This affects NCAAB.

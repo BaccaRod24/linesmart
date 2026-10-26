@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
     inputs:
       pull_odds:
-        description: 'Force a Hard Rock + FanDuel pull now, ignoring the 30-min / 2-h interval gate (budget guard still applies)'
+        description: 'Force a Hard Rock + FanDuel + DraftKings pull now, ignoring the 30-min / 2-h interval gate (budget guard still applies)'
         type: boolean
         default: false
   schedule:
-    # Every 30 minutes (UTC): ESPN data + DraftKings, plus Hard Rock Bet + FanDuel from The Odds API
+    # Every 30 minutes (UTC): ESPN data (DK opening lines/fallback), plus Hard Rock Bet + FanDuel + DraftKings from The Odds API
     # (paid 100K plan) when the budget guard allows. cron-job.org also dispatches at :15/:45 ET; a persisted
     # per-league interval gate (scripts/odds_budget.py) makes sure the extra runs don't double-spend.
     # GitHub may delay or skip scheduled runs under load. Budget math: docs/odds_api_budget.md
@@ -76,7 +76,7 @@ jobs:
           echo "pull=$PULL" >> "$GITHUB_OUTPUT"
           echo "event=${{ github.event_name }} pull_odds(force)='${{ inputs.pull_odds }}' paused='${{ vars.ODDS_PAUSE }}' -> Odds API allowed: $PULL"
 
-      - name: Build fresh data (ESPN + Hard Rock/FanDuel via The Odds API, budget-guarded)
+      - name: Build fresh data (ESPN + Hard Rock/FanDuel/DraftKings via The Odds API, budget-guarded)
         id: build
         continue-on-error: true
         env:

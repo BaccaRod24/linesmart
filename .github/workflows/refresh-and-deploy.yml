@@ -1,0 +1,88 @@
+name: Refresh data and deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # Every 30 minutes (UTC). GitHub may delay or skip scheduled runs under load.
+    - cron: '*/30 * * * *'
+
+# Least privilege for the GITHUB_TOKEN; Pages deploy needs pages + id-token (OIDC).
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. Don't cancel an in-flight deploy; a queued run replaces older queued ones.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # build_data.py uses only the Python standard library (urllib, zoneinfo, json...).
+      # tzdata is installed as a safety net for zoneinfo in case the OS tz database is missing.
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check --quiet tzdata
+
+      - name: Build fresh data (ESPN + optional The Odds API)
+        id: build
+        continue-on-error: true
+        env:
+          # Empty when the secret isn't set -> script skips The Odds API.
+          # Scheduled runs only spend Odds API credits if repo variable ODDS_ON_SCHEDULE == 'true'
+          # (the free tier is 500 credits/month and one refresh is ~27 credits).
+          ODDS_API_KEY: ${{ (github.event_name != 'schedule' || vars.ODDS_ON_SCHEDULE == 'true') && secrets.ODDS_API_KEY || '' }}
+        run: python scripts/build_data.py
+
+      # If the build crashed outright, fall back to the committed snapshot so the site still deploys.
+      - name: Restore committed data snapshot if build failed
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "::warning::Data build failed; deploying the committed snapshot in site/data instead."
+          git checkout -- site/data
+          git clean -fdq site/data
+
+      - name: Sanity-check data
+        run: |
+          python - <<'PY'
+          import json, glob
+          meta = json.load(open("site/data/meta.json"))
+          print("generated:", meta.get("generated"), "| oddsApiEnabled:", meta.get("oddsApiEnabled"))
+          for k, v in meta.get("leagues", {}).items():
+              print(f"  {k:6} games={v.get('games')} upcoming={v.get('upcoming')} withOdds={v.get('withOdds')} error={v.get('error')}")
+          for f in glob.glob("site/data/*/index.json"):
+              json.load(open(f))
+          PY
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

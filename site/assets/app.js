@@ -130,12 +130,16 @@
     const cols = !o ? [] : soccer ? ["1X2", "Total"] : [spreadLabelOf(kind), "Money", "Total"];
     const head = cols.length ? `<div class="gt-head"><span></span><span></span><span></span>${cols.map(c => `<span>${esc(c)}</span>`).join("")}</div>` : "";
     const draw = soccer && o ? `<div class="trow draw"><span class="tl"></span><div class="tn"><div class="tname">Draw</div></div><div class="tscore"></div>${chip(am(o.drawML))}<span></span></div>` : "";
-    const hr = (g.books || {}).hardrockbet, hrLive = hr && !hr.stale && hr.asOf;
+    const live = k => { const b = (g.books || {})[k]; return b && !b.stale && b.asOf; };   // pre-game Odds API line (Hard Rock / FanDuel)
     const mv = moveOf(g), hasMv = mv && (mv.spread || mv.total);
     const wx = window.LSWeather && g.state !== "post" ? window.LSWeather.chip(g) : "";
     const pk = GEO() ? GEO().providerKey(o && o.provider) : null, pNa = pk && !bookAvail(pk) ? GEO().naLabel(pk) : "";
-    const pTag = o ? `<span class="bk${pNa ? " bk-na" : ""}"${pNa ? ` title="${esc(pNa)}"` : ""}>${esc(o.provider || "provider n/a")}${pNa ? `<span class="sr-only"> (${esc(pNa)})</span>` : ""}</span>` : "", hrTag = hrLive ? '<span class="bk hr">Hard Rock Bet</span>' : "";
-    const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}">${pNa ? hrTag + pTag : pTag + hrTag}${sparks(g)}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
+    const pTag = o ? `<span class="bk${pNa ? " bk-na" : ""}"${pNa ? ` title="${esc(pNa)}"` : ""}>${esc(o.provider || "provider n/a")}${pNa ? `<span class="sr-only"> (${esc(pNa)})</span>` : ""}</span>` : "", altTag = (k, cls, name) => { if (!live(k)) return ""; const na = bookAvail(k) ? "" : GEO().naLabel(k);
+      return `<span class="bk ${cls}${na ? " bk-na" : ""}"${na ? ` title="${esc(na)}"` : ""}>${name}${na ? `<span class="sr-only"> (${esc(na)})</span>` : ""}</span>`; };
+    // legal-in-your-state books first (Florida: Hard Rock Bet, then the dimmed DraftKings / FanDuel)
+    const tags = [[pk || "espn", pTag], ["hardrockbet", altTag("hardrockbet", "hr", "Hard Rock Bet")], ["fanduel", altTag("fanduel", "fd", "FanDuel")]]
+      .sort((a, b) => (bookAvail(b[0]) ? 1 : 0) - (bookAvail(a[0]) ? 1 : 0)).map(t => t[1]).join("");
+    const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}">${tags}${sparks(g)}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
                    : `<div class="noline">Lines not posted yet</div>${wx ? `<div class="tfoot has-wx wx-only">${wx}</div>` : ""}`;
     const net = esc([g.note, (g.broadcasts || []).slice(0, 2).join(", ")].filter(Boolean).join(" · "));
     return `<a class="game c${cols.length}${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
@@ -457,7 +461,7 @@
         <div class="lmplot"></div>
         <div class="tbl-wrap"><table class="lmstats"><thead><tr><th>Line</th><th>Open</th><th>Current</th><th>Change</th><th>Biggest move</th><th>Last change</th></tr></thead><tbody>${stats()}</tbody></table></div>
         ${changes()}
-        <div class="note">${since}. Open = opening line as reported by ESPN (<span class="na">*</span> = ESPN open not available, first recorded value used). Lines are snapshotted about every 30 min (Hard Rock Bet: every other day); points mark recorded changes. Times in ${TZL}.</div>`;
+        <div class="note">${since}. Open = opening line as reported by ESPN (<span class="na">*</span> = ESPN open not available, first recorded value used). Lines are snapshotted about every 30 min (DraftKings via ESPN; Hard Rock Bet and FanDuel via The Odds API, budget permitting); points mark recorded changes. Times in ${TZL}.</div>`;
       const plot = el.querySelector(".lmplot");
       plot.innerHTML = chart(Math.max(280, Math.floor(plot.clientWidth)));
       el.querySelectorAll("[data-mk]").forEach(b => (b.onclick = () => { st.mk = b.dataset.mk; draw(); }));
@@ -501,7 +505,7 @@
   }
 
   function booksCard(g, kind) {
-    let books = (META.targetBooks || [{ key: "draftkings", name: "DraftKings" }, { key: "hardrockbet", name: "Hard Rock Bet" }]).filter(bk => bk.key !== "fanduel");
+    let books = META.targetBooks || [{ key: "draftkings", name: "DraftKings" }, { key: "hardrockbet", name: "Hard Rock Bet" }, { key: "fanduel", name: "FanDuel" }];
     const ord = sortByState(books.map(b => b.key));
     books = ord.map(k => books.find(b => b.key === k));   // legal-in-your-state books first
     const HR = META.hardrock || {};
@@ -528,17 +532,20 @@
       if (b && b.asOf) return `as of ${esc(fullET(b.asOf))}`;
       if (b) return esc(b.source || "");
       if (sb && sb.stale) return `closed · game started`;
-      if (bk.key === "hardrockbet") return HR.asOf ? "not posted at last pull" : "no pull yet";
+      if (bk.key === "hardrockbet" || bk.key === "fanduel") return HR.asOf ? "not posted at last pull" : "no pull yet";
       return "no data";
     };
     const head = books.map(bk => `<th${bookAvail(bk.key) ? "" : ' class="na-col"'}>${esc(bk.name)}${naTag(bk.key)}<span class="src">${sub(bk)}</span></th>`).join("");
-    const ev = GEO() ? GEO().current() : null, out = ev && ev.state ? books.map(b => b.key).filter(k => !bookAvail(k)) : [];   // only books with a column here (FanDuel/BetMGM have no odds data)
+    const ev = GEO() ? GEO().current() : null, out = ev && ev.state ? books.map(b => b.key).filter(k => !bookAvail(k)) : [];   // only books with a column here (BetMGM has no odds data)
     const outNote = out.length ? ` ${out.map(k => BOOKNAME(k)).join(" and ")} ${out.length > 1 ? "don't" : "doesn't"} run a legal online sportsbook in ${esc(ev.stateName)}; ${out.length > 1 ? "their" : "its"} lines are shown for reference only.` : "";
     const nHave = books.filter(bk => B[bk.key]).length;
-    const hrNote = HR.asOf ? `Hard Rock Bet via The Odds API, pulled every other day (free plan); last pull ${esc(fullET(HR.asOf))}. Pre-game lines only: they're hidden once a game starts.`
-                           : "Hard Rock Bet via The Odds API, pulled every other day (free plan); no pull yet.";
+    const OA = META.oddsApi || {}, every = OA.gameInterval || (OA.cadence || {}).games || 30;
+    const pace = OA.level === "stop" ? " Odds API pulls are paused for the rest of the billing month (credit budget reached); showing the last pull."
+               : OA.level === "slow-games" ? ` Refresh slowed to about every ${every >= 60 ? `${+(every / 60).toFixed(1)} h` : `${every} min`} to stay within this month's credit budget.` : "";
+    const hrNote = (HR.asOf ? `Hard Rock Bet and FanDuel via The Odds API, refreshed about every ${every >= 60 ? `${+(every / 60).toFixed(1)} h` : `${every} min`}; last pull ${esc(fullET(HR.asOf))}. Pre-game lines only: they're hidden once a game starts.`
+                            : "Hard Rock Bet and FanDuel via The Odds API; no pull yet.") + pace;
     return `<div class="card"><h3>Odds comparison</h3><div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}DraftKings via ESPN (refreshed about every 30 min, when ESPN's listed book is DraftKings). ${hrNote} FanDuel: not tracked (free plan).${outNote}</div>${affLine()}</div>`;
+      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}DraftKings via ESPN (refreshed about every 30 min, when ESPN's listed book is DraftKings). ${hrNote}${outNote}</div>${affLine()}</div>`;
   }
 
   function lastFive(t, det, ts) {

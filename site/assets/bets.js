@@ -309,7 +309,7 @@
     catch (e) { return (GAMES[lg] = { kind: "", games: [] }); }
   }
   const evOf = (g, lg) => ({ id: String(g.id), lg, date: g.date, name: `${g.away.abbr} @ ${g.home.abbr}`, home: { id: g.home.id, abbr: g.home.abbr, name: g.home.name, short: g.home.short }, away: { id: g.away.id, abbr: g.away.abbr, name: g.away.name, short: g.away.short } });
-  // price for a market from the book the user picked (DraftKings via ESPN, Hard Rock via The Odds API); else ESPN's listed book
+  // price for a market from the book the user picked (DraftKings via ESPN, Hard Rock / FanDuel via The Odds API); else ESPN's listed book
   function quote(g, book) {
     if (!g) return null;
     const B = g.books || {}, key = { draftkings: "draftkings", hardrock: "hardrockbet", fanduel: "fanduel" }[book];
@@ -527,9 +527,9 @@
   function trackCard(lg, g, kind) {
     if (g.state === "post") return `<div class="section-title">Track a bet</div><div class="card bt-track"><h3>Bet on this game? <a class="lnk bt-more" href="${esc(trackHref(lg, g))}">Log it ›</a></h3><div class="note">Moneyline, spread and total bets on finished games are graded from the final score as soon as you save them.</div></div>`;
     const soccer = kind === "soccer", mma = kind === "mma", out = [];
-    const GEO = window.LSGeo, map = { draftkings: "draftkings", hardrockbet: "hardrock" };
+    const GEO = window.LSGeo, map = { draftkings: "draftkings", hardrockbet: "hardrock", fanduel: "fanduel" };
     // one-tap shortcuts only for books that are legal online in the visitor's state (Hard Rock first in FL)
-    const keys = GEO ? GEO.sortBooks(["draftkings", "hardrockbet"]) : ["draftkings", "hardrockbet"];
+    const keys = GEO ? GEO.sortBooks(["draftkings", "hardrockbet", "fanduel"]) : ["draftkings", "hardrockbet", "fanduel"];
     let hidden = 0;
     for (const key of keys) {
       const bk = map[key], b = (g.books || {})[key]; if (!b || b.stale) continue;

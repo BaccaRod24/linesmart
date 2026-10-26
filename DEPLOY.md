@@ -35,34 +35,51 @@ gh run watch --repo BaccaRod24/linesmart $(gh run list --repo BaccaRod24/linesma
 #    https://linesmart.app/  (before the custom domain: https://baccarod24.github.io/linesmart/)
 ```
 
-## The Odds API key (Hard Rock Bet, free plan)
+## The Odds API key (Hard Rock Bet + FanDuel, paid 100K plan)
 
 ```bash
 gh secret set ODDS_API_KEY --repo BaccaRod24/linesmart      # paste the key when prompted
-# manual pull (~27 credits):
+# force a pull now (ignores the 30-min / 2-h interval gate; the budget guard still applies):
 gh workflow run refresh-and-deploy.yml --repo BaccaRod24/linesmart --ref main -f pull_odds=true
+# emergency stop: no Odds API calls at all until the variable is removed
+gh variable set ODDS_PAUSE --repo BaccaRod24/linesmart --body 1      # undo: gh variable delete ODDS_PAUSE --repo BaccaRod24/linesmart
 ```
-
-The key is exposed to the build **only** on pull runs. The data-history checkout must also have succeeded, so a pull is always persisted. Pushes, plain manual runs and the 30-minute cron never see the key.
 
 | Trigger | Uses key? |
 |---|---|
-| cron `10 15 1-31/2 * *`, which is 15:10 UTC on odd dates (11:10 AM EDT, 10:10 AM EST after Nov 1) | yes |
-| workflow_dispatch with `pull_odds=true` | yes |
-| cron `*/30 * * * *`, push to main, workflow_dispatch without `pull_odds` | no (reuses the last pull) |
+| cron `*/30 * * * *` and the cron-job.org dispatches (:15/:45 ET) | yes, when the data-history checkout succeeded and `ODDS_PAUSE` isn't `1` |
+| workflow_dispatch (`pull_odds=true` forces a pull) | yes, same conditions |
+| push to main | no (reuses the last pull) |
 
-The odds cron is offset from :00 and :30 so it never fires at the same moment as the 30-minute run.
+Every keyed run first makes free calls:
+- `/sports` returns the credit headers.
+- `/events` finds which leagues have events in the next 7 days.
 
-**Credit math:** each pull costs 3 markets × 1 bookmaker-region × 9 leagues = 27 credits, or less when a league is off-season, since empty responses are free. Odd dates mean 16 pulls in 31-day months (the 31st and the 1st are back to back), 15 in 30-day months and 14 in February. That is at most 16 × 27 = **432 of 500 credits**, which leaves about 68 for about 2 manual pulls. The guard (`ODDS_MIN_CREDITS=35`) refuses to start a pull that could run out.
+After that, it pays only for what is **due**:
+- **Game lines:** a league whose last pull (`pulledAt` in `odds/hardrockbet.json`) is at least 30 min old, minus 2 min of slack. This costs 3 credits per league and covers Hard Rock and FanDuel in one request.
+- **Props:** an NFL/NBA event starting within 36 h whose last props pull is at least 2 h old. This costs at most 5 (NFL) or 4 (NBA) credits.
 
-The last pull lives in `odds/hardrockbet.json` on `data-history`, and every run merges it in. The site shows Hard Rock "as of <pull time ET>" and hides lines for games that have started.
+Two runs close together therefore never pay twice.
+
+**Credit math** (details in `docs/odds_api_budget.md`): the worst case, with all leagues in season, is about 39.4K for game lines + 15.8K for NBA props + 6.3K for NFL props = **about 61.4K/month**. The budget is 80K, and the plan has 100K.
+
+The budget guard (`scripts/odds_budget.py`) works from the remaining credits and the days left in the cycle. The cycle resets on the 26th.
+- It pauses props first, then slows game lines (60 → 360 min).
+- It stops at the 300-credit floor.
+- Each run is capped at 250 credits.
+
+The build log and `meta.json` → `oddsApi` show the level and the reason.
+
+Settings are env vars in the workflow: `ODDS_BUDGET`, `ODDS_MIN_CREDITS`, `ODDS_RUN_MAX_CREDITS` and `ODDS_BILLING_DAY`. UFC stays DraftKings-only (`ODDS_MMA` is unset).
+
+The last pulls live in `odds/hardrockbet.json` (game lines, `quota`, `usage`) and `odds/props_oddsapi.json` on `data-history`, and every run merges them in. The site shows "as of <pull time ET>" and hides lines for games that have started.
 
 ## Line-movement history (`data-history` branch)
 
 The build job has `contents: write` only so it can push history snapshots to the **`data-history`** branch. It never pushes to `main`. Each run does the following:
 1. Fetches `data-history` into a worktree at `_history/`. On the first run the branch doesn't exist yet, so it is created as an orphan branch.
 2. Builds with `LINE_HISTORY_DIR=_history/history` and writes this run's raw snapshot to `.linehist-snap/`.
-3. If the build succeeded, commits and pushes `history/*.json` and `odds/hardrockbet.json` as github-actions[bot]. If the push is rejected because another run got there first, it fetches the new tip and re-applies `.linehist-snap/` with `line_history.py apply`. It also re-applies a fresh Hard Rock pull with `line_history.py apply-odds`, where the newer `pulledAt` per league wins. Then it pushes again, up to 5 tries. It never force-pushes.
+3. If the build succeeded, commits and pushes `history/*.json` and `odds/*.json` as github-actions[bot]. If the push is rejected because another run got there first, it fetches the new tip and re-applies `.linehist-snap/` with `line_history.py apply`. It also re-applies a fresh Hard Rock pull with `line_history.py apply-odds`, where the newer `pulledAt` per league wins. Then it pushes again, up to 5 tries. It never force-pushes.
 
 The same branch also holds `rosters/{league}.json`, the roster cache for the search index. It's passed in as `ROSTER_CACHE_DIR=_history/rosters`, reused for 20 h, and committed and re-applied alongside history (`.linehist-snap/_rosters/`). Expect about 0.45 MB of churn per day. If the data-history checkout fails, rosters are fetched fresh, which takes about a minute more.
 
@@ -72,7 +89,7 @@ Failed builds don't write history. The history steps are `continue-on-error`, so
 gh api "repos/BaccaRod24/linesmart/contents/history?ref=data-history" --jq '.[] | "\(.name) \(.size)"'
 git fetch origin data-history && git log --oneline -5 origin/data-history
 ```
-Hard Rock Bet history gets one point per pull (every other day), timestamped at the pull time. FanDuel is not tracked.
+Hard Rock Bet and FanDuel history get one point per pull (about every 30 min), timestamped at the pull time.
 
 ## Day-to-day
 

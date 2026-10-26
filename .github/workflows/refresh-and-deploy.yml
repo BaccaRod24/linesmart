@@ -6,17 +6,15 @@ on:
   workflow_dispatch:
     inputs:
       pull_odds:
-        description: 'Spend ~27 Odds API credits to pull Hard Rock Bet lines now (free plan: 500/month)'
+        description: 'Force a Hard Rock + FanDuel pull now, ignoring the 30-min / 2-h interval gate (budget guard still applies)'
         type: boolean
         default: false
   schedule:
-    # Every 30 minutes (UTC): ESPN data + DraftKings. Never uses the Odds API key.
-    # GitHub may delay or skip scheduled runs under load.
+    # Every 30 minutes (UTC): ESPN data + DraftKings, plus Hard Rock Bet + FanDuel from The Odds API
+    # (paid 100K plan) when the budget guard allows. cron-job.org also dispatches at :15/:45 ET; a persisted
+    # per-league interval gate (scripts/odds_budget.py) makes sure the extra runs don't double-spend.
+    # GitHub may delay or skip scheduled runs under load. Budget math: docs/odds_api_budget.md
     - cron: '*/30 * * * *'
-    # Hard Rock Bet pull (The Odds API, free plan): 15:10 UTC on odd days of the month
-    # = 11:10 AM EDT / 10:10 AM EST. Offset from :00/:30 so it never coincides with the 30-min run.
-    # <=16 pulls/month x 27 credits = <=432 of 500 credits. Keep this string in sync with PULL_CRON below.
-    - cron: '10 15 1-31/2 * *'
 
 # Least privilege for the GITHUB_TOKEN by default; each job widens only what it needs.
 permissions:
@@ -66,23 +64,32 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --disable-pip-version-check --quiet tzdata
 
-      # The Odds API key is exposed ONLY on the dedicated odds cron or a manual run with pull_odds=true,
-      # and only when the data-history checkout worked (so the pull can be persisted). Pushes and the
-      # 30-minute runs never see it; they reuse the last pull saved on data-history.
-      - name: Decide whether this run pulls Hard Rock odds
+      # The Odds API key is exposed on scheduled and dispatched runs (cron-job.org / manual), and only when the
+      # data-history checkout worked: the interval gate, quota and usage live there, so without it we'd spend blind.
+      # Pushes never see the key; they reuse the last pull saved on data-history. Set the repo variable
+      # ODDS_PAUSE=1 to stop all Odds API calls without a code change.
+      - name: Decide whether this run may use The Odds API
         id: mode
         env:
-          PULL: ${{ ((github.event_name == 'schedule' && github.event.schedule == '10 15 1-31/2 * *') || (github.event_name == 'workflow_dispatch' && inputs.pull_odds)) && steps.hist.outcome == 'success' }}
+          PULL: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && steps.hist.outcome == 'success' && vars.ODDS_PAUSE != '1' }}
         run: |
           echo "pull=$PULL" >> "$GITHUB_OUTPUT"
-          echo "event=${{ github.event_name }} schedule='${{ github.event.schedule }}' pull_odds='${{ inputs.pull_odds }}' -> Hard Rock pull: $PULL"
+          echo "event=${{ github.event_name }} pull_odds(force)='${{ inputs.pull_odds }}' paused='${{ vars.ODDS_PAUSE }}' -> Odds API allowed: $PULL"
 
-      - name: Build fresh data (ESPN + persisted Hard Rock pull)
+      - name: Build fresh data (ESPN + Hard Rock/FanDuel via The Odds API, budget-guarded)
         id: build
         continue-on-error: true
         env:
           ODDS_API_KEY: ${{ steps.mode.outputs.pull == 'true' && secrets.ODDS_API_KEY || '' }}
-          ODDS_MIN_CREDITS: '35'   # credit guard: skip the pull if fewer remain
+          # Budget guard (scripts/odds_budget.py, docs/odds_api_budget.md): ~80K of the 100K monthly credits,
+          # never below 300 remaining; props are throttled first, then the game-line interval.
+          ODDS_MIN_CREDITS: '300'
+          ODDS_BUDGET: '80000'
+          ODDS_PLAN_CREDITS: '100000'
+          ODDS_BILLING_DAY: '26'        # credits reset on the subscription day (subscribed 2026-10-26)
+          ODDS_RUN_MAX_CREDITS: '250'   # hard cap per run
+          ODDS_FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.pull_odds && '1' || '' }}
+          ODDS_PAUSE: ${{ vars.ODDS_PAUSE }}
           # History / persisted odds are only read/written when the history checkout succeeded.
           LINE_HISTORY_DIR: ${{ steps.hist.outcome == 'success' && '_history/history' || '' }}
           ODDS_CACHE_DIR: ${{ steps.hist.outcome == 'success' && '_history/odds' || '' }}
@@ -109,6 +116,7 @@ jobs:
           import json, glob
           meta = json.load(open("site/data/meta.json"))
           print("generated:", meta.get("generated"), "| hardrock:", json.dumps({k: v for k, v in (meta.get("hardrock") or {}).items() if k != "leagues"}))
+          print("odds api:", json.dumps(meta.get("oddsApi")))
           for k, v in meta.get("leagues", {}).items():
               print(f"  {k:6} games={v.get('games')} upcoming={v.get('upcoming')} withOdds={v.get('withOdds')} error={v.get('error')}")
           for f in glob.glob("site/data/*/index.json"):

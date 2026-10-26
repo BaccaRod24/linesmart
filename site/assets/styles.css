@@ -121,6 +121,7 @@ button{font-family:inherit}
 .tfoot .bk{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--mute)}
 .tfoot .bk::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}
 .tfoot .bk.hr::before{background:var(--hr)}
+.tfoot .bk.fd::before{background:#1493ff}
 .tfoot .hint{margin-left:auto}
 .noline{font-size:12.5px;color:var(--dim);margin-top:8px;padding:10px 12px;border:1px dashed var(--line2);border-radius:var(--r-sm);text-align:center}
 .form{display:inline-flex;gap:3px;vertical-align:middle;margin-left:7px}
@@ -758,7 +759,7 @@ a[href^="tel:"]{white-space:nowrap}
   .wx-v{font-size:15.5px}.wx-s{font-size:11px}.wx-k{font-size:10px;letter-spacing:.06em}
   .wx-hours{gap:6px}
 }
-@media (max-width:480px){.tfoot.has-wx .hint{display:none}.tfoot.has-wx .bk.hr{font-size:0;gap:0}}
+@media (max-width:480px){.tfoot.has-wx .hint{display:none}.tfoot.has-wx .bk.hr,.tfoot.has-wx .bk.fd{font-size:0;gap:0}}
 
 /* ---------- player props (props.js): last-5 strip, green = over / red = under / grey = push or no game */
 .pp{display:grid;gap:10px}
@@ -817,6 +818,20 @@ a[href^="tel:"]{white-space:nowrap}
 .pp-hot.on .pp-n{background:rgba(0,0,0,.18);color:inherit}
 .pp-hot-tag{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#04170c;background:var(--win);border-radius:4px;padding:1px 5px;align-self:flex-end}
 .pp-empty[hidden]{display:none}
+/* per-book prop lines (Hard Rock Bet / FanDuel via The Odds API, DraftKings via ESPN); .na = not legal online in the visitor's state */
+.pp-bks{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:-2px}
+.pp-bk{display:inline-flex;align-items:baseline;gap:5px;font-size:11.5px;color:var(--mute);background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-xs);padding:3px 7px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pp-bk.prim{border-color:color-mix(in srgb,var(--accent) 60%,transparent)}
+.pp-bk .pp-bn{font-weight:700;color:var(--txt)}
+.pp-bk b{font-weight:750;color:var(--txt)}
+.pp-bk .pp-px.best{color:var(--pos);font-weight:750}
+.pp-bk .pp-nopx{color:var(--dim)}
+.pp-bk.na{opacity:.55}
+.pp-bk.na .pp-px.best{color:inherit;font-weight:inherit}
+.pp-bk .na-st{font-size:10px}
+.pp-src{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+.pp-na-bk{opacity:.6}
+@media (max-width:640px){.pp-row{grid-template-areas:"mk sum" "strip strip" "bks bks"}.pp-bks{grid-area:bks}}
 
 /* ---------- UFC (assets/ufc.js): fight cards, fight page, fighter page */
 .uf-ev{margin-top:18px}
@@ -1040,6 +1055,17 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .books th .na-st{display:block;margin:3px 0 0;width:max-content}
 .books .na-col{opacity:.5}
 .books th.na-col{font-weight:500}
+/* three book columns (Hard Rock / DraftKings / FanDuel) on a phone: line over price, tighter cells, no sideways scroll */
+@media (max-width:640px){
+  .books th,.books td{padding:8px 4px}
+  .books td:first-child,.books th:first-child{padding-left:8px;white-space:normal}
+  .books td:first-child{font-size:12.5px}
+  .books th{font-size:9.5px;letter-spacing:.05em}
+  .books th .na-st{white-space:normal;width:auto;font-size:9.5px;padding:1px 5px}
+  .books .px{display:inline-flex;flex-direction:column;align-items:center;min-width:58px;padding:5px 6px;font-size:13px;line-height:1.2}
+  .books .px .na{font-size:11.5px}
+  .books .src{font-size:9px}
+}
 .na-st-card h3{color:var(--mute)}
 .tfoot .bk.bk-na{opacity:.55;font-weight:500}
 .tfoot .bk.bk-na::before{background:var(--dim)}
@@ -1091,3 +1117,5 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
   .intro h1{font-size:19px}
   .intro.js .intro-more{display:none}
 }
+
+.mu-line.mu-na{opacity:.55}

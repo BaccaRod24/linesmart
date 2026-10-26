@@ -1,5 +1,6 @@
 /* LineSmart player props: pure logic (no DOM). Loaded in the browser as window.PropsCore and in Node tests via require().
- * Input is data/props/<lg>.json from scripts/props.py: DraftKings lines (via ESPN) + each player's last 10 games.
+ * Input is data/props/<lg>.json from scripts/props.py: DraftKings lines (via ESPN), Hard Rock Bet + FanDuel lines with
+ * prices (The Odds API, paid plan, optional 6th row element `books`) + each player's last 10 games.
  * Every past game is graded against the CURRENT line: over = green, under = red, push or no game = grey.
  * Past results only - nothing here predicts outcomes. */
 (function (root, factory) {
@@ -67,17 +68,39 @@
     return `opened ${fmtNum(open)} ${line > open ? "▲" : "▼"}`;
   }
 
-  /** Props for one game grouped by player: [{pid, n, pos, t, ta, log, props:[{mk, label, short, line, open, tally}]}]
-   *  ordered away team first (then home), NFL by position (QB, RB, WR, TE), then by the player's biggest line. */
-  function byPlayer(doc, gid, teamOrder = []) {
+  const BOOK_ORDER = ["hardrockbet", "draftkings", "fanduel"];
+  /** Per-book lines of one prop row: [{key, line, over, under, tally}] (DraftKings has no prices: ESPN's feed has none).
+   *  Rows without the 6th element (keyless builds) are DraftKings-only. */
+  function rowBooks(row, order = BOOK_ORDER) {
+    const [, , line, , tally, books] = row;
+    const B = books && typeof books === "object" ? books : { draftkings: [line, null, null, null] };
+    const keys = Object.keys(B).sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+    return keys.filter(k => Array.isArray(B[k]) && isNum(B[k][0])).map(k => {
+      const [l, over, under, t] = B[k];
+      return { key: k, line: l, over: isNum(over) ? over : null, under: isNum(under) ? under : null, tally: Array.isArray(t) ? t : l === line ? tally : null };
+    });
+  }
+
+  /** Props for one game grouped by player: [{pid, n, pos, t, ta, log, props:[{mk, label, short, line, open, tally, book, books}]}]
+   *  ordered away team first (then home), NFL by position (QB, RB, WR, TE), then by the player's biggest line.
+   *  prefer = book keys the visitor can bet, in state order (Florida: ["hardrockbet"]): the first of them that posted the
+   *  prop sets the graded line; otherwise the row's own line (DraftKings', else Hard Rock's, else FanDuel's) is used. */
+  function byPlayer(doc, gid, teamOrder = [], prefer = null) {
     const g = doc && doc.games && doc.games[String(gid)];
     if (!g) return [];
     const mk = doc.markets || {}, P = doc.players || {}, groups = new Map();
-    for (const [pid, m, line, open, tally] of g.props || []) {
+    const order = prefer && prefer.length ? [...prefer, ...BOOK_ORDER.filter(k => !prefer.includes(k))] : BOOK_ORDER;
+    for (const row of g.props || []) {
+      const [pid, m, line, open, tally] = row;
       const pl = P[pid];
       if (!pl) continue;
       if (!groups.has(pid)) groups.set(pid, { pid, n: pl.n, pos: pl.pos, t: pl.t, ta: pl.ta, log: pl.log || [], props: [] });
-      groups.get(pid).props.push({ mk: m, label: (mk[m] || [m])[0], short: (mk[m] || [m, m])[1], line, open, tally });
+      const books = rowBooks(row, order);
+      const prim = (prefer || []).map(k => books.find(b => b.key === k)).find(Boolean) || null;
+      const useOwn = !prim || prim.line === line;
+      const book = prim ? prim.key : (books.find(b => b.line === line) || {}).key || null;
+      groups.get(pid).props.push({ mk: m, label: (mk[m] || [m])[0], short: (mk[m] || [m, m])[1],
+        line: useOwn ? line : prim.line, open: useOwn || prim.key === "draftkings" ? open : null, tally: useOwn ? tally : prim.tally, book, books });
     }
     const ord = Object.keys(mk);
     const top = p => Math.max(...p.props.filter(x => x.mk !== "anytime_td").map(x => x.line), 0);
@@ -90,15 +113,22 @@
     return out;
   }
 
+  /** Best over / under price among the given books on the SAME line as `line`: {over: key|null, under: key|null}. */
+  function bestPrice(books, line, ok = () => true) {
+    const pick = side => { const c = books.filter(b => ok(b.key) && b.line === line && isNum(b[side])); if (c.length < 2) return null;
+      const m = Math.max(...c.map(b => b[side])); return c.filter(b => b[side] === m).length === c.length ? null : c.find(b => b[side] === m).key; };
+    return { over: pick("over"), under: pick("under") };
+  }
+
   /** Every upcoming game in the file with props for this player: [{gid, props}] */
-  function forPlayer(doc, pid) {
+  function forPlayer(doc, pid, prefer = null) {
     const out = [];
     for (const gid of Object.keys((doc && doc.games) || {})) {
-      const grp = byPlayer(doc, gid).find(p => p.pid === String(pid));
+      const grp = byPlayer(doc, gid, [], prefer).find(p => p.pid === String(pid));
       if (grp) out.push({ gid, player: grp, props: grp.props });
     }
     return out;
   }
 
-  return { isNum, grade, strip, rate, summary, HOT_SHARE, HOT_MIN, hotNeed, isHot, season, fmtNum, lineText, moveText, byPlayer, forPlayer };
+  return { isNum, grade, strip, rate, summary, HOT_SHARE, HOT_MIN, hotNeed, isHot, season, fmtNum, lineText, moveText, BOOK_ORDER, rowBooks, byPlayer, bestPrice, forPlayer };
 });

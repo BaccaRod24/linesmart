@@ -181,7 +181,8 @@ def apply_dir(snap_dir, history_dir):
         print(f"[{lg}] +{n} points, pruned {pr}, games {len(h['games'])}")
 
 def apply_odds(src_dir, dst_dir):
-    """Merge a run's persisted-pull snapshot (e.g. hardrockbet.json) into the branch copy: newer pulledAt per league wins."""
+    """Merge a run's persisted-pull snapshot (hardrockbet.json game lines, props_oddsapi.json props) into the branch copy:
+    newer pulledAt per league wins; quota/usage: newer t wins."""
     for f in sorted(glob.glob(os.path.join(src_dir, "*.json"))):
         src = json.load(open(f)); path = os.path.join(dst_dir, os.path.basename(f))
         try: dst = json.load(open(path))
@@ -190,7 +191,9 @@ def apply_odds(src_dir, dst_dir):
             if (e.get("pulledAt") or "") > ((dst["leagues"].get(lg) or {}).get("pulledAt") or ""): dst["leagues"][lg] = e
         seen = {json.dumps(c, sort_keys=True) for c in dst.get("checks") or []}
         dst["checks"] = sorted((dst.get("checks") or []) + [c for c in src.get("checks") or [] if json.dumps(c, sort_keys=True) not in seen],
-                               key=lambda c: c.get("t") or "")[-40:]
+                               key=lambda c: c.get("t") or "")[-200:]
+        for k in ("quota", "usage"):   # paid-plan budget state: the newer run's copy wins
+            if isinstance(src.get(k), dict) and (src[k].get("t") or "") > ((dst.get(k) or {}).get("t") or ""): dst[k] = src[k]
         pulls = [e.get("pulledAt") for e in dst["leagues"].values() if e.get("pulledAt")]
         dst["updated"] = max(pulls) if pulls else None
         os.makedirs(dst_dir, exist_ok=True); tmp = path + ".tmp"

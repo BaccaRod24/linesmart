@@ -16,10 +16,18 @@ and per prop the season tally against the CURRENT line. The site colours each of
 FORMAT (v1):
   {"v":1,"lg":"nfl","gen":iso,"source":"ESPN","book":"DraftKings","season":2026,"historyGames":N,
    "markets": {key: [label, short]},
-   "games":   {gameId: {"upd": iso|null, "props": [[pid, marketKey, line, openLine|null, [over, under, push, games]], ...]}},
+   "games":   {gameId: {"upd": iso|null, "props": [[pid, marketKey, line, openLine|null, [over, under, push, games], books?], ...]}},
    "players": {pid: {"n": name, "pos": pos, "t": teamId, "ta": abbr, "log": [[date, oppAbbr, "vs"|"@", {mkt: value}|null], ...]}}}
+
+Paid plan (optional `extra`, scripts/odds_props.py): Hard Rock Bet + FanDuel lines WITH prices from The Odds API, keyed by
+player name; matched here to ESPN athlete ids (same game's two rosters, normalized names). A row then gets a 6th element
+  books = {"draftkings": [line, null, null, null], "hardrockbet": [line, over, under, tally|null], "fanduel": [...]}
+(tally = season [o,u,p,n] against THAT book's line when it differs from the row line, else null). The row line is
+DraftKings' when posted, else Hard Rock's, else FanDuel's. The site picks the line to grade by the visitor's state
+(Hard Rock first in Florida). The doc also gets "books": [keys present] and "altAt" (latest Odds API pull).
 """
 import concurrent.futures as cf, datetime as dt, json, os, re
+import odds_props as OP
 
 SUPPORTED = ("nfl", "nba")
 CORE = "https://sports.core.api.espn.com/v2/sports/"
@@ -162,7 +170,35 @@ def season_tally(lg_key, hist, mk, line):
         n += 1; o += r == "o"; u += r == "u"; p += r == "p"
     return [o, u, p, n]
 
-def build_props(lg, getj, out_dir, search_dir, games=None, matchup_cache_dir=None, index=None, now=None, log=print):
+ALT_BOOKS = ("hardrockbet", "fanduel")
+BOOK_NAMES = {"draftkings": "DraftKings", "hardrockbet": "Hard Rock Bet", "fanduel": "FanDuel"}
+
+def match_alt(key, extra, idx_games, roster):
+    """Odds API props (by player name) -> {gid: {(pid, mk): {book: [line, over, under]}}}, plus unmatched-name count.
+    Only upcoming games; names must match a rostered player on one of the game's two teams (ambiguous names skipped)."""
+    valid = {m[0] for m in MARKETS[key]}
+    by_id = {str(g.get("id")): g for g in idx_games or []}
+    alt, unmatched, at = {}, 0, None
+    for gid, e in ((extra or {}).get("games") or {}).items():
+        g = by_id.get(str(gid))
+        if not g or g.get("state") != "pre": continue
+        side = {str((g.get("home") or {}).get("id")), str((g.get("away") or {}).get("id"))}
+        names = {}
+        for pid, r in roster.items():
+            if r.get("t") in side and r.get("n"):
+                k = OP.norm_player(r["n"]); names[k] = None if k in names and names[k] != pid else pid
+        for bk, M in (e.get("books") or {}).items():
+            if bk not in ALT_BOOKS: continue
+            for mk, P in (M or {}).items():
+                if mk not in valid: continue
+                for name, v in (P or {}).items():
+                    pid = names.get(OP.norm_player(name))
+                    if not pid or not isinstance(v, list) or not isinstance(v[0], (int, float)): unmatched += 1; continue
+                    alt.setdefault(str(gid), {}).setdefault((pid, mk), {})[bk] = [float(v[0]), v[1], v[2]]
+        if str(gid) in alt and (e.get("at") or "") > (at or ""): at = e.get("at")
+    return alt, unmatched, at or (extra or {}).get("pulledAt")
+
+def build_props(lg, getj, out_dir, search_dir, games=None, matchup_cache_dir=None, index=None, now=None, log=print, extra=None):
     key = lg["key"]; t0 = _now(); now = now or t0
     if key not in SUPPORTED: return None
     rep = dict(league=key, source="ESPN core API (DraftKings, provider 100)")
@@ -188,6 +224,11 @@ def build_props(lg, getj, out_dir, search_dir, games=None, matchup_cache_dir=Non
             g = futs[f]
             try: fetched[str(g["id"])] = (g, parse_items(key, f.result()))
             except Exception: fail += 1            # 404 = book hasn't posted props for this game yet
+    # Hard Rock Bet + FanDuel (paid Odds API pull, persisted): add games DraftKings hasn't posted yet
+    alt, alt_unmatched, alt_at = match_alt(key, extra, idx.get("games"), roster) if extra else ({}, 0, None)
+    by_id = {str(g.get("id")): g for g in idx.get("games") or []}
+    for gid in alt:
+        if gid not in fetched: fetched[gid] = (by_id[gid], {})
     # names for players missing from the search index (rookies signed mid-week, two-way players...)
     missing = sorted({pid for _, P in fetched.values() for (pid, _) in P if pid not in roster})
     looked = 0
@@ -199,11 +240,12 @@ def build_props(lg, getj, out_dir, search_dir, games=None, matchup_cache_dir=Non
             tm = re.search(r"/teams/(\d+)", tref)
             roster[pid] = dict(n=a.get("displayName") or a.get("fullName") or "", t=tm.group(1) if tm else "", pos=((a.get("position") or {}).get("abbreviation")) or "")
         except Exception: pass
-    out_games, players, nprops = {}, {}, 0
+    out_games, players, nprops, n_alt = {}, {}, 0, 0
     for gid, (g, P) in fetched.items():
         side = {str((g.get("home") or {}).get("id")), str((g.get("away") or {}).get("id"))}
-        bypid = {}
+        bypid, A = {}, alt.get(gid, {})
         for (pid, mk), v in P.items(): bypid.setdefault(pid, {})[mk] = v
+        for (pid, mk) in A: bypid.setdefault(pid, {}).setdefault(mk, None)
         rows, upd = [], None
         for pid, M in bypid.items():
             r = roster.get(pid)
@@ -216,22 +258,38 @@ def build_props(lg, getj, out_dir, search_dir, games=None, matchup_cache_dir=Non
             pl = players.setdefault(pid, dict(n=r["n"], pos=r.get("pos") or "", t=r["t"], ta=abbr.get(r["t"], ""), log=[]))
             pl["log"] = _merge_logs(pl["log"], log_) if pl["log"] else log_
             for mk, v in M.items():
-                rows.append([pid, mk, v["line"], v["open"], season_tally(key, hist, mk, v["line"])])
-                if v["upd"] and (upd or "") < v["upd"]: upd = v["upd"]
+                ab = A.get((pid, mk)) or {}
+                if v: line, opn = v["line"], v["open"]
+                else: line, opn = ab[next(b for b in ALT_BOOKS if b in ab)][0], None
+                row = [pid, mk, line, opn, season_tally(key, hist, mk, line)]
+                if ab:
+                    bks = {"draftkings": [v["line"], None, None, None]} if v else {}
+                    for b in ALT_BOOKS:
+                        if b in ab:
+                            l, o, u = ab[b]
+                            bks[b] = [l, o, u, None if l == line else season_tally(key, hist, mk, l)]
+                    row.append(bks); n_alt += 1
+                rows.append(row)
+                if v and v["upd"] and (upd or "") < v["upd"]: upd = v["upd"]
         if rows:
             order = {m[0]: i for i, m in enumerate(MARKETS[key])}
             rows.sort(key=lambda x: (order.get(x[1], 99), -x[2]))
             out_games[gid] = dict(upd=upd, props=rows); nprops += len(rows)
-    doc = dict(v=1, lg=key, gen=t0.isoformat(), source="ESPN", book="DraftKings", historyGames=len(games),
+    present = ["draftkings"] if any(len(r) < 6 or "draftkings" in r[5] for x in out_games.values() for r in x["props"]) else []
+    present += [b for b in ALT_BOOKS if any(len(r) > 5 and b in r[5] for x in out_games.values() for r in x["props"])]
+    doc = dict(v=1, lg=key, gen=t0.isoformat(), source="ESPN" + (" + The Odds API" if n_alt else ""),
+               book=", ".join(BOOK_NAMES[b] for b in present) or "DraftKings", books=present or ["draftkings"], altAt=alt_at if n_alt else None,
+               historyGames=len(games),
                historyScope="regular season, this season", markets={m[0]: [m[1], m[2]] for m in MARKETS[key]},
                anytimeLine=ANYTIME_LINE, games=out_games, players=players)
     os.makedirs(out_dir, exist_ok=True)
     raw = json.dumps(doc, separators=(",", ":"))
     with open(os.path.join(out_dir, f"{key}.json"), "w") as fh: fh.write(raw)
     rep.update(window=f"{WINDOW_H[key]}h", gamesInWindow=len(todo), gamesWithProps=len(out_games), noProps=fail, props=nprops,
+               hardrockFanduelRows=n_alt, altUnmatchedNames=alt_unmatched, altAt=alt_at,
                players=len(players), nameLookups=looked, historyGames=len(games), bytes=len(raw.encode()), seconds=round((_now() - t0).total_seconds(), 1))
     log(f"[{key}] props: {nprops} lines for {len(players)} players in {len(out_games)}/{len(todo)} games (DraftKings via ESPN), "
-        f"history {len(games)} games, size={len(raw.encode()) // 1024}KB ({rep['seconds']}s)")
+        f"{n_alt} rows with Hard Rock/FanDuel ({alt_unmatched} names unmatched), history {len(games)} games, size={len(raw.encode()) // 1024}KB ({rep['seconds']}s)")
     return rep
 
 def _merge_logs(a, b):

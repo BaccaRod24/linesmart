@@ -50,5 +50,30 @@ check(P.byPlayer(doc, 1).length === 0 && P.byPlayer(null, 9).length === 0, "unkn
 const fp = P.forPlayer(doc, "wr");
 check(fp.length === 1 && fp[0].gid === "9" && fp[0].props.length === 2 && P.forPlayer(doc, "nobody").length === 0, "forPlayer");
 
+// ---------- multi-book rows (paid Odds API plan): 6th element {book: [line, over, under, tally|null]}
+const mdoc = {
+  lg: "nba", books: ["draftkings", "hardrockbet", "fanduel"], markets: { points: ["Points", "Pts"] },
+  games: { "5": { props: [
+    ["a", "points", 24.5, 23.5, [3, 2, 0, 5], { draftkings: [24.5, null, null, null], hardrockbet: [25.5, -110, -110, [2, 3, 0, 5]], fanduel: [24.5, -105, -120, null] }],
+    ["b", "points", 10.5, null, [1, 1, 0, 2], { hardrockbet: [10.5, 100, -130, null] }],
+    ["c", "points", 7.5, null, [0, 0, 0, 0]]] } },
+  players: { a: { n: "A", t: "1", log: [] }, b: { n: "B", t: "1", log: [] }, c: { n: "C", t: "1", log: [] } },
+};
+const pa = gid => (pref) => Object.fromEntries(P.byPlayer(mdoc, gid, [], pref).map(p => [p.pid, p.props[0]]));
+const dflt = pa(5)(null), fl = pa(5)(["hardrockbet"]), nj = pa(5)(["draftkings", "fanduel", "hardrockbet"]);
+check(dflt.a.line === 24.5 && dflt.a.open === 23.5 && dflt.a.book === "draftkings" && eq(dflt.a.tally, [3, 2, 0, 5]), "no prefer: row (DraftKings) line + tally");
+check(eq(dflt.a.books.map(b => b.key), ["hardrockbet", "draftkings", "fanduel"]) && dflt.a.books[2].over === -105 && dflt.a.books[1].over === null, "books listed with prices (DK line only)");
+check(eq(dflt.a.books[2].tally, [3, 2, 0, 5]) && eq(dflt.a.books[0].tally, [2, 3, 0, 5]), "same-line book reuses row tally, other line keeps its own");
+check(fl.a.line === 25.5 && fl.a.book === "hardrockbet" && fl.a.open === null && eq(fl.a.tally, [2, 3, 0, 5]), "Florida (Hard Rock only): graded on Hard Rock's line + tally, no DK opener");
+check(nj.a.line === 24.5 && nj.a.book === "draftkings" && nj.a.open === 23.5, "state order DK first: DK line");
+check(fl.b.line === 10.5 && fl.b.book === "hardrockbet" && dflt.b.books.length === 1, "Hard Rock-only prop");
+check(fl.c.book === "draftkings" && fl.c.line === 7.5 && eq(fl.c.books.map(b => b.key), ["draftkings"]), "legacy 5-element row = DraftKings only; no legal book -> row (DK) line");
+const bp = P.bestPrice(dflt.a.books, 24.5);
+check(bp.over === null && bp.under === null, "best price needs 2+ priced books on the same line");
+const bks = [{ key: "hardrockbet", line: 24.5, over: -110, under: -110 }, { key: "fanduel", line: 24.5, over: -105, under: -120 }];
+check(eq(P.bestPrice(bks, 24.5), { over: "fanduel", under: "hardrockbet" }), "best over / under price");
+check(eq(P.bestPrice(bks, 24.5, k => k !== "fanduel"), { over: null, under: null }), "best price ignores books not legal in the state");
+check(P.forPlayer(mdoc, "a", ["hardrockbet"])[0].props[0].line === 25.5, "forPlayer honours prefer");
+
 console.log(fails ? `\n${fails} FAILED` : "\nALL PASS");
 process.exit(fails ? 1 : 0);

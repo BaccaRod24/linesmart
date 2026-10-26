@@ -21,8 +21,10 @@
     if (!ng && !sched) return `<div class="card mu-next"><div class="na">No upcoming game on ESPN's schedule for ${esc(ctx.teamName || "this team")} (off-season, bye or break). Recent form below.</div></div>`;
     const opp = ng ? ng.opp : sched.opp, date = ng ? ng.game.date : sched.date, home = ng ? ng.home : sched.home;
     const where = home ? "Home" : "Away", at = home ? "vs" : "@";
-    const lines = ng ? M.linesFor(ng.game, home) : [];
-    const lineRows = lines.length ? lines.map(l => `<div class="mu-line"><span class="mu-bk">${esc(l.book)}</span><span class="num">${esc(ctx.teamAbbr || "")} ${esc(signed(l.spread) ?? "–")}${isNum(l.ml) ? ` <span class="na">(${esc(amer(l.ml))})</span>` : ""}</span><span class="num">O/U ${esc(isNum(l.total) ? l.total : "–")}</span></div>`).join("")
+    const G = window.LSGeo, ok = l => !G || !l.key || G.isAvailable(l.key);
+    // books legal in the visitor's state first; the others are dimmed reference lines (Florida: Hard Rock Bet only)
+    const lines = (ng ? M.linesFor(ng.game, home) : []).map((l, i) => [l, i]).sort((a, b) => (ok(b[0]) - ok(a[0])) || a[1] - b[1]).map(x => x[0]);
+    const lineRows = lines.length ? lines.map(l => `<div class="mu-line${ok(l) ? "" : " mu-na"}"><span class="mu-bk">${esc(l.book)}${ok(l) ? "" : G.naTag(l.key)}</span><span class="num">${esc(ctx.teamAbbr || "")} ${esc(signed(l.spread) ?? "–")}${isNum(l.ml) ? ` <span class="na">(${esc(amer(l.ml))})</span>` : ""}</span><span class="num">O/U ${esc(isNum(l.total) ? l.total : "–")}</span></div>`).join("")
       : `<div class="na mu-line">${ng ? "No line posted yet." : `Lines aren't in our data yet (we track the next few days).`}</div>`;
     const inj = injuryFor(ctx, det);
     const link = ng ? `<a class="mu-go" href="#/g/${lg}/${ng.game.id}">Game page ›</a>` : "";

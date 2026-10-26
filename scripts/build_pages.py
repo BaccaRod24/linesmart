@@ -43,7 +43,7 @@ FOOTER = f"""<footer class="footer" id="siteFooter">
     <p><strong data-brand>LineSmart</strong> is an informational site and does not accept wagers. Odds are for reference and may change; confirm with the sportsbook.</p>
     <p class="aff-disc" data-aff-disclosure hidden></p>
     <nav class="legal-links" aria-label="Legal">{" ".join(f'<a href="{f}">{n}</a>' for f, n in PAGES)}</nav>
-    <p class="src">Data: ESPN public endpoints (DraftKings lines via ESPN); Hard Rock Bet lines via The Odds API; weather by Open-Meteo. Independent: not owned by or affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
+    <p class="src">Data: ESPN public endpoints (DraftKings lines via ESPN); Hard Rock Bet and FanDuel lines and props via The Odds API; weather by Open-Meteo. Independent: not owned by or affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
   </div>
 </footer>"""
 
@@ -290,7 +290,7 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
   <h2>What LineSmart does</h2>
   <ul>
     <li><b>Odds and lines</b>: spreads, moneylines and totals for upcoming games across major US and international leagues, with line movement since the open.</li>
-    <li><b>Odds comparison</b>: DraftKings and Hard Rock Bet prices side by side, with the best available price highlighted.</li>
+    <li><b>Odds comparison</b>: Hard Rock Bet, DraftKings and FanDuel prices side by side, with the best available price highlighted, plus player prop lines and prices from all three for NFL and NBA.</li>
     <li><b>Player props</b>: prop lines with each player's recent games against the line.</li>
     <li><b>Matchups</b>: team form, home and away splits, injuries, season stats and head-to-head comparisons.</li>
     <li><b>Game-day weather</b> for outdoor games.</li>
@@ -303,14 +303,14 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
   <h2>Where the data comes from</h2>
   <ul>
     <li><b>ESPN</b> public endpoints: schedules, scores, team and player stats, injuries, and <b>DraftKings</b> odds and player props as published by ESPN.</li>
-    <li><b>Hard Rock Bet</b> odds via {ext("https://the-odds-api.com/", "The Odds API")}.</li>
+    <li><b>Hard Rock Bet</b> and <b>FanDuel</b> odds and player props via {ext("https://the-odds-api.com/", "The Odds API")}.</li>
     <li><b>Weather</b> by {ext("https://open-meteo.com/", "Open-Meteo")}.</li>
   </ul>
   <p>Data can be delayed or wrong. Always confirm odds with the sportsbook before you bet.</p>
 
   <h2>How LineSmart makes money</h2>
   <p>LineSmart is free to use. It plans to earn money through affiliate links to licensed sportsbooks: if you sign up through one, LineSmart may earn a commission at no cost to you. Affiliate links are labeled and never change the odds we show. Today there are no affiliate links. See our <a href="affiliate-disclosure.html">Affiliate Disclosure</a>.</p>
-  <p>We link to the official sites of Hard Rock Bet, DraftKings, FanDuel and BetMGM, and each link appears only in states where that sportsbook runs a legal online sportsbook. In Florida, that means Hard Rock Bet only. Listing a sportsbook doesn't mean we show its odds: odds comparison covers DraftKings and Hard Rock Bet only.</p>
+  <p>We link to the official sites of Hard Rock Bet, DraftKings, FanDuel and BetMGM, and each link appears only in states where that sportsbook runs a legal online sportsbook. In Florida, that means Hard Rock Bet only. Listing a sportsbook doesn't mean we show its odds: odds comparison covers Hard Rock Bet, DraftKings and FanDuel (not BetMGM). Books that aren't legal online in your state are dimmed and never linked.</p>
 
   <h2>Responsible gambling</h2>
   <p><b>LineSmart is for adults 21 and older.</b> Only bet where it's legal, and only what you can afford to lose. Gambling problem? Call or text {GAMBLER_TEL}. In Florida, call or text {PLAYWISE_TEL}, or the Florida Council on Compulsive Gambling at {ADMIT_TEL}. More help and tips: <a href="responsible-gambling.html">Responsible Gambling</a>.</p>

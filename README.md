@@ -55,16 +55,29 @@ Built by `scripts/ufc.py`. Each bout is a "game": away = red corner (order 1), h
 
 Odds come from the single sportsbook ESPN lists (currently DraftKings). It is labeled with the provider name ESPN reports.
 
-## Hard Rock Bet: The Odds API v4 (free plan)
-DraftKings comes from ESPN on every run. Hard Rock Bet comes from The Odds API, but only on **pull runs**. A pull run is the dedicated every-other-day cron, or a manual run with `pull_odds=true` (see `DEPLOY.md`). FanDuel is not tracked on the free plan, so it has no column.
+## Hard Rock Bet + FanDuel: The Odds API v4 (paid 100K plan)
+DraftKings comes from ESPN on every run. Hard Rock Bet and FanDuel come from The Odds API, which is the paid 100K plan with 100,000 credits a month. The full budget, cadence and math are in [`docs/odds_api_budget.md`](docs/odds_api_budget.md).
 
-- **Request:** each league calls `GET /v4/sports/{sport_key}/odds?bookmakers=hardrockbet&regions=us2&markets=h2h,spreads,totals&oddsFormat=american`. `bookmakers` takes priority over `regions`, and `hardrockbet` is in `us2`. There are also state keys `hardrockbet_az`, `hardrockbet_fl` and `hardrockbet_oh`. Events are matched to ESPN games by start time and team names.
-- **Cost:** markets × regions, so 3 credits per league and **27 credits** for all 9 leagues. A league with no events costs 0.
-- **Credit guard:** before pulling, the script calls `GET /v4/sports`, which is free and still returns `x-requests-remaining`. It skips the whole pull if fewer than `ODDS_MIN_CREDITS` (35) remain or the count is unknown. It also stops league by league if fewer than 3 remain, and logs the remaining and spent credits.
-- **Persistence:** the last pull is stored in `odds/hardrockbet.json` on the `data-history` branch. That file has a `pulledAt` per league, a `line` per ESPN game id, and a log of credit checks. It is read by `--odds-cache-dir` / `ODDS_CACHE_DIR`, and every build merges it in, so the 30-minute keyless runs keep the Hard Rock column populated. The site labels it "as of <pull time ET>".
-- **Started games:** once a game starts (ESPN state isn't `pre`, or kickoff has passed), its cached Hard Rock line is replaced by a `stale` marker and the site shows "closed · game started". Old pre-game lines are never presented as live.
-- **History:** Hard Rock points are recorded in line history at the pull time, once per pull. Repeat keyless runs add nothing.
+- **Game lines:** each league makes one request, `GET /v4/sports/{sport_key}/odds?bookmakers=hardrockbet,fanduel&markets=h2h,spreads,totals&oddsFormat=american`.
+  - Every 10 bookmakers count as 1 region, so FanDuel costs nothing extra. That makes **3 credits per league**.
+  - It runs every 30 min, but only for leagues with events in the next 7 days. That check uses the free `/events` endpoint.
+  - Events are matched to ESPN games by start time and team names.
+- **Player props (NFL/NBA):** each event makes one request to `GET /v4/sports/{sport}/events/{id}/odds`, with Hard Rock + FanDuel and a short market list.
+  - It runs every 2 h, for events starting within 36 h.
+  - The lines are merged by player name into `data/props/<lg>.json`, next to DraftKings (ESPN). Each book's line and price is shown.
+- **Budget guard:** the free `/sports` call reads `x-requests-remaining`/`x-requests-used`, and these values are persisted.
+  - The guard plans against an 80K/month budget. It pauses props first, then slows game lines (30 → 360 min).
+  - It stops below the 300-credit floor, or when the balance is unknown.
+  - Each run is capped at 250 credits. `ODDS_PAUSE=1` (repo variable) is a kill switch.
+- **Persistence:** game lines live in `odds/hardrockbet.json` and props in `odds/props_oddsapi.json`, both on the `data-history` branch.
+  - They are read through `--odds-cache-dir` / `ODDS_CACHE_DIR`.
+  - Builds without a key (`env -u ODDS_API_KEY`) merge the last pull and never call the API.
+  - The site labels it "as of <pull time ET>".
+- **Started games:** once a game starts, its cached lines are replaced by a `stale` marker and the site shows "closed · game started". Old pre-game lines are never presented as live.
+- **History:** Hard Rock and FanDuel points are recorded in line history at the pull time.
 - Odds are never faked. With no pull yet, the column says "no pull yet".
+- Florida visitors can bet only at Hard Rock Bet. DraftKings and FanDuel are dimmed there, marked "Not available in FL", and have no links.
+- Dev tools: `scripts/odds_fixture_build.py` builds with fixture Odds API responses and no key. `scripts/odds_paid_test.py` tests the throttle, pulls and the props merge.
 
 ## Line movement
 Every refresh snapshots each pre-game line (spread, moneyline and total, per book) with a UTC timestamp and merges it into `history/<league>.json`.
@@ -91,7 +104,7 @@ python3 scripts/line_history.py apply --snap-dir /tmp/linesnap --history-dir ../
 
 The player page (`#/p/{league}/{id}`; `#/p/{league}/{id}/m` jumps to the section) has a **Matchup** section for the player's next opponent. Game pages list **Key player matchups**, the season leaders for each side with links to that view.
 
-- **Next game:** opponent, date and time (ET), and home or away. When the game is in our 10-day window, it also shows the DraftKings and Hard Rock spread, moneyline and total from site data. Otherwise it falls back to the ESPN team schedule, with no lines. A player listed on the game's injury report, or with a non-active ESPN status, is flagged.
+- **Next game:** opponent, date and time (ET), and home or away. When the game is in our 10-day window, it also shows the DraftKings, Hard Rock and FanDuel spread, moneyline and total from site data. Otherwise it falls back to the ESPN team schedule, with no lines. A player listed on the game's injury report, or with a non-active ESPN status, is flagged.
 - **Form:** averages for the season, last 5, last 10, vs this opponent, and home/away. ▲/▼ marks a value more than 10% above or below the season average.
   - L5/L10 span seasons.
   - Home/away uses this season once a player has 6 or more games. Before that it uses the last 20 games.
@@ -137,7 +150,7 @@ Screenshots + comparison sheets (serve the site under `/linesmart/` first):
 - Affiliate disclosure: set `affiliate.enabled: true` in `site/assets/config.js` when the first affiliate link goes live. The disclosure line then appears in the footer and under the sportsbook card on game pages.
 
 ## Limitations
-- ESPN reports one book per game. Hard Rock Bet is refreshed only every other day (free plan). FanDuel is not tracked. BetMGM (like FanDuel) appears only as an official-site link in the state-aware offers; there is no BetMGM odds data.
+- ESPN reports one book per game (DraftKings, with no prop prices). Hard Rock Bet and FanDuel refresh about every 30 min (game lines) and 2 h (props), and less often if the budget guard throttles. BetMGM appears only as an official-site link in the state-aware offers; there is no BetMGM odds data.
 - Lines appear only once the book posts them. NBA, NHL and NCAAB lines usually show up a day or so before the game.
 - ESPN's free feeds return empty ATS records, so the site shows N/A for ATS.
 - Detailed summaries are capped at 150 games per league per run (`MAX_SUMMARIES`). This affects NCAAB.

@@ -129,10 +129,11 @@
   function linesFor(g, home) {
     if (!g) return [];
     const side = home ? "home" : "away", out = [];
-    const add = (name, o, asOf) => { if (o && (isNum(o[side + "Spread"]) || isNum(o.total) || isNum(o[side + "ML"]))) out.push({ book: name, spread: isNum(o[side + "Spread"]) ? Number(o[side + "Spread"]) : null, ml: isNum(o[side + "ML"]) ? Number(o[side + "ML"]) : null, total: isNum(o.total) ? Number(o.total) : null, asOf: asOf || null }); };
+    const add = (name, o, asOf, key) => { if (o && (isNum(o[side + "Spread"]) || isNum(o.total) || isNum(o[side + "ML"]))) out.push({ book: name, key: key || null, spread: isNum(o[side + "Spread"]) ? Number(o[side + "Spread"]) : null, ml: isNum(o[side + "ML"]) ? Number(o[side + "ML"]) : null, total: isNum(o.total) ? Number(o.total) : null, asOf: asOf || null }); };
     const B = g.books || {};
-    if (B.draftkings && !B.draftkings.stale) add("DraftKings", B.draftkings, B.draftkings.asOf);
-    if (B.hardrockbet && !B.hardrockbet.stale) add("Hard Rock Bet", B.hardrockbet, B.hardrockbet.asOf);
+    if (B.draftkings && !B.draftkings.stale) add("DraftKings", B.draftkings, B.draftkings.asOf, "draftkings");
+    if (B.hardrockbet && !B.hardrockbet.stale) add("Hard Rock Bet", B.hardrockbet, B.hardrockbet.asOf, "hardrockbet");
+    if (B.fanduel && !B.fanduel.stale) add("FanDuel", B.fanduel, B.fanduel.asOf, "fanduel");
     if (!out.length && g.odds) add(g.odds.provider || "ESPN", g.odds);
     return out;
   }

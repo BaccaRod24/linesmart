@@ -543,7 +543,9 @@
     const pace = OA.level === "stop" ? " Odds API pulls are paused for the rest of the billing month (credit budget reached); showing the last pull."
                : OA.level === "slow-games" ? ` Refresh slowed to about every ${every >= 60 ? `${+(every / 60).toFixed(1)} h` : `${every} min`} to stay within this month's credit budget.` : "";
     const dkPaid = B.draftkings && B.draftkings.source === "The Odds API";
-    const hrNote = (HR.asOf ? `Hard Rock Bet, FanDuel and DraftKings via The Odds API, refreshed about every ${every >= 60 ? `${+(every / 60).toFixed(1)} h` : `${every} min`}; last pull ${esc(fullET(HR.asOf))}. Pre-game lines only: they're hidden once a game starts.`
+    // newest of the meta stamp and this game's own book stamps (an edge-cached meta.json can lag the game file)
+    const lastPull = [HR.asOf, ...Object.values(B).map(b => b.asOf)].filter(Boolean).sort().pop();
+    const hrNote = (HR.asOf ? `Hard Rock Bet, FanDuel and DraftKings via The Odds API, refreshed about every ${every >= 60 ? `${+(every / 60).toFixed(1)} h` : `${every} min`}; last pull ${esc(fullET(lastPull))}. Pre-game lines only: they're hidden once a game starts.`
                             : "Hard Rock Bet, FanDuel and DraftKings via The Odds API; no pull yet.") + pace;
     const dkNote = dkPaid ? "DraftKings' opening line (line movement) comes from ESPN. "
                  : B.draftkings ? "DraftKings here is ESPN's copy (The Odds API had no DraftKings line for this game at the last pull). " : "";

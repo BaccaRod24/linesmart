@@ -1,22 +1,22 @@
-/* LineSmart — 2026 refresh. Dark, card-based, one accent (logo green). No frameworks; Inter self-hosted. */
+/* LineSmart — 2026 refresh. Dark, card-based, one accent (logo blue). No frameworks; Inter self-hosted. */
 @font-face{font-family:"Inter";font-style:normal;font-weight:400 800;font-display:swap;src:url(fonts/inter-latin-var.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 :root{
   color-scheme:dark;
-  /* ---- theme tokens (default theme "LineSmart"). Every color in this file comes from these; themes override them below. */
-  --bg:#0b0f17;--bg2:#0f1520;--surface:#111723;--surface2:#161e2c;--elev:#1b2433;
-  --line:rgba(148,163,184,.12);--line2:rgba(148,163,184,.22);--grid:rgba(148,163,184,.1);
-  --txt:#e9eef7;--mute:#9aa7bc;--dim:#76849b;
-  --accent:#22d3a6;--accent-ink:#04261d;
-  --accent2:#38bdf8;--warn:#fbbf24;--warn-txt:#fde68a;
-  --pos:#34d399;--neg:#f87171;--win:#22c55e;--loss:#ef4444;--draw:#a3a3a3;--live-txt:#fecaca;
-  --best-txt:#5eead4;--best-hue:var(--accent);
+  /* ---- theme tokens (default theme "Midnight Blue"). Every color in this file comes from these; themes override them below. */
+  --bg:#050b1c;--bg2:#081025;--surface:#0c1630;--surface2:#111d3c;--elev:#172549;
+  --line:rgba(129,156,224,.14);--line2:rgba(129,156,224,.26);--grid:rgba(129,156,224,.12);
+  --txt:#e8eeff;--mute:#a3b3d9;--dim:#7f90ba;
+  --accent:#3d9bff;--accent-ink:#00132e;
+  --accent2:#22e1ff;--warn:#fbbf24;--warn-txt:#fde68a;
+  --pos:#34d399;--neg:#fb7185;--win:#22c55e;--loss:#f43f5e;--draw:#94a3b8;--live-txt:#fecdd3;
+  --best-txt:#67e8f9;--best-hue:var(--accent2);
   --hr:#f59e0b;                                   /* Hard Rock Bet book dot */
   --tint:#fff;                                    /* overlay ink: white on dark themes, slate on light */
   --shade:#000;
-  --topbar-a:78%;--glow-a:7.5%;
+  --topbar-a:78%;--glow-a:12%;
   --chart-1:var(--accent);--chart-2:var(--accent2);--chart-3:var(--warn);--chart-4:var(--draw);
-  /* logo recolor (assets/theme.js swaps these into logo.svg for non-default themes) */
-  --logo-tile:#141c2b;--logo-ink:#e6edf7;--logo-1:var(--accent);--logo-2:var(--accent2);
+  /* logo recolor (logo.svg/icons are drawn in these default colors; assets/theme.js swaps them for other themes) */
+  --logo-tile:#0e1a3a;--logo-ink:#e8eeff;--logo-1:var(--accent);--logo-2:var(--accent2);
   /* derived (don't override per theme unless needed) */
   --accent-soft:color-mix(in srgb,var(--accent) 12%,transparent);--accent-line:color-mix(in srgb,var(--accent) 42%,transparent);
   --best:color-mix(in srgb,var(--best-hue) 14%,transparent);--best-line:color-mix(in srgb,var(--best-hue) 42%,transparent);--bestTxt:var(--best-txt);
@@ -382,10 +382,22 @@ a.grow:hover{background:color-mix(in srgb,var(--tint) 2.5%,transparent)}
 .ptbl tr.cat th+th{border-left:1px solid color-mix(in srgb,var(--tint) 8%,transparent)}
 
 /* ===================================================================================================
-   Themes. Default (no data-theme, or data-theme="linesmart") = the tokens in :root above.
+   Themes. Default (no data-theme, or data-theme="midnight") = Midnight Blue, the tokens in :root above.
    Preview any theme with ?theme=<name> (see assets/theme.js). Only tokens change here, never layout.
    Text tokens (txt/mute/dim/accent/pos/neg/best-txt/warn) are WCAG AA (>=4.5:1) on --bg and --surface.
    =================================================================================================== */
+/* A — LineSmart (original look, ?theme=linesmart). Also the base for B/D/E, so they render exactly as they did
+   when LineSmart was the default; each theme block below overrides on top of it. */
+:root[data-theme="linesmart"],:root[data-theme="sportsbook"],:root[data-theme="daylight"],:root[data-theme="vegas"]{
+  --bg:#0b0f17;--bg2:#0f1520;--surface:#111723;--surface2:#161e2c;--elev:#1b2433;
+  --line:rgba(148,163,184,.12);--line2:rgba(148,163,184,.22);--grid:rgba(148,163,184,.1);
+  --txt:#e9eef7;--mute:#9aa7bc;--dim:#76849b;
+  --accent:#22d3a6;--accent-ink:#04261d;--accent2:#38bdf8;--warn:#fbbf24;--warn-txt:#fde68a;
+  --pos:#34d399;--neg:#f87171;--win:#22c55e;--loss:#ef4444;--draw:#a3a3a3;--live-txt:#fecaca;
+  --best-txt:#5eead4;--best-hue:var(--accent);
+  --glow-a:7.5%;
+  --logo-tile:#141c2b;--logo-ink:#e6edf7;
+}
 /* B — Sportsbook Green: charcoal + vivid green, gold for best price & ranks */
 :root[data-theme="sportsbook"]{
   --bg:#0c0f0d;--bg2:#101411;--surface:#131815;--surface2:#19201b;--elev:#202923;
@@ -397,18 +409,6 @@ a.grow:hover{background:color-mix(in srgb,var(--tint) 2.5%,transparent)}
   --best-hue:#f5c542;--best-txt:#fcd34d;--hr:#fb923c;
   --glow-a:6%;
   --logo-tile:#131a15;--logo-ink:#edf3ee;
-}
-/* C — Midnight Blue: deep navy-blue + electric blue, cyan best price */
-:root[data-theme="midnight"]{
-  --bg:#050b1c;--bg2:#081025;--surface:#0c1630;--surface2:#111d3c;--elev:#172549;
-  --line:rgba(129,156,224,.14);--line2:rgba(129,156,224,.26);
-  --grid:rgba(129,156,224,.12);
-  --txt:#e8eeff;--mute:#a3b3d9;--dim:#7f90ba;
-  --accent:#3d9bff;--accent-ink:#00132e;--accent2:#22e1ff;--warn:#fbbf24;--warn-txt:#fde68a;
-  --pos:#34d399;--neg:#fb7185;--win:#22c55e;--loss:#f43f5e;--draw:#94a3b8;--live-txt:#fecdd3;
-  --best-hue:#22e1ff;--best-txt:#67e8f9;
-  --glow-a:12%;
-  --logo-tile:#0e1a3a;--logo-ink:#e8eeff;
 }
 /* D — Daylight: light gray/white, indigo accent, for daytime reading */
 :root[data-theme="daylight"]{

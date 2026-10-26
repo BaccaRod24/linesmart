@@ -9,7 +9,7 @@ const BASE = process.env.BASE || "http://localhost:8765/";
 const DATA = process.env.DATA_DIR || "site/data";
 const OUT = path.resolve("screenshots"), DIR = path.join(OUT, "themes");
 fs.mkdirSync(DIR, { recursive: true });
-const THEMES = [["linesmart", "LineSmart (current)"], ["sportsbook", "Sportsbook Green"], ["midnight", "Midnight Blue"], ["daylight", "Daylight"], ["vegas", "Vegas Gold"]];
+const THEMES = [["midnight", "Midnight Blue (default)"], ["linesmart", "LineSmart (original)"], ["sportsbook", "Sportsbook Green"], ["daylight", "Daylight"], ["vegas", "Vegas Gold"]];
 const only = process.env.THEMES ? process.env.THEMES.split(",") : null;
 const nfl = JSON.parse(fs.readFileSync(`${DATA}/nfl/index.json`));
 // a game with both books (so best-price highlighting shows), else any pre-game game with odds
@@ -37,7 +37,7 @@ for (const [t, label] of THEMES) {
     await page.waitForLoadState("networkidle").catch(() => {});
     if (v.scrollTo) await page.evaluate(sel => { const e = document.querySelector(sel); if (e) { const c = e.closest(".card") || e; window.scrollTo(0, c.getBoundingClientRect().top + scrollY - 130); } }, v.scrollTo);
     await page.waitForTimeout(700);
-    const got = await page.evaluate(() => document.documentElement.getAttribute("data-theme") || "linesmart");
+    const got = await page.evaluate(() => document.documentElement.getAttribute("data-theme") || "midnight");
     if (got !== t) errors.push(`${t}/${v.key}: data-theme=${got}`);
     await page.screenshot({ path: path.join(DIR, `${t}-${v.key}.png`) });
     await ctx.close();

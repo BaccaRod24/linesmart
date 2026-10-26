@@ -1,16 +1,17 @@
-// ===== LineSmart color themes (preview only; the default look is unchanged) =====
+// ===== LineSmart color themes. Default: Midnight Blue; the others are previews ======
 // Colors live as CSS custom properties in styles.css; a theme is selected with <html data-theme="…">.
 // Preview: add ?theme=<name> to the URL, e.g. https://…/linesmart/?theme=vegas#/l/nfl  (hash routes keep the query).
-// Nothing is persisted: without ?theme the site always uses the default theme.
+// Nothing is persisted: without ?theme the site always uses the default theme (Midnight Blue).
+// The original teal look is ?theme=linesmart.
 (function () {
   var THEMES = {
-    linesmart: "LineSmart (current)",
-    sportsbook: "Sportsbook Green",
     midnight: "Midnight Blue",
+    linesmart: "LineSmart (original)",
+    sportsbook: "Sportsbook Green",
     daylight: "Daylight",
     vegas: "Vegas Gold",
   };
-  var DEFAULT = "linesmart";
+  var DEFAULT = "midnight";
   var root = document.documentElement;
   var q = null;
   try { q = new URLSearchParams(location.search).get("theme"); } catch (e) {}
@@ -20,10 +21,10 @@
 
   var css = function (v) { return getComputedStyle(root).getPropertyValue(v).trim(); };
   // the logo is an <img>, so CSS variables can't reach it: swap its default colors for the theme's
-  var LOGO = { "#141c2b": "--logo-tile", "#22d3a6": "--logo-1", "#38bdf8": "--logo-2", "#e6edf7": "--logo-ink" };
+  var LOGO = { "#0e1a3a": "--logo-tile", "#3d9bff": "--logo-1", "#22e1ff": "--logo-2", "#e8eeff": "--logo-ink" };
   function apply() {
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", css("--bg") || "#0b0f17");
+    if (meta) meta.setAttribute("content", css("--bg") || "#050b1c");
     if (name === DEFAULT) return;
     var imgs = document.querySelectorAll("img.brand-logo");
     if (!imgs.length || !window.fetch) return;

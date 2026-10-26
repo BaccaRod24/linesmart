@@ -76,11 +76,11 @@ python3 scripts/line_history.py apply --snap-dir /tmp/linesnap --history-dir ../
 - Team and player stats, schedules, bios and game logs are fetched in the browser from `site.web.api.espn.com` (CORS-enabled; `site.api.espn.com` is not). The service worker caches those responses network-first, so recently viewed pages open offline. MLB uses `seasontype=2` (regular season) because ESPN defaults to the postseason. Soccer team stats are computed from the competition's results, and upcoming soccer fixtures come from `?fixture=true`.
 - Next-game lines on a team page come only from our own league data (the 10-day window). They are never invented.
 
-## Color themes (preview)
+## Color themes
 
-All colors are CSS custom properties in `site/assets/styles.css` (`:root`). Alternate themes override them via `:root[data-theme="…"]`; `site/assets/theme.js` applies one from `?theme=` (not persisted). The default (no query) is the original LineSmart look.
+All colors are CSS custom properties in `site/assets/styles.css` (`:root`). Alternate themes override them via `:root[data-theme="…"]`; `site/assets/theme.js` applies one from `?theme=` (not persisted). The default (no query) is **Midnight Blue**; the logo, favicons and PWA icons are drawn in its colors (re-render rasters with `node branding/render-icons.js` after editing `site/assets/brand/icon.svg`/`logo.svg`).
 
-Preview: `?theme=sportsbook`, `?theme=midnight`, `?theme=daylight`, `?theme=vegas` (e.g. `/linesmart/?theme=midnight#/l/nfl`).
+Preview: `?theme=linesmart` (original teal look), `?theme=sportsbook`, `?theme=daylight`, `?theme=vegas` (e.g. `/linesmart/?theme=midnight#/l/nfl`).
 
 Screenshots + comparison sheets (serve the site under `/linesmart/` first):
 `BASE=http://localhost:8811/linesmart/ DATA_DIR=<data dir> node scripts/theme_screenshots.mjs` → `screenshots/themes-compare-*.png`.

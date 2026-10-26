@@ -16,7 +16,7 @@ const ESPN_HOST = "site.web.api.espn.com";
 const SHELL_FILES = [
   "./", "index.html", "manifest.webmanifest", "favicon.ico",
   "responsible-gambling.html", "privacy.html", "terms.html", "affiliate-disclosure.html",
-  "assets/styles.css", "assets/theme.js", "assets/config.js", "assets/site.js", "assets/app.js", "assets/bets-core.js", "assets/bets.js", "assets/matchup-core.js", "assets/matchup.js", "assets/weather-core.js", "assets/weather.js", "assets/props-core.js", "assets/props.js", "assets/fonts/inter-latin-var.woff2",
+  "assets/styles.css", "assets/theme.js", "assets/config.js", "assets/site.js", "assets/app.js", "assets/bets-core.js", "assets/bets.js", "assets/matchup-core.js", "assets/matchup.js", "assets/weather-core.js", "assets/weather.js", "assets/props-core.js", "assets/props.js", "assets/ufc.js", "assets/fonts/inter-latin-var.woff2",
   "assets/brand/logo.svg", "assets/brand/icon.svg", "assets/brand/apple-touch-icon.png",
   "assets/brand/favicon-32.png", "assets/brand/favicon-16.png",
   "assets/brand/icon-192.png", "assets/brand/icon-512.png", "assets/brand/icon-maskable-512.png",

@@ -391,6 +391,53 @@ for (const lg of ["nfl", "nba"]) {
   const pp = await page.evaluate(() => ({ rows: document.querySelectorAll("#ppPlayer .pp-row").length, game: document.querySelector("#ppPlayer .pp-game")?.getAttribute("href") || "" }));
   check(pp.rows > 0 && pp.game.includes(`/${lg}/`), `${lg} player ${pid} page: ${pp.rows} prop rows linking to ${pp.game}`, "props");
 }
+// ---------- UFC: league tab, fight cards, fight page with lines, fighter page with last-5 strip, fighter search
+{
+  let ui = null, fx = null;
+  try { ui = JSON.parse(fs.readFileSync(`${DATA}/ufc/index.json`)); fx = JSON.parse(fs.readFileSync(`${DATA}/ufc/fighters.json`)).fighters; } catch (e) {}
+  if (!ui) check(false, `no ${DATA}/ufc/index.json`, "ufc");
+  else {
+    await page.goto(BASE, { waitUntil: "networkidle" });
+    check(!!(await page.$('a[href="#/l/ufc"]')), "UFC league tab in the nav", "ufc");
+    await page.goto(BASE + "#/l/ufc", { waitUntil: "networkidle" });
+    await page.waitForSelector(".uf-ev .bout, .empty", { timeout: 15000 }).catch(() => {});
+    const L = await page.evaluate(() => ({ ev: document.querySelectorAll(".uf-ev").length, bouts: document.querySelectorAll(".uf-ev .bout").length,
+      segs: [...document.querySelectorAll(".uf-ev .day")].map(e => e.textContent.trim()), weather: document.querySelectorAll(".wx, .wx-card").length }));
+    const upEv = ui.events.filter(e => e.state !== "post");
+    check(L.ev === upEv.length && L.bouts > 0 && L.segs.some(t => /Main card/i.test(t)), `#/l/ufc: ${L.ev} upcoming cards, ${L.bouts} bouts, segments ${[...new Set(L.segs)].slice(0, 3)}`, "ufc");
+    check(L.weather === 0, "no weather on UFC cards", "ufc");
+    await footerOk("ufc league");
+    const g = ui.games.find(x => x.state === "pre" && x.odds && x.odds.awayML != null && fx && fx[x.away.id] && (fx[x.away.id].hist || []).length) || ui.games.find(x => x.odds);
+    if (g) {
+      await page.goto(BASE + `#/g/ufc/${g.id}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".uf-match", { timeout: 15000 }).catch(() => {});
+      const F = await page.evaluate(() => ({ hero: document.querySelector(".uf-match")?.textContent || "", books: document.querySelectorAll(".books").length,
+        links: [...document.querySelectorAll(".uf-match a[href^='#/p/ufc/']")].map(a => a.getAttribute("href")), lines: document.body.textContent }));
+      check(F.hero.includes(g.away.name) && F.hero.includes(g.home.name), `fight page ${g.id}: ${g.away.name} vs ${g.home.name}`, "ufc");
+      check(F.books > 0 && /DraftKings/.test(F.lines) && F.lines.includes((g.odds.awayML > 0 ? "+" : "") + g.odds.awayML), `fight page lines card with DraftKings ML ${g.odds.awayML}`, "ufc");
+      check(F.links.includes(`#/p/ufc/${g.away.id}`) && F.links.includes(`#/p/ufc/${g.home.id}`), "fight page links both fighters", "ufc");
+      check(!/Key matchups|Player props for/.test(F.lines) && /Fight props/.test(F.lines), "matchups / props skipped (fight props noted unavailable)", "ufc");
+      await footerOk("ufc fight");
+      await page.goto(BASE + `#/p/ufc/${g.away.id}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".phero .av + .ph-t h1", { timeout: 20000 }).catch(() => {});   // the fighter view, not the fight page's last-5 cards
+      const P = await page.evaluate(() => ({ h1: document.querySelector(".phero h1")?.textContent || "", boxes: [...(document.querySelector(".phero ~ .card .uf-l5")?.querySelectorAll(".pp-b") || [])].map(b => b.className.split(" ").find(c => /^pp-[oup]$/.test(c))) }));
+      const want = Math.min(5, (fx[g.away.id].hist || []).length);
+      check(P.h1.includes(g.away.name) && P.boxes.length === want && P.boxes.every(Boolean), `fighter page ${g.away.name}: last-5 strip ${P.boxes.length}/${want} (${P.boxes})`, "ufc");
+      await footerOk("ufc fighter");
+    } else check(false, "no UFC bout with odds in the data", "ufc");
+    const sd = sx("ufc");
+    if (sd && sd.players.length) {
+      const pl = sd.players[0];
+      await page.goto(BASE + "#/search", { waitUntil: "networkidle" });
+      await page.waitForSelector("#q");
+      await page.click('.sfilt [data-lg="ufc"]').catch(() => {});
+      await page.fill("#q", pl[1]);
+      await page.waitForSelector(".sr", { timeout: 15000 }).catch(() => {});
+      const hrefs = await page.$$eval(".sr", a => a.map(x => x.getAttribute("href")));
+      check(hrefs.includes(`#/p/ufc/${pl[0]}`), `search "${pl[1]}" finds the fighter`, "ufc");
+    } else check(false, "no search/ufc.json", "ufc");
+  }
+}
 await browser.close();
 if (pwaFail.length) console.log("PWA failures:", pwaFail);
 const outside = [...ok].filter(p => !p.startsWith(new URL(BASE).pathname));

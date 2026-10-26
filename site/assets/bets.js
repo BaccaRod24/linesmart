@@ -61,8 +61,11 @@
     try {
       const d = await A().getJSON(`data/${lg}/games/${id}.json`);
       const g = d && d.game;
+      if (g && g.state === "post" && g.completed && g.result && C.MMA.has(lg))   // UFC bout: winner 1/0 (draw / NC = 0-0 -> ML push), rounds elapsed for totals
+        return { home: +g.home.score || 0, away: +g.away.score || 0, rounds: g.result.rounds, completed: true, status: g.statusDetail || "" };
       if (g && g.state === "post" && g.completed && !SOCCER.has(lg)) return { home: +g.home.score, away: +g.away.score, completed: true, status: g.statusDetail || "" };
     } catch (e) { /* not in the data window: ask ESPN */ }
+    if (C.MMA.has(lg)) return null;   // ESPN's MMA summary has no scores: grade by hand once the bout leaves the data window
     const path = (A().LG[lg] || [])[0]; if (!path) return null;
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 10000);
     try {
@@ -523,13 +526,13 @@
   /** game page card: one-tap shortcuts that prefill the add form */
   function trackCard(lg, g, kind) {
     if (g.state === "post") return `<div class="section-title">Track a bet</div><div class="card bt-track"><h3>Bet on this game? <a class="lnk bt-more" href="${esc(trackHref(lg, g))}">Log it ›</a></h3><div class="note">Moneyline, spread and total bets on finished games are graded from the final score as soon as you save them.</div></div>`;
-    const soccer = kind === "soccer", out = [];
+    const soccer = kind === "soccer", mma = kind === "mma", out = [];
     const books = [["draftkings", "draftkings"], ["hardrock", "hardrockbet"]];
     for (const [bk, key] of books) {
       const b = (g.books || {})[key]; if (!b || b.stale) continue;
       const q = { o: b }, row = [];
       const add = (mk, side, label) => { const pr = priceFor(q, mk, side); if (isNum(pr.odds) || (mk !== "ml" && isNum(pr.line))) row.push(`<a class="oc bt-q" href="${esc(trackHref(lg, g, mk, side, bk, pr))}"><b>${esc(label(pr))}</b><small>${esc(am(pr.odds) || "")}</small></a>`); };
-      if (!soccer) { add("spread", "away", pr => `${g.away.abbr} ${ln(pr.line)}`); add("spread", "home", pr => `${g.home.abbr} ${ln(pr.line)}`); }
+      if (!soccer && !mma) { add("spread", "away", pr => `${g.away.abbr} ${ln(pr.line)}`); add("spread", "home", pr => `${g.home.abbr} ${ln(pr.line)}`); }
       add("ml", "away", () => `${g.away.abbr} ML`); if (soccer) add("ml", "draw", () => "Draw"); add("ml", "home", () => `${g.home.abbr} ML`);
       add("total", "over", pr => `O ${pr.line ?? ""}`); add("total", "under", pr => `U ${pr.line ?? ""}`);
       if (row.length) out.push(`<div class="bt-qrow"><span class="bt-qb">${esc(C.BOOKS[bk])}</span><div class="bt-qgrid">${row.join("")}</div></div>`);

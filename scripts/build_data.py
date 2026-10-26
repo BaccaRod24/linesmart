@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import line_history as LH
+import ufc as UF
 import search_index as SI
 import matchups as MU
 import weather as WX
@@ -44,7 +45,12 @@ LEAGUES = [
     dict(key="epl",   name="EPL",   full="English Premier League", path="soccer/eng.1", params="", kind="soccer", odds_key="soccer_epl"),
     dict(key="mls",   name="MLS",   full="Major League Soccer", path="soccer/usa.1", params="", kind="soccer", odds_key="soccer_usa_mls"),
     dict(key="ucl",   name="UCL",   full="UEFA Champions League", path="soccer/uefa.champions", params="", kind="soccer", odds_key="soccer_uefa_champs_league"),
+    # UFC: built by scripts/ufc.py from ESPN's MMA endpoints (cards, bouts, DraftKings fighter moneylines). The Odds API pull is
+    # OFF unless ODDS_MMA=1: h2h only = 1 credit per pull (0 when no MMA events are listed).
+    dict(key="ufc",   name="UFC",   full="UFC (Mixed Martial Arts)", path="mma/ufc", params="", kind="mma", odds_key="mma_mixed_martial_arts",
+         odds_markets="h2h", odds_cost=1),
 ]
+ODDS_MMA = os.environ.get("ODDS_MMA", "").strip() == "1"   # off by default: never spend Odds API credits on UFC unless asked
 TARGET_BOOKS = [("draftkings", "DraftKings"), ("hardrockbet", "Hard Rock Bet")]  # FanDuel: not tracked (no free source)
 MAX_SUMMARIES = 150
 
@@ -355,11 +361,11 @@ def odds_book_record(ev, bk, swapped=False):
 
 def odds_pull_league(lg, games, pull, t):
     """One Hard Rock pull for a league (3 credits, 0 if no events). Returns a cache entry, or None if skipped/failed."""
-    rem = pull.get("remaining")
-    if rem is None or rem < ODDS_COST:
+    rem, cost, markets = pull.get("remaining"), lg.get("odds_cost", ODDS_COST), lg.get("odds_markets", ODDS_MARKETS)
+    if rem is None or rem < cost:
         pull["skipped"].append(lg["key"]); return None, f"skipped (credits remaining {rem})"
     url = (f"{ODDS_API}/v4/sports/{lg['odds_key']}/odds/?apiKey={urllib.parse.quote(pull['key'])}"
-           f"&regions={ODDS_REGION}&bookmakers={ODDS_BOOK}&markets={ODDS_MARKETS}&oddsFormat=american&dateFormat=iso")
+           f"&regions={ODDS_REGION}&bookmakers={ODDS_BOOK}&markets={markets}&oddsFormat=american&dateFormat=iso")
     try:
         data, hdr = get(url)
     except Exception as ex:
@@ -544,7 +550,8 @@ def main():
             rem, used = None, None; log(f"[odds] credit check failed: {str(ex).replace(key, '***')}")
         if rem is not None and rem >= ODDS_MIN_CREDITS:
             pull = dict(key=key, remaining=rem, spent=0, pulled=[], skipped=[], errors=[])
-            log(f"[odds] credits remaining {rem} (used {used}); pulling Hard Rock Bet for {len(want)} leagues (~{len(want) * ODDS_COST} credits max)")
+            pl = [l for l in LEAGUES if l["key"] in want and (l["kind"] != "mma" or ODDS_MMA)]
+            log(f"[odds] credits remaining {rem} (used {used}); pulling Hard Rock Bet for {len(pl)} leagues (~{sum(l.get('odds_cost', ODDS_COST) for l in pl)} credits max)")
         else:
             log(f"[odds] credit guard: remaining={rem} (< {ODDS_MIN_CREDITS} or unknown); skipping Hard Rock pull")
         check = dict(t=run_t, remainingBefore=rem, used=used, action="pull" if pull else "skipped (credit guard)")
@@ -556,7 +563,14 @@ def main():
     for lg in LEAGUES:
         if lg["key"] not in want or a.search_only: continue
         try:
-            rep = build_league(lg, a.days, pull, cache, a.history_dir, a.snap_dir, run_t, a.weather_cache_dir, not a.no_weather)
+            if lg["kind"] == "mma":   # UFC cards (scripts/ufc.py): no weather, team splits, matchups or props
+                rep = UF.build_ufc(lg, getj, OUT, os.path.join(OUT, "search"), LH, pull=pull if ODDS_MMA else None, odds_pull=odds_pull_league,
+                                   odds_cache=cache, apply_cached=apply_cached_odds, hist_dir=a.history_dir, snap_dir=a.snap_dir, run_t=run_t,
+                                   cache_dir=a.matchup_cache_dir, log=log,
+                                   odds_off_reason=None if ODDS_MMA else "off (set ODDS_MMA=1 to pull Hard Rock MMA moneylines, 1 credit per pull)")
+                if rep.get("search"): meta.setdefault("search", {})[lg["key"]] = rep["search"]
+            else:
+                rep = build_league(lg, a.days, pull, cache, a.history_dir, a.snap_dir, run_t, a.weather_cache_dir, not a.no_weather)
             meta["leagues"][lg["key"]] = dict(name=lg["name"], full=lg["full"], games=rep["games"], upcoming=rep["upcoming"],
                                               withOdds=rep["withOdds"], providers=rep["providers"], updated=dt.datetime.now(dt.timezone.utc).isoformat(), report=rep)
         except Exception as ex:
@@ -576,7 +590,7 @@ def main():
     if not a.no_search:
         meta.setdefault("search", {})
         for lg in LEAGUES:
-            if lg["key"] not in want: continue
+            if lg["key"] not in want or lg["kind"] == "mma": continue   # UFC's fighter index is written by build_ufc
             try:
                 meta["search"][lg["key"]] = SI.build_search(lg, getj, SITE, STANDINGS, os.path.join(OUT, "search"),
                                                             a.roster_cache_dir, a.roster_max_age_hours, a.snap_dir, log)

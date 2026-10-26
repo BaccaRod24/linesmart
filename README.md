@@ -1,6 +1,6 @@
 # LineSmart (v1): sports betting data site
 
-LineSmart is a static site (plain HTML/CSS/JS) with upcoming games, betting lines, team stats, home/away splits, recent form, last-5 results and injuries. It covers **NFL, NBA, NCAAF (FBS), NCAAB (men), NHL, MLB, EPL, MLS and UEFA Champions League**.
+LineSmart is a static site (plain HTML/CSS/JS) with upcoming games, betting lines, team stats, home/away splits, recent form, last-5 results and injuries. It covers **NFL, NBA, NCAAF (FBS), NCAAB (men), NHL, MLB, EPL, MLS, UEFA Champions League and UFC**.
 
 All numbers come from real public sources. Nothing is hardcoded or invented. Missing data shows as **N/A**.
 
@@ -41,6 +41,17 @@ Publish the `site/` folder on Netlify, Cloudflare Pages or GitHub Pages. There i
 - Scoreboard: `https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/scoreboard?dates=YYYYMMDD` (one day per call; date ranges return 400). NCAAF adds `groups=80&limit=300` and NCAAB adds `groups=50&limit=300`.
 - Game summary: `.../summary?event={id}`. This returns `pickcenter` (lines with open and current values), team season stats, last five games, injuries, predictor, leaders and season series.
 - Team schedule: `.../teams/{id}/schedule`. Used to compute PF/PA, home/away splits, last 10 and streak.
+
+### UFC (MMA)
+Built by `scripts/ufc.py`. Each bout is a "game": away = red corner (order 1), home = blue corner (order 2). That lets line movement, the books card and My Bets reuse the team-sport code.
+- Events: the site scoreboard `.../mma/ufc/scoreboard` (its `leagues[0].calendar` lists the events) picks the 2 most recent and 4 upcoming cards.
+- Bouts: core `.../events/{id}` gives the card segment (main / prelims1 / prelims2), match order, weight class and scheduled rounds.
+- Results: core `.../competitions/{id}/status` gives the winner, method, round and time.
+- Odds: core `.../competitions/{id}/odds` (DraftKings). These are moneylines mapped by athlete id, plus total rounds. ESPN has no free fight props (method or round), so none are shown.
+- Fighter form: core `.../athletes/{id}/eventlog` covers fighters on the cards in the data window. Finished fights are cached in `MATCHUP_CACHE_DIR/ufc_fights.json`. The first cold build takes about 140 s; warm runs take about 20 s.
+- Fighter pages load the live bio from `site.web.api.espn.com/apis/common/v3/sports/mma/athletes/{id}`.
+- Grading: a bout scores 1/0, so a draw or no contest pushes the moneyline. Total rounds settle on elapsed time (2:30 into round 3 = 2.5; decisions go the distance). There are no MMA spreads. Weather, key matchups and player props skip UFC.
+- Hard Rock: `mma_mixed_martial_arts` with `markets=h2h` costs **1 credit per pull** (0 when no events are listed). It is **off by default**; set `ODDS_MMA=1` to include it in pull runs.
 
 Odds come from the single sportsbook ESPN lists (currently DraftKings). It is labeled with the provider name ESPN reports.
 

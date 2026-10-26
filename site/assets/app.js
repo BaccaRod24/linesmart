@@ -134,6 +134,11 @@
     catch (e) { return (app.innerHTML = `<div class="page-head"><h1>${esc(L.full)}</h1></div><div class="empty"><h3>No data file for ${esc(L.name)}</h3>Run <code>python3 scripts/build_data.py</code> to refresh.${L.error ? "<br>" + esc(L.error) : ""}</div>`); }
     const kind = data.league.kind;
     const filter = sessionStorage.getItem("filter-" + key) || "upcoming";
+    if (kind === "mma" && window.LSUfc) {   // UFC: fight cards grouped by event and main card / prelims (assets/ufc.js)
+      app.innerHTML = window.LSUfc.league(data, key, filter);
+      app.querySelectorAll(".seg button").forEach(b => (b.onclick = () => { sessionStorage.setItem("filter-" + key, b.dataset.f); viewLeague(key); }));
+      return;
+    }
     let games = data.games;
     if (filter === "upcoming") games = games.filter(g => g.state !== "post");
     const days = {};
@@ -201,6 +206,7 @@
     let d, idx;
     try { [d, idx] = await Promise.all([getJSON(`data/${key}/games/${id}.json`), getJSON(`data/${key}/index.json`)]); }
     catch (e) { return (app.innerHTML = `<a class="back" href="#/l/${key}">← Back</a><div class="empty"><h3>Game not found</h3>It may have dropped out of the data window. Refresh the data.</div>`); }
+    if (idx.league.kind === "mma" && window.LSUfc) return window.LSUfc.fight(d, idx, key);
     const g = d.game, det = d.detail || {}, kind = idx.league.kind, u = unitWord(kind);
     const H = g.home, A = g.away, tH = d.teams[H.id] || {}, tA = d.teams[A.id] || {};
     const mid = g.state === "pre"
@@ -303,7 +309,7 @@
     const spreadLabel = kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread";
     const MARKETS = {
       spread: { label: spreadLabel, series: [{ key: "hs", name: `${g.home.abbr} ${spreadLabel.toLowerCase()}`, color: "var(--chart-1)" }], f: line },
-      total: { label: "Total", series: [{ key: "tot", name: "Total (O/U)", color: "var(--chart-2)" }], f: v => String(v) },
+      total: { label: kind === "mma" ? "Total rounds" : "Total", series: [{ key: "tot", name: kind === "mma" ? "Total rounds (O/U)" : "Total (O/U)", color: "var(--chart-2)" }], f: v => String(v) },
       ml: { label: "Moneyline", series: [{ key: "aml", name: `${g.away.abbr} ML`, color: "var(--chart-3)" }, { key: "hml", name: `${g.home.abbr} ML`, color: "var(--chart-1)" }].concat(kind === "soccer" ? [{ key: "dml", name: "Draw", color: "var(--chart-4)" }] : []), f: am },
     };
     const has = (bk, key) => pointsFor(bk).some(p => isNum(p.v[key])) || isNum(openFor(bk)[key]);
@@ -410,11 +416,11 @@
     const r = (label, a, h, extra = "") => `<tr><td>${label}</td><td class="num">${a}</td><td class="num">${h}</td>${extra}</tr>`;
     const spreadLabel = kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread";
     let body = "";
-    if (o.homeSpread !== null || o.awaySpread !== null)
+    if (isNum(o.homeSpread) || isNum(o.awaySpread))
       body += r(spreadLabel, `${line(o.awaySpread) ?? NA} <span class="na">${am(o.awaySpreadOdds) ?? ""}</span>${mv(o.awaySpread, o.awaySpreadOpen, true)}`, `${line(o.homeSpread) ?? NA} <span class="na">${am(o.homeSpreadOdds) ?? ""}</span>${mv(o.homeSpread, o.homeSpreadOpen, true)}`);
     body += r(kind === "soccer" ? "Moneyline (3-way)" : "Moneyline", `${am(o.awayML) ?? NA}${mv(o.awayML, o.awayMLOpen, false)}`, `${am(o.homeML) ?? NA}${mv(o.homeML, o.homeMLOpen, false)}`);
     if (kind === "soccer") body += `<tr><td>Draw</td><td class="num" colspan="2" style="text-align:center">${am(o.drawML) ?? NA}${mv(o.drawML, o.drawMLOpen, false)}</td></tr>`;
-    body += `<tr><td>Total</td><td class="num">O ${fx(o.total) ?? NA} <span class="na">${am(o.overOdds) ?? ""}</span></td><td class="num">U ${fx(o.total) ?? NA} <span class="na">${am(o.underOdds) ?? ""}</span>${isNum(o.totalOpen) && o.totalOpen !== o.total ? `<div class="move">open ${o.totalOpen} → ${o.total}</div>` : ""}</td></tr>`;
+    body += `<tr><td>${kind === "mma" ? "Total rounds" : "Total"}</td><td class="num">O ${fx(o.total) ?? NA} <span class="na">${am(o.overOdds) ?? ""}</span></td><td class="num">U ${fx(o.total) ?? NA} <span class="na">${am(o.underOdds) ?? ""}</span>${isNum(o.totalOpen) && o.totalOpen !== o.total ? `<div class="move">open ${o.totalOpen} → ${o.total}</div>` : ""}</td></tr>`;
     return `<div class="card"><h3>Current line · ${esc(o.provider || "provider n/a")}</h3>
       <table class="books"><thead><tr><th>Market</th><th>${esc(g.away.abbr)}</th><th>${esc(g.home.abbr)}</th></tr></thead><tbody>${body}</tbody></table>
       <div class="note">Source: ${esc(g.oddsSource || "ESPN")} — as reported by ${esc(o.provider || "the listed book")}. "open" = opening line (line movement).</div></div>`;
@@ -430,7 +436,7 @@
     const ml = s => b => (isNum(b?.[s + "ML"]) ? { disp: am(b[s + "ML"]), score: b[s + "ML"] } : null);
     const ov = b => (isNum(b?.total) ? { disp: `O ${b.total} <span class="na">${am(b.overOdds) ?? ""}</span>`, score: -b.total * 1000 + (b.overOdds ?? -110) } : null);
     const un = b => (isNum(b?.total) ? { disp: `U ${b.total} <span class="na">${am(b.underOdds) ?? ""}</span>`, score: b.total * 1000 + (b.underOdds ?? -110) } : null);
-    if (kind !== "soccer") { markets.push([`${g.away.abbr} spread`, sp("away")], [`${g.home.abbr} spread`, sp("home")]); }
+    if (kind !== "soccer" && kind !== "mma") { markets.push([`${g.away.abbr} spread`, sp("away")], [`${g.home.abbr} spread`, sp("home")]); }
     markets.push([`${g.away.abbr} ML`, ml("away")]);
     if (kind === "soccer") markets.push(["Draw", ml("draw")]);
     markets.push([`${g.home.abbr} ML`, ml("home")], ["Over", ov], ["Under", un]);
@@ -483,6 +489,7 @@
     nfl: ["football/nfl", "football"], nba: ["basketball/nba", "basketball"], ncaaf: ["football/college-football", "football"],
     ncaab: ["basketball/mens-college-basketball", "basketball"], nhl: ["hockey/nhl", "hockey"], mlb: ["baseball/mlb", "baseball"],
     epl: ["soccer/eng.1", "soccer"], mls: ["soccer/usa.1", "soccer"], ucl: ["soccer/uefa.champions", "soccer"],
+    ufc: ["mma/ufc", "mma"],
   };
   const PRO = new Set(["nfl", "nba", "nhl", "mlb", "epl", "mls", "ucl"]);
   const lgName = lg => (META.leagues[lg] || {}).name || lg.toUpperCase();
@@ -532,7 +539,7 @@
       const lg = META.order[i];
       if (r.status !== "fulfilled") return missing.push(lg);
       const d = r.value, kind = d.meta.kind, b = PRO.has(lg) ? 6 : 0;
-      d.teams.forEach(t => list.push({ k: "t", lg, lgs: [lg], o: t, name: t.name, x: norm(t.name), w: words(`${t.name} ${t.short} ${t.abbr}`), ab: norm(t.abbr), sh: norm(t.short), b: b + 12 }));
+      if (kind !== "mma") d.teams.forEach(t => list.push({ k: "t", lg, lgs: [lg], o: t, name: t.name, x: norm(t.name), w: words(`${t.name} ${t.short} ${t.abbr}`), ab: norm(t.abbr), sh: norm(t.short), b: b + 12 }));
       d.players.forEach(p => {
         if (kind === "soccer" && soccer[p.id]) return soccer[p.id].lgs.push(lg); // same player in EPL/MLS + UCL: one result
         const e = { k: "p", lg, lgs: [lg], o: p, name: p.name, x: norm(p.name), w: words(p.name), b };
@@ -758,6 +765,7 @@
     return { n: list.length, html: `<div class="tbl-wrap"><table class="ptbl glog"><thead>${catRow(gl.categories, labels.length, 3)}<tr><th>Date</th><th>Opp</th><th>Result</th>${labels.map((l, i) => `<th title="${esc(names[i] || l)}">${esc(l)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></div>` };
   }
   async function viewPlayer(lg, id, sub) {
+    if (lg === "ufc" && window.LSUfc) return window.LSUfc.fighter(id);   // fighter page (assets/ufc.js)
     const tok = NAV, wantMatchup = sub === "m"; renderTabs(lg); window.scrollTo(0, 0);
     if (!LG[lg]) return (app.innerHTML = `<div class="empty"><h3>Unknown league</h3></div>`);
     const [path, kind] = LG[lg], base = `common/v3/sports/${path}/athletes/${id}`;
@@ -833,7 +841,7 @@
   }
   window.addEventListener("hashchange", route);
   // helpers shared with the My Bets tracker (assets/bets.js)
-  window.LSApp = { esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, nav: () => NAV, espn, crest, notAvail, sidx };
+  window.LSApp = { esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, nav: () => NAV, espn, crest, notAvail, sidx, linesCard, booksCard, lineMoveSection };
   // "/" opens search from anywhere (unless typing in a field)
   document.addEventListener("keydown", e => {
     if (e.key === "/" && !e.metaKey && !e.ctrlKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "")) {

@@ -12,6 +12,7 @@
   const TYPES = { ml: "Moneyline", spread: "Spread", total: "Total (O/U)", prop: "Prop / other", parlay: "Parlay" };
   const STATUS = { pending: "Pending", won: "Won", lost: "Lost", push: "Push", void: "Void", cashout: "Cashed out" };
   const SOCCER = new Set(["epl", "mls", "ucl"]);
+  const MMA = new Set(["ufc"]);   // bouts: final.home/away = 1 (winner) / 0; totals grade on final.rounds (rounds elapsed)
   const AUTO_TYPES = new Set(["ml", "spread", "total"]);
 
   // ---------- odds math
@@ -104,6 +105,13 @@
     }
     // quarter lines (Asian handicap -0.25 / 2.75) are split stakes: grade by hand
     if ((sel.type === "spread" || sel.type === "total") && isNum(sel.line) && Math.abs(Number(sel.line) * 4) % 2 === 1) return null;
+    if (MMA.has(sel.league) && sel.type === "total") {   // total rounds: O/U 2.5 = fight ends after 2:30 of round 3
+      if (!isNum(final.rounds) || !isNum(sel.line) || (sel.side !== "over" && sel.side !== "under")) return null;
+      const t = Number(final.rounds), ln = Number(sel.line);
+      if (Math.abs(t - ln) < 1e-9) return "push";
+      return (t > ln) === (sel.side === "over") ? "won" : "lost";
+    }
+    if (MMA.has(sel.league) && sel.type === "spread") return null;
     if (sel.type === "spread") {
       if (mine === null || !isNum(sel.line)) return null;
       const m = mine + Number(sel.line) - theirs;
@@ -237,7 +245,7 @@
   }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
-  return { BOOKS, TYPES, STATUS, SOCCER, KEY, isNum, toDecimal, toAmerican, validAmerican, winProfit, impliedProb, parlayDecimal, parlayAmerican, parlayStatus,
+  return { BOOKS, TYPES, STATUS, SOCCER, MMA, KEY, isNum, toDecimal, toAmerican, validAmerican, winProfit, impliedProb, parlayDecimal, parlayAmerican, parlayStatus,
     effectiveDecimal, netResult, payout, toWin, gradeSelection, canAutoSettle, autoSettle, pendingEvents, inRange, seasonStart, filterBets, betLeagues,
     summarize, roi, groupBy, cumulative, normalizeBet, parseImport, mergeBets, toCSV, uid };
 });

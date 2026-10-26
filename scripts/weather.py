@@ -252,6 +252,9 @@ def fetch_batch(locs, start, end, fetch=http_json):
 def attach(lg, games, cache_dir=None, snap_dir=None, log=print, now=None, fetch=http_json, seed_file=SEED_FILE):
     """Set g['weather'] on every pre/live game. Returns a short report dict. Never raises."""
     rep = dict(indoor=0, forecast=0, retractable=0, pending=0, unavailable=0, fetched=0, cached=0, geocoded=0, calls=0, errors=[])
+    if (lg or {}).get("kind") == "mma":   # fights are indoors; no weather section or chips for UFC
+        for g in games: g.pop("weather", None)
+        rep["skipped"] = "mma"; return rep
     try:
         now = now or dt.datetime.now(dt.timezone.utc)
         seed = _load(seed_file).get("venues", {}) if seed_file else {}

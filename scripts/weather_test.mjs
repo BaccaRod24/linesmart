@@ -58,6 +58,7 @@ if (DATA && fs.existsSync(`${DATA}/meta.json`)) {
     const f = `${DATA}/${lg}/index.json`; if (!fs.existsSync(f)) continue;
     const idx = JSON.parse(fs.readFileSync(f)), kind = (meta.leagues[lg] || {}).kind;
     const up = idx.games.filter(g => g.state === "pre");
+    if (kind === "mma" || lg === "ufc") { check(up.every(g => !g.weather), `${up.length} upcoming bouts carry no weather (MMA skipped)`, `data-${lg}`); continue; }
     const n = k => up.filter(g => (g.weather || {}).kind === k).length;
     const bad = up.filter(g => !g.weather || (["basketball", "hockey"].includes(kind) && g.weather.kind !== "indoor"));
     check(!bad.length, `${up.length} upcoming: ${n("forecast")} forecast, ${n("indoor")} indoor, ${n("pending")} pending, ${n("unavailable")} unavailable`, `data-${lg}`);

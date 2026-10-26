@@ -15,7 +15,7 @@ const ESPN_MAX = 150;
 const ESPN_HOST = "site.web.api.espn.com";
 const SHELL_FILES = [
   "./", "index.html", "manifest.webmanifest", "favicon.ico",
-  "assets/styles.css", "assets/theme.js", "assets/config.js", "assets/app.js", "assets/fonts/inter-latin-var.woff2",
+  "assets/styles.css", "assets/theme.js", "assets/config.js", "assets/app.js", "assets/bets-core.js", "assets/bets.js", "assets/fonts/inter-latin-var.woff2",
   "assets/brand/logo.svg", "assets/brand/icon.svg", "assets/brand/apple-touch-icon.png",
   "assets/brand/favicon-32.png", "assets/brand/favicon-16.png",
   "assets/brand/icon-192.png", "assets/brand/icon-512.png", "assets/brand/icon-maskable-512.png",

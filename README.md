@@ -85,6 +85,15 @@ Preview: `?theme=linesmart` (original teal look), `?theme=sportsbook`, `?theme=d
 Screenshots + comparison sheets (serve the site under `/linesmart/` first):
 `BASE=http://localhost:8811/linesmart/ DATA_DIR=<data dir> node scripts/theme_screenshots.mjs` → `screenshots/themes-compare-*.png`.
 
+## My Bets (private bet tracker)
+
+`#/bets` is a personal profit/loss tracker for bets placed at any sportsbook. Sportsbooks don't offer a public API for linking accounts, so bets are entered by hand (or prefilled from a game page via **Track a bet**) and stored only in the browser's `localStorage` (`ls-bets-v1`). Nothing is uploaded. Use **Export JSON** to back up or move to another device, and **Export CSV** for spreadsheets.
+
+- Logic: `site/assets/bets-core.js` (odds/payout/parlay math, grading, stats; pure, unit-tested). UI: `site/assets/bets.js`.
+- Moneyline, spread and total bets tied to a listed game settle automatically from the final score (site data, then the ESPN summary endpoint) once the game has finished. Props, manually typed games, soccer extra time/penalties and quarter lines are settled by hand (Won / Lost / Push / Void / Cashed out).
+- Tests: `node scripts/bets_test.mjs`; the subpath test also covers the route, the SW cache and adding a bet.
+- Screenshots use example data from `scripts/fixtures/demo-bets.json` (never shipped in `site/`): `BASE=... OUT=screenshots node scripts/screenshots_bets.mjs`.
+
 ## Limitations
 - ESPN reports one book per game. Hard Rock Bet is refreshed only every other day (free plan). FanDuel is not tracked.
 - Lines appear only once the book posts them. NBA, NHL and NCAAB lines usually show up a day or so before the game.

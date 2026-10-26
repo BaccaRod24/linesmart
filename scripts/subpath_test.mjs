@@ -127,6 +127,40 @@ if (ofTeam) {
   await page.reload({ waitUntil: "load" }); await waitView();
   check((await txt(".phero h1")).includes(ofTeam[1]) && (await page.$$(".roster .pl")).length > 0, `offline team page from SW cache (${ofTeam[1]})`);
 }
+// My Bets: on-device tracker (still offline here, so this also proves the route works from the SW cache)
+const shellUrls = await page.evaluate(async () => { for (const n of await caches.keys()) if (n.startsWith("linesmart-shell-")) return (await (await caches.open(n)).keys()).map(r => r.url); return []; });
+check(["assets/bets.js", "assets/bets-core.js"].every(f => shellUrls.includes(BASE + f)), "SW shell cache includes bets.js + bets-core.js", "bets");
+await page.goto(BASE + "#/bets", { waitUntil: "load" });
+await page.waitForSelector(".bt-empty, .bt-stats", { timeout: 15000 }).catch(() => {});
+check(!!(await page.$(".bt-empty")), "offline: #/bets renders the empty state", "bets");
+await page.context().setOffline(false);
+check(!!(await page.$('#betsBtn[href="#/bets"]')) && await page.$eval("#betsBtn", b => b.classList.contains("on")), "header My Bets button present and active on #/bets", "bets");
+const upGid = (nfl.games.find(g => g.state === "pre") || nfl.games[0] || {}).id;
+if (upGid) {
+  await page.goto(BASE + `#/g/nfl/${upGid}`, { waitUntil: "networkidle" }); await waitView();
+  const quick = await page.$(".bt-track a.bt-q") || await page.$(".bt-track a[href^='#/bets/add']");
+  check(!!quick, `game page has a Track a bet card (${upGid})`, "bets");
+  const gid = upGid;
+  if (quick) {
+    await quick.click(); await page.waitForSelector(".bt-form", { timeout: 10000 });
+    check(await page.$eval('[data-f="game"]', s => s.value) === String(gid), "track link prefills the game", "bets");
+    if (!(await page.$eval('[data-f="odds"]', i => i.value))) await page.fill('[data-f="odds"]', "-110");
+    if (await page.$('[data-f="line"]') && !(await page.$eval('[data-f="line"]', i => i.value))) await page.fill('[data-f="line"]', "-3.5");
+    await page.fill('[data-f="stake"]', "25");
+    await page.click('.bt-form button[type="submit"]');
+    await page.waitForFunction(() => location.hash === "#/bets/list", null, { timeout: 5000 }).catch(() => {});
+    const saved = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem("ls-bets-v1")).bets; } catch { return []; } });
+    check(saved.length === 1 && saved[0].stake === 25 && String((saved[0].event || {}).id) === String(gid) && saved[0].status === "pending", `saved bet in localStorage (${saved.length})`, "bets");
+    await page.waitForSelector(".bt-list .bt-card", { timeout: 5000 }).catch(() => {});
+    check((await page.$$(".bt-list .bt-card")).length === 1, "saved bet shows in the list", "bets");
+    await page.reload({ waitUntil: "networkidle" });
+    check((await page.$$(".bt-list .bt-card")).length === 1, "bet survives reload", "bets");
+    page.once("dialog", d => d.accept());
+    await page.click(".bt-card [data-del]");
+    await page.waitForTimeout(300);
+    check(await page.evaluate(() => JSON.parse(localStorage.getItem("ls-bets-v1")).bets.length) === 0, "delete removes it", "bets");
+  }
+}
 await page.context().setOffline(false);
 errors.length = errsOnline; // network errors while deliberately offline (e.g. ESPN logos) are expected
 await browser.close();

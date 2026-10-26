@@ -514,6 +514,12 @@
     const HR = META.hardrock || {};
     const B = Object.fromEntries(Object.entries(g.books || {}).filter(([, b]) => b && !b.stale));   // stale = game started since the pull
     const staleB = g.books || {};
+    // Only books with a line for this game get a column: a book with no data (e.g. FanDuel has no NCAAB, UCL, UFC or
+    // some MLS lines) would render an all-"N/A" column. The footnote names the books left out.
+    const allBooks = books;
+    books = books.filter(bk => B[bk.key]);
+    const missing = allBooks.filter(bk => !B[bk.key]);
+    const missNote = !books.length ? "" : missing.length ? ` No ${missing.map(bk => bk.name).join(" or ")} line for this game at the last pull, so ${missing.length > 1 ? "those columns are" : "that column is"} hidden.` : "";
     const markets = [];
     const LV = window.LSAdv && kind !== "mma" ? window.LSAdv.booksExtra(B, kind) : null;   // implied %, fair line, edge, outliers (assets/adv.js)
     const sp = s => b => (isNum(b?.[s + "Spread"]) ? { disp: `${line(b[s + "Spread"])} <span class="na">${am(b[s + "SpreadOdds"]) ?? ""}</span>`, score: b[s + "Spread"] * 1000 + (b[s + "SpreadOdds"] ?? -110) } : null);
@@ -557,8 +563,13 @@
                             : "Hard Rock Bet, FanDuel and DraftKings via The Odds API; no pull yet.") + pace;
     const dkNote = dkPaid ? "DraftKings' opening line (line movement) comes from ESPN. "
                  : B.draftkings ? "DraftKings here is ESPN's copy (The Odds API had no DraftKings line for this game at the last pull). " : "";
+    if (!books.length) {   // no book has a current line: say why instead of a table of N/A
+      const closed = allBooks.some(bk => staleB[bk.key] && staleB[bk.key].stale);
+      const why = closed ? "Pre-game lines closed when the game started." : HR.asOf ? "No sportsbook posted a line for this game at the last pull." : "No sportsbook lines yet.";
+      return `<div class="card"><h3>Odds comparison</h3><div class="note">${why} ${hrNote}</div>${affLine()}</div>`;
+    }
     return `<div class="card"><h3>Odds comparison</h3><div class="tbl-wrap"><table class="books${lvOn ? " lv-on" : ""}"><thead><tr><th>Market</th>${head}${lvOn ? `<th class="lv-fair">Fair line<span class="src">no-vig consensus</span></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}${hrNote} ${dkNote}${outNote}</div>${lvOn ? LV.note : ""}${affLine()}</div>`;
+      <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}${hrNote}${missNote} ${dkNote}${outNote}</div>${lvOn ? LV.note : ""}${affLine()}</div>`;
   }
 
   function lastFive(t, det, ts) {

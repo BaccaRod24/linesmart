@@ -112,7 +112,7 @@
       const jt = [W, H].filter(t => (t.judges || []).length).map(t => `${esc(t.short || t.name)}: ${t.judges.map(esc).join(", ")}`).join(" · ");
       html += `<div class="section-title">Result</div><div class="card uf-result"><div class="uf-big">${esc(resultLine(g))}</div>${jt ? `<div class="note">Judges' totals: ${jt}</div>` : ""}</div>`;
     }
-    html += `<div class="section-title">Betting lines</div><div class="cols">${L.linesCard(g, "mma")}${L.booksCard(g, "mma")}</div>`;
+    html += `<div class="section-title">Betting lines</div><div class="cols">${L.linesCard(g, "mma")}${L.booksCard(g, "mma", key)}</div>`;
     if (window.LSBets) html += window.LSBets.trackCard(key, g, "mma");
     const lm = L.lineMoveSection(d, g, "mma");
     html += lm.html;

@@ -44,7 +44,14 @@
     return `<span class="pp-b pp-${b.r}" title="${esc(tip)}" aria-label="${esc(tip)}"><b>${esc(val)}</b><i>${esc(b.opp || "")}</i></span>`;
   }
 
-  function propRow(p, log) {
+  /** "+ Track" link: opens My Bets' add sheet with this player + prop picked (bets.js, window.LSBets). */
+  function trackLink(p, ctx, name) {
+    if (!ctx || !ctx.gid || !window.LSBets || !window.LSBets.propHref) return "";
+    const href = window.LSBets.propHref(ctx.lg, ctx.gid, ctx.pid, p.mk, p.book, p.line);
+    return `<a class="pp-trk" href="${esc(href)}" aria-label="${esc(`Track a bet: ${name} ${p.label}`)}">+ Track</a>`;
+  }
+
+  function propRow(p, log, ctx, name) {
     const s = C.strip(log, p.mk, p.line, 5), sm = C.summary(log, p.mk, p.line, 5), l10 = C.rate(log, p.mk, p.line, 10), se = C.season(p.tally);
     const mv = C.moveText(p.line, p.open);
     const cls = sm.n ? (sm.o / sm.n > 0.5 ? "hot" : sm.o / sm.n < 0.5 ? "cold" : "") : "";
@@ -52,7 +59,7 @@
     return `<div class="pp-row${hot ? " is-hot" : ""}" data-mk="${esc(p.mk)}" data-hot="${hot ? 1 : 0}">
       <div class="pp-mk"><span class="pp-lab">${esc(p.label)}${MULTI && p.book ? ` <span class="pp-src">${esc(BKS[p.book] || "")}</span>` : ""}</span><span class="pp-line">${esc(C.lineText(p.mk, p.line))}</span>${mv ? `<span class="pp-mv">${esc(mv)}</span>` : ""}</div>
       <div class="pp-strip" role="list" aria-label="Last 5 games vs this line">${s.length ? s.map(b => box(b, p.mk)).join("") : `<span class="pp-none">No games yet this season</span>`}</div>
-      <div class="pp-sum">${hot ? `<span class="pp-hot-tag">Hot</span>` : ""}<b class="pp-xs ${cls}">${esc(sm.text)}</b><span>L10 ${l10.n ? `${l10.o}/${l10.n}` : "—"}</span><span>Season ${esc(se.text)}</span></div>
+      <div class="pp-sum">${hot ? `<span class="pp-hot-tag">Hot</span>` : ""}<b class="pp-xs ${cls}">${esc(sm.text)}</b><span>L10 ${l10.n ? `${l10.o}/${l10.n}` : "—"}</span><span>Season ${esc(se.text)}</span>${trackLink(p, ctx, name)}</div>
       ${bookLine(p)}
     </div>`;
   }
@@ -60,7 +67,7 @@
   function playerCard(lg, pl, opts = {}) {
     return `<div class="pp-card" data-team="${esc(pl.t)}" data-pid="${esc(pl.pid)}">
       <div class="pp-h">${opts.noLink ? `<b>${esc(pl.n)}</b>` : `<a href="#/p/${esc(lg)}/${esc(pl.pid)}">${esc(pl.n)}</a>`}<span class="pp-meta">${esc([pl.pos, pl.ta].filter(Boolean).join(" · "))}</span></div>
-      ${pl.props.map(p => propRow(p, pl.log)).join("")}
+      ${pl.props.map(p => propRow(p, pl.log, opts.gid ? { lg, gid: opts.gid, pid: pl.pid } : null, pl.n)).join("")}
     </div>`;
   }
 
@@ -108,7 +115,7 @@
     const tabs = `<div class="pp-tabs" role="group" aria-label="Team">${[["", "All"], ...teams].map(([id, ab], i) => `<button class="${i ? "" : "on"}" data-f="${esc(id)}" aria-pressed="${!i}">${esc(ab)}</button>`).join("")}`
       + `<button class="pp-hot" data-hot aria-pressed="false" title="Only props that went over in at least 4 of his last 5 games (or all of them, with 2-4 games played)">Hot: 4/5+ over <span class="pp-n">${nHot}</span></button></div>`;
     const chips = mkts.length > 1 ? `<div class="pp-chips" role="group" aria-label="Prop type"><button class="on" data-m="" aria-pressed="true">All props</button>${mkts.map(m => `<button data-m="${esc(m)}" aria-pressed="false">${esc(doc.markets[m][1])}</button>`).join("")}</div>` : "";
-    el.innerHTML = tabs + chips + legend + `<div class="pp-list">${players.map(p => playerCard(lg, p)).join("")}</div>`
+    el.innerHTML = tabs + chips + legend + `<div class="pp-list">${players.map(p => playerCard(lg, p, { gid: g.id })).join("")}</div>`
       + `<div class="card note pp-empty" hidden></div><button class="pp-more" hidden></button>` + foot(doc);
     if (window.LSAdv) window.LSAdv.decorateProps(el, lg).catch(() => {});   // usage chips (assets/adv.js)
     const f = { team: "", mk: "", hot: false };
@@ -152,7 +159,7 @@
       const g = byId.get(String(gid));
       const opp = g ? (String(g.home.id) === String(player.t) ? `vs ${g.away.abbr}` : `@ ${g.home.abbr}`) : "";
       const hdr = g ? `<a class="pp-game" href="#/g/${esc(lg)}/${esc(gid)}"><b>${esc(opp)}</b><span>${esc(A().fullET(g.date))}</span><span class="pp-go">Game →</span></a>` : "";
-      return hdr + playerCard(lg, player, { noLink: true });
+      return hdr + playerCard(lg, player, { noLink: true, gid: g && g.state === "pre" ? gid : null });
     }).join("") + foot(doc) + `</div>`;
   }
 

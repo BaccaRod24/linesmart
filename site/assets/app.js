@@ -295,7 +295,7 @@
         <div class="mteam home">${logo(H)}<div><div class="nm">${H.rank ? `<span class="rk" style="color:var(--warn)">#${H.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${H.id}">${esc(H.name)}</a></div><div class="rec">${esc(H.record || "—")} · Home ${esc(H.homeRecord || "—")}${formDots(H.form)}</div></div></div>
       </div>`;
 
-    html += `<div class="section-title">Betting lines</div><div class="cols">${linesCard(g, kind)}${booksCard(g, kind)}</div>${offersSlot("game")}`;
+    html += `<div class="section-title">Betting lines</div><div class="cols">${linesCard(g, kind)}${booksCard(g, kind, key)}</div>${offersSlot("game")}`;
     if (window.LSBets) html += window.LSBets.trackCard(key, g, kind);
     const lm = lineMoveSection(d, g, kind);
     html += lm.html;
@@ -507,7 +507,7 @@
       <div class="note">Source: ${esc(g.oddsSource || "ESPN")} — as reported by ${esc(o.provider || "the listed book")}. "open" = opening line (line movement).</div></div>`;
   }
 
-  function booksCard(g, kind) {
+  function booksCard(g, kind, lg) {
     let books = META.targetBooks || [{ key: "draftkings", name: "DraftKings" }, { key: "hardrockbet", name: "Hard Rock Bet" }, { key: "fanduel", name: "FanDuel" }];
     const ord = sortByState(books.map(b => b.key));
     books = ord.map(k => books.find(b => b.key === k));   // legal-in-your-state books first
@@ -525,12 +525,15 @@
     if (kind === "soccer") markets.push(["Draw", ml("draw"), "ml", "draw"]);
     markets.push([`${g.home.abbr} ML`, ml("home"), "ml", "home"], ["Over", ov, "total", "over"], ["Under", un, "total", "under"]);
     const lvOn = LV && LV.anyFair;
+    // "+" on each price you can bet in your state: opens My Bets' add sheet prefilled with that book, line and price (CSS draws the "+", so cell text is unchanged)
+    const TB = lg && g.state === "pre" && window.LSBets && window.LSBets.cellHref ? window.LSBets : null;
+    const trk = (bk, mk, o, label) => { const h = TB && bookAvail(bk.key) ? TB.cellHref(lg, g, bk.key, mk, o) : ""; return h ? `<a class="trk" href="${esc(h)}" aria-label="${esc(`Track ${label} at ${bk.name}`)}" title="Track this bet"></a>` : ""; };
     const rows = markets.map(([label, fn, mk, o]) => {
       const vals = books.map(bk => fn(B[bk.key]));
       // "best price" only among books legal in the visitor's state; out-of-state columns are reference data
       const have = vals.filter((v, i) => v && bookAvail(books[i].key));
       const best = have.length > 1 ? Math.max(...have.map(v => v.score)) : null;
-      return `<tr><td>${esc(label)}${lvOn ? LV.fairInline(mk, o) : ""}</td>${vals.map((v, i) => { const na = bookAvail(books[i].key) ? "" : " na-col"; return v ? `<td class="num${na} ${best !== null && v.score === best && !na ? "best" : ""}"><span class="px">${v.disp}</span>${lvOn ? LV.cell(mk, o, books[i].key) : ""}</td>` : `<td class="${na.trim()}">${NA}</td>`; }).join("")}${lvOn ? LV.fairCell(mk, o) : ""}</tr>`;
+      return `<tr><td>${esc(label)}${lvOn ? LV.fairInline(mk, o) : ""}</td>${vals.map((v, i) => { const na = bookAvail(books[i].key) ? "" : " na-col"; return v ? `<td class="num${na} ${best !== null && v.score === best && !na ? "best" : ""}"><span class="px">${v.disp}</span>${trk(books[i], mk, o, label)}${lvOn ? LV.cell(mk, o, books[i].key) : ""}</td>` : `<td class="${na.trim()}">${NA}</td>`; }).join("")}${lvOn ? LV.fairCell(mk, o) : ""}</tr>`;
     }).join("");
     const sub = bk => {
       const b = B[bk.key], sb = staleB[bk.key];

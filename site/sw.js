@@ -3,11 +3,16 @@
  * fresh deploy's HTML is picked up immediately. Data JSON (data/**): network-first, cached copy only when
  * the network fails, flagged with an `X-LineSmart-Offline` header so the page can show a note.
  * VERSION is stamped at deploy time by the workflow (content hash of the shell + build time), so every
- * deploy installs a new worker and drops the old shell cache. Paths are relative to the SW scope (/linesmart/). */
+ * deploy installs a new worker and drops the old shell cache. Paths are relative to the SW scope (/linesmart/).
+ * Team/player pages read ESPN's site.web.api host live; those responses are also network-first, kept in a small
+ * separate cache so recently opened team/player pages still work offline. */
 const VERSION = "dev";
 const SHELL = `linesmart-shell-${VERSION}`;
 const DATA = "linesmart-data-v1";
 const DATA_MAX = 400; // cap stored data responses (game pages add up)
+const ESPN = "linesmart-espn-v1";
+const ESPN_MAX = 150;
+const ESPN_HOST = "site.web.api.espn.com";
 const SHELL_FILES = [
   "./", "index.html", "manifest.webmanifest", "favicon.ico",
   "assets/styles.css", "assets/config.js", "assets/app.js", "assets/fonts/inter-latin-var.woff2",
@@ -28,19 +33,19 @@ self.addEventListener("activate", e => {
   })());
 });
 
-async function networkFirstData(req) {
-  const cache = await caches.open(DATA);
+async function networkFirstData(req, name = DATA, max = DATA_MAX) {
+  const cache = await caches.open(name);
   try {
     const res = await fetch(req, { cache: "no-cache" });
     if (res.ok) {
       cache.put(req, res.clone()).then(async () => {
         const keys = await cache.keys();
-        for (let i = 0; i < keys.length - DATA_MAX; i++) await cache.delete(keys[i]);
+        for (let i = 0; i < keys.length - max; i++) await cache.delete(keys[i]);
       });
     }
     return res;
   } catch (err) {
-    const hit = await cache.match(req, { ignoreSearch: true });
+    const hit = await cache.match(req, { ignoreSearch: name === DATA });
     if (!hit) throw err;
     const h = new Headers(hit.headers); h.set("X-LineSmart-Offline", "1");
     return new Response(await hit.blob(), { status: hit.status, statusText: hit.statusText, headers: h });
@@ -65,6 +70,7 @@ async function cacheFirst(req) {
 self.addEventListener("fetch", e => {
   const req = e.request; if (req.method !== "GET") return;
   const url = new URL(req.url);
+  if (url.hostname === ESPN_HOST && url.pathname.startsWith("/apis/")) return e.respondWith(networkFirstData(req, ESPN, ESPN_MAX));
   if (url.origin !== scopeURL.origin || !url.pathname.startsWith(scopeURL.pathname)) return; // ESPN logos etc.: browser default
   const p = rel(url);
   if (p === "sw.js") return;

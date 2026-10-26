@@ -26,3 +26,6 @@ Thumbs.db
 # Line-history worktree / snapshots (CI only; lives on the data-history branch)
 _history/
 .linehist-snap/
+
+# Generated search index (built in CI each refresh; never commit live data)
+site/data/search/

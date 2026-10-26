@@ -22,9 +22,10 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import line_history as LH
+import search_index as SI
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, "site", "data")
+OUT = os.environ.get("DATA_OUT") or os.path.join(ROOT, "site", "data")   # DATA_OUT: build elsewhere (local testing)
 ET = ZoneInfo("America/New_York")
 SITE = "https://site.api.espn.com/apis/site/v2/sports/"
 STANDINGS = "https://site.api.espn.com/apis/v2/sports/"
@@ -500,10 +501,16 @@ def main():
                     help="also write this run's raw line snapshot per league here (for re-applying after a push race)")
     ap.add_argument("--odds-cache-dir", default=os.environ.get("ODDS_CACHE_DIR") or None,
                     help="dir holding the last Hard Rock pull (hardrockbet.json, data-history branch); merged into every build")
+    ap.add_argument("--roster-cache-dir", default=os.environ.get("ROSTER_CACHE_DIR") or None,
+                    help="dir caching team rosters for the search index (data-history branch); omit to fetch fresh every run")
+    ap.add_argument("--roster-max-age-hours", type=float, default=float(os.environ.get("ROSTER_MAX_AGE_H") or 20),
+                    help="re-fetch rosters when the cached copy is older than this")
+    ap.add_argument("--no-search", action="store_true", help="skip the team/player search index")
+    ap.add_argument("--search-only", action="store_true", help="only (re)build the search index; leave game data and odds untouched")
     a = ap.parse_args()
     run_t = LH.now_iso()
     want = a.leagues.split(",")
-    key = os.environ.get("ODDS_API_KEY", "").strip() or None
+    key = None if a.search_only else (os.environ.get("ODDS_API_KEY", "").strip() or None)
     cache = odds_cache_load(a.odds_cache_dir) if a.odds_cache_dir else None
     pull, check = None, None
     if key:
@@ -524,7 +531,7 @@ def main():
     meta_path = os.path.join(OUT, "meta.json")
     meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {"leagues": {}}
     for lg in LEAGUES:
-        if lg["key"] not in want: continue
+        if lg["key"] not in want or a.search_only: continue
         try:
             rep = build_league(lg, a.days, pull, cache, a.history_dir, a.snap_dir, run_t)
             meta["leagues"][lg["key"]] = dict(name=lg["name"], full=lg["full"], games=rep["games"], upcoming=rep["upcoming"],
@@ -535,7 +542,7 @@ def main():
     if check is not None and pull:
         check.update(remainingAfter=pull["remaining"], spent=pull["spent"], pulled=pull["pulled"], skipped=pull["skipped"], errors=pull["errors"])
         log(f"[odds] pull done: spent {pull['spent']} credits, remaining {pull['remaining']}; pulled={pull['pulled']} skipped={pull['skipped']} errors={pull['errors']}")
-    if cache is not None:
+    if cache is not None and not a.search_only:
         if check is not None: cache.setdefault("checks", []).append(check)
         odds_cache_prune(cache, dt.datetime.now(dt.timezone.utc))
         pulls = [e.get("pulledAt") for e in cache["leagues"].values() if e.get("pulledAt")]
@@ -543,6 +550,19 @@ def main():
         odds_cache_save(a.odds_cache_dir, cache)
         if pull and pull["pulled"] and a.snap_dir:     # this run's fresh leagues, for re-applying after a push race
             odds_cache_save(os.path.join(a.snap_dir, "_odds"), dict(cache, leagues={k: cache["leagues"][k] for k in pull["pulled"]}))
+    if not a.no_search:
+        meta.setdefault("search", {})
+        for lg in LEAGUES:
+            if lg["key"] not in want: continue
+            try:
+                meta["search"][lg["key"]] = SI.build_search(lg, getj, SITE, STANDINGS, os.path.join(OUT, "search"),
+                                                            a.roster_cache_dir, a.roster_max_age_hours, a.snap_dir, log)
+            except Exception as ex:
+                log(f"[{lg['key']}] search index FAILED: {ex}")   # the previous file (if any) stays in place
+                meta["search"].setdefault(lg["key"], {})["error"] = str(ex)[:200]
+    if a.search_only:
+        with open(meta_path, "w") as fh: json.dump(meta, fh, indent=1)
+        return log("search index done ->", os.path.join(OUT, "search"))
     meta["order"] = [l["key"] for l in LEAGUES]
     meta["generated"] = dt.datetime.now(dt.timezone.utc).isoformat()
     lgs = (cache or {}).get("leagues", {})

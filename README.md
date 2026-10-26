@@ -11,7 +11,7 @@ The brand name lives in one place: `site/assets/config.js` (`SITE_CONFIG.name`).
 scripts/build_data.py    # data refresh (Python 3 stdlib only) -> site/data/*.json
 scripts/line_history.py  # line-movement history: snapshot merge, prune, summaries (used by build_data.py)
 scripts/screenshots.mjs  # Playwright screenshots (optional)
-scripts/subpath_test.mjs # Playwright check that the site works under /linesmart/ (optional)
+scripts/subpath_test.mjs # Playwright check that the site works under /linesmart/ or at / (optional)
 .github/workflows/refresh-and-deploy.yml  # scheduled data refresh + GitHub Pages deploy
 site/index.html          # single-page app (hash routes: #/l/nfl, #/g/nfl/<eventId>)
 site/assets/{config.js,styles.css,app.js}
@@ -35,7 +35,7 @@ python3 -m http.server 8765 -d site   # open http://localhost:8765/
 ```
 
 ## Deploy
-Publish the `site/` folder on Netlify, Cloudflare Pages or GitHub Pages. There is no build step. All asset and data URLs are relative, so the site works from a subpath such as `https://baccarod24.github.io/linesmart/`. GitHub Pages setup and commands: see `DEPLOY.md`.
+Publish the `site/` folder on Netlify, Cloudflare Pages or GitHub Pages. There is no build step. All asset and data URLs are relative, so the site works at the root (live: `https://linesmart.app/`) or from a subpath such as `/linesmart/`. GitHub Pages setup and commands: see `DEPLOY.md`.
 
 ## Data sources (ESPN public JSON, no key)
 - Scoreboard: `https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/scoreboard?dates=YYYYMMDD` (one day per call; date ranges return 400). NCAAF adds `groups=80&limit=300` and NCAAB adds `groups=50&limit=300`.
@@ -130,7 +130,7 @@ Gamble responsibly. 21+. 1-800-GAMBLER.
 
 ## Install as an app (PWA)
 
-LineSmart is an installable Progressive Web App (`site/manifest.webmanifest` + `site/sw.js`, all paths relative so it works under `/linesmart/`).
+LineSmart is an installable Progressive Web App (`site/manifest.webmanifest` + `site/sw.js`, all paths relative so it works at `/` or under `/linesmart/`).
 
 - **iPhone/iPad:** open the site in Safari → Share → **Add to Home Screen**.
 - **Android:** open in Chrome → ⋮ menu → **Install app** (or tap the **Install app** button in the header when it appears).

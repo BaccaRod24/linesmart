@@ -1,6 +1,6 @@
 // ===== LineSmart color themes. Default: Midnight Blue; the others are previews ======
 // Colors live as CSS custom properties in styles.css; a theme is selected with <html data-theme="…">.
-// Preview: add ?theme=<name> to the URL, e.g. https://…/linesmart/?theme=vegas#/l/nfl  (hash routes keep the query).
+// Preview: add ?theme=<name> to the URL, e.g. https://linesmart.app/?theme=vegas#/l/nfl  (hash routes keep the query).
 // Nothing is persisted: without ?theme the site always uses the default theme (Midnight Blue).
 // The original teal look is ?theme=linesmart.
 (function () {

@@ -3,7 +3,7 @@
  * fresh deploy's HTML is picked up immediately. Data JSON (data/**): network-first, cached copy only when
  * the network fails, flagged with an `X-LineSmart-Offline` header so the page can show a note.
  * VERSION is stamped at deploy time by the workflow (content hash of the shell + build time), so every
- * deploy installs a new worker and drops the old shell cache. Paths are relative to the SW scope (/linesmart/).
+ * deploy installs a new worker and drops the old shell cache. Paths are relative to the SW scope (/ on linesmart.app, /linesmart/ under a subpath).
  * Team/player pages read ESPN's site.web.api host live; those responses are also network-first, kept in a small
  * separate cache so recently opened team/player pages still work offline. */
 const VERSION = "dev";

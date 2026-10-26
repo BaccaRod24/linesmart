@@ -1,6 +1,6 @@
 # Deploying LineSmart to GitHub Pages
 
-Target: **https://baccarod24.github.io/linesmart/** (public repo `BaccaRod24/linesmart`, so Actions minutes are free).
+Target: **https://linesmart.app/** (custom domain; `https://baccarod24.github.io/linesmart/` redirects there). Public repo `BaccaRod24/linesmart`, so Actions minutes are free.
 
 The workflow `.github/workflows/refresh-and-deploy.yml` builds fresh data with
 `python scripts/build_data.py` and deploys `site/` to Pages on every push to `main`,
@@ -32,7 +32,7 @@ gh workflow run refresh-and-deploy.yml --repo BaccaRod24/linesmart --ref main
 gh run watch --repo BaccaRod24/linesmart $(gh run list --repo BaccaRod24/linesmart --workflow refresh-and-deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')
 
 # 5. Open the site
-#    https://baccarod24.github.io/linesmart/
+#    https://linesmart.app/  (before the custom domain: https://baccarod24.github.io/linesmart/)
 ```
 
 ## The Odds API key (Hard Rock Bet, free plan)
@@ -92,3 +92,15 @@ Hard Rock Bet history gets one point per pull (every other day), timestamped at 
 - Local subpath check (mimics `/linesmart/` on Pages):
   `mkdir -p /tmp/ghp && ln -sfn "$PWD/site" /tmp/ghp/linesmart && python3 -m http.server 8799 -d /tmp/ghp &`
   then `BASE=http://localhost:8799/linesmart/ node scripts/subpath_test.mjs`
+- Local root-path check (mimics `https://linesmart.app/`): `python3 -m http.server 8798 -d site &`
+  then `BASE=http://localhost:8798/ node scripts/subpath_test.mjs`
+
+## Custom domain (linesmart.app)
+
+DNS at Porkbun: apex `A` records `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`;
+`www` `CNAME` `baccarod24.github.io`. Pages is set to the domain with
+`gh api -X PUT repos/BaccaRod24/linesmart/pages -f cname=linesmart.app` and, once the certificate is issued,
+`gh api -X PUT repos/BaccaRod24/linesmart/pages -F https_enforced=true`
+(check: `gh api repos/BaccaRod24/linesmart/pages --jq '.cname, .https_certificate.state, .https_enforced'`).
+`site/CNAME` is included in the artifact for clarity; with Actions deploys the API setting is what counts.
+GitHub redirects `www.linesmart.app` and `baccarod24.github.io/linesmart/` to `https://linesmart.app/`.

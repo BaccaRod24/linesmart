@@ -1,6 +1,7 @@
 // Serves nothing itself: expects the site to be reachable at $BASE (e.g. http://localhost:8799/linesmart/).
 // Usage: mkdir -p /tmp/ghp && ln -sfn "$PWD/site" /tmp/ghp/linesmart && python3 -m http.server 8799 -d /tmp/ghp &
 //        BASE=http://localhost:8799/linesmart/ node scripts/subpath_test.mjs
+//        Root path (like https://linesmart.app/): python3 -m http.server 8798 -d site & then BASE=http://localhost:8798/ node scripts/subpath_test.mjs
 //        Search/team/player checks need a data dir with search/ built: DATA_DIR=/path/to/data (e.g. DATA_OUT=... build_data.py --search-only)
 import { chromium } from "playwright";
 import fs from "fs";

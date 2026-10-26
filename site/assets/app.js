@@ -107,8 +107,9 @@
     const draw = soccer && o ? `<div class="trow draw"><span class="tl"></span><div class="tn"><div class="tname">Draw</div></div><div class="tscore"></div>${chip(am(o.drawML))}<span></span></div>` : "";
     const hr = (g.books || {}).hardrockbet, hrLive = hr && !hr.stale && hr.asOf;
     const mv = moveOf(g), hasMv = mv && (mv.spread || mv.total);
-    const foot = o ? `<div class="tfoot"><span class="bk">${esc(o.provider || "provider n/a")}</span>${hrLive ? '<span class="bk hr">Hard Rock Bet</span>' : ""}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span></div>`
-                   : `<div class="noline">Lines not posted yet</div>`;
+    const wx = window.LSWeather && g.state !== "post" ? window.LSWeather.chip(g) : "";
+    const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}"><span class="bk">${esc(o.provider || "provider n/a")}</span>${hrLive ? '<span class="bk hr">Hard Rock Bet</span>' : ""}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
+                   : `<div class="noline">Lines not posted yet</div>${wx ? `<div class="tfoot has-wx wx-only">${wx}</div>` : ""}`;
     const net = esc([g.note, (g.broadcasts || []).slice(0, 2).join(", ")].filter(Boolean).join(" · "));
     return `<a class="game c${cols.length}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
       <div class="game-top">${statusHtml(g)}${g.state === "pre" ? notableBadge(g) : ""}<span class="net">${net}</span></div>
@@ -208,7 +209,7 @@
     let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>
       <div class="match" style="--ca:${teamColor(A, "#334155")};--ch:${teamColor(H, "#475569")}">
         <div class="mteam">${logo(A)}<div><div class="nm">${A.rank ? `<span class="rk" style="color:var(--warn)">#${A.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${A.id}">${esc(A.name)}</a></div><div class="rec">${esc(A.record || "—")} · Away ${esc(A.awayRecord || "—")}${formDots(A.form)}</div></div></div>
-        <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}${g.neutral ? " (neutral)" : ""}</div><div class="where">${esc(g.broadcasts.join(", "))}</div>${g.note ? `<div class="where">${esc(g.note)}</div>` : ""}</div>
+        <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}${g.neutral ? " (neutral)" : ""}</div><div class="where">${esc(g.broadcasts.join(", "))}</div>${g.note ? `<div class="where">${esc(g.note)}</div>` : ""}${window.LSWeather && g.state !== "post" && g.weather ? `<div class="where wx-where">${window.LSWeather.chip(g)}</div>` : ""}</div>
         <div class="mteam home">${logo(H)}<div><div class="nm">${H.rank ? `<span class="rk" style="color:var(--warn)">#${H.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${H.id}">${esc(H.name)}</a></div><div class="rec">${esc(H.record || "—")} · Home ${esc(H.homeRecord || "—")}${formDots(H.form)}</div></div></div>
       </div>`;
 
@@ -216,6 +217,7 @@
     if (window.LSBets) html += window.LSBets.trackCard(key, g, kind);
     const lm = lineMoveSection(d, g, kind);
     html += lm.html;
+    if (window.LSWeather) html += window.LSWeather.section(g, kind);
 
     // side-by-side
     const rows = [];

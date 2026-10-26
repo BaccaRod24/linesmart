@@ -300,6 +300,39 @@ if (upGid) {
 }
 await page.context().setOffline(false);
 errors.length = errsOnline; // network errors while deliberately offline (e.g. ESPN logos) are expected
+// ---------- game-day weather (chip on cards, section on game pages, Indoor for arenas)
+{
+  const up = nfl.games.filter(g => g.state === "pre" && g.weather);
+  const fg = up.find(g => g.weather.kind === "forecast"), ig = up.find(g => g.weather.kind === "indoor");
+  if (!up.length) check(false, "no NFL weather data in DATA_DIR (build without --no-weather)", "weather");
+  else {
+    await page.goto(BASE + "#/l/nfl", { waitUntil: "networkidle" });
+    await page.waitForSelector(".game", { timeout: 15000 });
+    const chips = await page.$$eval(".game .wx", els => els.map(e => e.textContent.trim()));
+    check(chips.length >= up.length - 2 && chips.some(t => /\d+°/.test(t)), `NFL cards show weather chips (${chips.length}; e.g. "${chips.find(t => /°/.test(t)) || ""}")`, "weather");
+    if (ig) check(chips.includes("Indoor"), `dome game chip says Indoor (${ig.venue})`, "weather");
+    if (fg) {
+      await page.goto(BASE + `#/g/nfl/${fg.id}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".wx-card", { timeout: 15000 }).catch(() => {});
+      const s = await page.evaluate(() => { const c = document.querySelector(".wx-card"); const a = c && c.querySelector(".wx-credit");
+        return c && { big: c.querySelector(".wx-big")?.textContent, stats: c.querySelectorAll(".wx-stat").length, hours: c.querySelectorAll(".wx-h").length, credit: a?.textContent, href: a?.href }; });
+      check(!!s && /\d+°/.test(s.big || "") && s.stats === 3 && s.hours >= 1, `game page weather section: ${s ? `${s.big} · ${s.stats} stats · ${s.hours} hours` : "missing"}`, "weather");
+      check(!!s && s.credit === "Weather data by Open-Meteo.com" && /^https:\/\/open-meteo\.com/.test(s.href || ""), "Open-Meteo credit link", "weather");
+    }
+    if (ig) {
+      await page.goto(BASE + `#/g/nfl/${ig.id}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".wx-card", { timeout: 15000 }).catch(() => {});
+      check(/Indoor/.test(await txt(".wx-card .wx-big")), "dome game page: Indoor, no forecast", "weather");
+    }
+  }
+  const nba = JSON.parse(fs.readFileSync(`${DATA}/nba/index.json`)).games.filter(g => g.state === "pre");
+  if (nba.length) {
+    await page.goto(BASE + "#/l/nba", { waitUntil: "networkidle" });
+    await page.waitForSelector(".game", { timeout: 15000 });
+    const c = await page.$$eval(".game .wx", els => els.map(e => e.textContent.trim()));
+    check(c.length > 0 && c.every(t => t === "Indoor"), `NBA cards all Indoor (${c.length})`, "weather");
+  }
+}
 await browser.close();
 if (pwaFail.length) console.log("PWA failures:", pwaFail);
 const outside = [...ok].filter(p => !p.startsWith(new URL(BASE).pathname));

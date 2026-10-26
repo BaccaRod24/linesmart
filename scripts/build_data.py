@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import line_history as LH
 import search_index as SI
 import matchups as MU
+import weather as WX
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.environ.get("DATA_OUT") or os.path.join(ROOT, "site", "data")   # DATA_OUT: build elsewhere (local testing)
@@ -161,6 +162,8 @@ def game_from_event(e):
         id=e["id"], date=e["date"], name=e.get("name"), shortName=e.get("shortName"),
         state=stype.get("state"), statusDetail=stype.get("shortDetail") or stype.get("detail"), completed=stype.get("completed"),
         venue=(c.get("venue") or {}).get("fullName"), city=((c.get("venue") or {}).get("address") or {}).get("city"),
+        venueId=(c.get("venue") or {}).get("id"), venueState=((c.get("venue") or {}).get("address") or {}).get("state"),
+        venueCountry=((c.get("venue") or {}).get("address") or {}).get("country"), indoor=(c.get("venue") or {}).get("indoor"),
         neutral=c.get("neutralSite"), broadcasts=bc, note=((c.get("notes") or [{}])[0] or {}).get("headline"),
         home=team_brief(comps["home"]), away=team_brief(comps["away"]),
         odds=odds, oddsSource="ESPN scoreboard" if odds else None,
@@ -412,7 +415,7 @@ def apply_cached_odds(lg, games, cache, now):
     return fresh, stale
 
 # ---------------------------------------------------------------- main
-def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=None, run_t=None):
+def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=None, run_t=None, weather_dir=None, weather=True):
     t0 = time.time()
     report = dict(league=lg["key"], endpoints={})
     events, ok_days, errs = fetch_scoreboards(lg, days)
@@ -474,6 +477,13 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
     for g in games:
         gh = hist["games"].get(g["id"])
         g["move"] = LH.summarize(gh, lg["kind"], lg["key"]) if gh else None
+    # game-day weather (Open-Meteo); fail soft: WX.attach never raises
+    if weather:
+        try:
+            wx = WX.attach(lg, games, weather_dir, snap_dir, log)
+        except Exception as ex:
+            wx = dict(errors=[f"weather failed: {str(ex)[:120]}"])
+        report["weather"] = wx
     # write
     ldir = os.path.join(OUT, lg["key"]); os.makedirs(os.path.join(ldir, "games"), exist_ok=True)
     for fn in os.listdir(os.path.join(ldir, "games")): os.remove(os.path.join(ldir, "games", fn))
@@ -491,7 +501,9 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
     idx = dict(league={k: lg[k] for k in ("key", "name", "full", "kind")}, generated=dt.datetime.now(dt.timezone.utc).isoformat(),
                windowDays=days, games=games, teams=teams, report=report)
     with open(os.path.join(ldir, "index.json"), "w") as fh: json.dump(idx, fh, separators=(",", ":"))
-    log(f"[{lg['key']}] games={len(games)} upcoming={upcoming} withOdds={with_odds} providers={providers} {report['endpoints']} oddsApi={report['oddsApi']} history={report['history']} ({report['seconds']}s)")
+    wxr = report.get("weather") or {}
+    wxs = f" weather=forecast {wxr.get('forecast', 0)}, indoor {wxr.get('indoor', 0)}, pending {wxr.get('pending', 0)}, n/a {wxr.get('unavailable', 0)}, calls {wxr.get('calls', 0)}{(' errors ' + str(wxr['errors'])) if wxr.get('errors') else ''}" if wxr else ""
+    log(f"[{lg['key']}] games={len(games)} upcoming={upcoming} withOdds={with_odds} providers={providers} {report['endpoints']} oddsApi={report['oddsApi']} history={report['history']}{wxs} ({report['seconds']}s)")
     return report
 
 def main():
@@ -510,6 +522,9 @@ def main():
                     help="re-fetch rosters when the cached copy is older than this")
     ap.add_argument("--matchup-cache-dir", default=os.environ.get("MATCHUP_CACHE_DIR") or None,
                     help="dir caching compact box scores for defense-vs-position (data-history branch); omit to fetch every game each run")
+    ap.add_argument("--weather-cache-dir", default=os.environ.get("WEATHER_CACHE_DIR") or None,
+                    help="dir caching venue coordinates and recent forecasts (data-history branch); omit to fetch every forecast each run")
+    ap.add_argument("--no-weather", action="store_true", help="skip game-day weather (Open-Meteo)")
     ap.add_argument("--no-matchups", action="store_true", help="skip the opponent defense-vs-position data (data/matchups)")
     ap.add_argument("--no-search", action="store_true", help="skip the team/player search index")
     ap.add_argument("--search-only", action="store_true", help="only (re)build the search index and matchups (opponent defense); leave game data and odds untouched")
@@ -539,7 +554,7 @@ def main():
     for lg in LEAGUES:
         if lg["key"] not in want or a.search_only: continue
         try:
-            rep = build_league(lg, a.days, pull, cache, a.history_dir, a.snap_dir, run_t)
+            rep = build_league(lg, a.days, pull, cache, a.history_dir, a.snap_dir, run_t, a.weather_cache_dir, not a.no_weather)
             meta["leagues"][lg["key"]] = dict(name=lg["name"], full=lg["full"], games=rep["games"], upcoming=rep["upcoming"],
                                               withOdds=rep["withOdds"], providers=rep["providers"], updated=dt.datetime.now(dt.timezone.utc).isoformat(), report=rep)
         except Exception as ex:
@@ -587,6 +602,7 @@ def main():
                             lastCheck=((cache or {}).get("checks") or [None])[-1])
     meta["oddsApiEnabled"] = bool(lgs)
     meta["historyEnabled"] = bool(a.history_dir)
+    meta["weather"] = dict(source="Open-Meteo.com", license="CC BY 4.0", enabled=not a.no_weather, cached=bool(a.weather_cache_dir))
     meta["targetBooks"] = [dict(key=k, name=n) for k, n in TARGET_BOOKS]
     meta["untrackedBooks"] = [dict(key="fanduel", name="FanDuel", why="not tracked (free plan)")]
     with open(meta_path, "w") as fh: json.dump(meta, fh, indent=1)

@@ -53,8 +53,8 @@ jobs:
             git -C _history checkout -q --orphan data-history
             git -C _history rm -rfq --ignore-unmatch .
           fi
-          mkdir -p _history/history _history/odds _history/rosters _history/matchups
-          ls -la _history/history _history/odds _history/rosters _history/matchups
+          mkdir -p _history/history _history/odds _history/rosters _history/matchups _history/weather
+          ls -la _history/history _history/odds _history/rosters _history/matchups _history/weather
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -90,6 +90,8 @@ jobs:
           ROSTER_CACHE_DIR: ${{ steps.hist.outcome == 'success' && '_history/rosters' || '' }}
           # Compact per-game box scores for opponent defense vs position (data/matchups); only new games are fetched.
           MATCHUP_CACHE_DIR: ${{ steps.hist.outcome == 'success' && '_history/matchups' || '' }}
+          # Game-day weather (Open-Meteo, no key): venue coordinates + recent forecasts, so most runs reuse them.
+          WEATHER_CACHE_DIR: ${{ steps.hist.outcome == 'success' && '_history/weather' || '' }}
           LINE_SNAP_DIR: .linehist-snap
         run: python scripts/build_data.py
 
@@ -123,12 +125,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           msg="line history snapshot $(date -u +%Y-%m-%dT%H:%MZ) (run ${{ github.run_id }})"
-          git add -A history odds rosters matchups
+          git add -A history odds rosters matchups weather
           if git diff --cached --quiet; then echo "No history changes."; exit 0; fi
           git commit -qm "$msg"
           for i in 1 2 3 4 5; do
             if git push -q origin HEAD:refs/heads/data-history; then
-              echo "Pushed: $(git log -1 --format='%h %s')"; ls -la history odds rosters matchups; exit 0
+              echo "Pushed: $(git log -1 --format='%h %s')"; ls -la history odds rosters matchups weather; exit 0
             fi
             echo "::warning::data-history push rejected (attempt $i); re-applying snapshot onto latest tip"
             sleep $((i * 5))
@@ -138,7 +140,8 @@ jobs:
             if [ -d ../.linehist-snap/_odds ]; then python3 ../scripts/line_history.py apply-odds --src ../.linehist-snap/_odds --dst odds; fi
             if [ -d ../.linehist-snap/_rosters ]; then cp -f ../.linehist-snap/_rosters/*.json rosters/; fi
             if [ -d ../.linehist-snap/_matchups ]; then mkdir -p matchups && cp -f ../.linehist-snap/_matchups/*.json matchups/; fi
-            git add -A history odds rosters matchups
+            if [ -d ../.linehist-snap/_weather ]; then mkdir -p weather && cp -f ../.linehist-snap/_weather/*.json weather/; fi
+            git add -A history odds rosters matchups weather
             if git diff --cached --quiet; then echo "Nothing left to push."; exit 0; fi
             git commit -qm "$msg"
           done

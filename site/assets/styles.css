@@ -704,3 +704,57 @@ html.age-open{overflow:hidden}
   .legal-links{gap:8px 16px}
 }
 a[href^="tel:"]{white-space:nowrap}
+
+/* ---------- game-day weather (assets/weather.js; data: Open-Meteo) */
+.wx{display:inline-flex;align-items:center;gap:6px;flex:none;white-space:nowrap;font-size:11.5px;font-weight:600;color:var(--mute);padding:2px 8px 2px 6px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--tint) 3%,transparent);font-variant-numeric:tabular-nums}
+.wx b{color:var(--txt);font-weight:700}
+.wx .wxi{width:15px;height:15px;color:var(--accent2)}
+.wx .wx-p{display:inline-flex;align-items:center;gap:2px}
+.wx .wxs{width:12px;height:12px;opacity:.75}
+.wx.indoor,.wx.pending{color:var(--dim)}.wx.indoor .wxi,.wx.pending .wxi{color:var(--dim)}
+.wx.watch{color:var(--txt);border-color:color-mix(in srgb,var(--accent2) 55%,transparent);background:color-mix(in srgb,var(--accent2) 12%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent2) 8%,transparent)}
+.wx.roof{border-color:color-mix(in srgb,var(--accent2) 30%,transparent);border-style:dashed}
+.tfoot .wx{margin-left:auto}.tfoot .hint:not(:empty)+.wx{margin-left:8px}
+.tfoot.wx-only{border-top:0;padding-top:0;margin-top:8px;justify-content:flex-end}
+.game:has(.wx.watch){border-color:color-mix(in srgb,var(--accent2) 30%,var(--line))}
+.wx-where{margin-top:8px!important}
+.wx-card .wx-main{display:flex;align-items:center;gap:14px}
+.wx-card .wxi.big{width:46px;height:46px;flex:none;color:var(--accent2)}
+.wx-indoor .wxi.big{color:var(--dim)}
+.wx-big{font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.wx-big small{font-size:15px;font-weight:600;color:var(--mute);margin-left:2px;letter-spacing:0}
+.wx-big.sm{font-size:18px;letter-spacing:-.01em}
+.wx-sub{color:var(--mute);font-size:13px;margin-top:5px}
+.wx-at{margin-left:auto;text-align:right;font-size:12.5px;color:var(--mute)}
+.wx-watch{display:flex;gap:10px;align-items:flex-start;margin-top:14px;padding:10px 12px;border-radius:var(--r-sm);font-size:13px;color:var(--txt);border:1px solid color-mix(in srgb,var(--accent2) 45%,transparent);background:color-mix(in srgb,var(--accent2) 9%,transparent)}
+.wx-watch.roof{border-style:dashed;background:color-mix(in srgb,var(--accent2) 5%,transparent)}
+.wx-watch .wxs{width:17px;height:17px;flex:none;color:var(--accent2);margin-top:1px}
+.wx-why{color:var(--mute);font-size:12px;margin-top:3px}
+.wx-roof{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;color:var(--mute)}
+.wx-roof .wxs{width:15px;height:15px;flex:none}
+.wx-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px}
+.wx-stat{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--line)}
+.wx-stat .wxs{width:16px;height:16px;flex:none;color:var(--accent);margin-top:2px}
+.wx-k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);font-weight:700}
+.wx-v{font-size:17px;font-weight:750;font-variant-numeric:tabular-nums}
+.wx-s{font-size:12px;color:var(--mute)}
+.wx-arrow{display:inline-block;font-style:normal;color:var(--accent2)}
+.wx-hours{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px;max-width:640px}
+.wx-h{text-align:center;padding:8px 4px;border-radius:var(--r-sm);border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.wx-h.k{border-color:var(--accent-line);background:var(--accent-soft)}
+.wx-h .wxs{width:18px;height:18px;color:var(--accent2);margin:4px 0 2px}
+.wx-ht{font-size:11px;color:var(--dim);font-weight:650}
+.wx-hv{font-weight:750}
+.wx-hs{display:flex;align-items:center;justify-content:center;gap:3px;font-size:11.5px;color:var(--mute)}
+.wx-hs .wxs{width:11px;height:11px;margin:0;color:var(--dim)}
+.wx-credit{color:var(--accent);white-space:nowrap}
+.wx-credit:hover{text-decoration:underline}
+@media (max-width:760px){
+  .wx-big{font-size:28px}.wx-card .wxi.big{width:38px;height:38px}
+  .wx-card .wx-main{flex-wrap:wrap}.wx-at{flex-basis:100%;text-align:left;margin-left:52px;margin-top:-4px}
+  .wx-stats{gap:6px}
+  .wx-stat{flex-direction:column;gap:4px;padding:8px 9px}
+  .wx-v{font-size:15.5px}.wx-s{font-size:11px}.wx-k{font-size:10px;letter-spacing:.06em}
+  .wx-hours{gap:6px}
+}
+@media (max-width:480px){.tfoot.has-wx .hint{display:none}.tfoot.has-wx .bk.hr{font-size:0;gap:0}}

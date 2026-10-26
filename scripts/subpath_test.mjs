@@ -531,6 +531,10 @@ for (const lg of ["nfl", "nba"]) {
       await p.click("#stateBtn"); await p.selectOption("#stSel", "TX"); await p.click("#stSave"); await p.waitForTimeout(600);
       const tx = await offers(p);
       check(tx && tx.status === "notlegal" && !tx.books.length && /isn't legal in Texas/.test(tx.text) && !(await dkfdLinks(p)).length && !(await p.$$("a[href*='hardrock.bet']")).length, "TX: no offers, neutral note, no sportsbook links", "geo");
+      // Nevada: BetMGM hidden by choice -> neutral note, no sportsbook links
+      await p.click("#stateBtn"); await p.selectOption("#stSel", "NV"); await p.click("#stSave"); await p.waitForTimeout(600);
+      const nv = await offers(p);
+      check(nv && nv.status === "nobooks" && !nv.books.length && /don't show sportsbook offers in Nevada/.test(nv.text) && !(await dkfdLinks(p)).length, `NV: no offers (no BetMGM), neutral note (${nv && nv.status})`, "geo");
       // back to automatic
       await p.click("#stateBtn"); await p.selectOption("#stSel", ""); await p.click("#stSave"); await p.waitForTimeout(600);
       check(((await offers(p)) || {}).books?.join() === "hardrockbet", "picker 'Automatic' returns to the FL lookup", "geo");

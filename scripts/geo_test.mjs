@@ -35,17 +35,18 @@ for (const st of ["TX", "CA", "GA", "UT", "WA", "MS", "WI"]) {
   check(e.status === "notlegal" && e.offers.length === 0 && e.available.length === 0, `${st}: not legal online -> no offers`);
 }
 // legal but none of our books
-for (const st of ["DE", "RI"]) { const e = ev(st); check(e.status === "nobooks" && e.offers.length === 0, `${st}: legal online, none of our books -> no offers`); }
+for (const st of ["DE", "RI", "NV"]) { const e = ev(st); check(e.status === "nobooks" && e.offers.length === 0, `${st}: legal online, none of our books -> no offers`); }
 const nv = ev("NV");
-check(nv.status === "ok" && eq(keys(nv), ["betmgm"]) && nv.uncertain, "NV: BetMGM only, flagged uncertain");
+check(nv.status === "nobooks" && !keys(nv).includes("betmgm") && !nv.available.includes("betmgm") && nv.uncertain, "NV: BetMGM hidden (Rod's choice), no offers, flagged uncertain");
+check(G.naLabel(nv, "betmgm") === "Not available in NV", "NV: BetMGM labeled not available");
 // mixed states
 check(eq(keys(ev("NY")).sort(), ["betmgm", "draftkings", "fanduel"]), "NY: DraftKings + FanDuel + BetMGM, no Hard Rock");
 check(eq(keys(ev("NH")), ["draftkings"]) && eq(keys(ev("OR")), ["draftkings"]), "NH/OR: DraftKings only");
 check(eq(keys(ev("ME")), ["draftkings"]), "ME: DraftKings, not FanDuel");
 // BetMGM: shown only where it runs a legal online sportsbook; never FL; hidden elsewhere
-for (const st of ["AZ", "CO", "DC", "IL", "IN", "IA", "KS", "KY", "LA", "MD", "MA", "MI", "MO", "NV", "NJ", "NY", "NC", "OH", "PA", "TN", "VA", "WV", "WY", "PR"])
+for (const st of ["AZ", "CO", "DC", "IL", "IN", "IA", "KS", "KY", "LA", "MD", "MA", "MI", "MO", "NJ", "NY", "NC", "OH", "PA", "TN", "VA", "WV", "WY", "PR"])
   check(keys(ev(st)).includes("betmgm"), `${st}: BetMGM shown`);
-for (const st of ["FL", "CT", "VT", "ME", "NH", "OR", "AR", "DE", "RI", "MS", "TX", "CA"]) {
+for (const st of ["FL", "NV", "CT", "VT", "ME", "NH", "OR", "AR", "DE", "RI", "MS", "TX", "CA"]) {
   const e = ev(st);
   check(!keys(e).includes("betmgm") && !e.available.includes("betmgm"), `${st}: BetMGM hidden`);
 }

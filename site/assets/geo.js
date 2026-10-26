@@ -113,7 +113,7 @@
         ${RG(ev.stateName)}${aff}</section>`;
     }
     const msg = ev.status === "notlegal" ? `Online sports betting isn't legal in ${esc(ev.stateName)}, so we don't show sportsbook offers there. Odds and stats are for reference only.`
-      : ev.status === "nobooks" ? `None of the sportsbooks we list (Hard Rock Bet, DraftKings, FanDuel, BetMGM) run a legal online sportsbook in ${esc(ev.stateName)}, so we don't show offers there. Odds are for reference only.`
+      : ev.status === "nobooks" ? `We don't show sportsbook offers in ${esc(ev.stateName)}. Odds are for reference only.`
       : ev.status === "nonus" ? "You appear to be outside the US. We only show sportsbook offers in US states where they're legal."
       : "We only show sportsbooks where they're legal. Pick your state to see which ones run there.";
     return `<section class="card offers of-none" data-offers="${esc(ctx)}" data-status="${esc(ev.status)}"><div class="of-head"><p class="of-msg">${msg}</p>${change}</div></section>`;

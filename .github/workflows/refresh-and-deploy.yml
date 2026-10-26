@@ -8,13 +8,12 @@ on:
     # Every 30 minutes (UTC). GitHub may delay or skip scheduled runs under load.
     - cron: '*/30 * * * *'
 
-# Least privilege for the GITHUB_TOKEN; Pages deploy needs pages + id-token (OIDC).
+# Least privilege for the GITHUB_TOKEN by default; each job widens only what it needs.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# One deployment at a time. Don't cancel an in-flight deploy; a queued run replaces older queued ones.
+# One run at a time. Don't cancel an in-flight run; a queued run replaces older queued ones.
+# This also serializes writes to the data-history branch (the push step still retries on a race).
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -23,9 +22,29 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write   # push line-movement snapshots to the data-history branch
+      pages: write      # configure-pages
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      # Line-movement history lives on its own branch (never main), checked out as a worktree in _history/.
+      - name: Check out line history (data-history branch)
+        id: hist
+        continue-on-error: true
+        run: |
+          if git ls-remote --exit-code --heads origin data-history >/dev/null; then
+            git fetch --no-tags --depth=1 origin +data-history:refs/remotes/origin/data-history
+            git worktree add -B data-history _history origin/data-history
+          else
+            echo "data-history branch not found; starting a new orphan branch"
+            git worktree add --detach _history
+            git -C _history checkout -q --orphan data-history
+            git -C _history rm -rfq --ignore-unmatch .
+          fi
+          mkdir -p _history/history
+          ls -la _history/history
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -45,6 +64,9 @@ jobs:
           # Scheduled runs only spend Odds API credits if repo variable ODDS_ON_SCHEDULE == 'true'
           # (the free tier is 500 credits/month and one refresh is ~27 credits).
           ODDS_API_KEY: ${{ (github.event_name != 'schedule' || vars.ODDS_ON_SCHEDULE == 'true') && secrets.ODDS_API_KEY || '' }}
+          # History is only read/written when the history checkout succeeded.
+          LINE_HISTORY_DIR: ${{ steps.hist.outcome == 'success' && '_history/history' || '' }}
+          LINE_SNAP_DIR: .linehist-snap
         run: python scripts/build_data.py
 
       # If the build crashed outright, fall back to the committed snapshot so the site still deploys.
@@ -67,6 +89,34 @@ jobs:
               json.load(open(f))
           PY
 
+      # Only persist history from a successful build. On a push race, re-apply this run's
+      # snapshot on top of the latest branch tip and try again; never force-push.
+      - name: Save line history snapshot
+        if: steps.build.outcome == 'success' && steps.hist.outcome == 'success'
+        continue-on-error: true
+        working-directory: _history
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          msg="line history snapshot $(date -u +%Y-%m-%dT%H:%MZ) (run ${{ github.run_id }})"
+          git add -A history
+          if git diff --cached --quiet; then echo "No history changes."; exit 0; fi
+          git commit -qm "$msg"
+          for i in 1 2 3 4 5; do
+            if git push -q origin HEAD:refs/heads/data-history; then
+              echo "Pushed: $(git log -1 --format='%h %s')"; ls -la history; exit 0
+            fi
+            echo "::warning::data-history push rejected (attempt $i); re-applying snapshot onto latest tip"
+            sleep $((i * 5))
+            git fetch --no-tags --depth=1 origin +data-history:refs/remotes/origin/data-history || continue
+            git reset -q --hard origin/data-history
+            python3 ../scripts/line_history.py apply --snap-dir ../.linehist-snap --history-dir history
+            git add -A history
+            if git diff --cached --quiet; then echo "Nothing left to push."; exit 0; fi
+            git commit -qm "$msg"
+          done
+          echo "::error::Could not push line history after 5 attempts"; exit 1
+
       - name: Configure Pages
         uses: actions/configure-pages@v6
 
@@ -79,6 +129,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Pages deploy needs pages + id-token (OIDC).
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

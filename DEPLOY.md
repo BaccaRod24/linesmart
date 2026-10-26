@@ -53,6 +53,21 @@ gh variable set ODDS_ON_SCHEDULE --body true --repo BaccaRod24/linesmart
 Note: because data isn't committed, the next keyless scheduled run (≤30 min later) rebuilds without
 Odds API data, so the extra book columns go back to N/A until the next keyed run.
 
+## Line-movement history (`data-history` branch)
+
+The build job has `contents: write` only so it can push history snapshots to the **`data-history`** branch. It never pushes to `main`. Each run does the following:
+1. Fetches `data-history` into a worktree at `_history/`. On the first run the branch doesn't exist yet, so it is created as an orphan branch.
+2. Builds with `LINE_HISTORY_DIR=_history/history` and writes this run's raw snapshot to `.linehist-snap/`.
+3. If the build succeeded, commits and pushes `history/*.json` as github-actions[bot]. If the push is rejected because another run got there first, it fetches the new tip, re-applies `.linehist-snap/` with `line_history.py apply`, and pushes again (up to 5 tries). It never force-pushes.
+
+Failed builds don't write history. The history steps are `continue-on-error`, so they can never block the Pages deploy. The `pages` concurrency group already serializes runs.
+
+```bash
+gh api "repos/BaccaRod24/linesmart/contents/history?ref=data-history" --jq '.[] | "\(.name) \(.size)"'
+git fetch origin data-history && git log --oneline -5 origin/data-history
+```
+Hard Rock Bet / FanDuel history is only recorded on runs that use the Odds API key (see above). With keyless scheduled runs, those books' charts have gaps.
+
 ## Day-to-day
 
 - Manual refresh: `gh workflow run refresh-and-deploy.yml --repo BaccaRod24/linesmart`

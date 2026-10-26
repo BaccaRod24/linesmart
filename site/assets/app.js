@@ -52,6 +52,25 @@
   }
 
   // ---------- odds snippets
+  // ---------- line movement helpers
+  // g.move is built server-side (scripts/line_history.py); fall back to ESPN's open line in g.odds.
+  function moveOf(g) {
+    if (g.move) return g.move;
+    const o = g.odds; if (!o) return null;
+    const m = { book: o.provider, notable: [] };
+    if (isNum(o.homeSpreadOpen) && isNum(o.homeSpread)) m.spread = { open: o.homeSpreadOpen, cur: o.homeSpread, delta: o.homeSpread - o.homeSpreadOpen };
+    if (isNum(o.totalOpen) && isNum(o.total)) m.total = { open: o.totalOpen, cur: o.total, delta: o.total - o.totalOpen };
+    return m;
+  }
+  const arrow = (delta, title) => (!isNum(delta) || Math.abs(delta) < 1e-9 ? "" : `<i class="mv ${delta > 0 ? "up" : "dn"}" title="${esc(title + ` (${delta > 0 ? "+" : ""}${+delta.toFixed(2)})`)}">${delta > 0 ? "▲" : "▼"}</i>`);
+  const spreadArrow = (g, side) => {
+    const m = moveOf(g); if (!m || !m.spread) return "";
+    const sgn = side === "home" ? 1 : -1, t = g[side];
+    return arrow(sgn * m.spread.delta, `${t.abbr} opened ${line(sgn * m.spread.open)}, now ${line(sgn * m.spread.cur)}`);
+  };
+  const totalArrow = g => { const m = moveOf(g); return m && m.total ? arrow(m.total.delta, `Total opened ${m.total.open}, now ${m.total.cur}`) : ""; };
+  const notableBadge = g => { const m = moveOf(g); return m && (m.notable || []).length ? `<span class="mvbadge" title="${esc(m.notable.join(" · "))}">⚡ Line move</span>` : ""; };
+
   function oddsBar(g, kind) {
     const o = g.odds;
     if (!o) return `<div class="prov">Lines not posted yet</div>`;
@@ -61,15 +80,15 @@
         <div class="ocell"><div class="k">${esc(g.away.abbr)}</div><div class="v">${am(o.awayML) ?? NA}</div></div>
         <div class="ocell"><div class="k">Draw</div><div class="v">${am(o.drawML) ?? NA}</div></div>
         <div class="ocell"><div class="k">${esc(g.home.abbr)}</div><div class="v">${am(o.homeML) ?? NA}</div></div>
-        <div class="ocell"><div class="k">O/U</div><div class="v">${fx(o.total, 1) ?? NA}</div></div>
+        <div class="ocell"><div class="k">O/U</div><div class="v">${fx(o.total, 1) ?? NA}${totalArrow(g)}</div></div>
       </div><div class="prov">3-way moneyline · ${esc(o.provider || "provider n/a")}</div>`;
     }
     const spreadLabel = kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread";
     return `<div class="oddsbar">
-      <div class="ocell"><div class="k">${spreadLabel}</div><div class="v"><span>${esc(g.away.abbr)} ${o.awaySpread !== null ? line(o.awaySpread) : NA}</span><span>${esc(g.home.abbr)} ${o.homeSpread !== null ? line(o.homeSpread) : NA}</span></div></div>
+      <div class="ocell"><div class="k">${spreadLabel}</div><div class="v"><span>${esc(g.away.abbr)} ${o.awaySpread !== null ? line(o.awaySpread) : NA}${spreadArrow(g, "away")}</span><span>${esc(g.home.abbr)} ${o.homeSpread !== null ? line(o.homeSpread) : NA}${spreadArrow(g, "home")}</span></div></div>
       <div class="ocell"><div class="k">Moneyline</div><div class="v"><span>${am(o.awayML) ?? NA}</span><span>${am(o.homeML) ?? NA}</span></div></div>
-      <div class="ocell"><div class="k">Total</div><div class="v"><span>O ${fx(o.total, 1) ?? NA}</span><span>U ${fx(o.total, 1) ?? NA}</span></div></div>
-    </div><div class="prov">${esc(o.provider || "provider n/a")}</div>`;
+      <div class="ocell"><div class="k">Total</div><div class="v"><span>O ${fx(o.total, 1) ?? NA}${totalArrow(g)}</span><span>U ${fx(o.total, 1) ?? NA}</span></div></div>
+    </div><div class="prov">${moveOf(g)?.spread || moveOf(g)?.total ? '<span class="na">▲▼ = move since open · </span>' : ""}${esc(o.provider || "provider n/a")}</div>`;
   }
 
   function statusHtml(g) {
@@ -112,7 +131,7 @@
       for (const k of Object.keys(days)) {
         html += `<div class="day">${dayLabel(days[k][0].date)}</div><div class="grid">` +
           days[k].map(g => `<a class="game" href="#/g/${key}/${g.id}">
-            <div class="game-top">${statusHtml(g)}<span class="net">${esc([g.note, g.broadcasts.slice(0, 2).join(", ")].filter(Boolean).join(" · "))}</span></div>
+            <div class="game-top">${statusHtml(g)}${g.state === "pre" ? notableBadge(g) : ""}<span class="net">${esc([g.note, g.broadcasts.slice(0, 2).join(", ")].filter(Boolean).join(" · "))}</span></div>
             ${teamRow(g.away, g, g.state !== "pre")}${teamRow(g.home, g, g.state !== "pre")}
             ${oddsBar(g, kind)}</a>`).join("") + `</div>`;
       }
@@ -176,6 +195,8 @@
       </div>`;
 
     html += `<div class="section-title">Betting lines</div><div class="cols">${linesCard(g, kind)}${booksCard(g, kind)}</div>`;
+    const lm = lineMoveSection(d, g, kind);
+    html += lm.html;
 
     // side-by-side
     const rows = [];
@@ -230,7 +251,113 @@
     }
     if (!d.hasSummary) html += `<div class="note">Detailed matchup data (ESPN game summary) wasn't fetched for this game.</div>`;
     app.innerHTML = html;
+    lm.wire();
     window.scrollTo(0, 0);
+  }
+
+  // ---------- line movement (game detail)
+  const BOOKNAME = k => ({ draftkings: "DraftKings", fanduel: "FanDuel", hardrockbet: "Hard Rock Bet" }[k] || k.replace(/^espn-/, "ESPN · "));
+  const shortET = d => fmt(d.toISOString(), { weekday: "short", hour: "numeric", minute: "2-digit" });
+  function lineMoveSection(d, g, kind) {
+    const H = d.history, o = g.odds;
+    const none = { html: "", wire: () => {} };
+    if (!o && !H) return none;
+    // Build per-book data: change points + ESPN open
+    let books = H && H.books ? Object.keys(H.books) : [];
+    const order = ["draftkings", "fanduel", "hardrockbet"];
+    books.sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+    const fromOdds = !books.length;   // no history file: show ESPN open -> current only
+    if (fromOdds) books = ["current"];
+    const pointsFor = bk => {
+      if (!fromOdds) return H.books[bk].map(([t, v]) => ({ t: new Date(t), v }));
+      return [{ t: new Date(), v: { hs: o.homeSpread, as: o.awaySpread, tot: o.total, hml: o.homeML, aml: o.awayML, dml: o.drawML } }];
+    };
+    const openFor = bk => (fromOdds ? { hs: o.homeSpreadOpen, tot: o.totalOpen, hml: o.homeMLOpen, aml: o.awayMLOpen, dml: o.drawMLOpen } : (H.open || {})[bk] || {});
+    const spreadLabel = kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread";
+    const MARKETS = {
+      spread: { label: spreadLabel, series: [{ key: "hs", name: `${g.home.abbr} ${spreadLabel.toLowerCase()}`, color: "#22d3a6" }], f: line },
+      total: { label: "Total", series: [{ key: "tot", name: "Total (O/U)", color: "#38bdf8" }], f: v => String(v) },
+      ml: { label: "Moneyline", series: [{ key: "aml", name: `${g.away.abbr} ML`, color: "#fbbf24" }, { key: "hml", name: `${g.home.abbr} ML`, color: "#22d3a6" }].concat(kind === "soccer" ? [{ key: "dml", name: "Draw", color: "#a3a3a3" }] : []), f: am },
+    };
+    const has = (bk, key) => pointsFor(bk).some(p => isNum(p.v[key])) || isNum(openFor(bk)[key]);
+    let st = { bk: books[0], mk: has(books[0], "hs") ? "spread" : has(books[0], "tot") ? "total" : "ml" };
+    const m = moveOf(g);
+    const notes = (m && m.notable) || [];
+    const id = "lm" + g.id;
+    const html = `<div class="section-title">Line movement</div><div class="card lm" id="${id}"></div>`;
+    function stats() {
+      const pts = pointsFor(st.bk), op = openFor(st.bk), M = MARKETS[st.mk];
+      return M.series.map(s => {
+        const ser = pts.filter(p => isNum(p.v[s.key]));
+        if (!ser.length) return "";
+        const cur = ser[ser.length - 1], open = isNum(op[s.key]) ? op[s.key] : ser[0].v[s.key];
+        let big = cur.v[s.key], bigT = cur.t;
+        ser.forEach(p => { if (Math.abs(p.v[s.key] - open) > Math.abs(big - open)) { big = p.v[s.key]; bigT = p.t; } });
+        // last change time = first point of the current run of equal values
+        let lc = null; for (let i = ser.length - 1; i > 0; i--) if (ser[i].v[s.key] !== ser[i - 1].v[s.key]) { lc = ser[i].t; break; }
+        const dlt = cur.v[s.key] - open;
+        return `<tr><td><i class="sw" style="background:${s.color}"></i>${esc(s.name)}</td><td class="num">${esc(M.f(open) ?? "")}${isNum(op[s.key]) ? "" : '<span class="na">*</span>'}</td>
+          <td class="num"><b>${esc(M.f(cur.v[s.key]) ?? "")}</b></td>
+          <td class="num ${dlt ? "chg" : ""}">${dlt ? (dlt > 0 ? "▲ +" : "▼ ") + +dlt.toFixed(2) : "—"}</td>
+          <td class="num">${big !== open ? `${esc(M.f(big))} <span class="na">(${big - open > 0 ? "+" : ""}${+(big - open).toFixed(2)})</span>` : "—"}</td>
+          <td class="num na">${lc ? shortET(lc) + " " + TZL : fromOdds ? "—" : "no change tracked"}</td></tr>`;
+      }).join("");
+    }
+    function chart(w) {
+      const pts = pointsFor(st.bk), op = openFor(st.bk), M = MARKETS[st.mk];
+      const h = w < 500 ? 190 : 230, L = w < 500 ? 40 : 52, R = 14, T = 14, B = 28;
+      const end = new Date(Math.max(H && H.lastSeen ? Date.parse(H.lastSeen) : 0, ...pts.map(p => +p.t)));
+      let x0 = +pts[0].t, x1 = +end; if (x1 - x0 < 3600e3) { x0 -= 1800e3; x1 += 1800e3; }
+      // moneyline is charted as implied win % (American odds jump from -100 to +100, so the raw scale is misleading)
+      const isML = st.mk === "ml", tv = v => (!isML ? v : v < 0 ? (100 * -v) / (-v + 100) : 10000 / (v + 100));
+      const vals = []; M.series.forEach(s => { pts.forEach(p => isNum(p.v[s.key]) && vals.push(tv(p.v[s.key]))); isNum(op[s.key]) && vals.push(tv(op[s.key])); });
+      if (!vals.length) return `<div class="note">No ${esc(M.label.toLowerCase())} data for this book.</div>`;
+      let y0 = Math.min(...vals), y1 = Math.max(...vals);
+      const pad = Math.max((y1 - y0) * 0.15, isML ? 3 : 0.5); y0 -= pad; y1 += pad;
+      const X = t => L + ((t - x0) / (x1 - x0)) * (w - L - R), Yr = v => T + (1 - (v - y0) / (y1 - y0)) * (h - T - B), Y = v => Yr(tv(v));
+      let svg = `<svg class="lmchart" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(M.label)} line movement">`;
+      for (let i = 0; i <= 4; i++) { const v = y0 + ((y1 - y0) * i) / 4, y = Yr(v); svg += `<line x1="${L}" x2="${w - R}" y1="${y}" y2="${y}" class="gl"/><text x="${L - 6}" y="${y + 4}" class="ax" text-anchor="end">${esc(isML ? Math.round(v) + "%" : st.mk === "spread" ? line(Math.round(v * 2) / 2) : (Math.round(v * 2) / 2).toString())}</text>`; }
+      const nx = w < 500 ? 2 : 5, short = x1 - x0 < 20 * 3600e3;
+      const tl = t => (short ? new Date(t).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }) : shortET(new Date(t)));
+      for (let i = 0; i <= nx; i++) { const t = x0 + ((x1 - x0) * i) / nx; svg += `<text x="${X(t)}" y="${h - 8}" class="ax" text-anchor="${i === 0 ? "start" : i === nx ? "end" : "middle"}">${esc(tl(t))}</text>`; }
+      if (isML) svg += `<text x="${L}" y="${T - 3}" class="ax">implied win %</text>`;
+      M.series.forEach(s => {
+        const ser = pts.filter(p => isNum(p.v[s.key]));
+        if (isNum(op[s.key])) { const y = Y(op[s.key]); svg += `<line x1="${L}" x2="${w - R}" y1="${y}" y2="${y}" stroke="${s.color}" class="openl"/><text x="${w - R - 2}" y="${y - 5}" class="ax" fill="${s.color}" text-anchor="end">open ${esc(M.f(op[s.key]))}</text>`; }
+        if (!ser.length) return;
+        let dpath = `M${X(+ser[0].t)},${Y(ser[0].v[s.key])}`;
+        ser.forEach((p, i) => { if (i) dpath += `H${X(+p.t)}V${Y(p.v[s.key])}`; });
+        dpath += `H${X(+end)}`;
+        svg += `<path d="${dpath}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round"/>`;
+        ser.forEach(p => (svg += `<circle cx="${X(+p.t)}" cy="${Y(p.v[s.key])}" r="3.5" fill="${s.color}"><title>${esc(fullET(p.t.toISOString()))}: ${esc(s.name)} ${esc(M.f(p.v[s.key]))}</title></circle>`));
+        const last = ser[ser.length - 1];
+        svg += `<circle cx="${X(+end)}" cy="${Y(last.v[s.key])}" r="4.5" fill="#0b0f17" stroke="${s.color}" stroke-width="2"><title>Current (checked ${esc(fullET(end.toISOString()))}): ${esc(M.f(last.v[s.key]))}</title></circle>`;
+      });
+      return svg + `</svg>`;
+    }
+    function changes() {
+      if (fromOdds) return "";
+      const pts = pointsFor(st.bk).slice().reverse().slice(0, 8);
+      return `<details class="lmlog"><summary>Recorded changes (${pointsFor(st.bk).length}) · ${esc(BOOKNAME(st.bk))}</summary><table><thead><tr><th>Time (${TZL})</th><th>${esc(g.away.abbr)} / ${esc(g.home.abbr)} ${esc(spreadLabel.toLowerCase())}</th><th>Total</th><th>ML ${esc(g.away.abbr)} / ${esc(g.home.abbr)}</th></tr></thead><tbody>` +
+        pts.map(p => `<tr><td>${esc(fullET(p.t.toISOString()))}</td><td class="num">${line(p.v.as) ?? "—"} / ${line(p.v.hs) ?? "—"}</td><td class="num">${p.v.tot ?? "—"}</td><td class="num">${am(p.v.aml) ?? "—"} / ${am(p.v.hml) ?? "—"}</td></tr>`).join("") + `</tbody></table></details>`;
+    }
+    function draw() {
+      const el = document.getElementById(id); if (!el) return;
+      const segM = Object.entries(MARKETS).filter(([k, M]) => M.series.some(s => has(st.bk, s.key))).map(([k, M]) => `<button data-mk="${k}" class="${st.mk === k ? "on" : ""}">${esc(M.label)}</button>`).join("");
+      const segB = books.length > 1 ? `<div class="seg">${books.map(b => `<button data-bk="${b}" class="${st.bk === b ? "on" : ""}">${esc(BOOKNAME(b))}</button>`).join("")}</div>` : "";
+      const since = !fromOdds && H.firstSeen ? `Tracking since ${esc(fullET(H.firstSeen))} · last checked ${esc(fullET(H.lastSeen))}` : "History not recorded for this game yet; showing ESPN's open vs current";
+      el.innerHTML = `<div class="lmhead"><h3>${esc(MARKETS[st.mk].label)} movement <span class="na">· ${esc(fromOdds ? o.provider || "" : BOOKNAME(st.bk))}</span></h3><div class="lmctl">${segB}<div class="seg">${segM}</div></div></div>
+        ${notes.length ? `<div class="lmnotes">${notes.map(n => `<span class="mvbadge">⚡ ${esc(n)}</span>`).join("")}</div>` : ""}
+        <div class="lmplot"></div>
+        <div class="tbl-wrap"><table class="lmstats"><thead><tr><th>Line</th><th>Open</th><th>Current</th><th>Change</th><th>Biggest move</th><th>Last change</th></tr></thead><tbody>${stats()}</tbody></table></div>
+        ${changes()}
+        <div class="note">${since}. Open = opening line as reported by ESPN (<span class="na">*</span> = ESPN open not available, first recorded value used). Lines are snapshotted about every 30 min; points mark recorded changes. Times in ${TZL}.</div>`;
+      const plot = el.querySelector(".lmplot");
+      plot.innerHTML = chart(Math.max(280, Math.floor(plot.clientWidth)));
+      el.querySelectorAll("[data-mk]").forEach(b => (b.onclick = () => { st.mk = b.dataset.mk; draw(); }));
+      el.querySelectorAll("[data-bk]").forEach(b => (b.onclick = () => { st.bk = b.dataset.bk; if (!MARKETS[st.mk].series.some(s => has(st.bk, s.key))) st.mk = "ml"; draw(); }));
+    }
+    return { html, wire: () => { draw(); let rt; window.onresize = () => { clearTimeout(rt); rt = setTimeout(draw, 150); }; } };
   }
 
   function cmpTable(A, H, rows) {

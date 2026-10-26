@@ -19,6 +19,9 @@ import argparse, concurrent.futures as cf, datetime as dt, gzip, json, os, re, s
 import urllib.parse, urllib.request, urllib.error
 from zoneinfo import ZoneInfo
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import line_history as LH
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "site", "data")
 ET = ZoneInfo("America/New_York")
@@ -267,7 +270,7 @@ def norm_name(s):
 
 def odds_api(lg, games, key, report):
     url = (f"https://api.the-odds-api.com/v4/sports/{lg['odds_key']}/odds/?apiKey={urllib.parse.quote(key)}"
-           f"&bookmakers={','.join(k for k, _ in TARGET_BOOKS)}&markets=h2h,spreads,totals&oddsFormat=american&dateFormat=iso")
+           f"&regions=us,us2&bookmakers={','.join(k for k, _ in TARGET_BOOKS)}&markets=h2h,spreads,totals&oddsFormat=american&dateFormat=iso")
     try:
         data, hdr = get(url)
     except Exception as ex:
@@ -303,7 +306,7 @@ def odds_api(lg, games, key, report):
     report["oddsApiMatched"] = matched
 
 # ---------------------------------------------------------------- main
-def build_league(lg, days, odds_key):
+def build_league(lg, days, odds_key, hist_dir=None, snap_dir=None, run_t=None):
     t0 = time.time()
     report = dict(league=lg["key"], endpoints={})
     events, ok_days, errs = fetch_scoreboards(lg, days)
@@ -343,6 +346,22 @@ def build_league(lg, days, odds_key):
         odds_api(lg, games, odds_key, report)
     else:
         report["oddsApi"] = "skipped (no ODDS_API_KEY)"
+    # line movement: snapshot this run's pre-game lines, merge into persistent history (if any), summarize
+    run_t = run_t or LH.now_iso()
+    snap = LH.snapshot_from_games(games)
+    if snap_dir:
+        os.makedirs(snap_dir, exist_ok=True)
+        with open(os.path.join(snap_dir, f"{lg['key']}.json"), "w") as fh: json.dump(dict(league=lg["key"], t=run_t, games=snap), fh)
+    if hist_dir:
+        hpath = os.path.join(hist_dir, f"{lg['key']}.json")
+        hist = LH.load(hpath, lg["key"]); added = LH.merge(hist, snap, run_t); pruned = LH.prune(hist); LH.save(hpath, hist)
+        report["history"] = f"+{added} points, pruned {pruned}, tracking {len(hist['games'])} games"
+    else:
+        hist = dict(games={}); LH.merge(hist, snap, run_t)
+        report["history"] = "no history dir (ESPN open line only)"
+    for g in games:
+        gh = hist["games"].get(g["id"])
+        g["move"] = LH.summarize(gh, lg["kind"], lg["key"]) if gh else None
     # write
     ldir = os.path.join(OUT, lg["key"]); os.makedirs(os.path.join(ldir, "games"), exist_ok=True)
     for fn in os.listdir(os.path.join(ldir, "games")): os.remove(os.path.join(ldir, "games", fn))
@@ -351,7 +370,8 @@ def build_league(lg, days, odds_key):
         d = {k: v for k, v in d.items() if k != "allEspnOdds"} | {"espnOddsProviders": [o.get("provider") for o in d.get("allEspnOdds", [])]}
         gt = {g["home"]["id"]: teams.get(g["home"]["id"]), g["away"]["id"]: teams.get(g["away"]["id"])}
         with open(os.path.join(ldir, "games", f"{g['id']}.json"), "w") as fh:
-            json.dump(dict(league=lg["key"], game=g, detail=d, teams=gt, hasSummary=g["id"] in details), fh, separators=(",", ":"))
+            json.dump(dict(league=lg["key"], game=g, detail=d, teams=gt, hasSummary=g["id"] in details,
+                           history=hist["games"].get(g["id"])), fh, separators=(",", ":"))
     with_odds = sum(1 for g in games if g.get("odds"))
     upcoming = sum(1 for g in games if g["state"] == "pre")
     providers = sorted({g["odds"]["provider"] for g in games if g.get("odds") and g["odds"].get("provider")})
@@ -359,14 +379,19 @@ def build_league(lg, days, odds_key):
     idx = dict(league={k: lg[k] for k in ("key", "name", "full", "kind")}, generated=dt.datetime.now(dt.timezone.utc).isoformat(),
                windowDays=days, games=games, teams=teams, report=report)
     with open(os.path.join(ldir, "index.json"), "w") as fh: json.dump(idx, fh, separators=(",", ":"))
-    log(f"[{lg['key']}] games={len(games)} upcoming={upcoming} withOdds={with_odds} providers={providers} {report['endpoints']} oddsApi={report['oddsApi']} ({report['seconds']}s)")
+    log(f"[{lg['key']}] games={len(games)} upcoming={upcoming} withOdds={with_odds} providers={providers} {report['endpoints']} oddsApi={report['oddsApi']} history={report['history']} ({report['seconds']}s)")
     return report
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--leagues", default=",".join(l["key"] for l in LEAGUES))
     ap.add_argument("--days", type=int, default=10, help="days ahead (including today, ET) to include")
+    ap.add_argument("--history-dir", default=os.environ.get("LINE_HISTORY_DIR") or None,
+                    help="dir with <league>.json line history (data-history branch checkout); omit to skip persistence")
+    ap.add_argument("--snap-dir", default=os.environ.get("LINE_SNAP_DIR") or None,
+                    help="also write this run's raw line snapshot per league here (for re-applying after a push race)")
     a = ap.parse_args()
+    run_t = LH.now_iso()
     want = a.leagues.split(",")
     key = os.environ.get("ODDS_API_KEY", "").strip() or None
     os.makedirs(OUT, exist_ok=True)
@@ -375,7 +400,7 @@ def main():
     for lg in LEAGUES:
         if lg["key"] not in want: continue
         try:
-            rep = build_league(lg, a.days, key)
+            rep = build_league(lg, a.days, key, a.history_dir, a.snap_dir, run_t)
             meta["leagues"][lg["key"]] = dict(name=lg["name"], full=lg["full"], games=rep["games"], upcoming=rep["upcoming"],
                                               withOdds=rep["withOdds"], providers=rep["providers"], updated=dt.datetime.now(dt.timezone.utc).isoformat(), report=rep)
         except Exception as ex:
@@ -384,6 +409,7 @@ def main():
     meta["order"] = [l["key"] for l in LEAGUES]
     meta["generated"] = dt.datetime.now(dt.timezone.utc).isoformat()
     meta["oddsApiEnabled"] = bool(key)
+    meta["historyEnabled"] = bool(a.history_dir)
     meta["targetBooks"] = [dict(key=k, name=n) for k, n in TARGET_BOOKS]
     with open(meta_path, "w") as fh: json.dump(meta, fh, indent=1)
     log("done ->", OUT)

@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;width:1600px;height:1000px;background:#0b0f17;font-family:Inter,sans-serif;color:#e6edf7;box-sizing:border-box;padding:36px 40px}
+h1{margin:0 0 22px;font-size:22px;font-weight:700;letter-spacing:.01em}h1 span{color:#8b9ab3;font-weight:500;font-size:16px;margin-left:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.cell{background:#111827;border:1px solid #243046;border-radius:16px;height:400px;position:relative;box-sizing:border-box;padding:28px 32px}
+.n{position:absolute;top:18px;left:20px;width:34px;height:34px;border-radius:50%;background:#22d3a6;color:#04241b;font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center}
+.name{position:absolute;top:24px;left:66px;color:#8b9ab3;font-size:15px;font-weight:600}
+.big{position:absolute;top:90px;left:0;right:0;text-align:center}.big img{height:110px}
+.row{position:absolute;bottom:26px;left:32px;right:32px;display:flex;align-items:flex-end;gap:26px;color:#5f6f8a;font-size:12px}
+.sz{display:flex;flex-direction:column;align-items:center;gap:6px}
+.tab{margin-left:auto;display:flex;align-items:center;gap:8px;background:#1a2436;border:1px solid #2e3c57;border-radius:8px 8px 0 0;padding:8px 14px;color:#e6edf7;font-size:13px}
+.hdr{display:flex;align-items:center;background:rgba(11,15,23,.92);border:1px solid #243046;border-radius:8px;padding:8px 12px}.hdr img{height:24px}
+</style></head><body>
+<h1>LineSmart — logo concepts <span>on site background #0b0f17 · accent #22d3a6</span></h1>
+<div class="grid" id="g"></div>
+<script>
+const names=["Line-move check — L + rising line chart","Spread board — two lines + the number","Faceted gem with line movement","LS monogram + rising line"];
+document.getElementById('g').innerHTML=[1,2,3,4].map(n=>`<div class="cell"><div class="n">${n}</div><div class="name">${names[n-1]}</div>
+<div class="big"><img src="concept-${n}/logo.svg"></div>
+<div class="row"><div class="sz"><img src="concept-${n}/icon.svg" width="64" height="64">64</div><div class="sz"><img src="concept-${n}/icon.svg" width="32" height="32">32</div><div class="sz"><img src="concept-${n}/icon.svg" width="16" height="16">16</div>
+<div class="sz"><div class="hdr"><img src="concept-${n}/logo.svg"></div>header</div>
+<div class="tab"><img src="concept-${n}/icon.svg" width="16" height="16">LineSmart — Odds &amp; Lines</div></div></div>`).join('');
+</script></body></html>

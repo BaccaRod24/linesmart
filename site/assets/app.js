@@ -8,6 +8,8 @@
 
   document.title = CFG.name;
   document.querySelectorAll("[data-brand]").forEach(e => (e.textContent = CFG.name));
+  document.querySelectorAll("[data-brand-alt]").forEach(e => (e.alt = CFG.name));
+  document.querySelectorAll("[data-brand-title]").forEach(e => (e.title = CFG.name + " — home"));
   document.querySelectorAll("[data-tagline]").forEach(e => (e.textContent = CFG.tagline || ""));
 
   // ---------- utils

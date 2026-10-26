@@ -23,7 +23,7 @@ page.on("requestfailed", r => { if (r.url().startsWith(new URL(BASE).origin)) ba
 const pwaFail = [];
 const check = (ok, msg, tag = "pwa") => { console.log(`${ok ? "PASS" : "FAIL"} ${tag}: ${msg}`); if (!ok) pwaFail.push(`${tag}: ${msg}`); };
 const LEGAL = [["responsible-gambling.html", "Responsible Gambling"], ["privacy.html", "Privacy Policy"], ["terms.html", "Terms of Use"], ["affiliate-disclosure.html", "Affiliate Disclosure"]];
-const CONTACT = "Copenhaverrodney24@yahoo.com";
+const CONTACT = "contact@linesmart.app";
 // compliance footer: same block on every view (SPA routes and legal pages)
 let footerRef = null;
 const footerOk = async where => {

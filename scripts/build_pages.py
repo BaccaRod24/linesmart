@@ -14,9 +14,9 @@ import sys
 from pathlib import Path
 
 SITE = Path(__file__).resolve().parent.parent / "site"
-BASE_URL = "https://baccarod24.github.io/linesmart/"
+BASE_URL = "https://linesmart.app/"
 EFFECTIVE = "October 26, 2026"
-CONTACT = "Copenhaverrodney24@yahoo.com"   # public contact address shown on the legal pages
+CONTACT = "contact@linesmart.app"   # public contact address shown on the legal pages
 
 def ext(href, text):
     return f'<a href="{href}" target="_blank" rel="noopener">{text}</a>'
@@ -54,7 +54,7 @@ def page(file, title, desc, body, show_note=True):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b0f17">
+<meta name="theme-color" content="#050b1c">
 <title>{title} · LineSmart</title>
 <meta name="description" content="{desc}">
 <link rel="canonical" href="{BASE_URL}{file}">
@@ -74,6 +74,7 @@ def page(file, title, desc, body, show_note=True):
 <meta property="og:image" content="{BASE_URL}assets/brand/og-image.png">
 <link rel="preload" href="assets/fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/styles.css">
+<script src="assets/theme.js"></script>
 <script src="assets/config.js"></script>
 <script src="assets/site.js" defer></script>
 </head>

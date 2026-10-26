@@ -1,5 +1,6 @@
 /* LineSmart "My Bets": a private bet tracker. Bets live only in this browser (localStorage); nothing is sent anywhere.
- * Routes: #/bets (overview), #/bets/list, #/bets/add[?lg=&ev=&mk=&side=&ln=&od=&bk=], #/bets/edit/<id>
+ * Routes: #/bets (overview), #/bets/list, #/bets/add[?lg=&ev=&mk=&side=&ln=&od=&bk=[&pid=&pm=&pn=]], #/bets/edit/<id>
+ *   (mk=prop + pid/pm = a player prop from data/props/<lg>.json; pn = player name when he isn't in the feed)
  * Pure math/settlement lives in bets-core.js (window.BetCore); app helpers come from window.LSApp. */
 (() => {
   const C = window.BetCore;
@@ -19,6 +20,18 @@
   const today = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
   const lgName = k => { try { return A().lgName(k); } catch (e) { return String(k || "").toUpperCase(); } };
   const SOCCER = C.SOCCER;
+  const PC = () => window.PropsCore;
+  const FEED_NAME = { draftkings: "DraftKings'", hardrockbet: "Hard Rock Bet's", fanduel: "FanDuel's" };
+  const TRACK_BOOK = { draftkings: "draftkings", hardrockbet: "hardrock", fanduel: "fanduel" };   // feed / odds-file key -> tracker key
+  const PROP_LG = new Set(Object.keys(C.PROP_MARKETS));   // leagues with a props feed + box-score settlement (NFL, NBA)
+  const GEO = () => window.LSGeo || null;
+  const okBook = bk => { const g = GEO(), k = C.FEED_KEY[bk]; return !g || !k || !g.current().state || g.isAvailable(k); };
+  /** New-bet book: the last one used, unless it isn't legal online in the visitor's state (Florida: Hard Rock Bet). */
+  function defaultBook() {
+    const last = prefs().book, geo = GEO() && GEO().defaultBetBook();
+    if (last && C.BOOKS[last] && okBook(last)) return last;
+    return geo || (last && C.BOOKS[last] ? last : "draftkings");
+  }
 
   // ---------- storage (this device only)
   const DEMO_KEY = "ls-bets-demo";   // set only by scripts/screenshots_bets.mjs to label example data
@@ -42,6 +55,7 @@
   function describe(s) {
     const type = s.type || s.mk;
     if (type === "parlay") return `${(s.legs || []).length}-leg parlay`;
+    if (type === "prop" && s.prop && s.prop.mk) return C.describeProp(s);
     if (s.selection && (!s.event || type === "prop")) return s.selection;
     if (type === "total") return `${s.side === "under" ? "Under" : "Over"} ${isNum(s.line) ? s.line : ""}`.trim();
     if (s.side === "draw") return "Draw";
@@ -56,8 +70,20 @@
 
   // ---------- auto-settle (ESPN finals, read in the browser)
   // Site data files first (they include today's finals); otherwise ESPN's summary endpoint on site.web.api.espn.com (CORS-enabled).
-  let lastAuto = 0, autoBusy = false;
-  async function fetchFinal(lg, id) {
+  let lastAuto = 0, autoBusy = false, REVIEWED = 0;
+  async function espnSummary(lg, id) {
+    const path = (A().LG[lg] || [])[0]; if (!path) return null;
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 10000);
+    try {
+      const r = await fetch(`https://site.web.api.espn.com/apis/site/v2/sports/${path}/summary?event=${encodeURIComponent(id)}`, { signal: ctl.signal, cache: "no-store" });
+      return r.ok ? await r.json() : null;
+    } catch (e) { return null; } finally { clearTimeout(t); }
+  }
+  async function fetchFinal(lg, id, box) {
+    if (box && PROP_LG.has(lg)) {   // player props need the box score: ESPN summary (final + per-player stats)
+      const bs = C.boxScore(await espnSummary(lg, id), lg);
+      return bs.final ? { ...bs.final, box: bs } : null;
+    }
     try {
       const d = await A().getJSON(`data/${lg}/games/${id}.json`);
       const g = d && d.game;
@@ -66,32 +92,23 @@
       if (g && g.state === "post" && g.completed && !SOCCER.has(lg)) return { home: +g.home.score, away: +g.away.score, completed: true, status: g.statusDetail || "" };
     } catch (e) { /* not in the data window: ask ESPN */ }
     if (C.MMA.has(lg)) return null;   // ESPN's MMA summary has no scores: grade by hand once the bout leaves the data window
-    const path = (A().LG[lg] || [])[0]; if (!path) return null;
-    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 10000);
-    try {
-      const r = await fetch(`https://site.web.api.espn.com/apis/site/v2/sports/${path}/summary?event=${encodeURIComponent(id)}`, { signal: ctl.signal, cache: "no-store" });
-      if (!r.ok) return null;
-      const c = (((await r.json()).header || {}).competitions || [])[0]; if (!c) return null;
-      const st = (c.status || {}).type || {}, cs = c.competitors || [];
-      const h = cs.find(x => x.homeAway === "home"), a = cs.find(x => x.homeAway === "away");
-      if (!h || !a) return null;
-      return { home: parseFloat(h.score), away: parseFloat(a.score), completed: !!st.completed, status: st.name || "" };
-    } catch (e) { return null; } finally { clearTimeout(t); }
+    return C.boxScore(await espnSummary(lg, id), lg).final;
   }
   async function runAutoSettle(force) {
     if (autoBusy || (!force && Date.now() - lastAuto < 3 * 6e4)) return 0;
     const now = Date.now(), need = new Map();
     for (const b of BETS) for (const e of C.pendingEvents(b)) {
       if (e.date && Date.parse(e.date) > now - 2 * 3600e3) continue;  // not over yet
-      need.set(`${e.league}:${e.id}`, e);
+      const k = `${e.league}:${e.id}`, had = need.get(k);
+      need.set(k, had && had.box ? had : e);   // one fetch per game; with the box score if any bet on it is a player prop
     }
     if (!need.size) return 0;
     autoBusy = true; lastAuto = now;
     try {
       const finals = {};
-      await Promise.all([...need.entries()].map(async ([k, e]) => { const f = await fetchFinal(e.league, e.id); if (f) finals[k] = f; }));
-      let n = 0;
-      BETS = BETS.map(b => { const u = C.autoSettle(b, finals); if (u) { if (u.status !== "pending") n++; return u; } return b; });
+      await Promise.all([...need.entries()].map(async ([k, e]) => { const f = await fetchFinal(e.league, e.id, e.box); if (f) finals[k] = f; }));
+      let n = 0; REVIEWED = 0;
+      BETS = BETS.map(b => { const u = C.autoSettle(b, finals); if (u) { if (u.status !== "pending") n++; else if (C.needsReview(u) && !C.needsReview(b)) REVIEWED++; return u; } return b; });
       save();
       return n;
     } finally { autoBusy = false; }
@@ -195,15 +212,18 @@
   function betCard(b) {
     const net = C.netResult(b), pend = b.status === "pending";
     const price = isNum(b.odds) ? am(b.odds) : am(C.parlayAmerican(b.legs));
-    const legs = b.type === "parlay" ? `<ol class="bt-legs">${(b.legs || []).map(l => `<li>${l.result && l.result !== "pending" ? badge(l.result) : ""}<b>${esc(describe(l))}</b> <span class="na">${esc([eventLabel(l), am(l.odds)].filter(Boolean).join(" · "))}</span></li>`).join("")}</ol>` : "";
-    const fin = b.final ? ` · final ${esc(b.final.away)}-${esc(b.final.home)}` : "";
+    const legs = b.type === "parlay" ? `<ol class="bt-legs">${(b.legs || []).map(l => `<li>${l.result && l.result !== "pending" ? badge(l.result) : l.review ? `<span class="bs bs-review">Review</span>` : ""}<b>${esc(describe(l))}</b> <span class="na">${esc([eventLabel(l), am(l.odds), isNum(l.statValue) ? `final: ${l.statValue}` : ""].filter(Boolean).join(" · "))}</span>${l.review && (!l.result || l.result === "pending") ? `<div class="bt-rv-why">${esc(l.review.reason)}</div>` : ""}</li>`).join("")}</ol>` : "";
+    const fin = isNum(b.statValue) && b.prop ? ` · final: ${esc(b.statValue)} ${esc(C.propLabel(b.league, b.prop.mk).toLowerCase())}` : b.final ? ` · final ${esc(b.final.away)}-${esc(b.final.home)}` : "";
+    const rv = C.needsReview(b);
+    const review = rv ? `<div class="bt-review" role="note"><b>Needs review</b> ${esc(b.review ? b.review.reason : "A leg couldn't be graded from the box score.")}
+      ${b.type === "parlay" ? `<span class="bt-rv-btns"><button type="button" class="chip" data-settle="${esc(b.id)}">Grade legs</button></span>` : `<span class="bt-rv-btns">${["won", "lost", "push"].map(st => `<button type="button" class="bt-rb rb-${st}" data-quick="${st}" data-id="${esc(b.id)}">${st === "won" ? "Win" : st === "lost" ? "Loss" : "Push"}</button>`).join("")}</span>`}</div>` : "";
     const meta = [b.date, bookName(b), b.type === "parlay" ? null : lgName(b.league || ""), C.TYPES[b.type]].filter(Boolean).join(" · ");
     const res = pend ? `<span class="na">to win</span> <b>${money(C.toWin(b))}</b>` : b.status === "void" ? `<b class="na">stake returned</b>` : `<b class="${cls(net)}">${money(net, true)}</b>`;
     return `<article class="bt-card st-${esc(b.status)}" id="bet-${esc(b.id)}">
-      <div class="bt-top">${badge(b.status)}${b.settledBy === "auto" && !pend ? `<span class="bt-auto" title="Settled automatically from the ESPN final score">auto${fin}</span>` : ""}<span class="bt-meta">${esc(meta)}</span></div>
+      <div class="bt-top">${badge(b.status)}${rv ? `<span class="bs bs-review">Needs review</span>` : ""}${b.settledBy === "auto" && !pend ? `<span class="bt-auto" title="${b.prop ? "Settled automatically from the ESPN box score" : "Settled automatically from the ESPN final score"}">auto${fin}</span>` : ""}<span class="bt-meta">${esc(meta)}</span></div>
       <div class="bt-main"><div class="bt-sel"><b>${esc(describe(b))}</b><span class="na">${esc(eventLabel(b))}</span></div>
         <div class="bt-px"><span class="oc"><b>${esc(price || "—")}</b><small>${money(b.stake)}</small></span></div></div>
-      ${legs}${b.notes ? `<div class="bt-notes">${esc(b.notes)}</div>` : ""}
+      ${legs}${review}${b.notes ? `<div class="bt-notes">${esc(b.notes)}</div>` : ""}
       <div class="bt-foot"><span class="bt-res">${res}</span>
         <span class="bt-act"><button type="button" class="chip" data-settle="${esc(b.id)}">${pend ? "Settle" : "Change result"}</button><a class="chip" href="#/bets/edit/${encodeURIComponent(b.id)}">Edit</a><button type="button" class="chip bt-del" data-del="${esc(b.id)}" aria-label="Delete bet">Delete</button></span></div></article>`;
   }
@@ -215,7 +235,7 @@
       .sort((a, b) => (b.status === "pending") - (a.status === "pending") || String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)));
     let html = filterBar(BETS) + `<div class="chips bt-lf" role="group" aria-label="Show">${[["all", "All"], ["pending", "Open"], ["settled", "Settled"]].map(([k, l]) => `<button type="button" class="chip${LISTF === k ? " on" : ""}" data-lf="${k}">${l} <b>${counts[k]}</b></button>`).join("")}</div>`;
     html += shown.length ? `<div class="bt-list">${shown.map(betCard).join("")}</div>` : `<div class="empty"><h3>${BETS.length ? "No bets match these filters" : "No bets tracked yet"}</h3>${BETS.length ? "Try a wider date range." : `<a class="lnk" href="#/bets/add">Add a bet</a> you've placed to start tracking.`}</div>`;
-    html += `<div class="note">Moneyline, spread and total bets linked to a game settle automatically once ESPN posts the final score. Props, manual entries and anything else: tap Settle.</div>` + privacyNote;
+    html += `<div class="note">Moneyline, spread and total bets linked to a game settle automatically once ESPN posts the final score. NFL and NBA player props picked from a game settle from ESPN's box score; if a player isn't in the box score (didn't play) or the game wasn't completed, the bet is marked "Needs review" for you to grade. Other props and manual entries: tap Settle.</div>` + privacyNote;
     app.innerHTML = shell("list", html);
     wireFilters(app, () => viewList(app));
     app.querySelectorAll("[data-lf]").forEach(b => (b.onclick = () => { LISTF = b.dataset.lf; viewList(app); }));
@@ -225,6 +245,11 @@
       BETS = BETS.filter(x => x.id !== bet.id); save(); viewList(app);
     }));
     app.querySelectorAll("[data-settle]").forEach(b => (b.onclick = () => settleDialog(b.dataset.settle, () => viewList(app))));
+    app.querySelectorAll("[data-quick]").forEach(b => (b.onclick = () => {
+      const i = BETS.findIndex(x => x.id === b.dataset.id); if (i < 0) return;
+      const nb = { ...BETS[i], status: b.dataset.quick, manual: true, settledBy: "manual", settledAt: today() }; delete nb.review;
+      BETS[i] = nb; save(); viewList(app); toast(`Marked ${C.STATUS[nb.status].toLowerCase()}.`);
+    }));
   }
 
   // manual settle / override
@@ -252,7 +277,8 @@
     const commit = st => {
       const i = BETS.findIndex(b => b.id === id); if (i < 0) return close();
       const b = { ...BETS[i] };
-      if (b.type === "parlay") b.legs = b.legs.map((l, j) => ({ ...l, result: legsR[j] }));
+      if (b.type === "parlay") b.legs = b.legs.map((l, j) => { const x = { ...l, result: legsR[j] }; if (legsR[j] !== "pending") delete x.review; return x; });
+      if (st !== "pending") delete b.review;
       if (st === "pending") Object.assign(b, { status: "pending", manual: false, settledAt: null, settledBy: null, cashout: null, final: null });
       else {
         if (st === "cashout") { const v = parseFloat(dlg.querySelector('[name="co"]').value); if (!isNum(v) || v < 0) { dlg.querySelector('[name="co"]').focus(); return; } b.cashout = Math.round(v * 100) / 100; }
@@ -302,8 +328,23 @@
   }
 
   // ---------- add / edit form
-  const GAMES = {};
+  const GAMES = {}, PROPS = {};
+  /** data/props/<lg>.json (already on the site; no extra API calls). null when there's no feed. */
+  async function propsFor(lg) {
+    if (!PROP_LG.has(lg)) return null;
+    if (lg in PROPS) return PROPS[lg];
+    try { PROPS[lg] = await A().getJSON(`data/props/${lg}.json`); } catch (e) { PROPS[lg] = null; }
+    return PROPS[lg];
+  }
+  /** Feed players for a leg's game: [{pid, n, pos, ta, props:[{mk, label, short, line, books}]}] */
+  function feedPlayers(l) {
+    const doc = PROPS[l.league], ev = l.event;
+    if (!doc || !l.eventId || !PC()) return [];
+    return PC().byPlayer(doc, l.eventId, ev ? [String(ev.away.id), String(ev.home.id)] : []);
+  }
+  const feedProp = l => { const pl = feedPlayers(l).find(p => p.pid === String(l.pid)); return pl ? pl.props.find(x => x.mk === l.pmk) || null : null; };
   async function gamesFor(lg) {
+    propsFor(lg);
     if (GAMES[lg]) return GAMES[lg];
     try { const d = await A().getJSON(`data/${lg}/index.json`); return (GAMES[lg] = { kind: d.league.kind, games: d.games.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))) }); }
     catch (e) { return (GAMES[lg] = { kind: "", games: [] }); }
@@ -324,7 +365,8 @@
     if (mk === "total") return { line: o.total, odds: o[side + "Odds"] };
     return {};
   }
-  const newLeg = lg => ({ league: lg || prefs().lg || "nfl", eventId: "", manual: false, eventText: "", mk: "ml", side: "", line: "", odds: "", selection: "" });
+  const newLeg = lg => ({ league: lg || prefs().lg || "nfl", eventId: "", manual: false, eventText: "", mk: "ml", side: "", line: "", odds: "", selection: "", pid: "", player: "", pmk: "", custom: false });
+  const clearProp = l => Object.assign(l, { pid: "", player: "", pmk: "", custom: false, side: "", line: "" });
 
   let F = null; // form state
   async function viewForm(app, editId, qs) {
@@ -333,11 +375,15 @@
     if (editId && !ex) { app.innerHTML = shell("add", `<div class="empty"><h3>Bet not found</h3>It may have been deleted. <a class="lnk" href="#/bets/list">Back to your bets</a></div>`); return; }
     const p = prefs();
     if (ex) {
-      const toLeg = s => ({ league: s.league || (s.event && s.event.lg) || "nfl", eventId: s.event ? s.event.id : "", event: s.event || null, manual: !s.event, eventText: s.eventText || "", mk: s.type === "parlay" ? "ml" : s.type, side: s.side || "", line: s.line ?? "", odds: s.odds ?? "", selection: s.selection || "", result: s.result });
+      const toLeg = s => { const pr = s.prop || null;
+        return { league: s.league || (s.event && s.event.lg) || "nfl", eventId: s.event ? s.event.id : "", event: s.event || null, manual: !s.event, eventText: s.eventText || "", mk: s.type === "parlay" ? "ml" : s.type,
+          side: (pr ? pr.side : s.side) || "", line: (pr ? pr.line : s.line) ?? "", odds: s.odds ?? "", selection: s.selection || "", result: s.result,
+          // older free-text props on a game keep their text ("Something else"); structured props reopen in the picker
+          pid: pr && pr.pid ? String(pr.pid) : "", player: pr ? pr.player || "" : "", pmk: pr ? pr.mk : (s.type === "prop" && s.event ? "other" : ""), custom: !!(pr ? !pr.pid : s.type === "prop" && s.event) }; };
       F = { id: ex.id, book: ex.book, bookOther: ex.bookOther || "", type: ex.type, date: ex.date || today(), stake: ex.stake, odds: ex.odds ?? "", oddsManual: !!ex.oddsManual, notes: ex.notes || "",
         legs: ex.type === "parlay" ? ex.legs.map(l => ({ ...toLeg(l), mk: l.type || "ml" })) : [toLeg(ex)] };
     } else {
-      F = { book: p.book || (window.LSGeo && window.LSGeo.defaultBetBook()) || "draftkings", bookOther: p.bookOther || "", type: "ml", date: today(), stake: p.stake || "", odds: "", oddsManual: false, notes: "", legs: [newLeg()] };
+      F = { book: defaultBook(), bookOther: p.bookOther || "", type: "ml", date: today(), stake: p.stake || "", odds: "", oddsManual: false, notes: "", legs: [newLeg()] };
       if (qs && qs.get("lg")) {
         const leg = F.legs[0]; leg.league = qs.get("lg"); leg.eventId = qs.get("ev") || "";
         const mk = qs.get("mk"); if (C.TYPES[mk] && mk !== "parlay") { F.type = mk; leg.mk = mk; }
@@ -345,15 +391,22 @@
         if (isNum(qs.get("ln"))) leg.line = Number(qs.get("ln"));
         if (isNum(qs.get("od"))) { leg.odds = Number(qs.get("od")); F.odds = Number(qs.get("od")); }
         if (C.BOOKS[qs.get("bk")]) F.book = qs.get("bk");
+        if (mk === "prop") { leg.pid = qs.get("pid") || ""; leg.pmk = qs.get("pm") || ""; leg.player = qs.get("pn") || ""; if (C.YESNO.has(leg.pmk) && !leg.side) leg.side = "over"; }
       }
     }
-    for (const l of F.legs) await gamesFor(l.league);
+    for (const l of F.legs) { await gamesFor(l.league); await propsFor(l.league); }
     if (tok !== A().nav()) return;
     for (const l of F.legs) if (l.eventId && !l.event) { const g = GAMES[l.league].games.find(x => String(x.id) === String(l.eventId)); if (g) l.event = evOf(g, l.league); else if (!ex) { l.eventId = ""; } }
+    for (const l of F.legs) if (!ex && l.mk === "prop" && (l.pid || l.player)) {   // "+ Track" from a prop row: fill name, line and price at the chosen book
+      const pl = feedPlayers(l).find(x => x.pid === String(l.pid));
+      if (pl) { l.player = pl.n; if (l.pmk && !pl.props.some(x => x.mk === l.pmk)) l.pmk = ""; } else { l.custom = true; l.pid = ""; }
+      const fp = feedProp(l);
+      if (fp) { const q = C.propQuote(fp.books, F.book, l.side, fp.line); if (!isNum(l.line) || q.posted) l.line = q.line ?? l.line; if (isNum(q.odds)) { l.odds = q.odds; F.odds = q.odds; } }
+    }
     drawForm(app);
   }
 
-  function legHtml(l, i, parlay) {
+  function legHtml(l, i, parlay, typeSeg = "") {
     const G = GAMES[l.league] || { games: [] }, soccer = SOCCER.has(l.league);
     const lgs = A().meta().order;
     const mk = parlay ? l.mk : F.type;
@@ -367,6 +420,7 @@
     h += `<div class="bt-lbl">League</div><div class="chips bt-scroll">${lgs.map(k => `<button type="button" class="chip${k === l.league ? " on" : ""}" data-a="lg" data-v="${k}">${esc(lgName(k))}</button>`).join("")}</div>`;
     h += `<label class="bt-f"><span class="bt-lbl">Game</span><select data-f="game"><option value="">${games.length ? "Choose a game…" : "No games in our data right now"}</option>${known ? `<option value="${esc(l.eventId)}" selected>${esc(l.event.name)}</option>` : ""}${games.map(x => `<option value="${esc(x.id)}"${String(x.id) === String(l.eventId) && !l.manual ? " selected" : ""}>${esc(dayOpt(x))}</option>`).join("")}<option value="__manual"${l.manual ? " selected" : ""}>Not listed: type it in</option></select></label>`;
     if (l.manual) h += `<label class="bt-f"><span class="bt-lbl">Event</span><input data-f="eventText" value="${esc(l.eventText)}" placeholder="e.g. Chiefs vs Bills, or UFC 310" autocomplete="off"></label>`;
+    h += typeSeg;
     const linked = !l.manual && (g || l.event);
     if (linked && mk !== "prop" && mk !== "parlay") {
       const ev = g ? evOf(g, l.league) : l.event, q = quote(g, F.book);
@@ -375,11 +429,54 @@
         return `<button type="button" class="bt-side${l.side === s ? " on" : ""}" data-a="side" data-v="${s}"><b>${esc(label)}</b><small>${esc(sub.trim() || "—")}</small></button>`; }).join("")}</div>`;
       if (q) h += `<div class="bt-hint">Prices: ${esc(q.src)} from LineSmart's latest data. Check them against your bet slip.</div>`;
       if (mk === "spread" || mk === "total") h += `<label class="bt-f bt-half"><span class="bt-lbl">${mk === "total" ? "Total line" : "Spread line (your side)"}</span><input data-f="line" type="text" inputmode="decimal" value="${esc(l.line)}" placeholder="${mk === "total" ? "e.g. 44.5" : "e.g. -3.5"}"></label>`;
+    } else if (linked && mk === "prop" && PROP_LG.has(l.league)) {
+      h += propHtml(l, i);
     } else {
       h += `<label class="bt-f"><span class="bt-lbl">Your pick</span><input data-f="selection" value="${esc(l.selection)}" placeholder="${mk === "prop" ? "e.g. Jalen Hurts over 1.5 pass TD" : "e.g. Eagles -3.5"}" autocomplete="off"></label>`;
+      if (mk === "prop" && PROP_LG.has(l.league) && !linked) h += `<div class="bt-hint">Pick the game above to choose the player and prop from the list (and have it settle automatically).</div>`;
     }
     if (parlay) h += `<label class="bt-f bt-half"><span class="bt-lbl">Leg odds</span><input data-f="odds" type="text" inputmode="numeric" value="${esc(l.odds)}" placeholder="-110"></label>`;
     return h + `</div>`;
+  }
+
+  /** Player-prop picker for a linked NFL/NBA game: player (search) → prop type → Over/Under, priced at the chosen book. */
+  function propHtml(l, i) {
+    const players = feedPlayers(l), yes = C.YESNO.has(l.pmk), M = C.PROP_MARKETS[l.league];
+    const bkName = F.book === "other" ? (F.bookOther || "your book") : C.BOOKS[F.book];
+    let h = "";
+    const sideBtns = q => `<div class="bt-lbl">${yes ? "Scores a TD?" : "Over or under?"}</div><div class="bt-sides bt-ou">${[["over", yes ? "Yes" : "Over"], ["under", yes ? "No" : "Under"]].map(([sd, lab]) => {
+      const pq = q ? q(sd) : null, sub = pq ? `${yes ? "" : `${sd === "over" ? "o" : "u"}${C.isNum(pq.line) ? pq.line : ""} `}${am(pq.odds) || ""}`.trim() : "";
+      return `<button type="button" class="bt-side${l.side === sd ? " on" : ""}" data-a="side" data-v="${sd}"><b>${esc(lab)}</b><small>${esc(sub || "—")}</small></button>`; }).join("")}</div>`;
+    const lineIn = () => (yes ? "" : `<label class="bt-f bt-half"><span class="bt-lbl">Line</span><input data-f="line" type="text" inputmode="decimal" value="${esc(l.line)}" placeholder="e.g. 24.5"></label>`);
+    if (!l.custom && players.length) {
+      if (!l.pid) {
+        h += `<div class="bt-lbl">Player <span class="na">· ${players.length} with props posted</span></div>
+          <input class="bt-psearch" data-f="psearch" type="search" placeholder="Search players…" aria-label="Search players" autocomplete="off">
+          <div class="bt-plist" role="list">${players.map(p => `<button type="button" class="bt-pl" role="listitem" data-a="pl" data-v="${esc(p.pid)}" data-n="${esc(C.normName(p.n))}"><b>${esc(p.n)}</b><small>${esc([p.pos, p.ta].filter(Boolean).join(" · "))} · ${p.props.length} prop${p.props.length > 1 ? "s" : ""}</small></button>`).join("")}</div>`;
+      } else {
+        const pl = players.find(p => p.pid === String(l.pid));
+        h += `<div class="bt-lbl">Player</div><div class="bt-pick"><span><b>${esc(pl ? pl.n : l.player)}</b><small>${esc(pl ? [pl.pos, pl.ta].filter(Boolean).join(" · ") : "")}</small></span><button type="button" class="chip" data-a="plclear">Change</button></div>`;
+        if (pl) {
+          h += `<div class="bt-lbl">Prop</div><div class="bt-pms">${pl.props.map(x => { const q = C.propQuote(x.books, F.book, "over", x.line);
+            return `<button type="button" class="bt-pm${l.pmk === x.mk ? " on" : ""}" data-a="pm" data-v="${esc(x.mk)}"><b>${esc(x.short)}</b><small>${esc(C.YESNO.has(x.mk) ? (isNum(q.odds) ? am(q.odds) : "Yes / No") : PC().fmtNum(q.line))}</small></button>`; }).join("")}</div>`;
+          const fp = l.pmk ? pl.props.find(x => x.mk === l.pmk) : null;
+          if (fp) {
+            h += sideBtns(sd => C.propQuote(fp.books, F.book, sd, fp.line)) + lineIn();
+            const q = C.propQuote(fp.books, F.book, l.side || "over", fp.line);
+            h += `<div class="bt-hint">${q.posted ? `Line and price: ${esc(bkName)} from LineSmart's latest pull.` : `${esc(bkName)} hasn't posted this prop in our data; line shown is ${esc(FEED_NAME[(fp.books.find(b => b.line === fp.line) || {}).key] || "another book's")}. Enter the line and odds from your slip.`} You can edit both.</div>`;
+          }
+        }
+      }
+      h += `<button type="button" class="lnk bt-custom" data-a="custom">Player or prop not listed? Enter it yourself</button>`;
+    } else {
+      if (!players.length) h += `<div class="bt-hint">${PROPS[l.league] ? "No props in our feed for this game" : "No props feed loaded"} (NFL props post during game week, NBA the day before). Enter the prop below; it still settles from the box score.</div>`;
+      h += `<label class="bt-f"><span class="bt-lbl">Player</span><input data-f="player" value="${esc(l.player)}" placeholder="Full name, e.g. ${l.league === "nba" ? "Jalen Brunson" : "Jalen Hurts"}" autocomplete="off"></label>
+        <label class="bt-f"><span class="bt-lbl">Prop</span><select data-f="pmk"><option value="">Choose a prop…</option>${Object.entries(M).map(([k, v]) => `<option value="${k}"${l.pmk === k ? " selected" : ""}>${esc(v[0])}</option>`).join("")}<option value="other"${l.pmk === "other" ? " selected" : ""}>Something else (settle it yourself)</option></select></label>`;
+      if (l.pmk === "other") h += `<label class="bt-f"><span class="bt-lbl">Your pick</span><input data-f="selection" value="${esc(l.selection)}" placeholder="e.g. first TD scorer, double-double" autocomplete="off"></label>`;
+      else if (l.pmk) h += sideBtns(null) + lineIn();
+      if (players.length) h += `<button type="button" class="lnk bt-custom" data-a="uncustom">← Pick from the ${players.length} players with posted props</button>`;
+    }
+    return h;
   }
 
   function drawForm(app) {
@@ -388,8 +485,10 @@
     let h = `<form class="bt-form" novalidate autocomplete="off"><h2 class="bt-fh">${F.id ? "Edit bet" : "Add a bet"}</h2>`;
     h += `<div class="bt-lbl">Sportsbook</div><div class="chips bt-books">${Object.entries(C.BOOKS).map(([k, n]) => `<button type="button" class="chip${F.book === k ? " on" : ""}" data-a="book" data-v="${k}">${esc(n)}</button>`).join("")}</div>`;
     if (F.book === "other") h += `<label class="bt-f"><span class="bt-lbl">Sportsbook name</span><input data-f="bookOther" value="${esc(F.bookOther)}" placeholder="e.g. BetMGM" autocomplete="off"></label>`;
-    h += `<div class="bt-lbl">Bet type</div><div class="seg bt-types">${Object.entries(C.TYPES).map(([k, n]) => `<button type="button" data-a="type" data-v="${k}" class="${F.type === k ? "on" : ""}">${esc(k === "total" ? "Total" : k === "prop" ? "Prop" : n)}</button>`).join("")}</div>`;
-    h += `<div class="bt-legs-ed">${F.legs.map((l, i) => legHtml(l, i, parlay)).join("")}</div>`;
+    // guided order for a single bet: sport -> game -> bet type -> pick; a parlay keeps the type switch on top (legs pick their own market)
+    const typeSeg = `<div class="bt-lbl">Bet type</div><div class="seg bt-types">${Object.entries(C.TYPES).map(([k, n]) => `<button type="button" data-a="type" data-v="${k}" class="${F.type === k ? "on" : ""}">${esc(k === "total" ? "Total" : k === "prop" ? "Player prop" : n)}</button>`).join("")}</div>`;
+    if (parlay) h += typeSeg;
+    h += `<div class="bt-legs-ed">${F.legs.map((l, i) => legHtml(l, i, parlay, parlay ? "" : typeSeg)).join("")}</div>`;
     if (parlay) h += `<button type="button" class="chip bt-addleg" data-a="addleg">+ Add leg</button>
       <div class="bt-comb">Combined odds <b>${combined === null ? "—" : esc(am(combined))}</b> <span class="na">from ${F.legs.length} leg${F.legs.length > 1 ? "s" : ""}</span></div>
       <label class="bt-chk"><input type="checkbox" data-f="oddsManual"${F.oddsManual ? " checked" : ""}> Use the odds on my ticket instead (boosts, same-game parlays)</label>`;
@@ -401,7 +500,7 @@
       <label class="bt-f"><span class="bt-lbl">Notes <span class="na">(optional)</span></span><input data-f="notes" value="${esc(F.notes)}" placeholder="e.g. bet ID, boost, reasoning" autocomplete="off"></label>
       <div class="bt-err" role="alert"></div>
       <div class="bt-actions"><a class="chip" href="${F.id ? "#/bets/list" : "#/bets"}">Cancel</a><button type="submit" class="bt-add">${F.id ? "Save changes" : "Save bet"}</button></div>
-      <div class="note">Saved only on this device. ${F.type === "prop" || F.type === "parlay" ? "Props and parlays with prop or manual legs are settled by you from the Bets list." : "Moneyline, spread and total bets linked to a game settle automatically from ESPN final scores."}</div></form>`;
+      <div class="note">Saved only on this device. ${F.type === "prop" || F.type === "parlay" ? "NFL and NBA player props picked from a game settle automatically from ESPN's box score; anything it can't grade (player didn't play, prop not in the box score) is flagged for you to settle. Other props and manual entries are settled by you from the Bets list." : "Moneyline, spread and total bets linked to a game settle automatically from ESPN final scores."}</div></form>`;
     app.innerHTML = shell("add", h);
     const form = $(".bt-form", app);
     updateToWin(form);
@@ -413,11 +512,16 @@
       else if (a === "type") {
         const was = F.type; F.type = v;
         if (v === "parlay" && was !== "parlay") { F.legs.forEach(x => { x.mk = was === "parlay" ? x.mk : was; if (!isNum(x.odds) && isNum(F.odds)) x.odds = F.odds; }); if (F.legs.length < 2) F.legs.push(newLeg(F.legs[0].league)); F.odds = ""; }
-        if (v !== "parlay") { F.legs = [F.legs[0]]; F.legs[0].mk = v; if (was === "parlay") F.odds = F.legs[0].odds; if (was !== v) { F.legs[0].side = ""; F.legs[0].line = ""; } }
+        if (v !== "parlay") { F.legs = [F.legs[0]]; F.legs[0].mk = v; if (was === "parlay") F.odds = F.legs[0].odds; if (was !== v) clearProp(F.legs[0]); }
       }
-      else if (a === "mk") { l.mk = v; l.side = ""; l.line = ""; }
-      else if (a === "lg") { l.league = v; l.eventId = ""; l.event = null; l.manual = false; l.side = ""; setPref("lg", v); return gamesFor(v).then(() => drawForm(app)); }
+      else if (a === "mk") { l.mk = v; clearProp(l); }
+      else if (a === "lg") { l.league = v; l.eventId = ""; l.event = null; l.manual = false; clearProp(l); setPref("lg", v); return Promise.all([gamesFor(v), propsFor(v)]).then(() => drawForm(app)); }
       else if (a === "side") { l.side = v; setPrice(l); }
+      else if (a === "pl") { const pl = feedPlayers(l).find(x => x.pid === v); Object.assign(l, { pid: v, player: pl ? pl.n : "", pmk: "", side: "", line: "" }); }
+      else if (a === "plclear") clearProp(l);
+      else if (a === "pm") { l.pmk = v; l.side = C.YESNO.has(v) ? "over" : l.side; l.line = ""; setPrice(l); }
+      else if (a === "custom") { l.custom = true; l.pid = ""; }
+      else if (a === "uncustom") clearProp(l);
       else if (a === "addleg") { F.legs.push(newLeg(F.legs[F.legs.length - 1].league)); }
       else if (a === "rmleg") { F.legs.splice(+legEl.dataset.leg, 1); }
       drawForm(app);
@@ -425,13 +529,19 @@
     form.addEventListener("change", e => {
       const t = e.target, legEl = t.closest("[data-leg]"), l = legEl ? F.legs[+legEl.dataset.leg] : null;
       if (t.dataset.f === "game") {
-        l.manual = t.value === "__manual"; l.eventId = l.manual ? "" : t.value; l.side = ""; l.line = "";
+        l.manual = t.value === "__manual"; l.eventId = l.manual ? "" : t.value; clearProp(l);
         const g = (GAMES[l.league].games || []).find(x => String(x.id) === l.eventId); l.event = g ? evOf(g, l.league) : null;
         drawForm(app);
       } else if (t.dataset.f === "oddsManual") { F.oddsManual = t.checked; drawForm(app); }
+      else if (t.dataset.f === "pmk") { l.pmk = t.value; l.side = C.YESNO.has(t.value) ? "over" : ""; l.line = ""; drawForm(app); }
     });
     form.addEventListener("input", e => {
-      const t = e.target, f = t.dataset.f; if (!f || f === "game" || f === "oddsManual") return;
+      const t = e.target, f = t.dataset.f; if (!f || f === "game" || f === "oddsManual" || f === "pmk") return;
+      if (f === "psearch") {   // filter the player list in place (no redraw, keeps the keyboard up)
+        const q = C.normName(t.value);
+        t.closest("[data-leg]").querySelectorAll(".bt-pl").forEach(b => (b.hidden = !!q && !b.dataset.n.includes(q)));
+        return;
+      }
       const legEl = t.closest("[data-leg]");
       if (legEl) { F.legs[+legEl.dataset.leg][f] = t.value; if (f === "odds" && F.type === "parlay") { const c = $(".bt-comb b", form), x = C.parlayAmerican(F.legs.map(l => ({ odds: isNum(l.odds) ? Number(l.odds) : null }))); if (c) c.textContent = x === null ? "—" : am(x); } }
       else F[f] = t.value;
@@ -439,12 +549,20 @@
     });
     form.addEventListener("submit", e => { e.preventDefault(); submit(form); });
     function setPrice(l) {
+      const mk = F.type === "parlay" ? l.mk : F.type;
+      if (mk === "prop") {
+        const fp = !l.custom && feedProp(l); if (!fp) return;
+        const q = C.propQuote(fp.books, F.book, l.side || "over", fp.line);
+        if (isNum(q.line) && !C.YESNO.has(l.pmk)) l.line = q.line;
+        if (l.side) { l.odds = isNum(q.odds) ? q.odds : ""; if (F.type !== "parlay") F.odds = l.odds; }
+        return;
+      }
       const g = (GAMES[l.league].games || []).find(x => String(x.id) === String(l.eventId)); if (!g) return;
-      const pr = priceFor(quote(g, F.book), F.type === "parlay" ? l.mk : F.type, l.side);
+      const pr = priceFor(quote(g, F.book), mk, l.side);
       if (isNum(pr.line)) l.line = pr.line;
       if (isNum(pr.odds)) { l.odds = pr.odds; if (F.type !== "parlay") F.odds = pr.odds; }
     }
-    function refreshPrices() { F.legs.forEach(l => l.side && setPrice(l)); }
+    function refreshPrices() { F.legs.forEach(l => (l.side || l.pmk) && setPrice(l)); }
   }
   function currentOdds() {
     if (F.type !== "parlay" || F.oddsManual) return isNum(F.odds) ? Number(F.odds) : null;
@@ -468,7 +586,16 @@
       if (!linked && !l.manual && !l.selection.trim()) return err(tag + "Choose a game (or pick “Not listed”).");
       const leg = { league: l.league, type: mk, odds: isNum(l.odds) ? Number(l.odds) : null };
       if (linked) leg.event = l.event; else if (l.eventText.trim()) leg.eventText = l.eventText.trim();
-      if (linked && mk !== "prop") {
+      if (linked && mk === "prop" && PROP_LG.has(l.league) && l.pmk !== "other") {
+        const name = String(l.player || "").trim(), yes = C.YESNO.has(l.pmk);
+        if (!name) return err(tag + "Pick the player (or type his name).");
+        if (!l.pmk) return err(tag + "Pick the prop (e.g. points, passing yards).");
+        if (!l.side) return err(tag + (yes ? "Tap Yes or No." : "Tap Over or Under."));
+        if (!yes && !isNum(l.line)) return err(tag + "Enter the prop line (e.g. 24.5).");
+        if (!yes && Number(l.line) < 0) return err(tag + "Prop lines can't be negative.");
+        leg.prop = { mk: l.pmk, pid: l.pid ? String(l.pid) : undefined, player: name, label: C.propLabel(l.league, l.pmk), line: yes ? 0.5 : Number(l.line), side: l.side };
+        leg.selection = C.describeProp(leg);
+      } else if (linked && mk !== "prop") {
         if (!l.side) return err(tag + "Tap the side you bet.");
         leg.side = l.side;
         if (mk !== "ml") { if (!isNum(l.line)) return err(tag + "Enter the line (e.g. -3.5 or 44.5)."); leg.line = Number(l.line); }
@@ -514,7 +641,7 @@
     render();
     const tok = A().nav();
     const n = await runAutoSettle();
-    if (n && tok === A().nav()) { render(); toast(`${n} bet${n > 1 ? "s" : ""} settled from final scores.`); }
+    if ((n || REVIEWED) && tok === A().nav()) { render(); toast([n ? `${n} bet${n > 1 ? "s" : ""} settled from final scores.` : "", REVIEWED ? `${REVIEWED} need${REVIEWED > 1 ? "" : "s"} your review.` : ""].filter(Boolean).join(" ")); }
   }
   /** "Track this bet" link for a game (and optionally a market) */
   function trackHref(lg, g, mk, side, book, pr) {
@@ -522,6 +649,21 @@
     if (mk) p.set("mk", mk); if (side) p.set("side", side); if (book) p.set("bk", book);
     if (pr && isNum(pr.line)) p.set("ln", pr.line); if (pr && isNum(pr.odds)) p.set("od", pr.odds);
     return "#/bets/add?" + p.toString();
+  }
+  /** "+ Track" on a player-prop row: opens the add sheet with the game, player and prop picked (you tap Over / Under).
+   *  feedBook = the row's graded book (props feed key); left off when it isn't legal in the visitor's state so the form's default (Hard Rock in FL) applies. */
+  function propHref(lg, gid, pid, mk, feedBook, line) {
+    const p = new URLSearchParams({ lg, ev: gid, mk: "prop", pid, pm: mk });
+    const bk = TRACK_BOOK[feedBook];
+    if (bk && okBook(bk)) p.set("bk", bk);
+    if (isNum(line)) p.set("ln", line);
+    return "#/bets/add?" + p.toString();
+  }
+  /** "+" on an odds-comparison cell: book (odds-file key) + market + side, prefilled with that book's line and price. */
+  function cellHref(lg, g, feedBook, mk, side) {
+    const b = (g.books || {})[feedBook], bk = TRACK_BOOK[feedBook];
+    if (!b || b.stale || !bk || !okBook(bk)) return "";
+    return trackHref(lg, g, mk, side, bk, priceFor({ o: b }, mk, side));
   }
   /** game page card: one-tap shortcuts that prefill the add form */
   function trackCard(lg, g, kind) {
@@ -544,5 +686,5 @@
     return `<div class="section-title">Track a bet</div><div class="card bt-track"><h3>Placed a bet on this game? <a class="lnk bt-more" href="${esc(trackHref(lg, g))}">Other bet ›</a></h3>
       ${out.join("") || (hidden ? `<div class="na">Shortcuts appear only for sportsbooks that are legal online in ${esc((GEO.current() || {}).stateName || "your state")}. You can still log a bet.</div>` : `<div class="na">No book prices for this game yet. You can still log it.</div>`)}<div class="note">Tap the line you bet to log it in My Bets (saved only on this device). Your stake and the exact odds on your slip come next.</div></div>`;
   }
-  window.LSBets = { view, trackHref, trackCard };
+  window.LSBets = { view, trackHref, trackCard, propHref, cellHref };
 })();

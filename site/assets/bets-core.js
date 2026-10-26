@@ -9,7 +9,7 @@
   const r2 = v => Math.round(v * 100) / 100;
 
   const BOOKS = { draftkings: "DraftKings", fanduel: "FanDuel", hardrock: "Hard Rock Bet", other: "Other" };
-  const TYPES = { ml: "Moneyline", spread: "Spread", total: "Total (O/U)", prop: "Prop / other", parlay: "Parlay" };
+  const TYPES = { ml: "Moneyline", spread: "Spread", total: "Total (O/U)", prop: "Player prop / other", parlay: "Parlay" };
   const STATUS = { pending: "Pending", won: "Won", lost: "Lost", push: "Push", void: "Void", cashout: "Cashed out" };
   const SOCCER = new Set(["epl", "mls", "ucl"]);
   const MMA = new Set(["ufc"]);   // bouts: final.home/away = 1 (winner) / 0; totals grade on final.rounds (rounds elapsed)
@@ -125,7 +125,119 @@
     }
     return null;
   }
-  const canAutoSettle = sel => !!(sel && AUTO_TYPES.has(sel.type) && sel.event && sel.event.id && sel.side);
+  // ---------- player props: graded from ESPN's box score (summary endpoint) once the game is final
+  // Stat getters work on boxScore()'s per-player record. Keys match scripts/props.py's market keys, so a prop picked from
+  // the site's props feed (data/props/<lg>.json) settles without any mapping.
+  const T = s => s.rtd + s.rectd + s.krtd + s.prtd + s.inttd + s.deftd;   // every TD the player scored (passing TDs don't count)
+  const PROP_MARKETS = {
+    nfl: {
+      pass_yds: ["Passing yards", s => s.py], pass_tds: ["Passing TDs", s => s.ptd], pass_cmp: ["Completions", s => s.cmp],
+      pass_att: ["Pass attempts", s => s.att], pass_int: ["Interceptions thrown", s => s.int], pass_rush_yds: ["Pass + rush yards", s => s.py + s.ry],
+      rush_yds: ["Rushing yards", s => s.ry], rush_att: ["Carries", s => s.car], receptions: ["Receptions", s => s.rec],
+      rec_yds: ["Receiving yards", s => s.recy], rush_rec_yds: ["Rush + rec yards", s => s.ry + s.recy], anytime_td: ["Anytime TD", T],
+      longest_rec: ["Longest reception", s => s.lrec], longest_rush: ["Longest rush", s => s.lrush],
+    },
+    nba: {
+      points: ["Points", s => s.pts], rebounds: ["Rebounds", s => s.reb], assists: ["Assists", s => s.ast], threes: ["3-pointers made", s => s.tpm],
+      pts_reb: ["Points + rebounds", s => s.pts + s.reb], pts_ast: ["Points + assists", s => s.pts + s.ast], reb_ast: ["Rebounds + assists", s => s.reb + s.ast],
+      pra: ["Pts + reb + ast", s => s.pts + s.reb + s.ast], steals: ["Steals", s => s.stl], blocks: ["Blocks", s => s.blk], turnovers: ["Turnovers", s => s.to],
+    },
+  };
+  const YESNO = new Set(["anytime_td"]);   // yes/no props: "Yes" = over 0.5, "No" = under 0.5
+  const propLabel = (lg, mk) => ((PROP_MARKETS[lg] || {})[mk] || [mk])[0];
+  const num = v => { const n = parseFloat(String(v ?? "").replace(/[^0-9.\-]/g, "")); return Number.isFinite(n) ? n : 0; };
+  const pair = (v, sep) => String(v ?? "").split(sep).map(num);
+  const normName = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[.'’-]/g, "").replace(/\b(jr|sr|ii|iii|iv|v)\b/g, "").replace(/\s+/g, " ").trim();
+
+  /** ESPN summary JSON -> {final:{home, away, completed, status}, players:{pid:{name, team, dnp, st:{...}}}, hasBox}. Pure, so it's unit-tested. */
+  function boxScore(sum, lg) {
+    const c = (((sum || {}).header || {}).competitions || [])[0] || {};
+    const st = (c.status || {}).type || {}, cs = c.competitors || [];
+    const h = cs.find(x => x.homeAway === "home"), a = cs.find(x => x.homeAway === "away");
+    const final = h && a ? { home: parseFloat(h.score), away: parseFloat(a.score), completed: !!st.completed, status: st.name || "" } : null;
+    const players = {};
+    const Z = lg === "nfl" ? { py: 0, ptd: 0, int: 0, cmp: 0, att: 0, ry: 0, rtd: 0, car: 0, lrush: 0, rec: 0, recy: 0, rectd: 0, lrec: 0, krtd: 0, prtd: 0, inttd: 0, deftd: 0 }
+                           : { pts: 0, reb: 0, ast: 0, tpm: 0, stl: 0, blk: 0, to: 0, min: 0 };
+    for (const t of ((sum || {}).boxscore || {}).players || []) {
+      const team = String((t.team || {}).id || "");
+      for (const cat of (lg === "nfl" ? t.statistics || [] : (t.statistics || []).slice(0, 1))) {
+        const keys = cat.keys || [];
+        for (const row of cat.athletes || []) {
+          const ath = row.athlete || {}, pid = String(ath.id || "");
+          if (!pid) continue;
+          const p = players[pid] || (players[pid] = { name: ath.displayName || "", team, dnp: false, st: { ...Z } });
+          if (lg === "nba" && (row.didNotPlay || !(row.stats || []).length)) { p.dnp = true; continue; }
+          const v = Object.fromEntries(keys.map((k, i) => [k, (row.stats || [])[i]])), S = p.st;
+          if (lg === "nfl") {
+            if (cat.name === "passing") { [S.cmp, S.att] = pair(v["completions/passingAttempts"], "/"); S.py = num(v.passingYards); S.ptd = num(v.passingTouchdowns); S.int = num(v.interceptions); }
+            else if (cat.name === "rushing") { S.ry = num(v.rushingYards); S.rtd = num(v.rushingTouchdowns); S.car = num(v.rushingAttempts); S.lrush = num(v.longRushing); }
+            else if (cat.name === "receiving") { S.rec = num(v.receptions); S.recy = num(v.receivingYards); S.rectd = num(v.receivingTouchdowns); S.lrec = num(v.longReception); }
+            else if (cat.name === "kickReturns") S.krtd = num(v.kickReturnTouchdowns);
+            else if (cat.name === "puntReturns") S.prtd = num(v.puntReturnTouchdowns);
+            else if (cat.name === "interceptions") S.inttd = num(v.interceptionTouchdowns);
+            else if (cat.name === "defensive") S.deftd = num(v.defensiveTouchdowns);
+          } else {
+            S.pts = num(v.points); S.reb = num(v.rebounds); S.ast = num(v.assists); S.tpm = pair(v["threePointFieldGoalsMade-threePointFieldGoalsAttempted"], "-")[0];
+            S.stl = num(v.steals); S.blk = num(v.blocks); S.to = num(v.turnovers); S.min = num(v.minutes);
+          }
+        }
+      }
+    }
+    return { final, players, hasBox: Object.keys(players).length > 0 };
+  }
+
+  /** Find the bet's player in a box score: by ESPN id, else a unique (normalized) name match. */
+  function findPlayer(box, prop) {
+    const P = (box && box.players) || {};
+    if (prop.pid && P[String(prop.pid)]) return P[String(prop.pid)];
+    const want = normName(prop.player);
+    if (!want) return null;
+    const hits = Object.values(P).filter(p => normName(p.name) === want);
+    return hits.length === 1 ? hits[0] : null;
+  }
+
+  /** Grade one prop selection against a final + box score. Returns null (not final yet / can't fetch), or
+   *  {result: "won"|"lost"|"push", value} or {result: "review", reason} when a person should check it. */
+  function gradeProp(sel, final) {
+    if (!final || !final.completed) return null;
+    if (final.status && /CANCEL|POSTPON|SUSPEND|ABANDON|FORFEIT/i.test(final.status)) return { result: "review", reason: "Game wasn't completed as scheduled; check how your book graded it." };
+    const pr = sel.prop || {}, lg = sel.league || (sel.event && sel.event.lg);
+    const m = (PROP_MARKETS[lg] || {})[pr.mk];
+    if (!m) return { result: "review", reason: "This prop type isn't in the box score; grade it by hand." };
+    if (!final.box || !final.box.hasBox) return { result: "review", reason: "No box score for this game yet." };
+    const p = findPlayer(final.box, pr);
+    if (!p) return { result: "review", reason: lg === "nfl" ? `${pr.player || "Player"} isn't in the box score (no stats recorded or didn't play). Books usually void a prop if the player doesn't play.` : `${pr.player || "Player"} isn't in the box score.` };
+    if (p.dnp) return { result: "review", reason: `${pr.player || p.name} didn't play. Most books void the bet; check your slip.` };
+    const line = YESNO.has(pr.mk) && !isNum(pr.line) ? 0.5 : Number(pr.line);
+    if (!isNum(line) || (pr.side !== "over" && pr.side !== "under")) return { result: "review", reason: "Missing line or Over/Under." };
+    const v = m[1](p.st);
+    if (!isNum(v)) return { result: "review", reason: "Stat not found in the box score." };
+    if (v === line) return { result: "push", value: v };
+    return { result: (v > line) === (pr.side === "over") ? "won" : "lost", value: v };
+  }
+  /** "Jordan Love Over 259.5 Passing yards" · "A.J. Brown Anytime TD: Yes" */
+  function describeProp(sel) {
+    const pr = (sel && sel.prop) || {}, lg = sel.league || (sel.event && sel.event.lg);
+    const lab = pr.label || propLabel(lg, pr.mk);
+    if (YESNO.has(pr.mk)) return `${pr.player || ""} ${lab}: ${pr.side === "under" ? "No" : "Yes"}`.trim();
+    const ln = isNum(pr.line) ? ` ${Number(pr.line)}` : "";
+    return `${pr.player || ""} ${pr.side === "under" ? "Under" : pr.side === "over" ? "Over" : ""}${ln} ${lab}`.replace(/\s+/g, " ").trim();
+  }
+  // tracker book key -> props-feed / odds-file book key
+  const FEED_KEY = { hardrock: "hardrockbet", draftkings: "draftkings", fanduel: "fanduel" };
+  /** Line + price for one side of a prop at the bet's book, from PropsCore.rowBooks() output ([{key, line, over, under}]).
+   *  posted=false when that book hasn't posted the prop (line falls back to the feed's line; odds left blank to type in). */
+  function propQuote(books, betBook, side, fallbackLine = null) {
+    const b = (books || []).find(x => x.key === FEED_KEY[betBook]);
+    if (!b) return { line: isNum(fallbackLine) ? Number(fallbackLine) : null, odds: null, posted: false };
+    const od = side === "under" ? b.under : side === "over" ? b.over : null;
+    return { line: b.line, odds: isNum(od) ? od : null, posted: true };
+  }
+  /** Pending bet (or parlay leg) that auto-settle couldn't grade: show "Needs review" + manual buttons. */
+  const needsReview = b => !!(b && b.status === "pending" && (b.review || (b.type === "parlay" && (b.legs || []).some(l => l.review && (!l.result || l.result === "pending")))));
+  const isPropSel = sel => !!(sel && sel.type === "prop" && sel.prop && sel.prop.mk && (sel.prop.pid || sel.prop.player) && sel.event && sel.event.id);
+
+  const canAutoSettle = sel => !!(sel && !sel.review && ((AUTO_TYPES.has(sel.type) && sel.event && sel.event.id && sel.side) || isPropSel(sel)));
 
   /** apply graded results; finals: { "<lg>:<eventId>": final }. Returns a new bet or null if nothing changed.
    *  Bets the user settled by hand are never touched. */
@@ -137,7 +249,14 @@
       const legs = (bet.legs || []).map(l => {
         if (l.result && l.result !== "pending") return l;
         if (!canAutoSettle(l)) return l;
-        const f = finals[key(l)]; const g = gradeSelection(l, f);
+        const f = finals[key(l)];
+        if (isPropSel(l)) {
+          const r = gradeProp(l, f);
+          if (!r) return l;
+          changed = true;
+          return r.result === "review" ? { ...l, review: { reason: r.reason, at: now } } : { ...l, result: r.result, statValue: r.value };
+        }
+        const g = gradeSelection(l, f);
         if (!g) return l;
         changed = true;
         return { ...l, result: g, final: { home: f.home, away: f.away } };
@@ -153,6 +272,12 @@
       return out;
     }
     if (!canAutoSettle(bet)) return null;
+    if (isPropSel(bet)) {
+      const r = gradeProp(bet, finals[key(bet)]);
+      if (!r) return null;
+      if (r.result === "review") return { ...bet, review: { reason: r.reason, at: now } };
+      return { ...bet, status: r.result, settledAt: now, settledBy: "auto", statValue: r.value };
+    }
     const f = finals[key(bet)]; const g = gradeSelection(bet, f);
     if (!g) return null;
     return { ...bet, status: g, settledAt: now, settledBy: "auto", final: { home: f.home, away: f.away } };
@@ -161,7 +286,7 @@
   function pendingEvents(bet) {
     if (bet.status !== "pending" || bet.manual) return [];
     const sels = bet.type === "parlay" ? (bet.legs || []).filter(l => !l.result || l.result === "pending") : [bet];
-    return sels.filter(canAutoSettle).map(s => ({ league: s.league || s.event.lg, id: String(s.event.id), date: s.event.date }));
+    return sels.filter(canAutoSettle).map(s => { const e = { league: s.league || s.event.lg, id: String(s.event.id), date: s.event.date }; if (isPropSel(s)) e.box = true; return e; });
   }
 
   // ---------- stats
@@ -245,7 +370,7 @@
   }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
-  return { BOOKS, TYPES, STATUS, SOCCER, MMA, KEY, isNum, toDecimal, toAmerican, validAmerican, winProfit, impliedProb, parlayDecimal, parlayAmerican, parlayStatus,
+  return { PROP_MARKETS, YESNO, propLabel, normName, boxScore, findPlayer, gradeProp, isPropSel, describeProp, propQuote, FEED_KEY, needsReview, BOOKS, TYPES, STATUS, SOCCER, MMA, KEY, isNum, toDecimal, toAmerican, validAmerican, winProfit, impliedProb, parlayDecimal, parlayAmerican, parlayStatus,
     effectiveDecimal, netResult, payout, toWin, gradeSelection, canAutoSettle, autoSettle, pendingEvents, inRange, seasonStart, filterBets, betLeagues,
     summarize, roi, groupBy, cumulative, normalizeBet, parseImport, mergeBets, toCSV, uid };
 });

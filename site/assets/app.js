@@ -941,10 +941,12 @@
     NAV++;
     const sb = document.getElementById("searchBtn"); if (sb) sb.classList.toggle("on", h[0] === "search");
     const bb = document.getElementById("betsBtn"); if (bb) bb.classList.toggle("on", h[0] === "bets");
-    const navOn = h[0] === "search" || h[0] === "bets" ? h[0] : !h[0] ? "home" : "";
+    const ab = document.getElementById("acctBtn"); if (ab) ab.classList.toggle("on", h[0] === "account");
+    const navOn = h[0] === "search" || h[0] === "bets" || h[0] === "account" ? h[0] : !h[0] ? "home" : "";
     if (intro) intro.hidden = navOn !== "home";   // static SEO intro: home only
     document.querySelectorAll("#bnav [data-nav]").forEach(a => { const on = a.dataset.nav === navOn; a.classList.toggle("on", on); if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     if (h[0] === "bets") return window.LSBets ? window.LSBets.view() : (app.innerHTML = `<div class="empty"><h3>My Bets didn't load</h3>Reload the page to try again.</div>`);
+    if (h[0] === "account") return window.LSAccount ? window.LSAccount.view() : (app.innerHTML = `<div class="empty"><h3>Account didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "search") return viewSearch(decodeURIComponent(h.slice(1).join("/") || ""));
     if (h[0] === "t" && h[1] && h[2]) return viewTeam(h[1], h[2]);
     if (h[0] === "p" && h[1] && h[2]) return viewPlayer(h[1], h[2], h[3]);
@@ -957,7 +959,7 @@
   // visitor state changed (lookup finished or picker): re-render odds/offers views in place (not the bet form or search)
   window.addEventListener("ls-state-change", () => {
     const h0 = location.hash.replace(/^#\/?/, "").split("/")[0];
-    if (h0 === "bets" || h0 === "search") return;
+    if (h0 === "bets" || h0 === "search" || h0 === "account") return;
     const y = window.scrollY;
     Promise.resolve(route()).then(() => window.scrollTo(0, y));
   });

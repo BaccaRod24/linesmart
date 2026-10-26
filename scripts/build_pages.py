@@ -164,14 +164,14 @@ RG = f"""  <p class="legal-lead">Betting should be entertainment, not a way to m
 """
 
 PRIVACY = f"""  <p class="legal-date">Last updated: {EFFECTIVE}</p>
-  <p class="legal-lead">LineSmart is a free website with sports odds, props, matchups and betting tools. It has no accounts, no sign-up and no ads. This policy explains what information is involved when you use it.</p>
+  <p class="legal-lead">LineSmart is a free website with sports odds, props, matchups and betting tools. It has no ads, and you don't need to sign up to use it. Accounts are optional: you only need one if you want My Bets to sync between your devices. This policy explains what information is involved when you use it.</p>
 
   <h2>Summary</h2>
   <ul>
-    <li>We don't ask for your name, email or any account details, and we don't sell or rent data.</li>
+    <li>We never ask for your name. If you choose to create an optional account, we store your email address and your tracked bets with our provider Supabase (US) so your bets sync between devices. We never sell or rent your data.</li>
     <li>We use Cloudflare Web Analytics, which is cookieless, to count page views in aggregate.</li>
     <li>Your browser asks a geolocation service for your approximate state, so we only show sportsbooks that are legal there. You can set your state by hand instead.</li>
-    <li>Your bet tracker and preferences stay in your browser on your device.</li>
+    <li>Without an account, your bet tracker and preferences stay in your browser on your device.</li>
     <li>LineSmart sets no cookies today. Sportsbook sites you visit from our links have their own policies.</li>
   </ul>
 
@@ -182,13 +182,26 @@ PRIVACY = f"""  <p class="legal-date">Last updated: {EFFECTIVE}</p>
   <p>Sports betting is legal only in some states, and each sportsbook runs only in certain states. To show only sportsbooks that are legal where you are, your browser sends a request to {ext("https://ipdata.info/", "ipdata.info")}, a free IP geolocation service. ipdata.info sees your IP address and returns your approximate country and state. Under its {ext("https://ipdata.info/privacy", "privacy policy")}, it keeps IP addresses only briefly for rate limiting.</p>
   <p>We keep only the country and state code, in your browser (localStorage, <code>ls-geo</code>), for up to 24 hours. It is never sent to us. If the lookup fails, we show no sportsbook offers until you pick a state. You can choose your state with the <b>Your state</b> picker (stored as <code>ls-state</code>); that choice replaces the lookup. IP location is approximate. Sportsbooks verify your location themselves before you can bet.</p>
 
+  <h2 id="accounts">Optional accounts (bet sync)</h2>
+  <p>You can use LineSmart without an account. If you sign in on the <a href="./#/account">Account</a> tab, here is what happens:</p>
+  <ul>
+    <li><b>What we store</b>: your email address, and the bets you track in My Bets, along with the time each one was last changed. That's all. We don't ask for your name, a password or any sportsbook login.</li>
+    <li><b>Where it's stored</b>: with our provider {ext("https://supabase.com/privacy", "Supabase")}, on servers in the United States. Access rules on the database let each signed-in person read and change only their own bets.</li>
+    <li><b>Sign-in emails</b>: to sign in, you enter your email and we send you a one-time sign-in code (or link) by email. Supabase sends these emails for us. There are no passwords.</li>
+    <li><b>On your device</b>: your sign-in session is kept in your browser (localStorage, <code>ls-sb-auth</code>), along with the email you last used to sign in (<code>ls-acct-email</code>), sync status (<code>ls-sync-v1</code>) and a short list of deleted bets waiting to sync (<code>ls-bets-tomb-v1</code>). The sign-in software is loaded only when you open the Account tab or are signed in.</li>
+    <li><b>Why</b>: only to keep your bets the same on your phone, computer and other devices. We never sell your data, use it for advertising or share it with sportsbooks.</li>
+    <li><b>Signing out</b> keeps a copy of your bets on that device.</li>
+    <li><b>Deleting your data</b>: the <b>Delete my account and bets</b> button on the <a href="./#/account">Account</a> tab deletes every bet stored in your account right away. To delete the account itself (your email address), email <a href="mailto:{CONTACT}?subject=Delete%20my%20LineSmart%20account">{CONTACT}</a> from the address you sign in with, and we'll delete it and confirm.</li>
+  </ul>
+  <p><a class="legal-btn" href="./#/account">Delete my account and bets</a></p>
+
   <h2>Hosting (GitHub Pages)</h2>
   <p>The site is hosted on GitHub Pages. Like most web hosts, GitHub may log technical data when your browser requests a page, such as your IP address, browser type and the page requested. It uses this data for security and to run the service. We don't receive these logs. See the {ext("https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement", "GitHub Privacy Statement")}.</p>
 
   <h2>Data stored on your device</h2>
-  <p>These items are saved in your browser so the site works. They stay on your device and are never sent to us:</p>
+  <p>These items are saved in your browser so the site works. They stay on your device and are never sent to us, except your bets if you choose to sign in and sync (see <a href="#accounts">Optional accounts</a>):</p>
   <ul>
-    <li><b>Bet tracker</b> (localStorage, <code>ls-bets-v1</code> and <code>ls-bets-prefs</code>): bets you log in My Bets and your tracker settings. They aren't uploaded, synced or linked to any sportsbook account. Use the tracker's export to keep a backup.</li>
+    <li><b>Bet tracker</b> (localStorage, <code>ls-bets-v1</code> and <code>ls-bets-prefs</code>): bets you log in My Bets and your tracker settings. Without an account they aren't uploaded or synced anywhere. They're never linked to any sportsbook account. Use the tracker's export to keep a backup.</li>
     <li><b>Your state</b> (localStorage, <code>ls-state</code>, and the cached lookup <code>ls-geo</code>): see above.</li>
     <li><b>Recently viewed</b> (localStorage, <code>ls-recent</code>): up to 8 teams or players you opened, shown on the search screen.</li>
     <li><b>21+ notice</b> (localStorage, <code>ls-age-ok</code>): the time you dismissed the age notice, so it isn't shown again.</li>
@@ -212,7 +225,7 @@ PRIVACY = f"""  <p class="legal-date">Last updated: {EFFECTIVE}</p>
   <p>LineSmart is meant for adults 21 and older and is not directed at children. We don't knowingly collect information from anyone under 21.</p>
 
   <h2>Selling or sharing data</h2>
-  <p>We don't sell, rent or share personal information. We don't collect names, emails or accounts. The services named above (Cloudflare, ipdata.info, GitHub and ESPN) receive standard request data only because your browser contacts them.</p>
+  <p>We never sell, rent or share personal information. We don't collect names. We store an email address and tracked bets only if you create an optional account, and only to sync your bets; Supabase stores them for us as our service provider. The other services named above (Cloudflare, ipdata.info, GitHub and ESPN) receive standard request data only because your browser contacts them.</p>
 
   <h2>Changes</h2>
   <p>If this policy changes, we'll update this page and the "last updated" date above.</p>
@@ -295,7 +308,7 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
     <li><b>Player props</b>: prop lines with each player's recent games against the line.</li>
     <li><b>Matchups</b>: team form, home and away splits, injuries, season stats and head-to-head comparisons.</li>
     <li><b>Game-day weather</b> for outdoor games.</li>
-    <li><b>My Bets</b>: a private bet tracker that stays in your browser on your device.</li>
+    <li><b>My Bets</b>: a private bet tracker that stays in your browser on your device, or syncs between your devices if you sign in with an optional account.</li>
   </ul>
 
   <h2>Who runs it</h2>
@@ -323,7 +336,7 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
 CONTENT = {
     "about.html": ("About LineSmart", "LineSmart is a free, independent sports odds, props, matchups and betting-tools site from LineSmart, a Florida-based business.", ABOUT),
     "responsible-gambling.html": ("Responsible Gambling", "Tips, limits, self-exclusion and free 24/7 helplines, including 1-800-GAMBLER and Florida resources.", RG),
-    "privacy.html": ("Privacy Policy", "Cookieless analytics, approximate location for state-aware offers, data kept on your device, and affiliate links.", PRIVACY),
+    "privacy.html": ("Privacy Policy", "Cookieless analytics, approximate location for state-aware offers, data kept on your device, optional accounts for bet sync, and affiliate links.", PRIVACY),
     "terms.html": ("Terms of Use", "Terms for using LineSmart, an informational sports odds site that does not accept wagers.", TERMS),
     "affiliate-disclosure.html": ("Affiliate Disclosure", "How LineSmart handles affiliate links. Currently there are none.", AFFILIATE),
 }

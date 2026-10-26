@@ -37,7 +37,7 @@ for (const st of ["TX", "CA", "GA", "UT", "WA", "MS", "WI"]) {
 // legal but none of our books
 for (const st of ["DE", "RI", "NV"]) { const e = ev(st); check(e.status === "nobooks" && e.offers.length === 0, `${st}: legal online, none of our books -> no offers`); }
 const nv = ev("NV");
-check(nv.status === "nobooks" && !keys(nv).includes("betmgm") && !nv.available.includes("betmgm") && nv.uncertain, "NV: BetMGM hidden (Rod's choice), no offers, flagged uncertain");
+check(nv.status === "nobooks" && !keys(nv).includes("betmgm") && !nv.available.includes("betmgm") && nv.uncertain, "NV: BetMGM hidden (our choice), no offers, flagged uncertain");
 check(G.naLabel(nv, "betmgm") === "Not available in NV", "NV: BetMGM labeled not available");
 // mixed states
 check(eq(keys(ev("NY")).sort(), ["betmgm", "draftkings", "fanduel"]), "NY: DraftKings + FanDuel + BetMGM, no Hard Rock");

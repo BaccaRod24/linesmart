@@ -41,6 +41,7 @@ FOOTER = f"""<footer class="footer" id="siteFooter">
     <p class="rg"><span class="age-pill">21+</span> <strong>21+ only.</strong> Gambling problem? Call or text {GAMBLER_TEL} · {GAMBLER_WEB}</p>
     <p class="rg fl">Florida: call or text {PLAYWISE_TEL} ({PLAYWISE_WEB}), or the Florida Council on Compulsive Gambling helpline {ADMIT_TEL} ({ADMIT_WEB}).</p>
     <p><strong data-brand>LineSmart</strong> is an informational site and does not accept wagers. Odds are for reference and may change; confirm with the sportsbook.</p>
+    <p class="biz">LineSmart, a Florida-based business · <a href="mailto:{CONTACT}">{CONTACT}</a></p>
     <p class="aff-disc" data-aff-disclosure hidden></p>
     <nav class="legal-links" aria-label="Legal">{" ".join(f'<a href="{f}">{n}</a>' for f, n in PAGES)}</nav>
     <p class="src">Data: ESPN public endpoints (schedules, stats, DraftKings opening lines and fallback lines); Hard Rock Bet, FanDuel and DraftKings lines and props via The Odds API; weather by Open-Meteo. Independent: not owned by or affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
@@ -248,7 +249,7 @@ TERMS = f"""  <p class="legal-date">Effective date: {EFFECTIVE}</p>
   <p>We are not responsible for the content, offers or practices of sites we link to.</p>
 
   <h2>Limitation of liability</h2>
-  <p>To the fullest extent allowed by law, LineSmart and its owner are not liable for any loss or damage from using, or not being able to use, the site or its data. This includes betting losses and indirect or consequential damages.</p>
+  <p>To the fullest extent allowed by law, LineSmart and its operators are not liable for any loss or damage from using, or not being able to use, the site or its data. This includes betting losses and indirect or consequential damages.</p>
 
   <h2>Changes</h2>
   <p>We may update these terms. The effective date above shows the latest version, and continuing to use the site means you accept it.</p>
@@ -298,7 +299,7 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
   </ul>
 
   <h2>Who runs it</h2>
-  <p>LineSmart is an independent site run by Rod Copenhaver Jr., a sole proprietor in Riverview, Florida. It is not owned by, and does not own, any sportsbook, and it isn't affiliated with any league or team.</p>
+  <p>LineSmart is an independent site run by a Florida-based business, reachable at <a href="mailto:{CONTACT}">{CONTACT}</a>. It is not owned by, and does not own, any sportsbook, and it isn't affiliated with any league or team.</p>
 
   <h2>Where the data comes from</h2>
   <ul>
@@ -320,7 +321,7 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
 """
 
 CONTENT = {
-    "about.html": ("About LineSmart", "LineSmart is a free, independent sports odds, props, matchups and betting-tools site run by Rod Copenhaver Jr. in Riverview, FL.", ABOUT),
+    "about.html": ("About LineSmart", "LineSmart is a free, independent sports odds, props, matchups and betting-tools site from LineSmart, a Florida-based business.", ABOUT),
     "responsible-gambling.html": ("Responsible Gambling", "Tips, limits, self-exclusion and free 24/7 helplines, including 1-800-GAMBLER and Florida resources.", RG),
     "privacy.html": ("Privacy Policy", "Cookieless analytics, approximate location for state-aware offers, data kept on your device, and affiliate links.", PRIVACY),
     "terms.html": ("Terms of Use", "Terms for using LineSmart, an informational sports odds site that does not accept wagers.", TERMS),

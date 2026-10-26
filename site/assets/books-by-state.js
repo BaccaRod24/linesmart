@@ -255,7 +255,7 @@
    "name": "Nevada",
    "onlineLegal": true,
    "books": [],
-   "note": "Online betting is legal, but Nevada apps have their own sign-up rules (some require registering in person at a casino). BetMGM runs a Nevada app, but we don't show it here (Rod's choice) because sign-up can require an in-person casino visit.",
+   "note": "Online betting is legal, but Nevada apps have their own sign-up rules (some require registering in person at a casino). BetMGM runs a Nevada app, but we don't show it here (our choice) because sign-up can require an in-person casino visit.",
    "uncertain": true
   },
   "NH": {

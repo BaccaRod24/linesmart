@@ -68,6 +68,14 @@ python3 scripts/line_history.py apply --snap-dir /tmp/linesnap --history-dir ../
 - **Notable moves:** spread moved ≥1.5 (football and basketball), the spread crossed 3 or 7 (NFL/NCAAF), or the total moved ≥2 (football), ≥3 (basketball) or ≥0.5 (other sports).
 - **Detail page:** a step chart of spread, total or moneyline over time. The moneyline is plotted as implied win %, because American odds jump from -100 to +100. A book toggle appears when more than one book has data. Below the chart are open, current, change, biggest move and last change, in ET.
 
+## Search, team and player pages
+- Search button in the header (or press `/`). Type-ahead covers teams and players in all 9 leagues; arrow keys + Enter work. Routes: `#/search/{q}`, `#/t/{league}/{teamId}`, `#/p/{league}/{athleteId}`. They are plain hash routes, so they survive a reload and work in the installed app.
+- Index: `build_data.py` writes `site/data/search/{league}.json` (compact arrays, about 445 KB gzipped for all 9 leagues). All teams are included. Player rosters cover pro leagues fully, NCAAF **FBS** programs and NCAAB **Division I** programs only. Team pages for other college programs load their roster live from ESPN, but those players are not searchable.
+- Rosters (about 140 + 360 college calls) are cached for 20 h (`--roster-cache-dir`, `--roster-max-age-hours`). In CI the cache lives on the `data-history` branch under `rosters/`. A team whose roster fetch fails keeps its last cached copy.
+- `python3 scripts/build_data.py --search-only` rebuilds just the index (no odds, no league files). `--no-search` skips it.
+- Team and player stats, schedules, bios and game logs are fetched in the browser from `site.web.api.espn.com` (CORS-enabled; `site.api.espn.com` is not). The service worker caches those responses network-first, so recently viewed pages open offline. MLB uses `seasontype=2` (regular season) because ESPN defaults to the postseason. Soccer team stats are computed from the competition's results, and upcoming soccer fixtures come from `?fixture=true`.
+- Next-game lines on a team page come only from our own league data (the 10-day window). They are never invented.
+
 ## Limitations
 - ESPN reports one book per game. Hard Rock Bet is refreshed only every other day (free plan). FanDuel is not tracked.
 - Lines appear only once the book posts them. NBA, NHL and NCAAB lines usually show up a day or so before the game.

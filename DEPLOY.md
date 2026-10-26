@@ -64,6 +64,8 @@ The build job has `contents: write` only so it can push history snapshots to the
 2. Builds with `LINE_HISTORY_DIR=_history/history` and writes this run's raw snapshot to `.linehist-snap/`.
 3. If the build succeeded, commits and pushes `history/*.json` and `odds/hardrockbet.json` as github-actions[bot]. If the push is rejected because another run got there first, it fetches the new tip and re-applies `.linehist-snap/` with `line_history.py apply`. It also re-applies a fresh Hard Rock pull with `line_history.py apply-odds`, where the newer `pulledAt` per league wins. Then it pushes again, up to 5 tries. It never force-pushes.
 
+The same branch also holds `rosters/{league}.json`, the roster cache for the search index. It's passed in as `ROSTER_CACHE_DIR=_history/rosters`, reused for 20 h, and committed and re-applied alongside history (`.linehist-snap/_rosters/`). Expect about 0.45 MB of churn per day. If the data-history checkout fails, rosters are fetched fresh, which takes about a minute more.
+
 Failed builds don't write history. The history steps are `continue-on-error`, so they can never block the Pages deploy. The `pages` concurrency group already serializes runs.
 
 ```bash

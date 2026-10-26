@@ -1,6 +1,7 @@
 // Serves nothing itself: expects the site to be reachable at $BASE (e.g. http://localhost:8799/linesmart/).
 // Usage: mkdir -p /tmp/ghp && ln -sfn "$PWD/site" /tmp/ghp/linesmart && python3 -m http.server 8799 -d /tmp/ghp &
 //        BASE=http://localhost:8799/linesmart/ node scripts/subpath_test.mjs
+//        Search/team/player checks need a data dir with search/ built: DATA_DIR=/path/to/data (e.g. DATA_OUT=... build_data.py --search-only)
 import { chromium } from "playwright";
 import fs from "fs";
 const BASE = process.env.BASE || "http://localhost:8799/linesmart/";
@@ -15,6 +16,7 @@ const errors = [], bad = [], ok = new Set();
 page.on("pageerror", e => errors.push(e.message));
 page.on("console", m => m.type() === "error" && errors.push(m.text()));
 page.on("response", r => { const u = r.url(); if (u.startsWith(new URL(BASE).origin)) { if (r.status() >= 400) bad.push(`${r.status()} ${u}`); else ok.add(new URL(u).pathname); } });
+page.on("response", r => { if (!r.url().startsWith(new URL(BASE).origin) && r.status() >= 400) console.log(`  (external ${r.status()} ${r.url()})`); });
 page.on("requestfailed", r => { if (r.url().startsWith(new URL(BASE).origin)) bad.push(`FAILED ${r.url()}`); });
 for (const r of routes) {
   await page.goto(BASE + r, { waitUntil: "networkidle" });
@@ -25,9 +27,62 @@ for (const r of routes) {
   console.log(`route ${r || "(root)"}: .game=${n} loadingStuck=${!!loading}`);
 }
 
-// ---------- PWA checks
+// ---------- search + team + player pages (ESPN client-side; needs DATA_DIR with search/ built by build_data.py)
 const pwaFail = [];
-const check = (ok, msg) => { console.log(`${ok ? "PASS" : "FAIL"} pwa: ${msg}`); if (!ok) pwaFail.push(msg); };
+const check = (ok, msg, tag = "pwa") => { console.log(`${ok ? "PASS" : "FAIL"} ${tag}: ${msg}`); if (!ok) pwaFail.push(`${tag}: ${msg}`); };
+const sx = lg => { try { return JSON.parse(fs.readFileSync(`${DATA}/search/${lg}.json`)); } catch { return null; } };
+const txt = sel => page.$eval(sel, e => e.textContent.trim()).catch(() => "");
+const waitView = () => page.waitForSelector(".phero, .empty", { timeout: 20000 }).then(() => page.waitForLoadState("networkidle")).catch(() => {});
+check(!!(await page.$('#searchBtn[href="#/search"]')), "header search button present", "search");
+await page.goto(BASE + "#/search", { waitUntil: "networkidle" });
+await page.waitForSelector("#q", { timeout: 15000 });
+await page.fill("#q", "Eagles");
+await page.waitForSelector(".sr", { timeout: 15000 }).catch(() => {});
+const first = await txt(".sr .sr-t b");
+check(/Eagles/.test(first), `type-ahead "Eagles" -> first result "${first}" (${(await page.$$(".sr")).length} results)`, "search");
+check(decodeURIComponent(await page.evaluate(() => location.hash)) === "#/search/Eagles", "query kept in hash", "search");
+await page.reload({ waitUntil: "networkidle" });
+await page.waitForSelector(".sr", { timeout: 15000 }).catch(() => {});
+check((await page.$eval("#q", i => i.value).catch(() => "")) === "Eagles" && (await page.$$(".sr")).length > 0, "search deep link survives reload", "search");
+// top result is pre-selected: Enter opens it; ArrowDown moves the highlight to the next row
+await page.focus("#q"); await page.keyboard.press("Enter"); await waitView();
+check((await txt(".phero h1")).includes(first) && /^#\/t\/nfl\//.test(await page.evaluate(() => location.hash)), `Enter opens top result (${first})`, "search");
+await page.goto(BASE + "#/search/Philadelphia", { waitUntil: "networkidle" }); await page.waitForSelector(".sr", { timeout: 15000 }).catch(() => {});
+const second = await page.$$eval(".sr", a => a[1] && a[1].getAttribute("href"));
+await page.focus("#q"); await page.keyboard.press("ArrowDown");
+check(await page.$eval("#q", i => i.getAttribute("aria-activedescendant")) === "sr1", "ArrowDown highlights 2nd result", "search");
+await page.keyboard.press("Enter"); await waitView();
+check(await page.evaluate(() => location.hash) === second && !!(await page.$(".phero")), `ArrowDown+Enter opens ${second}`, "search");
+for (const lg of ["nfl", "nba", "epl"]) {
+  const d = sx(lg);
+  if (!d) { check(false, `${DATA}/search/${lg}.json missing`, lg); continue; }
+  check(d.v === 1 && d.teams.length > 0 && d.players.length > 0, `index ${d.teams.length} teams / ${d.players.length} players`, lg);
+  const ti = d.teams.findIndex(t => t[8] && d.players.some(p => p[2] === d.teams.indexOf(t)));
+  const t = d.teams[ti], pl = d.players.find(p => p[2] === ti);
+  // search finds the player by name, scoped to the league chip
+  await page.goto(BASE + "#/search", { waitUntil: "networkidle" });
+  await page.waitForSelector("#q");
+  await page.click(`.sfilt [data-lg="${lg}"]`).catch(() => {});
+  await page.fill("#q", pl[1]);
+  await page.waitForSelector(".sr", { timeout: 15000 }).catch(() => {});
+  const hrefs = await page.$$eval(".sr", a => a.map(x => x.getAttribute("href")));
+  check(hrefs.includes(`#/p/${lg}/${pl[0]}`), `search "${pl[1]}" finds player`, lg);
+  // team page
+  await page.goto(BASE + `#/t/${lg}/${t[0]}`, { waitUntil: "domcontentloaded" }); await waitView();
+  const tn = await txt(".phero h1"), nRost = (await page.$$(".roster .pl")).length, nStat = (await page.$$(".stat")).length;
+  check(tn.includes(t[1]) && nRost > 0, `team ${t[1]}: h1="${tn}" roster=${nRost} stats=${nStat} games=${(await page.$$(".grow")).length}`, lg);
+  // roster -> player page
+  await page.click(`.roster a[href="#/p/${lg}/${pl[0]}"]`).catch(() => page.goto(BASE + `#/p/${lg}/${pl[0]}`));
+  await page.waitForFunction(n => (document.querySelector(".phero h1") || {}).textContent?.includes(n), pl[1], { timeout: 20000 }).catch(() => {});
+  await page.waitForLoadState("networkidle").catch(() => {});
+  const pn = await txt(".phero h1");
+  check(pn.includes(pl[1]), `player ${pl[1]}: h1="${pn}" stats=${(await page.$$(".stat")).length} gamelog=${(await page.$$(".glog tbody tr")).length} na=${(await page.$$(".na-card")).length}`, lg);
+  // deep link reload of the player page
+  await page.reload({ waitUntil: "domcontentloaded" }); await waitView();
+  check((await txt(".phero h1")).includes(pl[1]), "player deep link survives reload", lg);
+}
+
+// ---------- PWA checks
 await page.goto(BASE, { waitUntil: "networkidle" });
 const manHref = await page.$eval('link[rel="manifest"]', l => l.href).catch(() => null);
 check(!!manHref, `manifest linked (${manHref})`);
@@ -64,6 +119,14 @@ await page.reload({ waitUntil: "load" });
 await page.waitForSelector(".game, .match, .empty", { timeout: 15000 });
 const offNote = await page.$eval("#offlineNote", b => b.hidden ? "" : b.textContent);
 check((await page.$$(".game")).length > 0 && /offline/i.test(offNote), `offline render: .game=${(await page.$$(".game")).length} note="${offNote}"`);
+const ofTeam = (sx("nfl") || { teams: [] }).teams.find(t => t[8]);
+if (ofTeam) {
+  await page.context().setOffline(false);
+  await page.goto(BASE + `#/t/nfl/${ofTeam[0]}`, { waitUntil: "networkidle" }); await waitView();
+  await page.context().setOffline(true);
+  await page.reload({ waitUntil: "load" }); await waitView();
+  check((await txt(".phero h1")).includes(ofTeam[1]) && (await page.$$(".roster .pl")).length > 0, `offline team page from SW cache (${ofTeam[1]})`);
+}
 await page.context().setOffline(false);
 errors.length = errsOnline; // network errors while deliberately offline (e.g. ESPN logos) are expected
 await browser.close();

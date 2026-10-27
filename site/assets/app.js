@@ -74,6 +74,13 @@
   };
   const totalArrow = g => { const m = moveOf(g); return m && m.total ? arrow(m.total.delta, `Total opened ${m.total.open}, now ${m.total.cur}`) : ""; };
   const notableBadge = g => { const m = moveOf(g); return m && (m.notable || []).length ? `<span class="mvbadge" title="${esc(m.notable.join(" · "))}">⚡ Line move</span>` : ""; };
+  // pick'em note (assets/pickem-core.js): close game where books disagree on the spread favorite. Display only; lines untouched.
+  const PK_TEXT = "Pick'em: books differ on the favorite";
+  const pkSplit = (g, kind) => (window.PickemCore ? window.PickemCore.split(g, kind) : null);
+  const pkWho = (g, s) => [["away", g.away], ["home", g.home]].map(([side, t]) => { const xs = s[side]; const ls = [...new Set(xs.map(x => line(x.line)))];
+    return `${xs.map(x => BOOKNAME(x.book)).join(" and ")} ${xs.length > 1 ? "have" : "has"} ${t.abbr} ${ls.join(" / ")}`; }).join("; ");
+  const pkTile = (g, kind) => { const s = pkSplit(g, kind); return s ? `<div class="pk-note" title="${esc(pkWho(g, s))}">${esc(PK_TEXT)}</div>` : ""; };
+  const pkCard = (g, kind) => { const s = pkSplit(g, kind); return s ? `<div class="pk-note pk-detail"><span><b>${esc(PK_TEXT)}.</b> ${esc(pkWho(g, s))}. Close game, so the books lean different ways. Every line below is shown as posted.</span></div>` : ""; };
 
   // sparkline: tiny inline SVG of a line's path since open (move.spark from scripts/line_history.py)
   const ICON = (id, cls = "ic") => `<svg class="${cls}" aria-hidden="true"><use href="#i-${id}"/></svg>`;
@@ -144,7 +151,7 @@
     const net = esc([g.note, (g.broadcasts || []).slice(0, 2).join(", ")].filter(Boolean).join(" · "));
     return `<a class="game c${cols.length}${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
       <div class="game-top">${statusHtml(g)}${g.state === "pre" ? notableBadge(g) : ""}<span class="net">${net}</span></div>
-      ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${foot}</a>`;
+      ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${foot}${o ? pkTile(g, kind) : ""}</a>`;
   }
 
   // ---------- skeleton loaders (shown while JSON loads)
@@ -568,7 +575,7 @@
       const why = closed ? "Pre-game lines closed when the game started." : HR.asOf ? "No sportsbook posted a line for this game at the last pull." : "No sportsbook lines yet.";
       return `<div class="card"><h3>Odds comparison</h3><div class="note">${why} ${hrNote}</div>${affLine()}</div>`;
     }
-    return `<div class="card"><h3>Odds comparison</h3><div class="tbl-wrap"><table class="books${lvOn ? " lv-on" : ""}"><thead><tr><th>Market</th>${head}${lvOn ? `<th class="lv-fair">Fair line<span class="src">no-vig consensus</span></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>
+    return `<div class="card"><h3>Odds comparison</h3>${pkCard(g, kind)}<div class="tbl-wrap"><table class="books${lvOn ? " lv-on" : ""}"><thead><tr><th>Market</th>${head}${lvOn ? `<th class="lv-fair">Fair line<span class="src">no-vig consensus</span></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>
       <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}${hrNote}${missNote} ${dkNote}${outNote}</div>${lvOn ? LV.note : ""}${affLine()}</div>`;
   }
 

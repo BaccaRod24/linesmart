@@ -123,6 +123,12 @@ button{font-family:inherit}
 .tfoot .bk.hr::before{background:var(--hr)}
 .tfoot .bk.fd::before{background:#1493ff}
 .tfoot .hint{margin-left:auto}
+/* pick'em note: books disagree on the spread favorite in a close game (pickem-core.js) */
+.pk-note{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:11.5px;font-weight:600;color:var(--mute);line-height:1.4}
+.pk-note::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;border:1.5px solid var(--accent2);background:color-mix(in srgb,var(--accent2) 22%,transparent)}
+.pk-note.pk-detail{align-items:flex-start;margin:0 0 12px;padding:9px 12px;font-size:12.5px;font-weight:500;color:var(--mute);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:var(--r-sm)}
+.pk-note.pk-detail::before{margin-top:5px}
+.pk-note.pk-detail b{color:var(--txt);font-weight:650}
 .noline{font-size:12.5px;color:var(--dim);margin-top:8px;padding:10px 12px;border:1px dashed var(--line2);border-radius:var(--r-sm);text-align:center}
 .form{display:inline-flex;gap:3px;vertical-align:middle;margin-left:7px}
 .form i{width:7px;height:7px;border-radius:2px;display:inline-block}

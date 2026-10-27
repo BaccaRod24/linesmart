@@ -1527,3 +1527,23 @@ body:has(.news-bets) .footer .news-foot{display:none}
   .al-main{flex-basis:100%}
   .al-st{margin-right:auto}
 }
+
+/* ---------- live scores (assets/live.js): situation line, possession, live hero, box score */
+.lv-sit{margin:4px 0 2px 42px;font-size:12px;font-weight:650;color:var(--mute);font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:6px}
+.lv-sit::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent2,var(--accent));flex:none}
+.lv-sit.rz{color:var(--live-txt)}.lv-sit.rz::before{background:var(--loss)}
+.match .lv-sit{justify-content:center;margin:8px 0 0;font-size:13px}
+.poss{display:inline-block;width:7px;height:7px;margin-left:6px;border-radius:50%;background:var(--warn,#f59e0b);vertical-align:middle;box-shadow:0 0 0 2px color-mix(in srgb,var(--warn,#f59e0b) 25%,transparent)}
+.mmid .when.is-live{display:inline-flex;align-items:center;gap:7px;color:var(--live-txt)}
+.lv-lp{max-width:300px;margin-left:auto;margin-right:auto;font-style:italic}
+.lv-stamp{font-weight:600}.lv-stamp.lv-off{color:var(--warn,#f59e0b)}
+.lbx-wrap .card{margin-bottom:14px}
+.lbx-ls th,.lbx-ls td{text-align:center;padding:8px 6px;cursor:default}
+.lbx-ls td:first-child,.lbx-ls th:first-child{text-align:left;white-space:nowrap;font-weight:700}
+.lbx-ls td.tot{font-weight:800;color:var(--txt)}
+.lbx-g+.lbx-g{margin-top:14px}
+.lbx-g h4{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);font-weight:750}
+.lbx-t th{cursor:default;padding:6px 7px}.lbx-t td{padding:6px 7px;white-space:nowrap}
+.lbx-t td:first-child{max-width:150px;overflow:hidden;text-overflow:ellipsis}
+.lbx-t tr.tot td{font-weight:750;border-top:1px solid var(--line2)}
+@media (max-width:640px){.lv-sit{margin-left:36px;font-size:11.5px}.lbx-t th,.lbx-t td{padding:5px;font-size:12px}}

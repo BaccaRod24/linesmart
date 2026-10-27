@@ -5,7 +5,10 @@
  * VERSION is stamped at deploy time by the workflow (content hash of the shell + build time), so every
  * deploy installs a new worker and drops the old shell cache. Paths are relative to the SW scope (/ on linesmart.app, /linesmart/ under a subpath).
  * Team/player pages read ESPN's site.web.api host live; those responses are also network-first, kept in a small
- * separate cache so recently opened team/player pages still work offline. */
+ * separate cache so recently opened team/player pages still work offline.
+ * Live score polls (assets/live.js) fetch ESPN scoreboards with cache:"no-store" every ~25 s: those skip the worker
+ * entirely (nothing to gain from caching a score that is stale in 25 s, and a cached fallback would hide an outage).
+ * Live box-score (summary) polls go network-first like other ESPN reads; live.js treats an X-LineSmart-Offline reply as a failure. */
 const VERSION = "dev";
 const SHELL = `linesmart-shell-${VERSION}`;
 const DATA = "linesmart-data-v1";
@@ -16,7 +19,7 @@ const ESPN_HOST = "site.web.api.espn.com";
 const SHELL_FILES = [
   "./", "index.html", "manifest.webmanifest", "favicon.ico",
   "responsible-gambling.html", "privacy.html", "terms.html", "affiliate-disclosure.html", "about.html", "subscribed.html", "unsubscribe.html",
-  "assets/styles.css", "assets/theme.js", "assets/config.js", "assets/site.js", "assets/books-by-state.js", "assets/geo-core.js", "assets/geo.js", "assets/app.js", "assets/bets-core.js", "assets/bets.js", "assets/matchup-core.js", "assets/matchup.js", "assets/weather-core.js", "assets/weather.js", "assets/props-core.js", "assets/props.js", "assets/ufc.js", "assets/pickem-core.js", "assets/adv-core.js", "assets/adv.js", "assets/news-core.js", "assets/news.js", "assets/alerts-core.js", "assets/alerts.js", "assets/fonts/inter-latin-var.woff2",
+  "assets/styles.css", "assets/theme.js", "assets/config.js", "assets/site.js", "assets/books-by-state.js", "assets/geo-core.js", "assets/geo.js", "assets/app.js", "assets/bets-core.js", "assets/bets.js", "assets/matchup-core.js", "assets/matchup.js", "assets/weather-core.js", "assets/weather.js", "assets/props-core.js", "assets/props.js", "assets/ufc.js", "assets/pickem-core.js", "assets/adv-core.js", "assets/adv.js", "assets/news-core.js", "assets/news.js", "assets/live-core.js", "assets/live.js", "assets/alerts-core.js", "assets/alerts.js", "assets/fonts/inter-latin-var.woff2",
   "assets/brand/logo.svg", "assets/brand/icon.svg", "assets/brand/apple-touch-icon.png",
   "assets/brand/favicon-32.png", "assets/brand/favicon-16.png",
   "assets/brand/icon-192.png", "assets/brand/icon-512.png", "assets/brand/icon-maskable-512.png",
@@ -76,6 +79,7 @@ async function cacheFirst(req) {
 self.addEventListener("fetch", e => {
   const req = e.request; if (req.method !== "GET") return;
   const url = new URL(req.url);
+  if (url.hostname === ESPN_HOST && req.cache === "no-store" && url.pathname.endsWith("/scoreboard")) return;   // live poll: straight to network
   if (url.hostname === ESPN_HOST && url.pathname.startsWith("/apis/")) return e.respondWith(networkFirstData(req, ESPN, ESPN_MAX));
   if (url.origin !== scopeURL.origin || !url.pathname.startsWith(scopeURL.pathname)) return; // ESPN logos etc.: browser default
   const p = rel(url);

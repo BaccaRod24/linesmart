@@ -1,0 +1,71 @@
+name: Line alerts
+
+# Runs after every successful "Refresh data and deploy to GitHub Pages" run (about every 30 min) and checks signed-in
+# users' line alerts against the odds JSON that run just published. No Odds API calls: it only reads linesmart.app/data.
+#
+# OFF BY DEFAULT. Repo variable ALERTS_ENABLED:
+#   unset / 0  -> the job is skipped
+#   dry-run    -> read alerts + data, log what would fire (alert ids and lines only), send nothing
+#   1          -> report matches to Postgres, which sends the emails (only if line_alert_settings.enabled = true there too)
+# Needs the secret LINE_ALERTS_KEY (its sha256 is stored in line_alert_settings). No Resend key is needed here:
+# Postgres sends with the key already in Supabase Vault. Setup: docs/line_alerts.md
+on:
+  workflow_run:
+    workflows: ["Refresh data and deploy to GitHub Pages"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'dry-run = log matches only; send = fire matches (needs ALERTS_ENABLED=1)'
+        type: choice
+        options: [dry-run, send]
+        default: dry-run
+
+permissions:
+  contents: read
+
+concurrency:
+  group: line-alerts
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && (vars.ALERTS_ENABLED == '1' || vars.ALERTS_ENABLED == 'dry-run'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - name: Pick mode
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_MODE: ${{ inputs.mode }}
+          ENABLED: ${{ vars.ALERTS_ENABLED }}
+        run: |
+          if [ "$EVENT" = "workflow_run" ]; then
+            if [ "$ENABLED" = "1" ]; then m=send; else m=dry-run; fi
+          else
+            m="${INPUT_MODE:-dry-run}"
+          fi
+          if [ "$m" = "send" ] && [ "$ENABLED" != "1" ]; then
+            echo "::warning::ALERTS_ENABLED is not 1, running a dry run instead of send"; m=dry-run
+          fi
+          echo "mode=$m" >> "$GITHUB_OUTPUT"
+          echo "Mode: $m"
+
+      - name: Let GitHub Pages pick up the new build
+        if: github.event_name == 'workflow_run'
+        run: sleep 45
+
+      - name: Check alerts
+        env:
+          LINE_ALERTS_KEY: ${{ secrets.LINE_ALERTS_KEY }}
+        run: node scripts/line_alerts.mjs --mode "${{ steps.mode.outputs.mode }}"

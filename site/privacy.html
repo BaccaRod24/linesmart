@@ -47,7 +47,7 @@
 
   <h2>Summary</h2>
   <ul>
-    <li>We never ask for your name. If you choose to create an optional account, we store your email address and your tracked bets with our provider Supabase (US) so your bets sync between devices. We never sell or rent your data.</li>
+    <li>We never ask for your name. If you choose to create an optional account, we store your email address, your tracked bets and any line alerts with our provider Supabase (US) so your bets sync between devices and alerts can email you. We never sell or rent your data.</li>
     <li>We use Cloudflare Web Analytics, which is cookieless, to count page views in aggregate.</li>
     <li>Your browser asks a geolocation service for your approximate state, so we only show sportsbooks that are legal there. You can set your state by hand instead.</li>
     <li>If you sign up for the free weekly email, we store your email address with Supabase and send the email through Resend (US). Every email has a one-click unsubscribe link.</li>
@@ -65,13 +65,14 @@
   <h2 id="accounts">Optional accounts (bet sync)</h2>
   <p>You can use LineSmart without an account. If you sign in on the <a href="./#/account">Account</a> tab, here is what happens:</p>
   <ul>
-    <li><b>What we store</b>: your email address, and the bets you track in My Bets, along with the time each one was last changed. That's all. We don't ask for your name, a password or any sportsbook login.</li>
+    <li><b>What we store</b>: your email address, the bets you track in My Bets (with the time each one was last changed) and any line alerts you set. That's all. We don't ask for your name, a password or any sportsbook login.</li>
     <li><b>Where it's stored</b>: with our provider <a href="https://supabase.com/privacy" target="_blank" rel="noopener">Supabase</a>, on servers in the United States. Access rules on the database let each signed-in person read and change only their own bets.</li>
     <li><b>Sign-in emails</b>: to sign in, you enter your email and we send you a one-time sign-in code (or link) by email. Supabase sends these emails for us. There are no passwords.</li>
     <li><b>On your device</b>: your sign-in session is kept in your browser (localStorage, <code>ls-sb-auth</code>), along with the email you last used to sign in (<code>ls-acct-email</code>), sync status (<code>ls-sync-v1</code>) and a short list of deleted bets waiting to sync (<code>ls-bets-tomb-v1</code>). The sign-in software is loaded only when you open the Account tab or are signed in.</li>
     <li><b>Why</b>: only to keep your bets the same on your phone, computer and other devices. We never sell your data, use it for advertising or share it with sportsbooks.</li>
+    <li><b>Line alerts</b>: if you set a line alert (the bell on a game or player prop), we store what it watches (game, line type, your number, the sportsbooks and the line when you set it) and when it was sent. Your email address is used only to send that one alert email; our email provider <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener">Resend</a> delivers it. Each alert emails once, then turns off, and ends when the game starts. We keep a small send log (alert, time) for 3 days to enforce daily email limits. You can delete alerts any time in Account; every alert email links there.</li>
     <li><b>Signing out</b> keeps a copy of your bets on that device.</li>
-    <li><b>Deleting your data</b>: the <b>Delete my account and bets</b> button on the <a href="./#/account">Account</a> tab deletes every bet stored in your account right away. To delete the account itself (your email address), email <a href="mailto:contact@linesmart.app?subject=Delete%20my%20LineSmart%20account">contact@linesmart.app</a> from the address you sign in with, and we'll delete it and confirm.</li>
+    <li><b>Deleting your data</b>: the <b>Delete my account and bets</b> button on the <a href="./#/account">Account</a> tab deletes every bet and line alert stored in your account right away. To delete the account itself (your email address), email <a href="mailto:contact@linesmart.app?subject=Delete%20my%20LineSmart%20account">contact@linesmart.app</a> from the address you sign in with, and we'll delete it and confirm.</li>
   </ul>
   <p><a class="legal-btn" href="./#/account">Delete my account and bets</a></p>
 
@@ -116,7 +117,7 @@
   <p>LineSmart is meant for adults 21 and older and is not directed at children. We don't knowingly collect information from anyone under 21.</p>
 
   <h2>Selling or sharing data</h2>
-  <p>We never sell, rent or share personal information. We don't collect names. We store an email address and tracked bets only if you create an optional account, and only to sync your bets, and an email address if you sign up for the weekly email, only to send it. Supabase and Resend handle these for us as our service providers. The other services named above (Cloudflare, ipdata.info, GitHub and ESPN) receive standard request data only because your browser contacts them.</p>
+  <p>We never sell, rent or share personal information. We don't collect names. We store an email address, tracked bets and line alerts only if you create an optional account, and only to sync your bets and send the alerts you set, and an email address if you sign up for the weekly email, only to send it. Supabase and Resend handle these for us as our service providers. The other services named above (Cloudflare, ipdata.info, GitHub and ESPN) receive standard request data only because your browser contacts them.</p>
 
   <h2>Changes</h2>
   <p>If this policy changes, we'll update this page and the "last updated" date above.</p>

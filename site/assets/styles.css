@@ -1482,3 +1482,48 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .news-page-signup{margin-top:16px}
 /* My Bets has its own signup card: don't repeat it in the footer right below */
 body:has(.news-bets) .footer .news-foot{display:none}
+
+/* ---------- line alerts (alerts.js) */
+.gwrap{position:relative;min-width:0}
+.gwrap>.game{height:100%}
+.gwrap .game-top{padding-right:34px}
+.al-bell{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font:700 12px var(--font);color:var(--bestTxt);border:1px solid var(--accent-line);background:var(--surface);border-radius:999px;white-space:nowrap}
+.al-bell:hover{background:var(--accent-soft)}
+.al-bell:focus-visible{outline:2px solid var(--accent-line);outline-offset:2px}
+.al-tile{position:absolute;top:9px;right:9px;width:30px;height:30px;justify-content:center;padding:0;font-size:13px;z-index:2}
+.al-txt{min-height:30px;padding:0 12px;text-transform:none;letter-spacing:0}
+.section-title .st-act{margin-left:auto}
+.pp-al{margin-top:4px;padding:3px 9px;font-size:11.5px}
+.al-dlg{width:min(480px,calc(100vw - 24px));max-height:calc(100vh - 24px)}
+.al-dl{gap:4px}
+.al-dl .ac-p{margin:4px 0 8px;font-size:14px;line-height:1.5}
+.al-dl input[type=number]{font:500 16px var(--font);color:var(--txt);background:var(--surface);border:1px solid var(--line2);border-radius:var(--r-sm);min-height:40px;padding:0 12px;width:140px}
+.al-dl input[type=number]:focus{outline:2px solid var(--accent-line);border-color:var(--accent-line)}
+.al-kinds{display:flex;flex-wrap:wrap;gap:6px}
+.al-kinds .chip{cursor:pointer;min-height:34px}
+.al-seg{align-self:flex-start}
+.al-bks{display:flex;flex-direction:column;gap:6px}
+.al-bk{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg2);font-size:14px;cursor:pointer}
+.al-bk.on{border-color:var(--accent-line)}
+.al-bk span{flex:1}
+.al-bk b{font-variant-numeric:tabular-nums}
+.al-bk input{accent-color:var(--accent);width:18px;height:18px;margin:0}
+.al-prev{display:flex;flex-direction:column;gap:2px;margin-top:12px;padding:10px 12px;border-radius:var(--r-sm);background:var(--accent-soft);font-size:13.5px}
+.al-prev .na{font-size:12.5px}
+.al-why{color:var(--warn)}
+.al-rg{margin:12px 0 0;font-size:11.5px;color:var(--dim);text-align:center}
+.al-list{list-style:none;margin:0 0 6px;padding:0}
+.al-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.al-row:last-child{border-bottom:0}
+.al-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:14px}
+.al-main .na{font-size:12.5px}
+.al-fired{font-size:12.5px;color:var(--bestTxt)}
+.al-st{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mute);white-space:nowrap}
+.al-st-active{color:var(--bestTxt);border-color:var(--accent-line)}
+.al-k-expired .al-main{opacity:.7}
+.al-del{cursor:pointer}
+@media (max-width:560px){
+  .al-row{flex-wrap:wrap}
+  .al-main{flex-basis:100%}
+  .al-st{margin-right:auto}
+}

@@ -146,24 +146,27 @@
   async function signOut() {
     UI.busy = true; draw();
     try { const sb = await client(); await sb.auth.signOut({ scope: "local" }); } catch (e) {}
-    ls.del(AC.AUTH_KEY); SESSION = null;
+    ls.del(AC.AUTH_KEY); SESSION = null; if (window.LSAlerts) window.LSAlerts.reset();
     UI.busy = false; UI.step = "email"; UI.sync = "idle"; UI.err = "";
     UI.info = "Signed out. Your bets are still saved on this device; sign in again any time to sync them.";
     draw();
   }
   async function deleteCloud() {
-    if (!confirm("Delete your LineSmart account data?\n\nThis permanently deletes every bet saved to your account in the cloud and signs you out. The bets on this device stay here.\n\nTo also delete your email address (the sign-in itself), email contact@linesmart.app.")) return;
+    if (!confirm("Delete your LineSmart account data?\n\nThis permanently deletes every bet and line alert saved to your account in the cloud and signs you out. The bets on this device stay here.\n\nTo also delete your email address (the sign-in itself), email contact@linesmart.app.")) return;
     UI.busy = true; UI.err = ""; draw();
     try {
       const s = await session();
       if (!s) throw new Error("not signed in");
       const { error } = await SB.from(AC.TABLE).delete().eq("user_id", s.user.id);
       if (error) throw error;
+      // line alerts too (ignore "table not there yet" before the migration is run)
+      try { await SB.from("line_alerts").delete().eq("user_id", s.user.id); } catch (e) {}
+      if (window.LSAlerts) window.LSAlerts.reset();
       ls.del(AC.TOMB_KEY); ls.del(AC.SYNC_KEY); ls.del("ls-acct-email"); UI.email = "";
       await SB.auth.signOut({ scope: "local" }).catch(() => {});
       ls.del(AC.AUTH_KEY); SESSION = null;
       UI.step = "email"; UI.sync = "idle";
-      UI.info = "Deleted: your bets are no longer stored in your account, and you're signed out. The copy on this device stays. To delete your sign-in email too, email contact@linesmart.app (we'll confirm when it's done).";
+      UI.info = "Deleted: your bets and line alerts are no longer stored in your account, and you're signed out. The copy on this device stays. To delete your sign-in email too, email contact@linesmart.app (we'll confirm when it's done).";
     } catch (e) { UI.err = "Couldn't delete right now: " + AC.syncError(e); }
     finally { UI.busy = false; draw(); }
   }
@@ -235,13 +238,14 @@
         <div class="ac-btns"><button type="button" class="bt-add" id="acSync" ${UI.busy || UI.sync === "syncing" ? "disabled" : ""}>Sync now</button><button type="button" class="chip" id="acOut" ${UI.busy ? "disabled" : ""}>Sign out</button></div>
         <div class="note">Bets sync automatically when you add, edit, settle or delete one, when the site opens, and when you come back to it. Offline changes are kept on this device and sync later. Signing out keeps a copy of your bets on this device.</div>
       </div>
+      ${window.LSAlerts ? `<div id="acAlerts">${window.LSAlerts.accountHtml()}</div>` : ""}
       <div class="section-title">Delete your data</div>
       <div class="card ac-card ac-danger">
-        <p class="ac-p">Deletes every bet stored in your account (the cloud copy) and signs you out. Bets on this device aren't touched. Deleting the account itself (your sign-in email) needs a request: email <a href="mailto:contact@linesmart.app?subject=Delete%20my%20LineSmart%20account">contact@linesmart.app</a> from the address you sign in with.</p>
+        <p class="ac-p">Deletes every bet and line alert stored in your account (the cloud copy) and signs you out. Bets on this device aren't touched. Deleting the account itself (your sign-in email) needs a request: email <a href="mailto:contact@linesmart.app?subject=Delete%20my%20LineSmart%20account">contact@linesmart.app</a> from the address you sign in with.</p>
         <button type="button" class="chip bt-del" id="acDel" ${UI.busy ? "disabled" : ""}>Delete my account and bets</button>
       </div>${privacyHtml()}`;
   }
-  const privacyHtml = () => `<div class="note ac-note">Accounts store your email address and your tracked bets with our provider Supabase (US). We never sell your data. Sign-in codes are sent by email. <a href="privacy.html#accounts">Privacy policy</a> · <a href="#/bets">My Bets</a></div>`;
+  const privacyHtml = () => `<div class="note ac-note">Accounts store your email address, your tracked bets and any line alerts with our provider Supabase (US). We never sell your data. Sign-in codes are sent by email. <a href="privacy.html#accounts">Privacy policy</a> · <a href="#/bets">My Bets</a></div>`;
   function bind() {
     const q = id => document.getElementById(id);
     q("acEmailForm") && q("acEmailForm").addEventListener("submit", e => { e.preventDefault(); sendCode(q("acEmail").value); });
@@ -252,10 +256,12 @@
     q("acSync") && q("acSync").addEventListener("click", () => syncNow());
     q("acOut") && q("acOut").addEventListener("click", signOut);
     q("acDel") && q("acDel").addEventListener("click", deleteCloud);
+    if (q("acAlerts") && window.LSAlerts) window.LSAlerts.bindAccount(q("acAlerts"));
   }
 
   // ---------- boot: a sign-in link landed here, or this device is signed in -> sync once the page is up
   if (RET) { if (!onAccount()) location.hash = "#/account"; }
   else if (hasSession()) setTimeout(() => syncNow(), 1200);
-  window.LSAccount = { view, syncNow, signedIn: hasSession };
+  // client/session for alerts.js (line alerts use the same signed-in Supabase client; RLS keeps rows per user)
+  window.LSAccount = { view, syncNow, signedIn: hasSession, client, session };
 })();

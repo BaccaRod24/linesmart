@@ -59,7 +59,7 @@
     return `<div class="pp-row${hot ? " is-hot" : ""}" data-mk="${esc(p.mk)}" data-hot="${hot ? 1 : 0}">
       <div class="pp-mk"><span class="pp-lab">${esc(p.label)}${MULTI && p.book ? ` <span class="pp-src">${esc(BKS[p.book] || "")}</span>` : ""}</span><span class="pp-line">${esc(C.lineText(p.mk, p.line))}</span>${mv ? `<span class="pp-mv">${esc(mv)}</span>` : ""}</div>
       <div class="pp-strip" role="list" aria-label="Last 5 games vs this line">${s.length ? s.map(b => box(b, p.mk)).join("") : `<span class="pp-none">No games yet this season</span>`}</div>
-      <div class="pp-sum">${hot ? `<span class="pp-hot-tag">Hot</span>` : ""}<b class="pp-xs ${cls}">${esc(sm.text)}</b><span>L10 ${l10.n ? `${l10.o}/${l10.n}` : "—"}</span><span>Season ${esc(se.text)}</span>${trackLink(p, ctx, name)}</div>
+      <div class="pp-sum">${hot ? `<span class="pp-hot-tag">Hot</span>` : ""}<b class="pp-xs ${cls}">${esc(sm.text)}</b><span>L10 ${l10.n ? `${l10.o}/${l10.n}` : "—"}</span><span>Season ${esc(se.text)}</span>${trackLink(p, ctx, name)}${ctx && ctx.gid && window.LSAlerts && (p.books || []).some(b => avail(b.key) && C.isNum(b.line)) ? window.LSAlerts.propBell(ctx.lg, ctx.gid, ctx.pid, p.mk, name, p.label) : ""}</div>
       ${bookLine(p)}
     </div>`;
   }

@@ -149,9 +149,10 @@
     const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}">${tags}${sparks(g)}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
                    : `<div class="noline">Lines not posted yet</div>${wx ? `<div class="tfoot has-wx wx-only">${wx}</div>` : ""}`;
     const net = esc([g.note, (g.broadcasts || []).slice(0, 2).join(", ")].filter(Boolean).join(" · "));
-    return `<a class="game c${cols.length}${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
+    const bell = window.LSAlerts && o ? window.LSAlerts.tileBell(key, g) : "";
+    return `${bell ? `<div class="gwrap">` : ""}<a class="game c${cols.length}${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
       <div class="game-top">${statusHtml(g)}${g.state === "pre" ? notableBadge(g) : ""}<span class="net">${net}</span></div>
-      ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${foot}${o ? pkTile(g, kind) : ""}</a>`;
+      ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${foot}${o ? pkTile(g, kind) : ""}</a>${bell ? `${bell}</div>` : ""}`;
   }
 
   // ---------- skeleton loaders (shown while JSON loads)
@@ -302,7 +303,7 @@
         <div class="mteam home">${logo(H)}<div><div class="nm">${H.rank ? `<span class="rk" style="color:var(--warn)">#${H.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${H.id}">${esc(H.name)}</a></div><div class="rec">${esc(H.record || "—")} · Home ${esc(H.homeRecord || "—")}${formDots(H.form)}</div></div></div>
       </div>`;
 
-    html += `<div class="section-title">Betting lines</div><div class="cols">${linesCard(g, kind)}${booksCard(g, kind, key)}</div>${offersSlot("game")}`;
+    html += `<div class="section-title">Betting lines${window.LSAlerts && g.state === "pre" ? `<span class="st-act">${window.LSAlerts.pageBell(key, g)}</span>` : ""}</div><div class="cols">${linesCard(g, kind)}${booksCard(g, kind, key)}</div>${offersSlot("game")}`;
     if (window.LSBets) html += window.LSBets.trackCard(key, g, kind);
     const lm = lineMoveSection(d, g, kind);
     html += lm.html;

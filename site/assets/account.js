@@ -180,6 +180,7 @@
     document.title = "Account · LineSmart";
     if (hasSession() && UI.step !== "in") UI.step = "in";
     draw();
+    if (/^#\/?account\/alerts/.test(location.hash)) setTimeout(() => { const t = document.getElementById("acAlerts") || document.getElementById("acAlertsInfo"); if (t) t.scrollIntoView({ block: "start" }); }, 0);   // home "Line alerts" link
     if (RET && !finishReturn.done) { finishReturn.done = true; finishReturn(); return; }
     if (hasSession()) session().then(s => { if (!s) { UI.step = "email"; draw(); } else { draw(); if (UI.sync === "idle") syncNow(); } }, e => { UI.err = e.message; draw(); });
     else client().catch(() => {});   // warm up so "Send code" is instant
@@ -218,7 +219,9 @@
         <div class="bt-actions ac-actions"><button type="submit" class="bt-add" ${UI.busy ? "disabled" : ""}>${UI.busy ? "Sending…" : "Send code"}</button></div>
         ${n ? `<div class="note">The ${n} bet${n > 1 ? "s" : ""} already on this device will be added to your account when you sign in.</div>` : ""}
       </form>
-      <div class="note ac-note">An account is optional. Without one, My Bets keeps working and stays only in this browser on this device.</div>${privacyHtml()}`;
+      <div class="note ac-note">An account is optional. Without one, My Bets keeps working and stays only in this browser on this device.</div>
+      <div class="section-title" id="acAlertsInfo">Line alerts</div>
+      <div class="card ac-card"><p class="ac-p">Get one email when a line moves or hits your number. Sign in above, then tap <b>🔔 Alert</b> on any game or player prop. Your alerts are listed here.</p></div>${privacyHtml()}`;
   }
   function syncBox() {
     const st = ls.get(AC.SYNC_KEY) || {};

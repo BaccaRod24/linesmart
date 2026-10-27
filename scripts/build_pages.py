@@ -37,6 +37,13 @@ PAGES = [  # (file, nav label)
     ("affiliate-disclosure.html", "Affiliate Disclosure"),
 ]
 
+TOOLS = [  # (href, label): footer quick links into the app (relative, so subpath hosting and preview pages' <base> work)
+    ("./#/value", "Value finder"),
+    ("preview/", "Game previews"),
+    ("./#/account/alerts", "Line alerts"),
+    ("./#/bets", "My Bets"),
+]
+
 FOOTER = f"""<footer class="footer" id="siteFooter">
   <div class="wrap">
     <div class="news-foot" data-news-signup="footer"></div>
@@ -46,6 +53,7 @@ FOOTER = f"""<footer class="footer" id="siteFooter">
     <p class="biz">LineSmart, a Florida-based business · <a href="mailto:{CONTACT}">{CONTACT}</a></p>
     <p class="aff-disc" data-aff-disclosure hidden></p>
     <nav class="legal-links" aria-label="Legal">{" ".join(f'<a href="{f}">{n}</a>' for f, n in PAGES)}</nav>
+    <nav class="tool-links" aria-label="Tools">{" ".join(f'<a href="{f}">{n}</a>' for f, n in TOOLS)}</nav>
     <p class="src">Data: ESPN public endpoints (schedules, stats, DraftKings opening lines and fallback lines); Hard Rock Bet, FanDuel and DraftKings lines and props via The Odds API; weather by Open-Meteo. Independent: not owned by or affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
   </div>
 </footer>"""
@@ -326,6 +334,9 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
     <li><b>Matchups</b>: team form, home and away splits, injuries, season stats and head-to-head comparisons.</li>
     <li><b>Game-day weather</b> for outdoor games.</li>
     <li><b>My Bets</b>: a private bet tracker that stays in your browser on your device, or syncs between your devices if you sign in with an optional account.</li>
+    <li><a href="./#/value"><b>Value finder</b></a>: prices that pay more than the market's no-vig fair odds.</li>
+    <li><a href="preview/"><b>Game previews</b></a>: one page per upcoming game with lines across books, line movement, form and injuries.</li>
+    <li><a href="./#/account/alerts"><b>Line alerts</b></a>: one email when a line moves or hits your number (needs the optional account).</li>
   </ul>
 
   <h2>Who runs it</h2>

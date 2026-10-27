@@ -49,6 +49,8 @@
 <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2.5 4.5 13.5H11l-1 8 8.5-11H12z"/></symbol>
 <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18h9.5a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 6.6 11.1 3.45 3.45 0 0 0 7 18z"/></symbol>
 <symbol id="i-trend" viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></symbol>
+<symbol id="i-doc" viewBox="0 0 24 24"><path d="M6.5 3.5h8l3.5 3.5v13.5h-11.5z"/><path d="M14 3.5V7.5h4M9.5 12h5M9.5 15.5h5"/></symbol>
 </defs></svg>
 <header class="topbar">
   <div class="wrap topbar-inner">
@@ -63,7 +65,7 @@
     <a class="search-btn acct-btn" id="acctBtn" href="#/account" aria-label="Account: sign in to sync My Bets" title="Account: sign in to sync My Bets across devices"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-user"/></svg><span>Account</span></a>
     <button class="install-btn" id="installBtn" type="button" hidden>Install app</button>
   </div>
-  <nav class="league-nav" id="leagueNav" aria-label="Leagues"><div class="wrap league-nav-inner" id="leagueTabs"></div></nav>
+  <div class="lnav"><nav class="league-nav" id="leagueNav" aria-label="Leagues"><div class="wrap league-nav-inner" id="leagueTabs"></div></nav><button type="button" class="lnav-btn lnav-l" data-lnav="l" tabindex="-1" aria-hidden="true" title="More leagues"><svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></button><button type="button" class="lnav-btn lnav-r" data-lnav="r" tabindex="-1" aria-hidden="true" title="More leagues"><svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg></button></div>
 </header>
 <div class="offline-note" id="offlineNote" hidden></div>
 <section class="intro wrap" id="intro" aria-labelledby="introTitle">
@@ -85,6 +87,7 @@
     <p class="biz">LineSmart, a Florida-based business · <a href="mailto:contact@linesmart.app">contact@linesmart.app</a></p>
     <p class="aff-disc" data-aff-disclosure hidden></p>
     <nav class="legal-links" aria-label="Legal"><a href="about.html">About</a> <a href="responsible-gambling.html">Responsible Gambling</a> <a href="privacy.html">Privacy Policy</a> <a href="terms.html">Terms of Use</a> <a href="affiliate-disclosure.html">Affiliate Disclosure</a></nav>
+    <nav class="tool-links" aria-label="Tools"><a href="./#/value">Value finder</a> <a href="preview/">Game previews</a> <a href="./#/account/alerts">Line alerts</a> <a href="./#/bets">My Bets</a></nav>
     <p class="src">Data: ESPN public endpoints (schedules, stats, DraftKings opening lines and fallback lines); Hard Rock Bet, FanDuel and DraftKings lines and props via The Odds API; weather by Open-Meteo. Independent: not owned by or affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
   </div>
 </footer>

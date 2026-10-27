@@ -63,16 +63,38 @@
   const logo = (t, cls = "") => (t && t.logo ? `<img class="${cls}" src="${esc(t.logo)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : `<span class="${cls}"></span>`);
 
   // ---------- nav
+  // active: a league key, HOME (the dashboard: the "All" pill lights up, no league does) or null (no pill lit)
+  const HOME = "@home";
   function renderTabs(active) {
     const tabs = document.getElementById("leagueTabs");
-    tabs.innerHTML = META.order.map(k => {
+    const all = Object.values(META.leagues || {}).reduce((a, L) => a + (L.upcoming || 0), 0);
+    const homeOn = active === HOME;
+    tabs.innerHTML = `<a class="tab tab-all ${homeOn ? "active" : ""}" href="#/" title="Home: today's slate across all leagues"${homeOn ? ' aria-current="page"' : ""}>All<span class="cnt">${all}</span></a>` + META.order.map(k => {
       const L = META.leagues[k] || {};
-      const off = !L.games;
-      return `<a class="tab ${k === active ? "active" : ""} ${off ? "off" : ""}" href="#/l/${k}" title="${esc(L.full || "")}">${esc(L.name || k.toUpperCase())}<span class="cnt">${L.upcoming ?? 0}</span></a>`;
+      const off = !L.games, on = k === active;
+      return `<a class="tab ${on ? "active" : ""} ${off ? "off" : ""}" href="#/l/${k}" title="${esc(L.full || "")}"${on ? ' aria-current="page"' : ""}>${esc(L.name || k.toUpperCase())}<span class="cnt">${L.upcoming ?? 0}</span></a>`;
     }).join("");
-    const a = tabs.querySelector(".active");
-    if (a) a.scrollIntoView({ block: "nearest", inline: "center" });
+    const nav = document.getElementById("leagueNav"), a = tabs.querySelector(".active");
+    if (nav && a) {   // bring the active pill into view inside the row only (scrollIntoView would also scroll the page)
+      const want = a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2;
+      nav.scrollTo({ left: Math.max(0, want), behavior: "instant" });
+    } else if (nav && homeOn) nav.scrollTo({ left: 0, behavior: "instant" });
+    lnavEdges();
   }
+  // swipe affordance: fade + chevron on whichever side has more pills off-screen
+  function lnavEdges() {
+    const nav = document.getElementById("leagueNav"), box = nav && nav.parentElement; if (!box || !box.classList.contains("lnav")) return;
+    const max = nav.scrollWidth - nav.clientWidth;
+    box.classList.toggle("more-l", nav.scrollLeft > 4);
+    box.classList.toggle("more-r", nav.scrollLeft < max - 4);
+  }
+  (() => {
+    const nav = document.getElementById("leagueNav"); if (!nav) return;
+    nav.addEventListener("scroll", lnavEdges, { passive: true });
+    window.addEventListener("resize", lnavEdges);
+    document.querySelectorAll("[data-lnav]").forEach(b => b.addEventListener("click", () =>
+      nav.scrollBy({ left: (b.dataset.lnav === "r" ? 1 : -1) * Math.max(160, nav.clientWidth * 0.7), behavior: "smooth" })));
+  })();
 
   // ---------- odds snippets
   // ---------- line movement helpers
@@ -281,6 +303,15 @@
     return `<div class="ticker" role="region" aria-label="Scores ticker"><span class="tk-lbl">${live ? '<span class="live-dot"></span>' : ICON("pulse", "ic")}<span class="tl-t">${live ? "LIVE" : "SCORES"}</span></span>
       <div class="tk-vp"><div class="tk-track" style="--tk-dur:${Math.max(30, items.length * 5)}s">${set(false)}${set(true)}</div></div></div>`;
   }
+  // home quick links to the tools that otherwise hide behind a game page or the Account page
+  function toolsHtml() {
+    const t = (href, icon, name, sub) => `<a class="tool" href="${href}">${ICON(icon)}<span><b>${esc(name)}</b><small>${esc(sub)}</small></span></a>`;
+    return `<nav class="tools" aria-label="Tools">${[
+      META.previews ? t("preview/", "doc", "Game previews", "Lines, form and injuries per game") : "",
+      t("#/account/alerts", "bell", "Line alerts", "Email me when a line moves"),
+      t("#/bets", "ticket", "Bet tracker", "Track bets or import a slip"),
+    ].join("")}</nav>`;
+  }
   function slateHtml() {
     const S = META.slate, L = META.leagues || {};
     const sum = k => Object.values(L).reduce((a, x) => a + (x[k] || 0), 0);
@@ -304,12 +335,12 @@
     }).join("");
     return `${tickerHtml(S)}<section class="slate" aria-label="Today's slate"><div class="sl-head"><div><span class="eyebrow">${ICON("trend", "ic")}Today's slate</span>
       <div class="sl-title">${esc(fmt(today, { weekday: "long", month: "long", day: "numeric" }))}</div><div class="sl-sub">Lines, props and form across ${META.order.length} leagues · times in ${TZL}</div></div></div>
-      <div class="sl-stats">${stats}</div>${chips ? `<nav class="sl-lgs" aria-label="Leagues playing today">${chips}</nav>` : ""}</section>${window.LSAdv ? window.LSAdv.valueSpots(META) : ""}`;
+      <div class="sl-stats">${stats}</div>${chips ? `<nav class="sl-lgs" aria-label="Leagues playing today">${chips}</nav>` : ""}</section>${toolsHtml()}${window.LSAdv ? window.LSAdv.valueSpots(META) : ""}`;
   }
 
   // ---------- league view
   async function viewLeague(key, home = false) {
-    renderTabs(key);
+    renderTabs(home ? HOME : key);
     const L = META.leagues[key];
     if (!cache[`data/${key}/index.json`]) showSkel(skelLeague());
     if (!L) return (app.innerHTML = `<div class="empty"><h3>Unknown league</h3></div>`);

@@ -1421,3 +1421,64 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
   .bt-bdt th:nth-child(4),.bt-bdt td:nth-child(4){display:table-cell}
   .bt-wd-row{grid-template-columns:30px minmax(0,1fr) 70px 46px;gap:8px}
 }
+
+/* ---------- weekly email signup (assets/news.js): glass card on the homepage intro, footer and My Bets */
+.news-box{position:relative;margin:12px 0 6px;padding:16px 18px;border-radius:var(--r);border:1px solid var(--accent-line);
+  background:radial-gradient(420px 160px at 0% 0%,color-mix(in srgb,var(--accent2) 10%,transparent),transparent 70%),linear-gradient(180deg,color-mix(in srgb,var(--surface2) 82%,transparent),color-mix(in srgb,var(--surface) 82%,transparent));
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:var(--shadow),0 18px 40px -30px color-mix(in srgb,var(--accent) 70%,transparent)}
+.news-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,430px);gap:4px 22px;align-items:center}
+.news-h{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;line-height:1.45;color:var(--mute)}
+.news-h b{color:var(--txt);font-weight:700}
+.news-ic{flex:none;width:22px;height:22px;margin-top:-1px;fill:none;stroke:var(--accent2);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.news-fields{display:flex;flex-direction:column;gap:7px}
+.news-row{display:flex;gap:8px}
+.news-row input{flex:1;min-width:0;font:500 15px var(--font);color:var(--txt);background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r-sm);min-height:42px;padding:0 13px}
+.news-row input::placeholder{color:var(--dim)}
+.news-row input:focus{outline:2px solid var(--accent-line);outline-offset:0;border-color:var(--accent-line)}
+.news-row input[aria-invalid=true],.news-age input[aria-invalid=true]{border-color:var(--neg);outline-color:color-mix(in srgb,var(--neg) 50%,transparent)}
+.news-btn{flex:none;min-height:42px;padding:0 18px;border-radius:var(--r-sm);border:0;background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 55%,var(--accent2)));color:var(--accent-ink);font:700 14.5px var(--font);cursor:pointer;transition:filter .15s,transform .15s}
+.news-btn:hover{filter:brightness(1.08)}.news-btn:active{transform:translateY(1px)}.news-btn:disabled{opacity:.6;cursor:progress}
+.news-age{display:inline-flex;gap:8px;align-items:center;font-size:13px;color:var(--mute);cursor:pointer;width:max-content;max-width:100%}
+.news-age input{width:17px;height:17px;margin:0;accent-color:var(--accent)}
+.news-hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.news-msg{grid-column:1/-1;margin:2px 0 0;font-size:13px;line-height:1.5;color:var(--mute)}
+.news-msg:empty{display:none}
+.news-msg.ok{color:var(--pos)}.news-msg.err{color:var(--neg)}
+.news-fine{grid-column:1/-1;margin:2px 0 0;font-size:11.5px;color:var(--dim)}
+.news-fine a{color:var(--accent)}
+.news-toggle{display:none}
+/* homepage: compact; on phones it starts collapsed to one tappable row so odds stay near the top */
+.intro .news-box{margin:10px 0 4px;padding:13px 16px;max-width:980px}
+.intro .news-box .news-fine{display:none}
+.intro.js .news-box p.news-msg{font-size:13px;margin:2px 0 0}
+/* footer: sits above the compliance text */
+.footer .news-box{margin:0 0 18px}
+.footer .news-box p{max-width:none}
+.news-bets{margin-top:16px}
+@media (max-width:760px){
+  .news-form{grid-template-columns:minmax(0,1fr);gap:10px}
+  .news-row input{font-size:16px}   /* no iOS zoom on focus */
+  .intro .news-box{padding:0;margin:8px 0 6px}
+  .intro .news-toggle{display:flex;width:100%;gap:10px;align-items:center;min-height:46px;padding:0 14px;border:0;background:transparent;color:var(--txt);font:650 14px var(--font);text-align:left;cursor:pointer}
+  .intro .news-toggle span{flex:1}
+  .news-chev{width:18px;height:18px;fill:none;stroke:var(--mute);stroke-width:2;transition:transform .2s}
+  .intro .news-box.open .news-chev{transform:rotate(180deg)}
+  .intro .news-box .news-form{display:none;padding:0 14px 14px}
+  .intro .news-box.open .news-form{display:grid}
+  .intro .news-box .news-copy{display:none}
+}
+/* confirm / unsubscribe pages */
+.news-page{margin-top:18px}
+.news-result{padding:22px;border-radius:var(--r);border:1px solid var(--line2);background:linear-gradient(180deg,var(--surface2),var(--surface));box-shadow:var(--shadow)}
+.news-result h2{margin:0 0 8px!important;font-size:20px}
+.news-result p{margin:0 0 12px;color:var(--mute)}
+.news-result p:last-child{margin-bottom:0}
+.news-result.ok{border-color:color-mix(in srgb,var(--pos) 45%,var(--line2))}
+.news-result.ok h2{color:var(--pos)}
+.news-result.err{border-color:color-mix(in srgb,var(--neg) 45%,var(--line2))}
+.news-result .news-btn{margin-top:4px}
+.news-result .news-age{margin:0 0 12px}
+.news-link{color:var(--accent);font-weight:650}
+.news-page-signup{margin-top:16px}
+/* My Bets has its own signup card: don't repeat it in the footer right below */
+body:has(.news-bets) .footer .news-foot{display:none}

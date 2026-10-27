@@ -1,0 +1,82 @@
+name: Weekly email (newsletter)
+
+# Thursday morning ET: 13:00 UTC = 9:00 AM EDT (8:00 AM EST in winter). GitHub may delay scheduled runs.
+#
+# SAFE BY DEFAULT: the scheduled run is a DRY RUN (renders HTML to an artifact, sends nothing) until the repo
+# variable NEWSLETTER_ENABLED is set to 1. Sending also needs secrets RESEND_API_KEY + NEWSLETTER_EXPORT_KEY and a
+# mailing address (variable NEWSLETTER_MAILING_ADDRESS or scripts/newsletter.config.json); the script refuses to send
+# to subscribers while the address is empty. Setup steps: docs/newsletter.md
+on:
+  schedule:
+    - cron: '0 13 * * 4'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'dry-run = render only; test = one copy to test_to; send = all confirmed subscribers (needs NEWSLETTER_ENABLED=1)'
+        type: choice
+        options: [dry-run, test, send]
+        default: dry-run
+      test_to:
+        description: 'Address for mode=test'
+        type: string
+        default: contact@linesmart.app
+
+permissions:
+  contents: read
+
+concurrency:
+  group: newsletter
+  cancel-in-progress: false
+
+jobs:
+  newsletter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - name: Unit tests
+        run: node scripts/newsletter_test.mjs
+
+      - name: Pick mode
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_MODE: ${{ inputs.mode }}
+          ENABLED: ${{ vars.NEWSLETTER_ENABLED }}
+        run: |
+          if [ "$EVENT" = "schedule" ]; then
+            if [ "$ENABLED" = "1" ]; then m=send; else m=dry-run; fi
+          else
+            m="${INPUT_MODE:-dry-run}"
+          fi
+          if [ "$m" = "send" ] && [ "$ENABLED" != "1" ]; then
+            echo "::warning::NEWSLETTER_ENABLED is not 1, running a dry run instead of send"; m=dry-run
+          fi
+          echo "mode=$m" >> "$GITHUB_OUTPUT"
+          echo "Mode: $m"
+
+      - name: Build (and send if enabled)
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+          TEST_TO: ${{ inputs.test_to }}
+          NEWSLETTER_ENABLED: ${{ vars.NEWSLETTER_ENABLED }}
+          NEWSLETTER_MAILING_ADDRESS: ${{ vars.NEWSLETTER_MAILING_ADDRESS }}
+          RESEND_API_KEY: ${{ (steps.mode.outputs.mode != 'dry-run') && secrets.RESEND_API_KEY || '' }}
+          NEWSLETTER_EXPORT_KEY: ${{ (steps.mode.outputs.mode == 'send') && secrets.NEWSLETTER_EXPORT_KEY || '' }}
+        run: |
+          args=(--mode "$MODE" --out newsletter-out/preview.html)
+          if [ "$MODE" = "test" ]; then args+=(--test-to "$TEST_TO"); fi
+          node scripts/newsletter.mjs "${args[@]}"
+
+      - name: Upload rendered email
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: newsletter-${{ github.run_id }}
+          path: newsletter-out/
+          retention-days: 14
+          if-no-files-found: ignore

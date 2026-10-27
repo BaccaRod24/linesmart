@@ -97,7 +97,8 @@
   const init = () => {
     document.querySelectorAll("[data-brand]").forEach(e => (e.textContent = CFG.name || "LineSmart"));
     applyAffSlots();
-    showAgeNotice();
+    // weekly-email confirm/unsubscribe pages: the visitor already confirmed 21+ at signup, so don't cover the page
+    if (!(document.body && document.body.dataset.newsPage)) showAgeNotice();
     loadAnalytics();
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();

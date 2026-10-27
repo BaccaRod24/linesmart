@@ -7,6 +7,9 @@
   const DATA_TTL_MS = 60000;   // parsed data/*.json is reused for 60 s, then revalidated (was: kept until a full reload)
   let netGen = 0;  // bumped when the browser comes back online
   let META = null;
+  let PREV = {};   // data/previews.json from scripts/previews.py: {leagues: {lg: {gameId: "preview/lg/slug/"}}}; absent locally → no links
+  const previewHref = (lg, id) => ((PREV.leagues || {})[lg] || {})[id] || null;
+  const previewLink = (lg, g, cls = "pv-tile") => { const h = g && g.state === "pre" ? previewHref(lg, g.id) : null; return h ? `<a class="${cls}" href="${esc(h)}" title="Game preview: odds, line movement, form and injuries" aria-label="${esc(`Preview: ${g.away.name} at ${g.home.name}`)}">Preview</a>` : ""; };
   // ---------- live scores (assets/live.js + live-core.js): overlays newer than the static file win
   const GENS = {};                       // league -> generated stamp of its data/<lg>/index.json
   const LV = () => window.LSLive || null;
@@ -163,10 +166,10 @@
     const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}">${tags}${sparks(g)}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
                    : `<div class="noline">Lines not posted yet</div>${wx ? `<div class="tfoot has-wx wx-only">${wx}</div>` : ""}`;
     const net = esc([g.note, (g.broadcasts || []).slice(0, 2).join(", ")].filter(Boolean).join(" · "));
-    const bell = window.LSAlerts && o ? window.LSAlerts.tileBell(key, g) : "";
-    return `${bell ? `<div class="gwrap">` : ""}<a class="game c${cols.length}${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
+    const bell = window.LSAlerts && o ? window.LSAlerts.tileBell(key, g) : "", pv = previewLink(key, g), wrap = bell || pv;
+    return `${wrap ? `<div class="gwrap${pv ? " has-pv" : ""}${bell ? " has-bell" : ""}">` : ""}<a class="game c${cols.length}${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
       <div class="game-top">${statusHtml(g)}${g.state === "pre" ? notableBadge(g) : ""}<span class="net">${net}</span></div>
-      ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${sitLine(g)}${foot}${o ? pkTile(g, kind) : ""}</a>${bell ? `${bell}</div>` : ""}`;
+      ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${sitLine(g)}${foot}${o ? pkTile(g, kind) : ""}</a>${wrap ? `${bell}${pv}</div>` : ""}`;
   }
 
   // ---------- live scores: hero, box score, poller wiring
@@ -388,7 +391,7 @@
     const mid = g.state === "pre"
       ? `<div class="vs">${g.neutral ? "VS" : "AT"}</div><div class="when">${fullET(g.date)}</div>`
       : heroMid(g);
-    let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>
+    let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>${previewLink(key, g, "back pv-back")}
       <div class="match" style="--ca:${teamColor(A, "#334155")};--ch:${teamColor(H, "#475569")}">
         <div class="mteam">${logo(A)}<div><div class="nm">${A.rank ? `<span class="rk" style="color:var(--warn)">#${A.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${A.id}">${esc(A.name)}</a></div><div class="rec">${esc(A.record || "—")} · Away ${esc(A.awayRecord || "—")}${formDots(A.form)}</div></div></div>
         <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}${g.neutral ? " (neutral)" : ""}</div><div class="where">${esc(g.broadcasts.join(", "))}</div>${g.note ? `<div class="where">${esc(g.note)}</div>` : ""}${window.LSWeather && g.state !== "post" && g.weather ? `<div class="where wx-where">${window.LSWeather.chip(g)}</div>` : ""}</div>
@@ -1047,7 +1050,7 @@
   async function route() {
     if (GEO()) await GEO().ready;
     if (!META) {
-      try { META = await getJSON("data/meta.json"); }
+      try { META = await getJSON("data/meta.json"); const pv = META.previews; if (!pv) PREV = {}; else if (PREV.generated !== pv.generated) PREV = await getJSON("data/previews.json").catch(() => ({})); }
       catch (e) { app.innerHTML = `<div class="empty"><h3>No data yet</h3>Run <code>python3 scripts/build_data.py</code> then reload.</div>`; return; }
       const gen = META.generated ? new Date(META.generated) : null;
       if (gen) { const iso = gen.toISOString(); const u = document.getElementById("updated"); u.title = "Data updated " + fullET(iso); u.innerHTML = `<span class="dot"></span><span><span class="u-long">Updated ${esc(fmt(iso, { weekday: "short", month: "short", day: "numeric" }))}, </span>${esc(timeET(iso))}</span>`; }
@@ -1080,7 +1083,7 @@
     Promise.resolve(route()).then(() => window.scrollTo(0, y));
   });
   // helpers shared with the My Bets tracker (assets/bets.js)
-  window.LSApp = { esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, nav: () => NAV, espn, crest, notAvail, sidx, linesCard, booksCard, lineMoveSection };
+  window.LSApp = { previewHref, previewLink, esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, nav: () => NAV, espn, crest, notAvail, sidx, linesCard, booksCard, lineMoveSection };
   // "/" opens search from anywhere (unless typing in a field)
   document.addEventListener("keydown", e => {
     if (e.key === "/" && !e.metaKey && !e.ctrlKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "")) {

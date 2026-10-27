@@ -103,7 +103,7 @@
     const mid = g.state === "pre" ? `<div class="vs">VS</div><div class="when">${esc(L.fullET(g.date))}</div>`
       : g.state === "in" ? `<div class="vs live">LIVE</div><div class="when">${esc(g.statusDetail || "")}</div>`
       : `<div class="vs">${r.outcome === "draw" ? "DRAW" : r.outcome === "nc" ? "NC" : "FINAL"}</div><div class="when">${esc(resultLine(g))}</div>`;
-    let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>
+    let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>${L.previewLink ? L.previewLink(key, g, "back pv-back") : ""}
       <div class="match uf-match" style="--ca:#b91c1c;--ch:#1d4ed8">${side(W, "away")}
         <div class="mmid">${mid}<div class="where">${esc([g.weightClass, g.rounds ? g.rounds + " rounds" : "", g.segmentName].filter(Boolean).join(" · "))}</div>
         <div class="where">${esc((g.event || {}).name || "")}</div><div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}</div>${(g.broadcasts || []).length ? `<div class="where">${esc(g.broadcasts.join(", "))}</div>` : ""}</div>

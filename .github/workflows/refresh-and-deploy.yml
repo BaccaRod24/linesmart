@@ -125,6 +125,13 @@ jobs:
               json.load(open(f))
           PY
 
+      # Static, crawlable preview pages for upcoming games (site/preview/**), the hub page, data/previews.json for
+      # the app's "Preview" links and the previews block in sitemap.xml. Reads site/data only (no network, no API key).
+      # Pages are rebuilt from scratch every run, so started games become redirects and old games drop out.
+      - name: Build game preview pages
+        continue-on-error: true
+        run: python scripts/previews.py
+
       # Only persist history from a successful build. On a push race, re-apply this run's
       # snapshot on top of the latest branch tip and try again; never force-push.
       - name: Save line history snapshot

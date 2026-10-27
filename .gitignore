@@ -36,3 +36,11 @@ site/data/matchups/
 # Generated player prop lines (built in CI each refresh from ESPN / DraftKings)
 site/data/props/
 newsletter-out/
+
+# Generated game preview pages + manifest (built in CI each refresh by scripts/previews.py from site/data)
+site/preview/
+site/.preview.tmp/
+site/.preview.old/
+site/data/previews.json
+# node_modules may be a symlink in local worktrees
+node_modules

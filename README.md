@@ -125,6 +125,25 @@ The player page (`#/p/{league}/{id}`; `#/p/{league}/{id}/m` jumps to the section
   - Pace and defensive rating are box-score estimates.
   - MLB, NHL, college and soccer aren't covered yet.
 
+## Game preview pages (SEO)
+`scripts/previews.py` turns the data in `site/data` into one static, crawlable HTML page per upcoming game, plus a hub at
+`/preview/`. It reads local files only (no network, no API key) and runs in the deploy workflow after the data sanity check.
+- **URL:** `/preview/<league>/<away>-at-<home>-<yyyy-mm-dd>/` (ET date; `-vs-` for UFC and neutral sites; `-<gameId>` added on a clash).
+- **Content:** matchup and start time (ET), lines from DraftKings / Hard Rock Bet / FanDuel with the best price marked, line
+  movement, key player props (NFL, NBA), records and form, injuries, team leaders, a neutral auto-written summary
+  (never picks), and a link to the live game page. Title, description, canonical, Open Graph, SportsEvent + BreadcrumbList JSON-LD.
+- **State rules:** `assets/preview.js` reuses `assets/geo.js`: books not legal in the visitor's state are dimmed and never
+  marked best (Florida: Hard Rock Bet only), and the offers card comes from `LSGeo.offersHTML` (Nevada: no BetMGM).
+- **Which games:** per-league window and cap in `LEAGUES` (NFL 8 days/40, NBA 3/50, NHL 3/50, MLB 4/20, NCAAF 7/80 and
+  NCAAB 3/60 with a posted line only, UFC main card 8/30; soccer excluded). About 120 to 150 pages per build.
+- **Finished games:** once a game starts its page becomes a `noindex` redirect to the live game page and leaves the
+  sitemap; 72 hours after the start it is deleted. `404.html` sends any removed preview URL to the league page.
+- **Outputs (generated, not committed):** `site/preview/**`, `site/data/previews.json` (game id → page, used for the
+  app's "Preview" links), a `previews` flag in `meta.json`, and the block between `<!-- previews:start -->` and
+  `<!-- previews:end -->` in `site/sitemap.xml`.
+- **Local:** `env -u ODDS_API_KEY python3 scripts/previews.py` (options: `--site`, `--data-dir`, `--now`, `--no-sitemap`).
+  Tests: `python3 scripts/previews_test.py` and `node scripts/previews_test.mjs` (Playwright).
+
 ## Color themes
 
 All colors are CSS custom properties in `site/assets/styles.css` (`:root`). Alternate themes override them via `:root[data-theme="…"]`; `site/assets/theme.js` applies one from `?theme=` (not persisted). The default (no query) is **Midnight Blue**; the logo, favicons and PWA icons are drawn in its colors (re-render rasters with `node branding/render-icons.js` after editing `site/assets/brand/icon.svg`/`logo.svg`).

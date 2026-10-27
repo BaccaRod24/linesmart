@@ -17,6 +17,7 @@ from pathlib import Path
 SITE = Path(__file__).resolve().parent.parent / "site"
 BASE_URL = "https://linesmart.app/"
 EFFECTIVE = "October 26, 2026"
+PRIVACY_UPDATED = "October 27, 2026"   # Pro waitlist section added
 CONTACT = "contact@linesmart.app"   # public contact address shown on the legal pages
 
 def ext(href, text):
@@ -176,7 +177,7 @@ RG = f"""  <p class="legal-lead">Betting should be entertainment, not a way to m
   <p>You must be 21 or older to bet on sports in the US where it is legal. LineSmart is meant for adults 21+. Parents can use device parental controls to block gambling sites and apps.</p>
 """
 
-PRIVACY = f"""  <p class="legal-date">Last updated: {EFFECTIVE}</p>
+PRIVACY = f"""  <p class="legal-date">Last updated: {PRIVACY_UPDATED}</p>
   <p class="legal-lead">LineSmart is a free website with sports odds, props, matchups and betting tools. It has no ads, and you don't need to sign up to use it. Accounts are optional: you only need one if you want My Bets to sync between your devices. This policy explains what information is involved when you use it.</p>
 
   <h2>Summary</h2>

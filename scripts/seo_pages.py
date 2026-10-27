@@ -246,14 +246,17 @@ def is_hot(log, mk, ln):
 
 
 def strip_html(log, mk, ln, n=5):
-    """Last-n boxes oldest -> newest, left to right (newest on the right, tagged "latest"). strip() stays latest first for the stats."""
+    """Last-n boxes oldest -> newest, left to right (newest on the right), each with its game date (M/D) under it. strip() stays latest first for the stats."""
     boxes = []
     s = strip(log, mk, ln, n)[::-1]
     for i, b in enumerate(s):
         word = {"o": "over", "u": "under", "p": "push", "x": "no game"}[b["r"]]
         val = "—" if b["v"] is None else ("✓" if mk == "anytime_td" and b["v"] > 0 else "✗" if mk == "anytime_td" else num(b["v"]))
         last = i == len(s) - 1
-        boxes.append(f'<span class="pp-b pp-{b["r"]}" role="listitem" title="{esc(b["d"])} {esc(b["ha"])} {esc(b["opp"])}: {esc(word)}{" (latest)" if last else ""}"><b>{esc(val)}</b><i>{esc(b["opp"])}</i></span>')
+        d = str(b["d"] or "")
+        md = f"{int(d[5:7])}/{int(d[8:10])}" if re.match(r"\d{4}-\d{2}-\d{2}", d) else ""   # ET date string as-is, no tz shift
+        da = f' data-d="{md}"' if md else ""
+        boxes.append(f'<span class="pp-b pp-{b["r"]}" role="listitem"{da} title="{esc(md or d)} {esc(b["ha"])} {esc(b["opp"])}: {esc(word)}{" (latest)" if last else ""}"><b>{esc(val)}</b><i>{esc(b["opp"])}</i></span>')
     return f'<div class="pp-strip pp-l5" role="list" aria-label="Last {n} games against this line, oldest to newest">{"".join(boxes)}</div>'
 
 

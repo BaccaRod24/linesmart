@@ -65,7 +65,7 @@ const SQL = rd("../supabase/migrations/20261027_pro_waitlist.sql"), JS = rd("../
   check(/data and software subscription/.test(page) && /doesn't include picks or predictions/.test(page), "framed as data/software, not picks", T);
   check(/Founding members get a lower launch price/.test(page) && !/\$\d+(\.\d\d)? ?(\/|a |per )(mo|month|year)/i.test(page), "launch-price line, no promised price on the page", T);
   check(/Everything free today stays free/.test(page), "says free stays free", T);
-  check(/1-800-GAMBLER/.test(page) && /21\+/.test(page) && /offersHTML\("pro"\)/.test(page), "21+, 1-800-GAMBLER and state-aware offers", T);
+  check(/LSGeo\.rgSpan\(\)/.test(page) && /21\+/.test(page) && /offersHTML\("pro"\)/.test(page), "21+, state helpline (LSGeo.rgSpan, 1-800-GAMBLER fallback) and state-aware offers", T);
 }
 {
   const T = "wiring";

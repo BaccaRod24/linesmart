@@ -3,7 +3,7 @@
  *   > unknown. The lookup is a free keyless HTTPS call (SITE_CONFIG.geo.url) that only runs on the production hosts
  *   (or when localStorage ls-geo-force = "1", used by tests with a stubbed response). Failure = unknown: no offers.
  * - Offers card: only books legal online in that state, each with 21+ and 1-800-GAMBLER. Links go to the book's
- *   official site until an affiliate URL is configured. Fires window "ls-state-change" when the state changes. */
+ *   official site until an affiliate URL is configured. [data-rg-call] spans (LSGeo.rgSpan) show the state helpline. Fires window "ls-state-change" when the state changes. */
 (function () {
   "use strict";
   const G = window.GeoCore, CFG = window.SITE_CONFIG || {}, GC = CFG.geo || {}, OC = CFG.offers || {};
@@ -123,6 +123,16 @@
     const call = h.local ? `Call ${telA(h)} (${esc(st)}) or ${telA(gam)}.` : `Call or text ${telA(gam)}.`;
     return `<p class="of-rg"><span class="of-21">21+</span> Must be 21 or older${st ? ` and physically in ${esc(st)}` : ""}. Gambling problem? ${call} <a href="responsible-gambling.html">Responsible gambling</a></p>`;
   };
+  // Helpline sentence for any spot outside the offers card (Pro, Value, alerts, bets, age notice, 404): the visitor's
+  // state line first, then 1-800-GAMBLER; other states get 1-800-GAMBLER only; an unknown state also names Florida's
+  // line (like the static footer). Text from GeoCore.rgCallHTML. Wrap it with rgSpan() so it follows state changes.
+  const rgCall = ev => G.rgCallHTML(ev || current());
+  const rgSpan = () => `<span data-rg-call>${rgCall()}</span>`;
+  function updateRGCalls() {
+    const html = rgCall();
+    document.querySelectorAll("[data-rg-call]").forEach(el => { if (el.innerHTML !== html) el.innerHTML = html; });
+  }
+  window.addEventListener("ls-state-change", updateRGCalls);
   // short affiliate disclosure, always shown with sportsbook offers (the full "Ad" line replaces it once affiliate links are on)
   const DISC = `<p class="of-disc" role="note">LineSmart may earn a commission from sportsbook links. It never changes the odds we show. Offers are state-specific. <a href="affiliate-disclosure.html">Affiliate disclosure</a></p>`;
   function offersHTML(ctx) {
@@ -145,9 +155,9 @@
   // bets tracker uses "hardrock" for Hard Rock Bet
   const defaultBetBook = () => ({ hardrockbet: "hardrock", draftkings: "draftkings", fanduel: "fanduel" }[current().defaultBook] || null);
 
-  window.LSGeo = { ready, current, setState, openPicker, offersHTML, naLabel, naTag, providerKey, defaultBetBook,
+  window.LSGeo = { ready, current, setState, openPicker, offersHTML, rgCall, rgSpan, naLabel, naTag, providerKey, defaultBetBook,
     isAvailable: key => G.isAvailable(current(), key), sortBooks: keys => G.sortBooks(current(), keys), lookupAllowed };
-  const onDom = () => { updateButton(); updateFooterRG(); };
+  const onDom = () => { updateButton(); updateFooterRG(); updateRGCalls(); };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", onDom); else onDom();
-  ready.then(updateFooterRG);
+  ready.then(() => { updateFooterRG(); updateRGCalls(); });
 })();

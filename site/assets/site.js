@@ -39,7 +39,7 @@
         <h2 id="ageTitle">For adults 21 and over</h2>
         <div id="ageDesc">
           <p>${esc(CFG.name || "LineSmart")} shows sports betting odds and stats for people 21+ where sports betting is legal. We don't take bets. Odds are for reference only.</p>
-          <p class="age-help">Gambling problem? Call or text <a href="tel:18004262537">1-800-GAMBLER</a>. In Florida, call or text <a href="tel:18337529947">1-833-PLAYWISE</a>.</p>
+          <p class="age-help">Gambling problem? <span data-rg-call>${window.LSGeo ? window.LSGeo.rgCall() : `Call or text <a href="tel:18004262537">1-800-GAMBLER</a>. In Florida: <a href="tel:18337529947">1-833-PLAYWISE</a>.`}</span></p>
         </div>
         <div class="age-actions">
           <button type="button" class="age-ok" id="ageOk">I'm 21 or older</button>

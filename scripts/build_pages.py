@@ -28,6 +28,8 @@ GAMBLER_TEL = '<a href="tel:18004262537">1-800-GAMBLER</a>'
 GAMBLER_WEB = ext("https://www.1800gambler.net", "1800gambler.net")
 PLAYWISE_TEL = '<a href="tel:18337529947">1-833-PLAYWISE</a>'
 PLAYWISE_WEB = ext("https://playwise.org/", "playwise.org")
+# helpline sentence for static pages that run no state JS (redirect stubs): same wording as GeoCore.rgCallHTML for an unknown state
+RG_CALL_STATIC = f"Call or text {GAMBLER_TEL}. In Florida: {PLAYWISE_TEL}."
 ADMIT_TEL = '<a href="tel:18882364848">1-888-ADMIT-IT</a>'
 ADMIT_WEB = ext("https://gamblinghelp.org/", "gamblinghelp.org")
 

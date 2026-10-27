@@ -15,7 +15,8 @@
   const am = v => (isNum(v) ? (v > 0 ? "+" + v : String(v)) : "—");
   const ePct = e => (isNum(e) ? (e > 0 ? "+" : e < 0 ? "−" : "") + Math.abs(100 * e).toFixed(1) + "%" : "—");
   const pct = p => (isNum(p) ? (100 * p).toFixed(1) + "%" : "—");
-  const RG = `<span class="of-21">21+</span> Gambling problem? Call or text <a href="tel:18004262537">1-800-GAMBLER</a>. Florida: <a href="tel:18337529947">1-833-PLAYWISE</a>. <a href="responsible-gambling.html">Responsible gambling</a>`;
+  // helpline follows the visitor's state (LSGeo.rgSpan, numbers in geo-core.js)
+  const RG = () => `<span class="of-21">21+</span> Gambling problem? ${window.LSGeo.rgSpan()} <a href="responsible-gambling.html">Responsible gambling</a>`;
 
   let DATA = null, DATA_GEN = null;   // { rows, lines, suspect, games, gen, leagues, stale }
   async function loadAll() {
@@ -140,7 +141,7 @@
         <li><b>Left out:</b> games that have started, prices older than ${esc(V.MAX_AGE_H)} hours, markets with a margin under ${esc(-100 * V.HOLD_MIN)}% or over ${esc(100 * V.HOLD_MAX)}%, long shots past +${esc(V.MAX_PRICE)}, one-sided props (anytime TD, ladders), and anything more than ${esc(100 * V.MAX_EDGE)}% over fair, which is almost always a stale or mistyped line${D.suspect ? ` (${D.suspect} hidden right now)` : ""}. UFC odds come from DraftKings only, so there's no consensus to compare.</li>
         <li>Odds refresh about every 30 minutes and move constantly. Always confirm the price at the sportsbook before you bet.</li></ul>
         <p class="vf-disc"><b>Not a guarantee.</b> A price that beats the consensus can still lose, and most bets do. This is information, not a tip or a prediction. Only bet what you can afford to lose.</p>
-        <p class="of-rg">${RG}</p></section>`;
+        <p class="of-rg">${RG()}</p></section>`;
     const go = patch => { location.hash = href({ ...filters(), ...patch }); };
     const m = document.getElementById("vfMin"); if (m) m.onchange = () => go({ minPct: Number(m.value) });
     const w = document.getElementById("vfWin"); if (w) w.onchange = () => go({ hours: Number(w.value) });

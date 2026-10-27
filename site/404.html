@@ -53,7 +53,7 @@ a{color:#3d9bff}
 <li><a data-lg="ncaab" href="/ncaab/">College basketball</a></li>
 <li><a data-lg="ufc" href="/ufc/">UFC odds</a></li>
 </ul>
-<p class="rg"><strong>21+ only.</strong> Gambling problem? Call or text <a href="tel:18004262537">1-800-GAMBLER</a>.<br>LineSmart is an informational site and does not accept wagers.</p>
+<p class="rg"><strong>21+ only.</strong> Gambling problem? <span id="rgCall" data-rg-call>Call or text <a href="tel:18004262537">1-800-GAMBLER</a>. In Florida: <a href="tel:18337529947">1-833-PLAYWISE</a>.</span><br>LineSmart is an informational site and does not accept wagers.</p>
 </main>
 <script>
 /* subpath-safe links: on *.github.io the first path segment is the project path; the custom domain has none */
@@ -77,6 +77,18 @@ a{color:#3d9bff}
     var cur = document.querySelector('#hubs a[data-lg="' + lm[2] + '"]');
     if (cur) cur.className = "cur";
   }
+  /* helpline for the visitor's saved state: same text and numbers as the app (assets/geo-core.js rgCallHTML) */
+  function load(src, cb) { var s = document.createElement("script"); s.src = root + src; s.onload = cb; document.head.appendChild(s); }
+  load("assets/books-by-state.js", function () {
+    load("assets/geo-core.js", function () {
+      var G = window.GeoCore, man = null, geo = null;
+      if (!G || !G.rgCallHTML) return;
+      try { man = localStorage.getItem("ls-state"); geo = JSON.parse(localStorage.getItem("ls-geo") || "null"); } catch (e) {}
+      if (geo && geo.failed) geo = null;
+      var ev = G.evaluate(window.BOOKS_BY_STATE || null, {}, G.resolve(man, geo));
+      document.getElementById("rgCall").innerHTML = G.rgCallHTML(ev);
+    });
+  });
 })();
 </script>
 </body>

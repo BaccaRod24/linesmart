@@ -81,7 +81,7 @@
       <div class="al-prev" role="status">${prev.ok ? `<b>${esc(C.describe(prev.row))}</b><span class="na">One email, then the alert turns off. Ends at the start of the game.</span>${msg ? `<span class="al-why" role="alert">${esc(msg)}</span>` : ""}` : `<span class="al-why">${esc(msg || prev.error)}</span>`}</div>
       <div class="bt-dl-foot"><a class="lnk al-man" href="#/account" data-x>My alerts</a><span style="flex:1"></span><button type="button" class="chip" data-x>Cancel</button><button type="submit" class="bt-add" ${prev.ok ? "" : "disabled"}>Set alert</button></div>`
       : `<p class="ac-p">Line alerts cover Hard Rock Bet, DraftKings and FanDuel where they're legal online. None of them is in ${esc(ev.stateName || "your state")}, so alerts aren't available there.</p><div class="bt-dl-foot"><span style="flex:1"></span><button type="button" class="chip" data-x>Close</button></div>`}
-      <p class="al-rg">21+ | Gambling problem? Call 1-800-GAMBLER</p></form>`;
+      <p class="al-rg">21+ | Gambling problem? ${window.LSGeo.rgSpan()}</p></form>`;
     wire(d);
   }
   function wire(d) {

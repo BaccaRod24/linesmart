@@ -80,10 +80,22 @@
     return h ? { ...h, local: true } : { ...GAMBLER };
   }
 
+  // Helpline sentence (HTML) for an evaluate() result, shared by geo.js (app spots) and 404.html: the visitor's state
+  // line first, then 1-800-GAMBLER; other states -> 1-800-GAMBLER only; unknown state -> 1-800-GAMBLER plus Florida's line.
+  const escH = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const telA = h => `<a href="tel:${h.tel}">${escH(h.name)}</a>`;
+  function rgCallHTML(ev) {
+    const code = ev && ev.status !== "nonus" ? ev.state : null;
+    const h = helpline(code);
+    if (h.local) return `Call ${telA(h)} (${escH((ev && ev.stateName) || code)}) or ${telA(GAMBLER)}.`;
+    if (code || (ev && ev.status === "nonus")) return `Call or text ${telA(GAMBLER)}.`;
+    return `Call or text ${telA(GAMBLER)}. In Florida: ${telA(helpline("FL"))}.`;
+  }
+
   function sortBooks(ev, keys) {
     const rank = k => { const i = ev && ev.available ? ev.available.indexOf(k) : -1; return i >= 0 ? i : 50 + BOOK_KEYS.indexOf(k); };
     return [...keys].sort((a, b) => rank(a) - rank(b));
   }
 
-  return { OUTSIDE, BOOK_KEYS, HELPLINES, GAMBLER, helpline, resolve, parseLookup, evaluate, isAvailable, naLabel, sortBooks, offerFor };
+  return { OUTSIDE, BOOK_KEYS, HELPLINES, GAMBLER, helpline, rgCallHTML, resolve, parseLookup, evaluate, isAvailable, naLabel, sortBooks, offerFor };
 });

@@ -46,7 +46,8 @@
   const ICON_OK = `<svg class="pro-ck" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>`;
   const ICON_PLUS = `<svg class="pro-ck pro-plus" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>`;
   const fromHash = () => { const q = new URLSearchParams(location.hash.split("?")[1] || ""); const f = q.get("from"); return P.SOURCES.includes(f) ? f : "pro"; };
-  const RG = `<p class="of-rg pro-rg"><span class="of-21">21+</span> LineSmart is for adults 21 and older. Gambling problem? Call or text <a href="tel:18004262537">1-800-GAMBLER</a>. Florida: <a href="tel:18337529947">1-833-PLAYWISE</a>. <a href="responsible-gambling.html">Responsible gambling</a></p>`;
+  // helpline follows the visitor's state (LSGeo.rgSpan, numbers in geo-core.js)
+  const RG = () => `<p class="of-rg pro-rg"><span class="of-21">21+</span> LineSmart is for adults 21 and older. Gambling problem? ${window.LSGeo.rgSpan()} <a href="responsible-gambling.html">Responsible gambling</a></p>`;
 
   function formHTML(prefill, joined) {
     const box = (name, [v, label]) => `<label class="pro-opt"><input type="checkbox" name="${name}" value="${esc(v)}"><span>${esc(label)}</span></label>`;
@@ -87,7 +88,7 @@
       <div class="card pro-price" role="note"><b>Founding members get a lower launch price.</b> Join the waitlist to hear first when Pro opens. No payment details now, and exact prices aren't set yet.</div>
       ${formHTML(prefill, joined)}
       <section class="card pro-what"><h3>What Pro is, and isn't</h3>
-        <p>Pro is a data and software subscription: odds comparison, line history, alerts and bet tracking tools. It doesn't include picks or predictions, and no tool can promise that a bet wins or that you'll make money. Most bets lose. LineSmart doesn't take bets; always confirm the price at the sportsbook.</p>${RG}</section>
+        <p>Pro is a data and software subscription: odds comparison, line history, alerts and bet tracking tools. It doesn't include picks or predictions, and no tool can promise that a bet wins or that you'll make money. Most bets lose. LineSmart doesn't take bets; always confirm the price at the sportsbook.</p>${RG()}</section>
       ${offers}`;
     const f = document.getElementById("proForm");
     const jump = app.querySelector("[data-pro-jump]");

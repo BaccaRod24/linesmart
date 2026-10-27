@@ -72,7 +72,7 @@
     writeTombs(tombs || {});
     BETS = bets; SIG = AC.snapshot(bets);
     const seg = location.hash.replace(/^#\/?/, "").split("?")[0].split("/");
-    if (seg[0] === "bets" && seg[1] !== "add" && seg[1] !== "edit") view();   // never wipe a form in progress
+    if (seg[0] === "bets" && seg[1] !== "add" && seg[1] !== "edit" && seg[1] !== "import") view();   // never wipe a form in progress
     return true;
   }
 
@@ -152,8 +152,8 @@
   function shell(active, body) {
     const demo = isDemo() ? `<div class="bt-demo" role="note"><b>Example data</b> These are sample bets for screenshots only, not real wagers.</div>` : "";
     return `<div class="page-head bt-head"><div><h1>My Bets</h1><div class="sub">${signedIn() ? "Private tracker · synced to your account" : "Private tracker · stored on this device"}</div></div>
-      <a class="bt-add" href="#/bets/add">+ Add bet</a></div>
-      <nav class="seg bt-tabs" aria-label="My Bets sections"><a href="#/bets" class="${active === "ov" ? "on" : ""}">Overview</a><a href="#/bets/list" class="${active === "list" ? "on" : ""}">Bets${BETS.length ? ` <span class="na">${BETS.length}</span>` : ""}</a><a href="#/bets/add" class="${active === "add" ? "on" : ""}">Add</a></nav>
+      <div class="bt-hbtns"><a class="chip bt-impbtn" href="#/bets/import">Import slip</a><a class="bt-add" href="#/bets/add">+ Add bet</a></div></div>
+      <nav class="seg bt-tabs" aria-label="My Bets sections"><a href="#/bets" class="${active === "ov" ? "on" : ""}">Overview</a><a href="#/bets/list" class="${active === "list" ? "on" : ""}">Bets${BETS.length ? ` <span class="na">${BETS.length}</span>` : ""}</a><a href="#/bets/add" class="${active === "add" ? "on" : ""}">Add</a><a href="#/bets/import" class="${active === "imp" ? "on" : ""}">Import</a></nav>
       ${demo}${body}`;
   }
   const privacyNote = () => signedIn()
@@ -629,6 +629,7 @@
     const known = l.event && !g; // edited bet whose game left the data window
     let h = `<div class="bt-leg" data-leg="${i}">`;
     if (parlay) h += `<div class="bt-leg-h"><b>Leg ${i + 1}</b><div class="seg bt-mk">${["ml", "spread", "total", "prop"].map(k => `<button type="button" data-a="mk" data-v="${k}" class="${l.mk === k ? "on" : ""}">${k === "ml" ? "ML" : k === "prop" ? "Prop" : C.TYPES[k].replace(" (O/U)", "")}</button>`).join("")}</div>${F.legs.length > 1 ? `<button type="button" class="sclear bt-rm" data-a="rmleg" aria-label="Remove leg ${i + 1}">✕</button>` : ""}</div>`;
+    if (l.review) h += legReview(l.review);
     h += `<div class="bt-lbl">League</div><div class="chips bt-scroll">${lgs.map(k => `<button type="button" class="chip${k === l.league ? " on" : ""}" data-a="lg" data-v="${k}">${esc(lgName(k))}</button>`).join("")}</div>`;
     h += `<label class="bt-f"><span class="bt-lbl">Game</span><select data-f="game"><option value="">${games.length ? "Choose a game…" : "No games in our data right now"}</option>${known ? `<option value="${esc(l.eventId)}" selected>${esc(l.event.name)}</option>` : ""}${games.map(x => `<option value="${esc(x.id)}"${String(x.id) === String(l.eventId) && !l.manual ? " selected" : ""}>${esc(dayOpt(x))}</option>`).join("")}<option value="__manual"${l.manual ? " selected" : ""}>Not listed: type it in</option></select></label>`;
     if (l.manual) h += `<label class="bt-f"><span class="bt-lbl">Event</span><input data-f="eventText" value="${esc(l.eventText)}" placeholder="e.g. Chiefs vs Bills, or UFC 310" autocomplete="off"></label>`;
@@ -694,7 +695,10 @@
   function drawForm(app) {
     const parlay = F.type === "parlay";
     const combined = parlay ? C.parlayAmerican(F.legs.map(l => ({ odds: isNum(l.odds) ? Number(l.odds) : null }))) : null;
-    let h = `<form class="bt-form" novalidate autocomplete="off"><h2 class="bt-fh">${F.id ? "Edit bet" : "Add a bet"}</h2>`;
+    const R = F.review;
+    let h = `<form class="bt-form${R ? " bt-rv-form" : ""}" novalidate autocomplete="off"><h2 class="bt-fh">${R ? `Review imported bet${R.n > 1 ? ` <span class="na">${R.i + 1} of ${R.n}</span>` : ""}` : F.id ? "Edit bet" : "Add a bet"}</h2>`;
+    if (R) h += reviewPanel();
+    else if (!F.id) h += `<a class="bt-implink" href="#/bets/import">Have a bet slip? <b>Import it instead ›</b></a>`;
     h += `<div class="bt-lbl">Sportsbook</div><div class="chips bt-books">${Object.entries(C.BOOKS).map(([k, n]) => `<button type="button" class="chip${F.book === k ? " on" : ""}" data-a="book" data-v="${k}">${esc(n)}</button>`).join("")}</div>`;
     if (F.book === "other") h += `<label class="bt-f"><span class="bt-lbl">Sportsbook name</span><input data-f="bookOther" value="${esc(F.bookOther)}" placeholder="e.g. BetMGM" autocomplete="off"></label>`;
     // guided order for a single bet: sport -> game -> bet type -> pick; a parlay keeps the type switch on top (legs pick their own market)
@@ -711,16 +715,17 @@
       <div class="bt-towin" aria-live="polite"></div>
       <label class="bt-f"><span class="bt-lbl">Notes <span class="na">(optional)</span></span><input data-f="notes" value="${esc(F.notes)}" placeholder="e.g. bet ID, boost, reasoning" autocomplete="off"></label>
       <div class="bt-err" role="alert"></div>
-      <div class="bt-actions"><a class="chip" href="${F.id ? "#/bets/list" : "#/bets"}">Cancel</a><button type="submit" class="bt-add">${F.id ? "Save changes" : "Save bet"}</button></div>
+      <div class="bt-actions"><a class="chip" href="${R ? "#/bets/import" : F.id ? "#/bets/list" : "#/bets"}">${R ? "Back" : "Cancel"}</a>${R && R.n > 1 ? `<button type="button" class="chip" data-a="skip">Skip this bet</button>` : ""}<button type="submit" class="bt-add">${R ? (R.n > 1 ? `Save bet ${R.i + 1} of ${R.n}` : "Looks right: save bet") : F.id ? "Save changes" : "Save bet"}</button></div>
       <div class="note">${signedIn() ? "Saved on this device and synced to your account. " : "Saved on this device. "}${F.type === "prop" || F.type === "parlay" ? "NFL and NBA player props picked from a game settle automatically from ESPN's box score; anything it can't grade (player didn't play, prop not in the box score) is flagged for you to settle. Other props and manual entries are settled by you from the Bets list." : "Moneyline, spread and total bets linked to a game settle automatically from ESPN final scores."}</div></form>`;
-    app.innerHTML = shell("add", h);
+    app.innerHTML = shell(R ? "imp" : "add", h);
     const form = $(".bt-form", app);
     updateToWin(form);
     form.addEventListener("click", e => {
       const b = e.target.closest("[data-a]"); if (!b) return;
       const legEl = b.closest("[data-leg]"), l = legEl ? F.legs[+legEl.dataset.leg] : F.legs[0], v = b.dataset.v;
       const a = b.dataset.a;
-      if (a === "book") { F.book = v; refreshPrices(); }
+      if (a === "skip") return nextImport(app, false);
+      if (a === "book") { F.book = v; if (F.review) F.review.bookTouched = true; refreshPrices(); }
       else if (a === "type") {
         const was = F.type; F.type = v;
         if (v === "parlay" && was !== "parlay") { F.legs.forEach(x => { x.mk = was === "parlay" ? x.mk : was; if (!isNum(x.odds) && isNum(F.odds)) x.odds = F.odds; }); if (F.legs.length < 2) F.legs.push(newLeg(F.legs[0].league)); F.odds = ""; }
@@ -745,10 +750,11 @@
         const g = (GAMES[l.league].games || []).find(x => String(x.id) === l.eventId); l.event = g ? evOf(g, l.league) : null;
         drawForm(app);
       } else if (t.dataset.f === "oddsManual") { F.oddsManual = t.checked; drawForm(app); }
+      else if (t.dataset.f === "status") { F.status = t.value; drawForm(app); }
       else if (t.dataset.f === "pmk") { l.pmk = t.value; l.side = C.YESNO.has(t.value) ? "over" : ""; l.line = ""; drawForm(app); }
     });
     form.addEventListener("input", e => {
-      const t = e.target, f = t.dataset.f; if (!f || f === "game" || f === "oddsManual" || f === "pmk") return;
+      const t = e.target, f = t.dataset.f; if (!f || f === "game" || f === "oddsManual" || f === "pmk" || f === "status") return;
       if (f === "psearch") {   // filter the player list in place (no redraw, keeps the keyboard up)
         const q = C.normName(t.value);
         t.closest("[data-leg]").querySelectorAll(".bt-pl").forEach(b => (b.hidden = !!q && !b.dataset.n.includes(q)));
@@ -823,9 +829,16 @@
     const odds = currentOdds();
     if (!C.validAmerican(odds)) return err("Enter American odds, e.g. -110 or +150 (at least 100 either way).");
     const prev = F.id ? BETS.find(b => b.id === F.id) : null;
+    const R = F.review, slipSt = R && C.STATUS[F.status] && F.status !== "pending" ? F.status : "";
+    let co = null;
+    if (slipSt === "cashout") { co = parseFloat(F.cashout); if (!isNum(co) || co < 0) return err("Enter the cash-out amount you received."); co = Math.round(co * 100) / 100; }
     const base = { id: F.id || C.uid(), createdAt: prev ? prev.createdAt : new Date().toISOString(), date: F.date || today(), book: F.book, bookOther: F.book === "other" ? F.bookOther.trim() : undefined,
       type: F.type, odds, stake: Math.round(stake * 100) / 100, notes: F.notes.trim() || undefined, status: prev ? prev.status : "pending" };
-    if (prev) for (const k of ["settledAt", "settledBy", "manual", "cashout", "final"]) if (prev[k] !== undefined) base[k] = prev[k];
+    if (prev) for (const k of ["settledAt", "settledBy", "manual", "cashout", "final", "slipRef", "source"]) if (prev[k] !== undefined) base[k] = prev[k];
+    if (R) {   // imported from a bet slip: remember its ID (duplicate check) and a result the slip already showed
+      base.source = "slip"; if (F.ref) base.slipRef = F.ref;
+      if (slipSt) Object.assign(base, { status: slipSt, manual: true, settledBy: "slip", settledAt: today(), cashout: co ?? undefined });
+    }
     let bet = parlay ? { ...base, legs, oddsManual: !!F.oddsManual, league: undefined } : { ...base, ...legs[0], type: F.type, odds };
     if (!parlay) delete bet.result;
     bet = C.normalizeBet(JSON.parse(JSON.stringify(bet)));
@@ -833,11 +846,206 @@
     if (prev && prev.settledBy === "auto") Object.assign(bet, { status: "pending", settledAt: null, settledBy: null, final: null });
     BETS = prev ? BETS.map(b => (b.id === prev.id ? bet : b)) : [bet, ...BETS];
     if (!save()) return;
+    if (R) { lastAuto = 0; if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); return nextImport(document.getElementById("app"), true); }
     setPref("book", F.book); if (F.book === "other") setPref("bookOther", F.bookOther.trim()); setPref("stake", F.stake);
     if (!prev && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     lastAuto = 0;
     toast(prev ? "Bet updated." : "Bet saved on this device.");
     location.hash = "#/bets/list";
+  }
+
+
+  // ---------- bet slip import: paste a slip's text or add a screenshot. slip-core.js reads it on this device (OCR via tesseract.js,
+  // loaded only when a screenshot is picked), matches games/players, and every bet opens in the normal form to review. Nothing saves silently.
+  const SC = () => window.SlipCore;
+  const QKEY = "ls-slip-queue";
+  const TESS_SRC = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+  let SLIPQ = null, SLIP_TEXT = "", SLIP_BOOK = "";
+  const loadQ = () => { if (!SLIPQ) try { SLIPQ = JSON.parse(sessionStorage.getItem(QKEY) || "null"); } catch (e) { SLIPQ = null; } return SLIPQ; };
+  const saveQ = () => { try { SLIPQ ? sessionStorage.setItem(QKEY, JSON.stringify(SLIPQ)) : sessionStorage.removeItem(QKEY); } catch (e) {} };
+  const SEARCH = {};
+  async function searchFor(lg) { if (!(lg in SEARCH)) { try { SEARCH[lg] = await A().getJSON(`data/search/${lg}.json`); } catch (e) { SEARCH[lg] = null; } } return SEARCH[lg]; }
+  async function slipIndex() {
+    const lgs = A().meta().order;
+    await Promise.all(lgs.map(lg => gamesFor(lg)));
+    await Promise.all(["nfl", "nba", "mlb", "nhl"].filter(l => lgs.includes(l)).map(lg => Promise.all([searchFor(lg), propsFor(lg)])));
+    const ctx = { games: {}, search: {}, props: {} };
+    for (const lg of lgs) ctx.games[lg] = (GAMES[lg] || {}).games || [];
+    for (const lg of Object.keys(SEARCH)) if (SEARCH[lg]) ctx.search[lg] = SEARCH[lg];
+    for (const lg of Object.keys(PROPS)) if (PROPS[lg]) ctx.props[lg] = PROPS[lg];
+    return SC().buildIndex(ctx);
+  }
+  const SLIP_EXAMPLE = "Hard Rock Bet\nBet Placed\nSingle\nPhiladelphia Eagles -3.5\n-110\nPoint Spread\nDallas Cowboys @ Philadelphia Eagles\nStake\n$10.00\nPotential Return\n$19.09\nBet Ref: HRB2610264471";
+
+  function viewImport(app) {
+    const q = loadQ(), left = q && q.items && q.i < q.items.length ? q.items.length - q.i : 0;
+    const books = [["", "Auto-detect"], ...Object.entries(C.BOOKS)];
+    app.innerHTML = shell("imp", `<div class="bt-imp-wrap">
+      <section class="card bt-slip">
+        <h2 class="bt-fh">Import a bet slip</h2>
+        <p class="sub bt-slip-sub">Paste the text of a bet slip or confirmation, or add a screenshot. LineSmart reads it on this device, matches it to games and players, then shows you every field to check before anything is saved.</p>
+        ${left ? `<div class="bt-slip-resume" role="note"><span>${left} imported bet${left > 1 ? "s" : ""} still waiting for review.</span><a class="chip" href="#/bets/import/review/${q.i}">Continue review</a><button type="button" class="chip" data-a="discard">Discard</button></div>` : ""}
+        <div class="bt-lbl">Sportsbook</div>
+        <div class="chips bt-books bt-scroll">${books.map(([k, n]) => `<button type="button" class="chip${SLIP_BOOK === k ? " on" : ""}" data-a="sbook" data-v="${k}">${esc(n)}</button>`).join("")}</div>
+        <label class="bt-f"><span class="bt-lbl">Bet slip text</span><textarea class="bt-slip-ta" rows="10" spellcheck="false" placeholder="Paste here, e.g.&#10;Philadelphia Eagles -3.5  -110&#10;Dallas Cowboys @ Philadelphia Eagles&#10;Stake $10.00   To Win $9.09">${esc(SLIP_TEXT)}</textarea></label>
+        <div class="bt-slip-btns">
+          <label class="chip bt-shot"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M9 3 7.2 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9Zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>Add screenshot<input type="file" accept="image/*" data-a="shot" hidden></label>
+          <button type="button" class="lnk bt-ex" data-a="example">Try an example</button>
+          <span class="bt-sp"></span>
+          <button type="button" class="bt-add" data-a="read">Read slip</button>
+        </div>
+        <div class="bt-ocr" aria-live="polite" hidden><span class="bt-spin" aria-hidden="true"></span><span class="bt-ocr-t"></span></div>
+        <div class="bt-err" role="alert"></div>
+      </section>
+      <section class="card bt-slip-help">
+        <h3>Getting your slip</h3>
+        <ul>
+          <li><b>Hard Rock Bet</b>: My Bets → open the bet → take a screenshot, or press and hold to select and copy the text.</li>
+          <li><b>DraftKings / FanDuel</b>: My Bets → tap the bet → Share (copy) or screenshot it. Desktop: select the bet card and copy.</li>
+          <li><b>Several bets?</b> Paste them together: each slip with its own stake becomes its own bet to review.</li>
+        </ul>
+        <h3>What it reads</h3>
+        <p class="na">Singles, parlays and same-game parlays: moneyline, spread, total and NFL/NBA player props (over/under, “25+” ladders, anytime TD), with odds, stake, payout, bet ID and date. Bets linked to a LineSmart game settle automatically from final scores. Teasers, round robins, half/quarter bets and other props are kept for you to settle.</p>
+        <p class="na bt-slip-priv">Private: screenshots are read in your browser with open-source OCR (a one-time ~10 MB download of the reader). Your slip is never uploaded, and it isn't connected to your sportsbook account.</p>
+      </section></div>`);
+    const root = $(".bt-imp-wrap", app), ta = $(".bt-slip-ta", root), err = $(".bt-err", root), st = $(".bt-ocr", root);
+    const status = msg => { st.hidden = !msg; $(".bt-ocr-t", st).textContent = msg || ""; };
+    const fail = msg => { status(""); err.textContent = msg; return false; };
+    ta.addEventListener("input", () => { SLIP_TEXT = ta.value; err.textContent = ""; });
+    const fromImage = async file => {
+      err.textContent = "";
+      if (!file || !/^image\//.test(file.type)) return fail("Choose an image file (a screenshot of your bet slip).");
+      try {
+        const text = await ocrImage(file, status);
+        if (!text.trim()) return fail("Couldn't read any text in that screenshot. Try a sharper one, or paste the text instead.");
+        SLIP_TEXT = ta.value = text.trim();
+        return read();
+      } catch (e) { return fail(e && e.message ? e.message : "Couldn't read that screenshot."); }
+    };
+    const read = async () => {
+      err.textContent = "";
+      const text = ta.value;
+      if (!text.trim()) return fail("Paste your bet slip text or add a screenshot first.");
+      status("Matching to LineSmart games…");
+      const tok = A().nav();
+      let idx; try { idx = await slipIndex(); } catch (e) { idx = SC().buildIndex({}); }
+      if (tok !== A().nav()) return;
+      const r = SC().parseSlip(text, idx);
+      if (!r.tickets.length) return fail("Couldn't find a bet in that text. Include the selection (e.g. “Eagles -3.5 -110”) and the stake, or use + Add bet.");
+      const items = r.tickets.map(t => {
+        SC().matchTicket(t, idx);
+        if (SLIP_BOOK) { t.book = SLIP_BOOK; if (SLIP_BOOK !== "other") t.bookName = null; }
+        const D = SC().toDraft(t, { defaultBook: defaultBook(), defaultLeague: prefs().lg, today: today() });
+        if (D.book === "other" && !D.bookOther) D.bookOther = prefs().bookOther || "";
+        D.review = { warnings: t.warnings || [], bookFromSlip: !!t.book, bookName: t.bookName || "", text: (t.lines || []).join("\n"),
+          sum: { stake: t.stake, odds: t.odds, toWin: t.toWin, payout: t.payout, ref: t.ref, placed: t.placed ? t.placed.date : "", status: t.status, cashout: t.cashout, parlay: !!t.parlay, legs: t.legs.length } };
+        return D;
+      });
+      status("");
+      SLIPQ = { items, i: 0, saved: 0, at: Date.now() }; saveQ();
+      location.hash = "#/bets/import/review/0";
+    };
+    root.addEventListener("click", e => {
+      const b = e.target.closest("[data-a]"); if (!b) return;
+      const a = b.dataset.a;
+      if (a === "sbook") { SLIP_BOOK = b.dataset.v; root.querySelectorAll('[data-a="sbook"]').forEach(x => x.classList.toggle("on", x === b)); }
+      else if (a === "example") { SLIP_TEXT = ta.value = SLIP_EXAMPLE; ta.focus(); }
+      else if (a === "read") read();
+      else if (a === "discard") { SLIPQ = null; saveQ(); viewImport(app); }
+    });
+    $('[data-a="shot"]', root).addEventListener("change", e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) fromImage(f); });
+    ta.addEventListener("paste", e => {   // pasting a screenshot straight from the clipboard
+      const it = [...((e.clipboardData && e.clipboardData.items) || [])].find(x => x.kind === "file" && /^image\//.test(x.type));
+      if (it) { e.preventDefault(); fromImage(it.getAsFile()); }
+    });
+    root.addEventListener("dragover", e => e.preventDefault());
+    root.addEventListener("drop", e => { const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f && /^image\//.test(f.type)) { e.preventDefault(); fromImage(f); } });
+  }
+
+  let tessP = null;
+  function loadTess() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    return tessP || (tessP = new Promise((res, rej) => {
+      const sc = document.createElement("script"); sc.src = TESS_SRC; sc.async = true; sc.crossOrigin = "anonymous";
+      sc.onload = () => (window.Tesseract ? res(window.Tesseract) : rej(new Error("The screenshot reader didn't load.")));
+      sc.onerror = () => { tessP = null; sc.remove(); rej(new Error("Couldn't load the screenshot reader (are you offline?). Paste the slip text instead.")); };
+      document.head.appendChild(sc);
+    }));
+  }
+  async function slipCanvas(file) {   // upscale small screenshots, grayscale + invert dark mode + stretch contrast (slip-core ocrPrep)
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("That file isn't an image this browser can open.")); i.src = url; });
+      const w = img.naturalWidth || img.width, k = w < 1100 ? Math.min(2.5, 1600 / w) : w > 2400 ? 2400 / w : 1;
+      const c = document.createElement("canvas"); c.width = Math.round(w * k); c.height = Math.round((img.naturalHeight || img.height) * k);
+      const x = c.getContext("2d", { willReadFrequently: true }); x.imageSmoothingQuality = "high"; x.drawImage(img, 0, 0, c.width, c.height);
+      const d = x.getImageData(0, 0, c.width, c.height); SC().ocrPrep(d.data); x.putImageData(d, 0, 0);
+      return c;
+    } finally { URL.revokeObjectURL(url); }
+  }
+  async function ocrImage(file, status) {
+    status("Loading the screenshot reader…");
+    const T = await loadTess();
+    const canvas = await slipCanvas(file);
+    const worker = await T.createWorker("eng", 1, { logger: m => {
+      if (m.status === "recognizing text") status(`Reading your screenshot… ${Math.round((m.progress || 0) * 100)}%`);
+      else if (/load|initiali/i.test(m.status || "")) status("Loading the screenshot reader (first time only)…");
+    } });
+    try { await worker.setParameters({ preserve_interword_spaces: "1" }); const r = await worker.recognize(canvas); return (r && r.data && r.data.text) || ""; }
+    finally { worker.terminate(); }
+  }
+
+  async function viewReview(app, i) {
+    const q = loadQ();
+    if (!q || !q.items || !q.items[i]) { location.hash = "#/bets/import"; return; }
+    q.i = i; saveQ();
+    const tok = A().nav();
+    F = JSON.parse(JSON.stringify(q.items[i]));
+    Object.assign(F.review, { i, n: q.items.length });
+    for (const l of F.legs) { await gamesFor(l.league); await propsFor(l.league); }
+    if (tok !== A().nav()) return;
+    for (const l of F.legs) if (l.mk === "prop" && l.pid && !feedPlayers(l).some(p => p.pid === String(l.pid))) { l.pid = ""; l.custom = true; }
+    const d = F.ref ? SC().dupOf(BETS, F.ref) : null;
+    F.review.dup = d ? { date: d.date, what: describe(d) } : null;
+    drawForm(app);
+  }
+  function nextImport(app, saved) {
+    const q = loadQ(); if (!q) { location.hash = "#/bets/list"; return; }
+    if (saved) q.saved = (q.saved || 0) + 1;
+    const next = (F && F.review ? F.review.i : q.i) + 1;
+    if (next < q.items.length) {
+      q.i = next; saveQ();
+      if (saved) toast(`Saved. Now bet ${next + 1} of ${q.items.length}.`);
+      location.hash = `#/bets/import/review/${next}`;
+      return;
+    }
+    const n = q.saved || 0;
+    SLIPQ = null; saveQ(); SLIP_TEXT = "";
+    toast(n ? `${n} imported bet${n > 1 ? "s" : ""} saved${signedIn() ? " and synced" : " on this device"}.` : "No bets imported.");
+    location.hash = n ? "#/bets/list" : "#/bets/import";
+  }
+  const REV_ST = { matched: ["ok", "✓", "Matched"], check: ["chk", "!", "Check"], settle: ["set", "✎", "You settle"], manual: ["man", "?", "No game found"] };
+  function legReview(r) {
+    const [cls, ic, label] = REV_ST[r.status] || REV_ST.manual;
+    const why = r.why || (r.status === "matched" ? "Linked to this game: settles automatically." : r.status === "manual" ? "Pick the game below to auto-settle, or leave “Not listed” and settle it yourself." : "");
+    return `<div class="bt-from rv-${cls}"><span class="bt-rvb"><i aria-hidden="true">${ic}</i>${label}</span><span class="bt-from-t">From slip: <q>${esc(r.text || "—")}</q></span>${why ? `<span class="bt-from-why">${esc(why)}</span>` : ""}</div>`;
+  }
+  function reviewPanel() {
+    const R = F.review, s = R.sum || {};
+    const cells = [["Stake", isNum(s.stake) ? money(s.stake) : "—"], ["Odds", isNum(s.odds) ? am(s.odds) : "—"], [isNum(s.payout) ? "Payout" : "To win", isNum(s.payout) ? money(s.payout) : isNum(s.toWin) ? money(s.toWin) : "—"], ["Bet ID", s.ref || "—"]];
+    const counts = {}; for (const l of F.legs) if (l.review) counts[l.review.status] = (counts[l.review.status] || 0) + 1;
+    const book = R.bookFromSlip || R.bookTouched ? "" : `<li>Sportsbook isn't on the slip: set to ${esc(C.BOOKS[F.book] || F.book)}. Change it below if needed.</li>`;
+    const warn = [...(R.warnings || []).map(w => `<li>${esc(w)}</li>`), book].filter(Boolean).join("");
+    const resSel = `<label class="bt-f bt-half"><span class="bt-lbl">Result${s.status ? " (from the slip)" : ""}</span><select data-f="status">${[["", "Open (not settled yet)"], ["won", "Won"], ["lost", "Lost"], ["push", "Push"], ["void", "Void"], ["cashout", "Cashed out"]].map(([k, n]) => `<option value="${k}"${(F.status || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select></label>${F.status === "cashout" ? `<label class="bt-f bt-half"><span class="bt-lbl">Cash-out amount ($)</span><input data-f="cashout" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(F.cashout)}" placeholder="0.00"></label>` : ""}`;
+    return `<div class="bt-rv" role="region" aria-label="What we read from your slip">
+      <div class="bt-rv-h"><span class="bt-rv-tag">${R.bookFromSlip ? esc(R.bookName || C.BOOKS[F.book] || "Sportsbook") + " slip" : "Bet slip"}</span><span class="na">Nothing is saved until you tap Save. Fix anything that looks off.</span></div>
+      <div class="bt-rv-sum">${cells.map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join("")}</div>
+      <div class="bt-rv-legs">${Object.entries(REV_ST).filter(([k]) => counts[k]).map(([k, [cls, ic, label]]) => `<span class="bt-rvb rv-${cls}"><i aria-hidden="true">${ic}</i>${counts[k]} ${label.toLowerCase()}</span>`).join("")}</div>
+      ${R.dup ? `<div class="bt-rv-dup" role="alert"><b>Already tracked?</b> A bet with this bet ID (${esc(F.ref)}) was saved${R.dup.date ? ` on ${esc(R.dup.date)}` : ""}: ${esc(R.dup.what)}. ${R.n > 1 ? "Skip it" : "Go back"} unless it's a different bet.</div>` : ""}
+      ${warn ? `<ul class="bt-rv-warn">${warn}</ul>` : ""}
+      <div class="bt-row">${resSel}</div>
+      ${R.text ? `<details class="bt-rv-raw"><summary>Text read from the slip</summary><pre>${esc(R.text)}</pre></details>` : ""}
+    </div>`;
   }
 
   // ---------- router entry (called by app.js)
@@ -848,6 +1056,7 @@
     window.onresize = null;
     BETS = load();
     if (seg[1] === "add") { window.scrollTo(0, 0); return viewForm(app, null, new URLSearchParams(query || "")); }
+    if (seg[1] === "import") { window.scrollTo(0, 0); return seg[2] === "review" ? viewReview(app, Number(seg[3]) || 0) : viewImport(app); }
     if (seg[1] === "edit" && seg[2]) { window.scrollTo(0, 0); return viewForm(app, decodeURIComponent(seg[2])); }
     const render = () => (seg[1] === "list" ? viewList(app) : viewOverview(app));
     render();

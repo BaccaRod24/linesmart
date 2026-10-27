@@ -2009,6 +2009,12 @@ body:has(.news-bets) .footer .news-foot{display:none}
 .sx-prop .pp-h{gap:2px 8px}
 .sx-prop .pp-h b,.sx-prop .pp-h a{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
 .sx-prop .pp-h .sx-line{white-space:nowrap}
+/* "· game" in a prop header: the dot sits in a 12px lead pulled back over the gap; when the game wraps to its own line
+   the lead falls left of the box and overflow clips it, so a line never starts with "·" */
+.sx-prop .pp-h{overflow:hidden}
+.sx-prop .pp-h>:has(+ .sx-gl){margin-right:4px}
+.sx-prop .pp-h .sx-gl{margin-left:-12px}
+.sx-prop .pp-h .sx-gl::before{content:"·";display:inline-block;width:12px;text-align:center}
 .sx-prop .pp-sum{align-items:flex-start;text-align:left;flex-direction:row;flex-wrap:wrap;gap:2px 8px}
 .sx-prop .pp-strip{flex-wrap:nowrap}
 .sx-prop .pp-b{flex:1 1 0;width:auto;min-width:0;max-width:64px}

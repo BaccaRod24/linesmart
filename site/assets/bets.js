@@ -160,6 +160,7 @@
     ? `<div class="note bt-priv">Your bets are saved in this browser and synced to your LineSmart account, so they show up wherever you sign in. Manage sync on the <a href="#/account">Account</a> tab. They aren't linked to any sportsbook account.</div>`
     : `<div class="note bt-priv">Your bets are saved only in this browser on this device. They aren't linked to any sportsbook account (sportsbooks don't offer a public way to connect). Clearing browser data deletes them, so export a backup, or <a href="#/account">sign in</a> (optional) to keep the same bets on your phone and computer.</div>`;
   const signedIn = () => { try { return !!localStorage.getItem(AC ? AC.AUTH_KEY : "ls-sb-auth"); } catch (e) { return false; } };
+  const newsBox = `<div class="news-bets" data-news-signup="bets"></div>`;   // weekly email signup (assets/news.js)
   const rgNote = `<div class="note bt-rg">Tracking shows what betting really costs you over time. Set a budget you're comfortable losing, and take a break if it stops being fun. Gambling problem? Call <a href="tel:18004262537">1-800-GAMBLER</a>.</div>`;
 
   function filterBar(all) {
@@ -241,7 +242,7 @@
   function viewOverview(app) {
     if (!BETS.length) {
       app.innerHTML = shell("ov", `<div class="empty bt-empty"><div class="bt-empty-art" aria-hidden="true">${emptyArt()}</div><h3>No bets tracked yet</h3>Log a bet you've placed at any sportsbook to see your profit, ROI, record, streaks and breakdowns by sport, bet type, book and prop.
-        <div style="margin-top:16px"><a class="bt-add" href="#/bets/add">+ Add your first bet</a></div></div>${privacyNote()}${dataCard()}${rgNote}`);
+        <div style="margin-top:16px"><a class="bt-add" href="#/bets/add">+ Add your first bet</a></div></div>${privacyNote()}${dataCard()}${newsBox}${rgNote}`);
       wireData(app); return;
     }
     const list = C.filterBets(BETS, FILT), s = C.stats(list);
@@ -256,7 +257,7 @@
       html += `<div class="section-title">Breakdowns</div><div class="bt-bd-grid">${["sport", "type", "book", "prop"].map(k => `<div class="card bt-bd" data-bd="${k}"></div>`).join("")}</div>`;
       html += `<div class="section-title">Activity</div><div class="cols bt-cols">${activityCard(list)}${recentCard(list)}</div>`;
     }
-    html += privacyNote() + dataCard() + rgNote;
+    html += privacyNote() + dataCard() + newsBox + rgNote;
     app.innerHTML = shell("ov", html);
     wireFilters(app, () => { CHART_RANGE = null; redraw(); });
     wireUnits(app, redraw);

@@ -1,0 +1,13 @@
+{
+  "_comment": "LineSmart weekly email settings. mailingAddress MUST be a real postal address (PO Box is fine) before anything is sent to subscribers: CAN-SPAM requires it in every commercial email, and scripts/newsletter.mjs refuses --mode send while it is empty. It can also come from the NEWSLETTER_MAILING_ADDRESS repo variable.",
+  "siteUrl": "https://linesmart.app",
+  "from": "LineSmart Weekly <weekly@linesmart.app>",
+  "replyTo": "contact@linesmart.app",
+  "contact": "contact@linesmart.app",
+  "mailingAddress": "",
+  "maxRecipients": 80,
+  "leagues": ["nfl", "ncaaf", "nba", "nhl", "ncaab", "mlb"],
+  "propLeagues": ["nfl", "nba"],
+  "windowDays": 7,
+  "limits": { "prices": 8, "numbers": 4, "props": 8, "moves": 6 }
+}

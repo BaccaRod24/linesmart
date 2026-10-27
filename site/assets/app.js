@@ -49,6 +49,14 @@
   };
   const timeET = iso => fmt(iso, { hour: "numeric", minute: "2-digit" }) + " " + TZL;
   const fullET = iso => fmt(iso, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " " + TZL;
+  // keep-last-good fallback (scripts/lastgood.py): the build couldn't reach ESPN for this league, so these games are the
+  // last good copy. st = index.stale or game.stale ({asOf, reason}).
+  const staleNote = (st, what = "games") => st && st.asOf ? `<div class="stale-note" role="status"><b>Delayed data.</b> The ESPN feed didn't load on the latest refresh, so these ${esc(what)} are from the last good update (${esc(fullET(st.asOf))}). Times, scores and lines may be out of date; they'll update automatically once the feed is back.</div>` : "";
+  const addStale = (st, what) => {   // views rendered by other modules (UFC): put the note under the page heading
+    const h = staleNote(st, what); if (!h) return;
+    const at = app.querySelector(".page-head, .match");
+    if (at) at.insertAdjacentHTML("afterend", h); else app.insertAdjacentHTML("afterbegin", h);
+  };
   const unitWord = kind => ({ football: "Pts", basketball: "Pts", hockey: "Goals", soccer: "Goals", baseball: "Runs" }[kind] || "Pts");
   const formDots = f => (f ? `<span class="form" title="Last ${f.length}: ${esc(f)} (most recent first)">${[...f].map(c => `<i class="f-${c}"></i>`).join("")}</span>` : "");
   const rec = (a, kind) => (!a ? null : kind === "soccer" ? `${a.w}-${a.d}-${a.l}` : a.d ? `${a.w}-${a.l}-${a.d}` : `${a.w}-${a.l}`);
@@ -312,6 +320,7 @@
     const filter = sessionStorage.getItem("filter-" + key) || "upcoming";
     if (kind === "mma" && window.LSUfc) {   // UFC: fight cards grouped by event and main card / prelims (assets/ufc.js)
       app.innerHTML = window.LSUfc.league(data, key, filter);
+      addStale(data.stale, "fights");
       app.querySelectorAll(".seg button").forEach(b => (b.onclick = () => { sessionStorage.setItem("filter-" + key, b.dataset.f); viewLeague(key); }));
       return;
     }
@@ -323,7 +332,7 @@
       <span class="chip"><b>${data.report.upcoming}</b> upcoming</span>
       <span class="chip"><b>${data.report.withOdds}</b> with lines</span>
       <span class="chip">Lines: <b>${esc((data.report.providers || []).join(", ") || "none")}</b></span>
-      <span class="chip">Next ${data.windowDays} days</span></div>`;
+      <span class="chip">Next ${data.windowDays} days</span></div>${staleNote(data.stale)}`;
     let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(data.league.full)}</h1><div class="sub">Upcoming games, lines and form · times in ${TZL}</div></div>
       <div class="seg"><button data-f="upcoming" class="${filter === "upcoming" ? "on" : ""}">Upcoming & live</button><button data-f="all" class="${filter === "all" ? "on" : ""}">Incl. today's finals</button></div></div>${chips}`;
     if (!games.length) {
@@ -384,7 +393,12 @@
     let d, idx;
     try { [d, idx] = await Promise.all([getJSON(`data/${key}/games/${id}.json`), getJSON(`data/${key}/index.json`)]); }
     catch (e) { return (app.innerHTML = `<a class="back" href="#/l/${key}">← Back</a><div class="empty"><h3>Game not found</h3>It may have dropped out of the data window. Refresh the data.</div>`); }
-    if (idx.league.kind === "mma" && window.LSUfc) return window.LSUfc.fight(d, idx, key);
+    if (idx.league.kind === "mma" && window.LSUfc) {
+      const at = location.hash;
+      await window.LSUfc.fight(d, idx, key);
+      if (location.hash === at) addStale(d.game.stale, "fight details");
+      return;
+    }
     const g0 = d.game, det = d.detail || {}, kind = idx.league.kind, u = unitWord(kind);
     const g = liveG(key, g0);
     const H = g.home, A = g.away, tH = d.teams[H.id] || {}, tA = d.teams[A.id] || {};
@@ -396,7 +410,7 @@
         <div class="mteam">${logo(A)}<div><div class="nm">${A.rank ? `<span class="rk" style="color:var(--warn)">#${A.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${A.id}">${esc(A.name)}</a></div><div class="rec">${esc(A.record || "—")} · Away ${esc(A.awayRecord || "—")}${formDots(A.form)}</div></div></div>
         <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}${g.neutral ? " (neutral)" : ""}</div><div class="where">${esc(g.broadcasts.join(", "))}</div>${g.note ? `<div class="where">${esc(g.note)}</div>` : ""}${window.LSWeather && g.state !== "post" && g.weather ? `<div class="where wx-where">${window.LSWeather.chip(g)}</div>` : ""}</div>
         <div class="mteam home">${logo(H)}<div><div class="nm">${H.rank ? `<span class="rk" style="color:var(--warn)">#${H.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${H.id}">${esc(H.name)}</a></div><div class="rec">${esc(H.record || "—")} · Home ${esc(H.homeRecord || "—")}${formDots(H.form)}</div></div></div>
-      </div>`;
+      </div>${staleNote(g0.stale, "game details")}`;
 
     if (LV() && window.LiveCore && window.LiveCore.supported(key) && (g.state !== "pre" || window.LiveCore.needsLive({ lg: key, id: g.id, state: g.state, date: g.date })))
       html += `<div id="liveBox" class="lbx-wrap">${liveBoxHtml(LV().box(key, g.id), A, H, kind, g, key)}</div>`;

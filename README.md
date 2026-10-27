@@ -144,6 +144,27 @@ The player page (`#/p/{league}/{id}`; `#/p/{league}/{id}/m` jumps to the section
 - **Local:** `env -u ODDS_API_KEY python3 scripts/previews.py` (options: `--site`, `--data-dir`, `--now`, `--no-sitemap`).
   Tests: `python3 scripts/previews_test.py` and `node scripts/previews_test.mjs` (Playwright).
 
+## Keep last good data (feed outages)
+
+When ESPN (or a league's other source) fails during a refresh, the build keeps the league's **last good data** instead of
+publishing an empty league (`scripts/lastgood.py`, wired into `build_data.py`).
+
+- **Source:** `LASTGOOD_SRC`, a URL base or local directory. The workflow sets it to the deployed site,
+  `https://linesmart.app/data/`. Unset or empty turns it off, so local builds and tests never touch the live site.
+- **When it kicks in:**
+  - every scoreboard day failed (e.g. HTTP 403);
+  - some days failed (only the games on the failed days are restored);
+  - the feed answered "no games" while the last good copy still had at least 2 upcoming games in the window;
+  - the UFC build or a whole league build raised.
+  A real empty schedule (off-season, the last good copy was empty or only had finished games) stays empty.
+- **Give-up rules:** stale data older than `LASTGOOD_MAX_H` hours (default 18, counted from the original fetch) is dropped.
+  So are finished games and games more than 4h past their start. With no upcoming or live game left, the league shows empty.
+- **Marking:** restored games and the league index carry `stale: {asOf, reason, ...}`. The league page, game page, UFC pages and
+  preview pages then show a "Delayed data." note with the last good time.
+  `meta.json` lists the leagues under `fallback`, and the workflow's Sanity-check step prints `STALE` lines and `::warning::` annotations.
+- **Odds API:** a failed pull, or a pull that matched 0 games, keeps the previous cached lines. No extra API calls are made.
+  Test with `env -u ODDS_API_KEY python3 scripts/lastgood_test.py` (offline, simulated 403s).
+
 ## Color themes
 
 All colors are CSS custom properties in `site/assets/styles.css` (`:root`). Alternate themes override them via `:root[data-theme="…"]`; `site/assets/theme.js` applies one from `?theme=` (not persisted). The default (no query) is **Midnight Blue**; the logo, favicons and PWA icons are drawn in its colors (re-render rasters with `node branding/render-icons.js` after editing `site/assets/brand/icon.svg`/`logo.svg`).

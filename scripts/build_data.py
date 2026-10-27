@@ -35,6 +35,7 @@ import odds_budget as OB
 import odds_props as OP
 import adv as ADV
 import linevalue as LV
+import lastgood as LG
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.environ.get("DATA_OUT") or os.path.join(ROOT, "site", "data")   # DATA_OUT: build elsewhere (local testing)
@@ -453,6 +454,24 @@ def odds_cache_save(d, c):
     with open(tmp, "w") as fh: json.dump(c, fh, indent=1, sort_keys=True)
     os.replace(tmp, p)
 
+def odds_cache_put(lg, cache, entry, msg):
+    """Store a fresh pull in the cache, except a pull that matched nothing while the previous pull matched games (ESPN
+    games missing this run): the previous lines stay, so a feed hiccup can't wipe them. A failed pull (entry None) never
+    touches the cache either; the last persisted pull keeps being used."""
+    if cache is None: return msg
+    prev = cache["leagues"].get(lg["key"]) or {}
+    if entry is None:
+        if msg and msg.startswith("error") and prev.get("pulledAt"):
+            log(f"[{lg['key']}] FALLBACK odds: The Odds API pull failed -> using the last persisted pull from {prev['pulledAt']}")
+            msg += f" (using the last persisted pull from {prev['pulledAt']})"
+        return msg
+    if entry.get("events") and not entry.get("matched") and prev.get("matched"):
+        log(f"[{lg['key']}] FALLBACK odds: pull matched 0 of {entry['events']} events to ESPN games -> kept the previous pull from {prev.get('pulledAt')}")
+        prev.update(checkedAt=entry.get("pulledAt"), remainingAfter=entry.get("remainingAfter"))
+        return msg + f" (0 matched: kept the previous pull from {prev.get('pulledAt')})"
+    cache["leagues"][lg["key"]] = entry
+    return msg
+
 ESPN_OPEN_BOOKS = ("draftkings",)   # books ESPN also reports (with the opening line): paid entry is a price overlay
 
 def apply_cached_odds(lg, games, cache, now):
@@ -559,12 +578,43 @@ def odds_usage_update(cache, check):
     cache["usage"] = u
 
 # ---------------------------------------------------------------- main
-def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=None, run_t=None, weather_dir=None, weather=True):
+def _err_tail(errs):
+    """'20261027: HTTP Error 403: Forbidden' -> 'HTTP Error 403: Forbidden' (first error only)."""
+    return (errs[0].split(": ", 1)[-1] if errs else "")[:80]
+
+def lastgood_games(lg, games, ok_days, errs, days, lgsrc, now):
+    """Decide whether this league's scoreboard fetch failed and, if so, which last good games to carry over.
+    Returns (restored games marked stale, fallback info or None, last good index or None)."""
+    if not lgsrc: return [], None, None
+    fresh_ids = {str(g["id"]) for g in games}
+    reason, only_days = None, None
+    if errs and ok_days == 0:
+        reason = f"ESPN scoreboard failed ({_err_tail(errs)})"
+    elif errs:
+        reason = f"ESPN scoreboard failed for {len(errs)} of {days} days ({_err_tail(errs)})"
+        only_days = {e.split(":", 1)[0] for e in errs}
+    elif not games:
+        n = LG.suspicious_empty(lgsrc.index(lg["key"]), now, days)
+        if n: reason = f"ESPN returned an empty schedule, but the last good data had {n} upcoming games"
+    if not reason: return [], None, None
+    idx0 = lgsrc.index(lg["key"])
+    kept, asof, why = LG.pick(idx0, now, days=only_days, tz=ET, exclude=fresh_ids)
+    if not kept:
+        log(f"[{lg['key']}] {reason}; no fallback: {why}")
+        return [], dict(used=False, reason=reason, why=why), idx0
+    LG.note(log, lg["key"], reason, len(kept), asof)
+    return [LG.mark(g, asof, reason) for g in kept], dict(used=True, reason=reason, asOf=asof, games=len(kept), partial=only_days is not None), idx0
+
+def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=None, run_t=None, weather_dir=None, weather=True, lgsrc=None):
     t0 = time.time()
     report = dict(league=lg["key"], endpoints={})
     events, ok_days, errs = fetch_scoreboards(lg, days)
     report["endpoints"]["scoreboard"] = f"ok {ok_days}/{days} days" + (f"; errors: {errs[:2]}" if errs else "")
     games = sorted((game_from_event(e) for e in events), key=lambda g: g["date"])
+    # ESPN failed (or came back suspiciously empty): carry over the last good games (marked stale) instead of showing none
+    restored, fb, idx0 = lastgood_games(lg, games, ok_days, errs, days, lgsrc, dt.datetime.now(dt.timezone.utc))
+    if fb: report["fallback"] = fb
+    lg_docs = LG.game_docs(lgsrc, lg["key"], restored) if restored else {}
     # summaries
     details, sum_ok, sum_err = {}, 0, 0
     targets = [g for g in games if g["state"] in ("pre", "in")][:MAX_SUMMARIES]
@@ -575,6 +625,17 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
             try: details[g["id"]] = parse_summary(lg, g, f.result()); sum_ok += 1
             except Exception: sum_err += 1
     report["endpoints"]["summary"] = f"ok {sum_ok}, failed {sum_err}"
+    if sum_err and lgsrc:   # summaries failed: reuse the last good detail (injuries, leaders, last five) for those games
+        if idx0 is None: idx0 = lgsrc.index(lg["key"])
+        lgids = {str(x.get("id")) for x in (idx0 or {}).get("games") or []}
+        miss = [g for g in targets if g["id"] not in details and str(g["id"]) in lgids]
+        reused = 0
+        for gid, doc in (LG.game_docs(lgsrc, lg["key"], miss) if miss else {}).items():
+            if doc.get("hasSummary") and isinstance(doc.get("detail"), dict):
+                details[gid] = dict(doc["detail"], stale=dict(asOf=LG.as_of(idx0)), allEspnOdds=[]); reused += 1
+        if reused:
+            report["endpoints"]["summary"] += f"; reused last good detail for {reused}"
+            log(f"[{lg['key']}] FALLBACK: {sum_err} game summaries failed -> reused the last good detail for {reused}")
     # team splits
     tids = sorted({g[s]["id"] for g in games for s in ("home", "away") if g[s]["id"]})
     teams, t_ok, t_err = {}, 0, 0
@@ -584,6 +645,14 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
             try: teams[futs[f]] = f.result(); t_ok += 1
             except Exception: t_err += 1
     report["endpoints"]["teamSchedule"] = f"ok {t_ok}, failed {t_err}"
+    if (t_err or restored) and lgsrc:   # team splits that failed (and the teams of carried-over games): last good copy
+        if idx0 is None: idx0 = lgsrc.index(lg["key"])
+        lgt = (idx0 or {}).get("teams") or {}
+        need = {g[s]["id"] for g in games + restored for s in ("home", "away") if g[s].get("id")} - set(teams)
+        got = {t: lgt[t] for t in need if lgt.get(t)}
+        if got:
+            teams.update(got)
+            if t_err: report["endpoints"]["teamSchedule"] += f"; reused last good splits for {len(got)}"
     for g in games:
         for s in ("home", "away"):
             ts = teams.get(g[s]["id"]) or {}
@@ -595,11 +664,14 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
             k = book_key_for(o.get("provider"))
             if k and k not in books: books[k] = dict(o, source=f"ESPN ({o.get('provider')})")
         g["books"] = books
+    fresh_games = games
+    if restored:   # carried-over games join before the odds step, so a paid pull still matches them (and the cache keeps their lines)
+        games = sorted(games + restored, key=lambda g: g["date"])
     # Hard Rock Bet + FanDuel + DraftKings: pull from The Odds API when this league is due (interval gate + budget); every run merges the last persisted pull
     run_t = run_t or LH.now_iso()
     if pull:
         entry, msg = odds_pull_league(lg, games, pull, run_t)
-        if entry is not None and odds_cache is not None: odds_cache["leagues"][lg["key"]] = entry
+        msg = odds_cache_put(lg, odds_cache, entry, msg)
         report["oddsApi"] = msg
     else:
         report["oddsApi"] = "no paid pull this run (using last persisted Hard Rock/FanDuel/DraftKings pull)"
@@ -607,7 +679,7 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
     le = (odds_cache or {}).get("leagues", {}).get(lg["key"]) or {}
     report["hardrock"] = dict(asOf=le.get("pulledAt"), shown=fresh, stale=stale)
     # line movement: snapshot this run's pre-game lines, merge into persistent history (if any), summarize
-    snap = LH.snapshot_from_games(games)
+    snap = LH.snapshot_from_games([g for g in games if not g.get("stale")])   # stale copies add no line-history points
     if snap_dir:
         os.makedirs(snap_dir, exist_ok=True)
         with open(os.path.join(snap_dir, f"{lg['key']}.json"), "w") as fh: json.dump(dict(league=lg["key"], t=run_t, games=snap), fh)
@@ -620,11 +692,12 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
         report["history"] = "no history dir (ESPN open line only)"
     for g in games:
         gh = hist["games"].get(g["id"])
-        g["move"] = LH.summarize(gh, lg["kind"], lg["key"]) if gh else None
-    # game-day weather (Open-Meteo); fail soft: WX.attach never raises
+        if gh: g["move"] = LH.summarize(gh, lg["kind"], lg["key"])
+        elif not g.get("stale"): g["move"] = None        # a stale copy keeps the movement it was saved with
+    # game-day weather (Open-Meteo); fail soft: WX.attach never raises. Stale copies keep their saved forecast.
     if weather:
         try:
-            wx = WX.attach(lg, games, weather_dir, snap_dir, log)
+            wx = WX.attach(lg, fresh_games, weather_dir, snap_dir, log)
         except Exception as ex:
             wx = dict(errors=[f"weather failed: {str(ex)[:120]}"])
         report["weather"] = wx
@@ -632,22 +705,31 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
     ldir = os.path.join(OUT, lg["key"]); os.makedirs(os.path.join(ldir, "games"), exist_ok=True)
     for fn in os.listdir(os.path.join(ldir, "games")): os.remove(os.path.join(ldir, "games", fn))
     for g in games:
-        d = details.get(g["id"], {})
-        d = {k: v for k, v in d.items() if k != "allEspnOdds"} | {"espnOddsProviders": [o.get("provider") for o in d.get("allEspnOdds", [])]}
         gt = {g["home"]["id"]: teams.get(g["home"]["id"]), g["away"]["id"]: teams.get(g["away"]["id"])}
+        if g.get("stale") and str(g["id"]) in lg_docs:   # carried over: the last good file, with this run's game record
+            doc = lg_docs[str(g["id"])]
+            out = dict(doc, game=g, teams=doc.get("teams") or gt, history=hist["games"].get(g["id"]) or doc.get("history"))
+        else:
+            d = details.get(g["id"], {})
+            d = {k: v for k, v in d.items() if k != "allEspnOdds"} | {"espnOddsProviders": d.get("espnOddsProviders") or [o.get("provider") for o in d.get("allEspnOdds", [])]}
+            out = dict(league=lg["key"], game=g, detail=d, teams=gt, hasSummary=g["id"] in details, history=hist["games"].get(g["id"]))
         with open(os.path.join(ldir, "games", f"{g['id']}.json"), "w") as fh:
-            json.dump(dict(league=lg["key"], game=g, detail=d, teams=gt, hasSummary=g["id"] in details,
-                           history=hist["games"].get(g["id"])), fh, separators=(",", ":"))
+            json.dump(out, fh, separators=(",", ":"))
     with_odds = sum(1 for g in games if g.get("odds"))
     upcoming = sum(1 for g in games if g["state"] == "pre")
     providers = sorted({g["odds"]["provider"] for g in games if g.get("odds") and g["odds"].get("provider")})
     report.update(games=len(games), upcoming=upcoming, withOdds=with_odds, providers=providers, seconds=round(time.time() - t0, 1))
     idx = dict(league={k: lg[k] for k in ("key", "name", "full", "kind")}, generated=dt.datetime.now(dt.timezone.utc).isoformat(),
                windowDays=days, games=games, teams=teams, report=report)
+    if restored:
+        prev = (idx0 or {}).get("stale") or {}
+        idx["stale"] = dict(asOf=fb["asOf"], reason=fb["reason"], since=prev.get("since") or idx["generated"], games=len(restored),
+                            partial=fb["partial"])
     with open(os.path.join(ldir, "index.json"), "w") as fh: json.dump(idx, fh, separators=(",", ":"))
     wxr = report.get("weather") or {}
     wxs = f" weather=forecast {wxr.get('forecast', 0)}, indoor {wxr.get('indoor', 0)}, pending {wxr.get('pending', 0)}, n/a {wxr.get('unavailable', 0)}, calls {wxr.get('calls', 0)}{(' errors ' + str(wxr['errors'])) if wxr.get('errors') else ''}" if wxr else ""
-    log(f"[{lg['key']}] games={len(games)} upcoming={upcoming} withOdds={with_odds} providers={providers} {report['endpoints']} oddsApi={report['oddsApi']} history={report['history']}{wxs} ({report['seconds']}s)")
+    fbs = f" FALLBACK(stale {len(restored)} as of {fb['asOf']})" if restored else ""
+    log(f"[{lg['key']}] games={len(games)}{fbs} upcoming={upcoming} withOdds={with_odds} providers={providers} {report['endpoints']} oddsApi={report['oddsApi']} history={report['history']}{wxs} ({report['seconds']}s)")
     return report
 
 def main():
@@ -690,6 +772,20 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     meta_path = os.path.join(OUT, "meta.json")
     meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {"leagues": {}}
+    src = LG.default_src(ROOT)
+    lgsrc = LG.Source(src, getj, log, bust=run_t) if src else None
+    log(f"[lastgood] fallback source: {src or 'off'} (max age {LG.MAX_H:g}h)")
+    fallbacks = {}
+    def fallback_meta(lg, rep):
+        fb = rep.get("fallback") or {}
+        if fb.get("used", True) and fb.get("asOf"):
+            fallbacks[lg["key"]] = fb
+            return dict(asOf=fb["asOf"], reason=fb.get("reason"), games=fb.get("games"))
+        return None
+    def restore_whole(lg, reason):
+        if not lgsrc: return None
+        apply = (lambda gs: apply_cached_odds(lg, gs, cache, dt.datetime.now(dt.timezone.utc))) if cache else None
+        return LG.restore_league(lgsrc, lg["key"], OUT, dt.datetime.now(dt.timezone.utc), reason, log=log, apply_odds=apply)
     for lg in LEAGUES:
         if lg["key"] not in want or a.search_only: continue
         try:
@@ -699,13 +795,32 @@ def main():
                                    cache_dir=a.matchup_cache_dir, log=log,
                                    odds_off_reason=None if ODDS_MMA else "off (set ODDS_MMA=1 to pull Hard Rock MMA moneylines, 1 credit per pull)")
                 if rep.get("search"): meta.setdefault("search", {})[lg["key"]] = rep["search"]
+                if not rep.get("games") and lgsrc:   # every card failed, or a suspiciously empty calendar
+                    ee = (rep.get("endpoints") or {}).get("eventErrors")
+                    n = LG.suspicious_empty(lgsrc.index(lg["key"]), dt.datetime.now(dt.timezone.utc), UF.UPCOMING_DAYS)
+                    why = (f"ESPN fight cards failed ({str(ee[0])[:80]})" if ee else
+                           f"ESPN returned no fight cards, but the last good data had {n} upcoming bouts" if n else None)
+                    r2 = restore_whole(lg, why) if why else None
+                    if r2: rep = dict(r2, endpoints=rep.get("endpoints"))
             else:
-                rep = build_league(lg, a.days, pull, cache, a.history_dir, a.snap_dir, run_t, a.weather_cache_dir, not a.no_weather)
+                rep = build_league(lg, a.days, pull, cache, a.history_dir, a.snap_dir, run_t, a.weather_cache_dir, not a.no_weather, lgsrc)
             meta["leagues"][lg["key"]] = dict(name=lg["name"], full=lg["full"], games=rep["games"], upcoming=rep["upcoming"],
                                               withOdds=rep["withOdds"], providers=rep["providers"], updated=dt.datetime.now(dt.timezone.utc).isoformat(), report=rep)
+            st = fallback_meta(lg, rep)
+            if st: meta["leagues"][lg["key"]]["stale"] = st
         except Exception as ex:
             log(f"[{lg['key']}] FAILED: {ex}")
-            meta["leagues"].setdefault(lg["key"], dict(name=lg["name"], full=lg["full"], games=0, upcoming=0, withOdds=0, providers=[]))["error"] = str(ex)
+            m = meta["leagues"].setdefault(lg["key"], dict(name=lg["name"], full=lg["full"], games=0, upcoming=0, withOdds=0, providers=[]))
+            m["error"] = str(ex)
+            m.pop("stale", None)
+            try:
+                rep = restore_whole(lg, f"ESPN fetch failed ({str(ex)[:80]})")
+            except Exception as ex2:
+                rep = None; log(f"[{lg['key']}] fallback FAILED: {ex2}")
+            if rep:
+                m.update(games=rep["games"], upcoming=rep["upcoming"], withOdds=rep["withOdds"], providers=rep["providers"],
+                         updated=dt.datetime.now(dt.timezone.utc).isoformat(), report=rep)
+                m["stale"] = fallback_meta(lg, rep)
     # Hard Rock + FanDuel + DraftKings player props (NFL/NBA): after the league builds, so events match the fresh ESPN games
     props_pulled = []
     if pull and budget and budget.get("props") and not a.no_props and pcache is not None:
@@ -756,6 +871,8 @@ def main():
             except Exception as ex:
                 log(f"[{lg['key']}] search index FAILED: {ex}")   # the previous file (if any) stays in place
                 meta["search"].setdefault(lg["key"], {})["error"] = str(ex)[:200]
+                if lgsrc and LG.restore_file(lgsrc, OUT, f"search/{lg['key']}.json", log):
+                    meta["search"][lg["key"]]["stale"] = True; fallbacks.setdefault(f"{lg['key']} search", {"reason": "search index fetch failed"})
     if not a.no_matchups:
         meta.setdefault("matchups", {})
         for lg in LEAGUES:
@@ -766,6 +883,7 @@ def main():
             except Exception as ex:
                 log(f"[{lg['key']}] matchups FAILED: {ex}")   # the previous file (if any) stays in place
                 meta["matchups"].setdefault(lg["key"], {})["error"] = str(ex)[:200]
+                if lgsrc and LG.restore_file(lgsrc, OUT, f"matchups/{lg['key']}.json", log): meta["matchups"][lg["key"]]["stale"] = True
     if not a.no_props and not a.search_only:
         meta.setdefault("props", {})
         for lg in LEAGUES:
@@ -777,6 +895,7 @@ def main():
             except Exception as ex:
                 log(f"[{lg['key']}] props FAILED: {ex}")   # the previous file (if any) stays in place
                 meta["props"].setdefault(lg["key"], {})["error"] = str(ex)[:200]
+                if lgsrc and LG.restore_file(lgsrc, OUT, f"props/{lg['key']}.json", log): meta["props"][lg["key"]]["stale"] = True
     if not a.no_adv and not a.search_only:
         meta.setdefault("adv", {})
         for lg in LEAGUES:
@@ -799,6 +918,11 @@ def main():
     if a.search_only:
         with open(meta_path, "w") as fh: json.dump(meta, fh, indent=1)
         return log("search index done ->", os.path.join(OUT, "search"))
+    meta["fallback"] = dict(source=src, maxAgeHours=LG.MAX_H, leagues=fallbacks)
+    if fallbacks:
+        log(f"[lastgood] leagues on last good data this run: {', '.join(sorted(fallbacks))}")
+    else:
+        log("[lastgood] no league needed the fallback this run")
     meta["order"] = [l["key"] for l in LEAGUES]
     meta["generated"] = dt.datetime.now(dt.timezone.utc).isoformat()
     lgs = (cache or {}).get("leagues", {})

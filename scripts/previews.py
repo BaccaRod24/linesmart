@@ -604,18 +604,25 @@ def game_page(lg, league, g, detail, teams, props, path, siblings, base_url):
   <div class="mteam home">{logo(h)}<div><div class="nm">{team_link(h)}</div><div class="rec">{esc(h.get('record') or '—')}</div></div></div>
 </div>"""
     sib = "".join(f'<li><a href="{esc(p)}">{esc(t)}</a> <span class="na">{esc(w)}</span></li>' for p, t, w in siblings[:8])
+    # keep-last-good fallback (scripts/lastgood.py): ESPN didn't load on the latest refresh, this game is the last good copy
+    st = g.get("stale") or {}
+    st_t = parse_dt(st.get("asOf"))
+    stale_html = (f'<div class="stale-note" role="status"><b>Delayed data.</b> The ESPN feed didn\'t load on the latest refresh, so this '
+                  f'preview uses the last good update ({esc(fmt_et(st_t))}). Times, records and lines may be out of date.</div>\n') if st_t else ""
+    upd = (f"Preview built from the last good LineSmart data ({esc(fmt_et(st_t))}); the latest refresh couldn't reach the ESPN feed" if st_t
+           else f"Preview built from LineSmart data refreshed {esc(fmt_et(parse_dt(league.get('_generated')) or dt))}")
     body = f"""<article class="pv">
 <nav class="pv-crumbs" aria-label="Breadcrumb"><a href="./">LineSmart</a> › <a href="preview/">Game previews</a> › <a href="#/l/{lg}">{esc(lgname)}</a></nav>
 <h1 class="pv-h1">{esc(a.get('name'))} {sep} {esc(h.get('name'))}: odds &amp; preview</h1>
 {hero}
-<p class="pv-cta"><a class="pv-live" href="{esc(game_href)}">Open the live game page →</a> <span class="na">Live odds, every prop and alerts. Updated about every 30 minutes; this preview reflects the last build.</span></p>
+{stale_html}<p class="pv-cta"><a class="pv-live" href="{esc(game_href)}">Open the live game page →</a> <span class="na">Live odds, every prop and alerts. Updated about every 30 minutes; this preview reflects the last build.</span></p>
 <section aria-labelledby="pvSum"><h2 class="section-title" id="pvSum">Preview</h2><div class="card pv-summary"><p>{esc(summ)}</p><p class="note">Written automatically from the numbers on this page: a description of the market, not a prediction or betting advice.</p></div></section>
 <section aria-labelledby="pvOdds"><h2 class="section-title" id="pvOdds">Best lines across books</h2>{odds_table(g, kind)}<div id="pvOffers" data-offers-slot="preview"></div></section>
 {f'<section aria-labelledby="pvMove"><h2 class="section-title" id="pvMove">Line movement</h2>{mv_html}</section>' if mv_html else ''}
 {f'<section aria-labelledby="pvProps"><h2 class="section-title" id="pvProps">Player props</h2>{pc}</section>' if pc else ''}
 {'' if kind == 'mma' else f'<section aria-labelledby="pvForm"><h2 class="section-title" id="pvForm">Form &amp; injuries</h2>{records_card(g, teams, detail)}<div class="cols pv-cols">{last_five_card(g, detail)}{injuries_card(g, detail)}</div>{leaders_card(detail)}</section>'}
 {f'<section aria-labelledby="pvMore"><h2 class="section-title" id="pvMore">More {esc(lgname)} previews</h2><ul class="pv-list pv-more">{sib}</ul></section>' if sib else ''}
-<p class="note pv-upd">Preview built from LineSmart data refreshed {esc(fmt_et(parse_dt(league.get('_generated')) or dt))}. Odds are for reference and may change; confirm with the sportsbook.</p>
+<p class="note pv-upd">{upd}. Odds are for reference and may change; confirm with the sportsbook.</p>
 </article>"""
     return shell(path.count("/"), path, title, desc, body, jsonld(lg, lgname, kind, g, url, desc, base_url), base_url=base_url), title, desc
 

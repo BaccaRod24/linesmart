@@ -102,6 +102,11 @@ jobs:
           # advanced stats: nflverse aggregate (refreshed ~daily) + ATS/O-U closing-line store
           ADV_CACHE_DIR: ${{ steps.hist.outcome == 'success' && '_history/advstats' || '' }}
           LINE_SNAP_DIR: .linehist-snap
+          # Keep-last-good fallback: when ESPN fails for a league (HTTP error, or an empty feed while the deployed copy
+          # still had upcoming games), carry over that league's games from the currently deployed site, marked stale.
+          # Gives up after LASTGOOD_MAX_H hours or once those games are over. LASTGOOD_SRC="" turns it off.
+          LASTGOOD_SRC: https://linesmart.app/data/
+          LASTGOOD_MAX_H: '18'
         run: python scripts/build_data.py
 
       # If the build crashed outright, fall back to the committed snapshot so the site still deploys.
@@ -120,7 +125,16 @@ jobs:
           print("generated:", meta.get("generated"), "| hardrock:", json.dumps({k: v for k, v in (meta.get("hardrock") or {}).items() if k != "leagues"}))
           print("odds api:", json.dumps(meta.get("oddsApi")))
           for k, v in meta.get("leagues", {}).items():
-              print(f"  {k:6} games={v.get('games')} upcoming={v.get('upcoming')} withOdds={v.get('withOdds')} error={v.get('error')}")
+              st = v.get("stale")
+              print(f"  {k:6} games={v.get('games')} upcoming={v.get('upcoming')} withOdds={v.get('withOdds')} error={v.get('error')}"
+                    + (f" STALE(last good as of {st.get('asOf')}: {st.get('reason')})" if st else ""))
+          fb = (meta.get("fallback") or {}).get("leagues") or {}
+          if fb:
+              print("FALLBACK (last good data) used for:", ", ".join(sorted(fb)))
+              for k, v in sorted(fb.items()):
+                  print(f"::warning title=LineSmart fallback ({k})::{v.get('reason')} - showing last good data as of {v.get('asOf')}")
+          else:
+              print("fallback: none needed this run")
           for f in glob.glob("site/data/*/index.json"):
               json.load(open(f))
           PY

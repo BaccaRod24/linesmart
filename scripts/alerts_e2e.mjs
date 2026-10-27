@@ -11,7 +11,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const fails = [], errors = [];
 const check = (ok, msg, tag = "alerts-e2e") => { console.log(`${ok ? "PASS" : "FAIL"} ${tag}: ${msg}`); if (!ok) fails.push(`${tag}: ${msg}`); };
 
-const UID = "4b1c2d3e-0000-4000-8000-00000000abcd", EMAIL = "rod@example.com";
+const UID = "4b1c2d3e-0000-4000-8000-00000000abcd", EMAIL = "user@example.com";
 const b64 = o => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = () => `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: UID, email: EMAIL, aud: "authenticated", role: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000) })}.c2ln`;
 const USER = { id: UID, aud: "authenticated", role: "authenticated", email: EMAIL, email_confirmed_at: "2026-10-26T22:00:00Z", app_metadata: { provider: "email" }, user_metadata: {}, created_at: "2026-10-26T22:00:00Z" };
@@ -134,7 +134,7 @@ const BANNED = /\block\b|guarantee|can't lose|can.t lose|free money|promo code/i
   check(b && b.kind === "spread_target" && b.side === "home" && b.target === tgt && b.books.join() === "hardrockbet" && b.game_id === GID && b.league === "nfl", "insert: kind/side/target/books/game", "insert");
   check(b && !("user_id" in b) && !("status" in b) && !("fired_at" in b) && !("id" in b), "insert: no user_id/status/fired/id (the database sets those)", "insert");
   check(b && b.starts_at === starts && typeof b.baseline === "object" && b.baseline.hardrockbet === hr.homeSpread, "insert: starts_at = kickoff, baseline = current line", "insert");
-  check(/rod@example\.com/.test(await text(p, "#alDlg")), "confirmation names the email it goes to", "insert");
+  check(/user@example\.com/.test(await text(p, "#alDlg")), "confirmation names the email it goes to", "insert");
   await p.click("#alDlg [data-x].bt-add");
   // already-met target is refused before sending
   await p.click(".section-title .al-txt"); await p.waitForSelector("#alDlg .al-bks");

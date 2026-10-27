@@ -11,7 +11,7 @@ const fails = [], errors = [];
 const check = (ok, msg, tag = "acct-e2e") => { console.log(`${ok ? "PASS" : "FAIL"} ${tag}: ${msg}`); if (!ok) fails.push(`${tag}: ${msg}`); };
 
 // ---------- fake Supabase (auth + PostgREST for user_bets), shared by every browser context = "the cloud"
-const UID = "4b1c2d3e-0000-4000-8000-00000000abcd", EMAIL = "rod@example.com";
+const UID = "4b1c2d3e-0000-4000-8000-00000000abcd", EMAIL = "user@example.com";
 const b64 = o => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = () => `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: UID, email: EMAIL, aud: "authenticated", role: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000) })}.c2ln`;
 const USER = { id: UID, aud: "authenticated", role: "authenticated", email: EMAIL, email_confirmed_at: "2026-10-26T22:00:00Z", app_metadata: { provider: "email" }, user_metadata: {}, created_at: "2026-10-26T22:00:00Z" };

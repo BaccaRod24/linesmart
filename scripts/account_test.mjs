@@ -20,7 +20,7 @@ check(fs.existsSync(new URL("../site/assets/" + A.SB_LIB, import.meta.url)), "ve
 check(!/cdn\.jsdelivr|unpkg\.com|esm\.sh/.test(src), "no CDN URLs", "config");
 
 // ---------- validation
-check(A.validEmail("rod@example.com") && !A.validEmail("rod@") && !A.validEmail("a b@c.com") && !A.validEmail(""), "email validation", "valid");
+check(A.validEmail("user@example.com") && !A.validEmail("user@") && !A.validEmail("a b@c.com") && !A.validEmail(""), "email validation", "valid");
 check(A.validCode("12345678") && A.validCode("123456") && A.validCode("1234567890"), "codes of 6, 8 and 10 digits are accepted", "valid");
 check(!A.validCode("12345") && !A.validCode("12345678901") && !A.validCode("1234abcd"), "too short / too long / letters rejected", "valid");
 check(A.validCode("1234 5678") && A.cleanCode("1234-5678") === "12345678", "spaces and dashes are ignored", "valid");

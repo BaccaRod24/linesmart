@@ -14,7 +14,7 @@ Free weekly email, sent Thursday mornings: best prices across Hard Rock Bet, Dra
 
 Send guards: the run refuses if the mailing address is empty, if there are more recipients than `maxRecipients` (80), if the issue has no content, or if the data is more than 36 hours old. A banned-word lint checks the template copy for lock, guaranteed, can't lose, free money, promo, bonus and similar words.
 
-## One-time setup (Rod)
+## One-time setup (owner)
 
 1. **Supabase SQL editor**: run `supabase/migrations/20261026_newsletter.sql`. It enables `pg_net`.
 2. **Resend**: create a *Sending access* API key restricted to `linesmart.app`.

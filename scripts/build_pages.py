@@ -50,7 +50,7 @@ FOOTER = f"""<footer class="footer" id="siteFooter">
     <p class="rg"><span class="age-pill">21+</span> <strong>21+ only.</strong> Gambling problem? Call or text {GAMBLER_TEL} · {GAMBLER_WEB}</p>
     <p class="rg fl">Florida: call or text {PLAYWISE_TEL} ({PLAYWISE_WEB}), or the Florida Council on Compulsive Gambling helpline {ADMIT_TEL} ({ADMIT_WEB}).</p>
     <p><strong data-brand>LineSmart</strong> is an informational site and does not accept wagers. Odds are for reference and may change; confirm with the sportsbook.</p>
-    <p class="biz">LineSmart, a Florida-based business · <a href="mailto:{CONTACT}">{CONTACT}</a></p>
+    <p class="biz">LineSmart · <a href="mailto:{CONTACT}">{CONTACT}</a></p>
     <p class="aff-disc" data-aff-disclosure hidden></p>
     <nav class="legal-links" aria-label="Legal">{" ".join(f'<a href="{f}">{n}</a>' for f, n in PAGES)}</nav>
     <nav class="tool-links" aria-label="Tools">{" ".join(f'<a href="{f}">{n}</a>' for f, n in TOOLS)}</nav>
@@ -340,7 +340,7 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
   </ul>
 
   <h2>Who runs it</h2>
-  <p>LineSmart is an independent site run by a Florida-based business, reachable at <a href="mailto:{CONTACT}">{CONTACT}</a>. It is not owned by, and does not own, any sportsbook, and it isn't affiliated with any league or team.</p>
+  <p>LineSmart is an independent site, reachable at <a href="mailto:{CONTACT}">{CONTACT}</a>. It is not owned by, and does not own, any sportsbook, and it isn't affiliated with any league or team.</p>
 
   <h2>Where the data comes from</h2>
   <ul>
@@ -378,7 +378,7 @@ NEWS_PAGES = [
 ]
 
 CONTENT = {
-    "about.html": ("About LineSmart", "LineSmart is a free, independent sports odds, props, matchups and betting-tools site from LineSmart, a Florida-based business.", ABOUT),
+    "about.html": ("About LineSmart", "LineSmart is a free, independent sports odds, props, matchups and betting-tools site.", ABOUT),
     "responsible-gambling.html": ("Responsible Gambling", "Tips, limits, self-exclusion and free 24/7 helplines, including 1-800-GAMBLER and Florida resources.", RG),
     "privacy.html": ("Privacy Policy", "Cookieless analytics, approximate location for state-aware offers, data kept on your device, optional accounts for bet sync, and affiliate links.", PRIVACY),
     "terms.html": ("Terms of Use", "Terms for using LineSmart, an informational sports odds site that does not accept wagers.", TERMS),

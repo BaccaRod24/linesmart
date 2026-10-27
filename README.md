@@ -142,6 +142,9 @@ Screenshots + comparison sheets (serve the site under `/linesmart/` first):
 - Moneyline, spread and total bets tied to a listed game settle automatically from the final score (site data, then the ESPN summary endpoint) once the game has finished. Props, manually typed games, soccer extra time/penalties and quarter lines are settled by hand (Won / Lost / Push / Void / Cashed out).
 - Tests: `node scripts/bets_test.mjs`; the subpath test also covers the route, the SW cache and adding a bet.
 - Screenshots use example data from `scripts/fixtures/demo-bets.json` (never shipped in `site/`): `BASE=... OUT=screenshots node scripts/screenshots_bets.mjs`.
+- Overview stats: net profit, ROI, win rate, W-L-P record, staked, average odds, biggest win, current/longest streak and pending; a cumulative profit chart (7D / 30D / Season / All, by settle day, with peak and max drawdown); sortable breakdowns by sport (or league), bet type, sportsbook and prop market; a calendar heatmap and weekday bars. Void bets are excluded from staked, pushes and cash-outs don't count toward win rate or break streaks, mixed-sport parlays group as "Multi-sport parlay", and pending bets are only counted in the Pending tile.
+- Units view: toggle $ / Units and set "1u = $" (saved in `ls-bets-prefs` on the device only).
+- Stats screenshots: `node scripts/gen_stats_fixture.mjs` writes `scripts/fixtures/stats-bets.json` (seeded example bets, not shipped), then `BASE=... OUT=screenshots node scripts/screenshots_stats.mjs` (blocks every non-localhost request, never signs in).
 
 ## Compliance pages (footer, 21+ notice, legal pages)
 

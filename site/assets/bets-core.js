@@ -337,6 +337,125 @@
     return done.map(({ t, b }) => { c = r2(c + netResult(b)); return { t, v: c, net: netResult(b), id: b.id }; });
   }
 
+  // ---------- deeper stats (Overview "Stats" sections). Pure + unit-tested in scripts/bets_test.mjs.
+  // Conventions: pending bets never count toward results; void bets are refunded and ignored everywhere (not staked, not in
+  // the record, no streak effect); pushes count as staked with $0 profit, show in W-L-P, and neither extend nor break a streak.
+  // Cash-outs count by their actual profit/loss but aren't a W or L. Parlays are one bet: settled from their legs
+  // (pushed / void legs re-price the ticket, see effectiveDecimal), and never split across sports or prop markets.
+  const SPORT_OF = { nfl: "football", ncaaf: "football", nba: "basketball", ncaab: "basketball", wnba: "basketball", nhl: "hockey", mlb: "baseball", epl: "soccer", mls: "soccer", ucl: "soccer", ufc: "mma" };
+  const SPORTS = { football: "Football", basketball: "Basketball", baseball: "Baseball", hockey: "Hockey", soccer: "Soccer", mma: "MMA", multi: "Multi-sport parlay", other: "Other" };
+  const pad = n => String(n).padStart(2, "0");
+  const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  /** local calendar day ("YYYY-MM-DD") a bet settled on: ISO timestamps are converted to the viewer's local date,
+   *  plain dates are kept; falls back to the placed date for older bets without settledAt */
+  function settleDay(b) {
+    const raw = String(b.settledAt || b.date || b.createdAt || "");
+    if (raw.length > 10 && raw.includes("T")) { const d = new Date(raw); if (!isNaN(d)) return ymd(d); }
+    return raw.slice(0, 10);
+  }
+  const isSettled = b => !!b.status && b.status !== "pending" && b.status !== "void";
+  /** settled (non-void) bets in the order they settled */
+  function settledOrder(bets) {
+    return bets.filter(isSettled).map(b => ({ d: settleDay(b), b }))
+      .sort((x, y) => x.d.localeCompare(y.d) || String(x.b.settledAt || "").localeCompare(String(y.b.settledAt || "")) || String(x.b.createdAt || "").localeCompare(String(y.b.createdAt || "")));
+  }
+  /** sport of a bet; a parlay with legs from more than one sport is "multi" */
+  function sportOf(b) {
+    const sp = new Set(betLeagues(b).map(l => SPORT_OF[l] || "other"));
+    if (!sp.size) return "other";
+    if (sp.size > 1) return b.type === "parlay" ? "multi" : [...sp][0];
+    return [...sp][0];
+  }
+  /** prop market of a single prop bet ("nba:points"), "other" for free-text props, null for non-props / parlays */
+  function propMarket(b) {
+    if (!b || b.type !== "prop") return null;
+    const mk = b.prop && b.prop.mk;
+    if (!mk || mk === "other") return "other";
+    return `${b.league || (b.event && b.event.lg) || ""}:${mk}`;
+  }
+  function propMarketLabel(key) {
+    if (!key || key === "other") return "Other / custom";
+    const [lg, mk] = key.split(":");
+    return propLabel(lg, mk);
+  }
+  /** streaks over won/lost bets in settle order. current = {kind:"W"|"L", n} (null if none) */
+  function streaks(bets) {
+    let cur = null, bestW = 0, bestL = 0;
+    for (const { b } of settledOrder(bets)) {
+      if (b.status !== "won" && b.status !== "lost") continue;   // push / cash-out: no effect
+      const k = b.status === "won" ? "W" : "L";
+      cur = cur && cur.kind === k ? { kind: k, n: cur.n + 1 } : { kind: k, n: 1 };
+      if (k === "W") bestW = Math.max(bestW, cur.n); else bestL = Math.max(bestL, cur.n);
+    }
+    return { current: cur, longestWin: bestW, longestLoss: bestL };
+  }
+  /** summarize() + biggest win / loss and streaks */
+  function stats(bets) {
+    const s = summarize(bets);
+    let bw = null, bl = null;
+    for (const { b } of settledOrder(bets)) {
+      const n = netResult(b);
+      if (n > 0 && (!bw || n > bw.net)) bw = { net: n, bet: b };
+      if (n < 0 && (!bl || n < bl.net)) bl = { net: n, bet: b };
+    }
+    return { ...s, biggestWin: bw, biggestLoss: bl, ...streaks(bets) };
+  }
+  /** is a "YYYY-MM-DD" day within 7d / 30d / season / all of now (same rules as inRange) */
+  function dayInRange(day, range, now = new Date()) {
+    if (!range || range === "all") return true;
+    const d = new Date(String(day).slice(0, 10) + "T12:00:00");
+    if (isNaN(d)) return true;
+    if (range === "7d") return now - d <= 7 * 864e5;
+    if (range === "30d") return now - d <= 30 * 864e5;
+    if (range === "season") return d >= seasonStart(now);
+    return true;
+  }
+  /** daily cumulative profit for bets that SETTLED inside the range (starts from $0 at the range start):
+   *  [{d, net, v (running total), n, won, lost}] */
+  function dailySeries(bets, range = "all", now = new Date()) {
+    const days = new Map();
+    for (const { d, b } of settledOrder(bets)) {
+      if (!dayInRange(d, range, now)) continue;
+      const x = days.get(d) || { d, net: 0, n: 0, won: 0, lost: 0 };
+      x.net = r2(x.net + netResult(b)); x.n++;
+      if (b.status === "won") x.won++; else if (b.status === "lost") x.lost++;
+      days.set(d, x);
+    }
+    let c = 0;
+    return [...days.values()].map(x => { c = r2(c + x.net); return { ...x, v: c }; });
+  }
+  /** peak running total and the largest peak-to-trough drop of a series ({v}), both measured from a $0 start */
+  function drawdown(series) {
+    let peak = 0, max = 0;
+    for (const p of series) { peak = Math.max(peak, p.v); max = Math.max(max, peak - p.v); }
+    return { peak: r2(peak), maxDrawdown: r2(max) };
+  }
+  /** settled results by weekday of the settle day (0 = Sunday) */
+  function byWeekday(bets) {
+    const g = Array.from({ length: 7 }, () => []);
+    for (const { d, b } of settledOrder(bets)) { const t = new Date(d + "T12:00:00"); if (!isNaN(t)) g[t.getDay()].push(b); }
+    return g.map((list, i) => ({ key: i, ...summarize(list) }));
+  }
+  /** day -> {net, n} for a calendar heatmap */
+  function byDay(bets) {
+    const m = {};
+    for (const { d, b } of settledOrder(bets)) { const x = m[d] || (m[d] = { net: 0, n: 0 }); x.net = r2(x.net + netResult(b)); x.n++; }
+    return m;
+  }
+  /** money -> units (null when no unit size) */
+  const toUnits = (v, unit) => (isNum(v) && isNum(unit) && Number(unit) > 0 ? v / Number(unit) : null);
+  /** sort breakdown rows by a column (name | n | winRate | staked | net | roi); nulls last */
+  function sortRows(rows, col = "net", dir = "desc") {
+    const val = r => (col === "name" ? String(r.name || r.key).toLowerCase() : col === "rec" ? r.won - r.lost : r[col]);
+    const m = dir === "asc" ? 1 : -1;
+    return rows.slice().sort((a, b) => {
+      const x = val(a), y = val(b);
+      if (x === null || x === undefined) return (y === null || y === undefined) ? 0 : 1;
+      if (y === null || y === undefined) return -1;
+      return (x < y ? -1 : x > y ? 1 : 0) * m;
+    });
+  }
+
   // ---------- storage format, import / export
   const KEY = "ls-bets-v1";
   function normalizeBet(b) {
@@ -372,5 +491,5 @@
 
   return { PROP_MARKETS, YESNO, propLabel, normName, boxScore, findPlayer, gradeProp, isPropSel, describeProp, propQuote, FEED_KEY, needsReview, BOOKS, TYPES, STATUS, SOCCER, MMA, KEY, isNum, toDecimal, toAmerican, validAmerican, winProfit, impliedProb, parlayDecimal, parlayAmerican, parlayStatus,
     effectiveDecimal, netResult, payout, toWin, gradeSelection, canAutoSettle, autoSettle, pendingEvents, inRange, seasonStart, filterBets, betLeagues,
-    summarize, roi, groupBy, cumulative, normalizeBet, parseImport, mergeBets, toCSV, uid };
+    summarize, roi, groupBy, cumulative, SPORT_OF, SPORTS, settleDay, settledOrder, sportOf, propMarket, propMarketLabel, streaks, stats, dayInRange, dailySeries, drawdown, byWeekday, byDay, toUnits, sortRows, normalizeBet, parseImport, mergeBets, toCSV, uid };
 });

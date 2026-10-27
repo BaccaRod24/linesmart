@@ -135,5 +135,58 @@ check(G({ type: "prop", side: "home" }, F(1, 0)) === null, "props are never auto
   check(!fs.readdirSync(new URL("../site/", import.meta.url), { recursive: true }).some(f => /demo-bets/.test(String(f))), "demo fixture is not shipped in site/", "data");
 }
 
+// ---------- deeper stats (summary tiles, chart, breakdowns, heatmap, units)
+{
+  const S = (status, day, o = {}) => bet({ status, odds: 100, settledAt: day, date: day, ...o });
+  const list = [
+    S("won", "2026-10-01"), S("won", "2026-10-02"), S("push", "2026-10-03"), S("cashout", "2026-10-03", { cashout: 40 }),
+    S("won", "2026-10-04"), S("lost", "2026-10-05"), S("lost", "2026-10-06"), S("void", "2026-10-06"), S("pending", "2026-10-07"),
+  ];
+  const st = C.streaks(list);
+  check(st.longestWin === 3 && st.longestLoss === 2 && st.current.kind === "L" && st.current.n === 2, "streaks: push / cash-out / void don't break a run (W3, L2, current L2)", "stats");
+  check(C.streaks([]).current === null && C.streaks([S("pending", "2026-10-01"), S("void", "2026-10-01")]).current === null, "streaks: none with no settled W/L", "stats");
+  const x = C.stats([...list, S("won", "2026-10-08", { odds: 250 }), S("lost", "2026-10-09", { stake: 300 })]);
+  check(x.biggestWin.net === 250 && x.biggestLoss.net === -300, "biggest win / loss", "stats");
+  check(C.stats([S("lost", "2026-10-01")]).biggestWin === null, "no biggest win when nothing won", "stats");
+
+  const ser = C.dailySeries(list, "all");
+  check(ser.length === 6 && ser.map(p => p.v).join() === "100,200,140,240,140,40", "daily cumulative series (push 0, cash-out −60, void & pending skipped)", "stats");
+  check(ser[2].n === 2 && ser[2].net === -60, "same-day bets merge into one point", "stats");
+  const now = new Date("2026-10-26T14:00:00");
+  const r7 = C.dailySeries([S("won", "2026-10-25"), S("lost", "2026-10-10")], "7d", now);
+  check(r7.length === 1 && r7[0].v === 100, "7D range restarts at $0 and drops older days", "stats");
+  check(C.dayInRange("2026-10-20", "7d", now) && !C.dayInRange("2026-10-10", "7d", now) && C.dayInRange("2026-10-01", "30d", now) && !C.dayInRange("2026-09-01", "30d", now) && C.dayInRange("2020-01-01", "all", now), "dayInRange 7d / 30d / all", "stats");
+  const dd = C.drawdown([{ v: 100 }, { v: 300 }, { v: 50 }, { v: 200 }, { v: -20 }]);
+  check(dd.peak === 300 && dd.maxDrawdown === 320, "drawdown: peak 300, max drop 320", "stats");
+  check(C.drawdown([{ v: -50 }, { v: -80 }]).maxDrawdown === 80 && C.drawdown([]).peak === 0, "drawdown measured from a $0 start", "stats");
+
+  const wd = C.byWeekday([S("won", "2026-10-26"), S("lost", "2026-10-26"), S("won", "2026-10-25")]);   // Mon, Mon, Sun
+  check(wd[1].won === 1 && wd[1].lost === 1 && wd[0].won === 1 && wd[0].net === 100 && wd[3].n === 0, "byWeekday groups by settle day", "stats");
+  const bd = C.byDay(list);
+  check(bd["2026-10-03"].n === 2 && bd["2026-10-03"].net === -60 && !bd["2026-10-07"], "byDay heatmap cells (pending excluded)", "stats");
+  check(C.settleDay({ settledAt: "2026-10-03" }) === "2026-10-03" && C.settleDay({ date: "2026-10-02" }) === "2026-10-02", "settleDay falls back to the placed date", "stats");
+
+  check(C.sportOf(bet({ league: "nba" })) === "basketball" && C.sportOf(bet({ league: "ncaaf" })) === "football" && C.sportOf(bet({})) === "other", "sportOf single bets", "stats");
+  check(C.sportOf(bet({ type: "parlay", legs: [{ league: "nfl" }, { league: "nba" }] })) === "multi" && C.sportOf(bet({ type: "parlay", legs: [{ league: "nfl" }, { league: "ncaaf" }] })) === "football", "sportOf parlays: mixed → multi, same sport kept", "stats");
+  check(C.propMarket(bet({ type: "prop", league: "nba", prop: { mk: "points" } })) === "nba:points" && C.propMarket(bet({ type: "prop", prop: { mk: "other" } })) === "other" && C.propMarket(bet({ type: "prop" })) === "other" && C.propMarket(bet({ type: "parlay" })) === null && C.propMarket(bet({})) === null, "propMarket keys (custom → other, non-props → null)", "stats");
+  check(C.propMarketLabel("other") === "Other / custom" && typeof C.propMarketLabel("nba:points") === "string", "propMarketLabel", "stats");
+
+  check(C.toUnits(50, 25) === 2 && C.toUnits(-12.5, 25) === -0.5 && C.toUnits(50, 0) === null && C.toUnits(50, "") === null, "toUnits (null without a unit size)", "stats");
+  const rows = [{ key: "a", name: "B", net: 10, roi: null, n: 2 }, { key: "b", name: "a", net: -5, roi: -0.1, n: 5 }, { key: "c", name: "C", net: 30, roi: 0.3, n: 1 }];
+  check(C.sortRows(rows, "net").map(r => r.key).join() === "c,a,b" && C.sortRows(rows, "net", "asc").map(r => r.key).join() === "b,a,c", "sortRows by profit desc / asc", "stats");
+  check(C.sortRows(rows, "roi").map(r => r.key).join() === "c,b,a" && C.sortRows(rows, "roi", "asc").map(r => r.key).join() === "b,c,a", "sortRows puts nulls last both ways", "stats");
+  check(C.sortRows(rows, "name", "asc").map(r => r.key).join() === "b,a,c" && rows[0].key === "a", "sortRows by name (case-insensitive) without mutating", "stats");
+
+  // parlay that pushes / voids counts as a push, not a win; a void straight bet adds nothing to staked
+  const pp = bet({ type: "parlay", odds: 264, stake: 20, legs: [{ odds: -110, result: "push" }, { odds: -110, result: "void" }], status: "push", settledAt: "2026-10-04" });
+  const ss = C.stats([pp, S("void", "2026-10-04", { stake: 50 }), S("won", "2026-10-04", { stake: 30 })]);
+  check(ss.push === 1 && ss.won === 1 && ss.winRate === 1 && ss.staked === 50 && ss.net === 30, "parlay push + void straight bet in stats", "stats");
+  // fixture sanity (example data used for screenshots; not shipped)
+  const fx = JSON.parse(fs.readFileSync(new URL("./fixtures/stats-bets.json", import.meta.url)));
+  const fs2 = C.stats(C.parseImport(JSON.stringify(fx)));
+  const last = C.dailySeries(fx.bets).at(-1).v;
+  check(near(last, fs2.net) && fs2.n === fx.bets.length, `stats fixture: series ends at net (${fs2.net})`, "stats");
+}
+
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall bet-tracker unit tests passed");
 process.exit(fails.length ? 1 : 0);

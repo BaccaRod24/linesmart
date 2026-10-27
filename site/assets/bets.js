@@ -175,73 +175,249 @@
     el.querySelectorAll("[data-range]").forEach(b => (b.onclick = () => { FILT.range = b.dataset.range; redraw(); }));
     el.querySelectorAll("[data-filt]").forEach(s => (s.onchange = () => { FILT[s.dataset.filt] = s.value; redraw(); }));
   }
-  const statBox = (label, val, sub, c = "") => `<div class="stat"><span class="sl">${esc(label)}</span><b class="num ${c}">${val}</b>${sub ? `<span class="ss">${sub}</span>` : ""}</div>`;
+  // ---------- Overview: summary, profit over time, breakdowns, activity (math in bets-core.js; no chart library)
+  const statBox = (label, val, sub, c = "", extra = "") => `<div class="stat${extra}"><span class="sl">${esc(label)}</span><b class="num ${c}">${val}</b>${sub ? `<span class="ss">${sub}</span>` : ""}</div>`;
+  // units view: a unit size saved in this browser only (ls-bets-prefs, never synced); money values then read as units
+  const unitSize = () => { const u = Number(prefs().unit); return isNum(u) && u > 0 ? u : null; };
+  const unitsOn = () => !!prefs().units && !!unitSize();
+  /** money, or units when the units view is on */
+  const mv = (v, sign) => {
+    if (!unitsOn() || !isNum(v)) return money(v, sign);
+    const u = C.toUnits(v, unitSize()), a = Math.abs(u);
+    return (sign ? (u > 0.0049 ? "+" : u < -0.0049 ? "−" : "") : u < -0.0049 ? "−" : "") + (a >= 100 ? a.toFixed(0) : a.toFixed(2)) + "u";
+  };
+  const RANGE_LBL = { "7d": "last 7 days", "30d": "last 30 days", season: "since Aug 1", all: "all time" };
+  let CHART_RANGE = null;                       // profit chart's own range (defaults to the filter bar's)
+  const SORT = {};                              // breakdown table sort per card: {col, dir}
+  const BD_DIM = { sport: "sport" };            // "By sport" card: sport | league
+  let OV = null;                                // the overview's current filtered list (for card re-renders)
+
+  function unitBar() {
+    const on = unitsOn(), u = unitSize();
+    return `<div class="bt-units"><div class="seg" role="group" aria-label="Show amounts in"><button type="button" data-units="0" class="${on ? "" : "on"}">$</button><button type="button" data-units="1" class="${on ? "on" : ""}">Units</button></div>
+      <label class="bt-usize"${prefs().units || !u ? "" : " hidden"}><span>1u =</span> <span class="bt-usize-in">$<input type="number" inputmode="decimal" min="0.01" step="0.01" data-unit-size value="${esc(u ?? "")}" placeholder="25" aria-label="Unit size in dollars"></span></label></div>`;
+  }
+  function wireUnits(app, redraw) {
+    app.querySelectorAll("[data-units]").forEach(b => (b.onclick = () => {
+      const want = b.dataset.units === "1";
+      setPref("units", want);
+      if (want && !unitSize()) { redraw(); const i = $("[data-unit-size]", app); if (i) i.focus(); return; }
+      redraw();
+    }));
+    const inp = $("[data-unit-size]", app);
+    if (inp) inp.onchange = () => { const v = parseFloat(inp.value); if (isNum(v) && v > 0) { setPref("unit", Math.round(v * 100) / 100); redraw(); } };
+  }
+
+  const streakTxt = st => (st.current ? `${st.current.kind}${st.current.n}` : "—");
+  function summaryGrid(s, list) {
+    const series = C.dailySeries(list, "all");
+    const spark = sparkline(series);
+    const bw = s.biggestWin, rec = `${s.won}-${s.lost}-${s.push}`;
+    const recSub = [s.cashout ? `${s.cashout} cashed out` : "", s.void ? `${s.void} void` : ""].filter(Boolean).join(" · ") || `${s.settled} settled`;
+    const cur = s.current;
+    const curCls = cur ? (cur.kind === "W" ? "pos" : "neg") : "";
+    return `<div class="statgrid bt-stats">
+      <div class="stat bt-hero ${cls(s.net)}"><span class="sl">Net profit</span><div class="bt-hero-row"><b class="num ${cls(s.net)}">${mv(s.net, true)}</b>${spark}</div>
+        <span class="ss"><span class="bt-pill ${cls(s.roi)}">${pct(s.roi, true)} ROI</span> on ${mv(s.staked)} staked · ${s.n} bet${s.n === 1 ? "" : "s"} · ${esc(RANGE_LBL[FILT.range] || "")}</span></div>
+      ${statBox("ROI", pct(s.roi, true), "profit ÷ staked", cls(s.roi))}
+      ${statBox("Win rate", pct(s.winRate), "pushes excluded")}
+      ${statBox("Record (W-L-P)", rec, recSub)}
+      ${statBox("Total staked", mv(s.staked), "settled, voids excluded")}
+      ${statBox("Avg odds", s.avgOdds === null ? "—" : am(s.avgOdds), "mean price, non-void")}
+      ${statBox("Biggest win", bw ? mv(bw.net, true) : "—", bw ? esc(describe(bw.bet)) : "no wins yet", bw ? "pos" : "")}
+      ${statBox("Streak", streakTxt(s), `longest W${s.longestWin} · L${s.longestLoss}`, curCls)}
+      ${statBox("Pending", mv(s.exposure), `${s.pending} open · to win ${mv(s.toWinPending)}`)}
+</div>`;
+  }
+  function sparkline(series) {
+    if (series.length < 2) return "";
+    const pts = [{ v: 0 }, ...series], vs = pts.map(p => p.v), lo = Math.min(0, ...vs), hi = Math.max(0, ...vs), W = 120, H = 34;
+    const X = i => (i / (pts.length - 1)) * W, Y = v => H - 2 - ((v - lo) / ((hi - lo) || 1)) * (H - 4);
+    const d = pts.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(p.v).toFixed(1)}`).join("");
+    const up = pts[pts.length - 1].v >= 0;
+    return `<svg class="bt-spark ${up ? "pos" : "neg"}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true"><path d="${d}L${W},${H}L0,${H}Z" class="a"/><path d="${d}" class="l"/></svg>`;
+  }
 
   function viewOverview(app) {
-    const list = C.filterBets(BETS, FILT), s = C.summarize(list);
     if (!BETS.length) {
-      app.innerHTML = shell("ov", `<div class="empty bt-empty"><h3>No bets tracked yet</h3>Log a bet you've placed at any sportsbook to see your profit and loss, record and ROI over time.
+      app.innerHTML = shell("ov", `<div class="empty bt-empty"><div class="bt-empty-art" aria-hidden="true">${emptyArt()}</div><h3>No bets tracked yet</h3>Log a bet you've placed at any sportsbook to see your profit, ROI, record, streaks and breakdowns by sport, bet type, book and prop.
         <div style="margin-top:16px"><a class="bt-add" href="#/bets/add">+ Add your first bet</a></div></div>${privacyNote()}${dataCard()}${rgNote}`);
       wireData(app); return;
     }
-    const rec = `${s.won}-${s.lost}-${s.push}`;
-    let html = filterBar(BETS);
-    html += `<div class="statgrid bt-stats">
-      ${statBox("Profit / loss", money(s.net, true), `${s.settled} settled bet${s.settled === 1 ? "" : "s"}`, cls(s.net))}
-      ${statBox("Record (W-L-P)", rec, s.cashout ? `${s.cashout} cashed out` : s.void ? `${s.void} void` : "&nbsp;")}
-      ${statBox("Win rate", pct(s.winRate), "pushes excluded")}
-      ${statBox("ROI", pct(s.roi, true), "profit ÷ staked", cls(s.roi))}
-      ${statBox("Total staked", money(s.staked), "settled bets")}
-      ${statBox("Pending", money(s.exposure), `${s.pending} open · to win ${money(s.toWinPending)}`)}
-      ${statBox("Avg odds", s.avgOdds === null ? "—" : am(s.avgOdds), "average price")}
-      ${statBox("Bets", String(s.n), FILT.range === "all" ? "all time" : esc({ "7d": "last 7 days", "30d": "last 30 days", season: "since Aug 1" }[FILT.range]))}</div>`;
-    html += `<div class="section-title">Cumulative profit / loss</div><div class="card bt-chart"><div class="bt-plot"></div></div>`;
-    const tbl = (title, rows, label) => `<div class="card"><h3>${esc(title)}</h3>${rows.length ? `<div class="tbl-wrap"><table class="bt-tbl"><thead><tr><th>${esc(label)}</th><th>Bets</th><th>W-L-P</th><th>Staked</th><th>P/L</th><th>ROI</th></tr></thead><tbody>${rows.map(r =>
-      `<tr><td>${esc(r.name)}</td><td class="num">${r.n}</td><td class="num">${r.won}-${r.lost}-${r.push}</td><td class="num">${money(r.staked)}</td><td class="num ${cls(r.net)}">${money(r.net, true)}</td><td class="num ${cls(r.roi)}">${pct(r.roi, true)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="na">No bets in this filter.</div>`}</div>`;
-    const byBook = C.groupBy(list, b => b.book).map(r => ({ ...r, name: r.key === "other" ? "Other" : C.BOOKS[r.key] || r.key }));
-    const byLg = C.groupBy(list, b => (b.type === "parlay" ? "parlay" : b.league || "other")).map(r => ({ ...r, name: r.key === "parlay" ? "Parlays (multi)" : r.key === "other" ? "Other / manual" : lgName(r.key) }));
-    const byType = C.groupBy(list, b => b.type).map(r => ({ ...r, name: C.TYPES[r.key] || r.key }));
-    html += `<div class="section-title">Breakdown</div><div class="cols bt-cols">${tbl("By sportsbook", byBook, "Book")}${tbl("By league", byLg, "League")}</div><div class="cols bt-cols" style="margin-top:16px">${tbl("By bet type", byType, "Type")}${recentCard(list)}</div>`;
+    const list = C.filterBets(BETS, FILT), s = C.stats(list);
+    OV = list;
+    const redraw = () => viewOverview(app);
+    let html = `<div class="bt-bar">${filterBar(BETS)}${unitBar()}</div>`;
+    if (!list.length) {
+      html += `<div class="empty"><h3>No bets match these filters</h3>Try a wider date range or clear the book, league or type filter.</div>`;
+    } else {
+      html += summaryGrid(s, list);
+      html += `<div class="section-title">Profit over time</div><div class="card bt-chart" data-chart></div>`;
+      html += `<div class="section-title">Breakdowns</div><div class="bt-bd-grid">${["sport", "type", "book", "prop"].map(k => `<div class="card bt-bd" data-bd="${k}"></div>`).join("")}</div>`;
+      html += `<div class="section-title">Activity</div><div class="cols bt-cols">${activityCard(list)}${recentCard(list)}</div>`;
+    }
     html += privacyNote() + dataCard() + rgNote;
     app.innerHTML = shell("ov", html);
-    wireFilters(app, () => viewOverview(app));
+    wireFilters(app, () => { CHART_RANGE = null; redraw(); });
+    wireUnits(app, redraw);
     wireData(app);
-    const plot = $(".bt-plot", app);
-    const draw = () => { if (plot.isConnected) plot.innerHTML = chart(C.cumulative(list), Math.max(280, Math.floor(plot.clientWidth))); };
-    draw();
-    let rt; window.onresize = () => { clearTimeout(rt); rt = setTimeout(draw, 150); };
+    if (!list.length) return;
+    for (const k of ["sport", "type", "book", "prop"]) renderBD(app, k);
+    renderChart(app);
+    let rt; window.onresize = () => { clearTimeout(rt); rt = setTimeout(() => renderChart(app), 150); };
   }
+
+  // ----- profit over time
+  function renderChart(app) {
+    const el = $("[data-chart]", app); if (!el || !el.isConnected) return;
+    const range = CHART_RANGE || FILT.range;
+    // the chart keeps the book / league / type filters but uses its own date range, by the day each bet SETTLED
+    const base = C.filterBets(BETS, { ...FILT, range: "all" });
+    const series = C.dailySeries(base, range), dd = C.drawdown(series);
+    const last = series.length ? series[series.length - 1].v : 0, n = series.reduce((a, p) => a + p.n, 0);
+    el.innerHTML = `<div class="bt-ch-head"><div class="bt-ch-kpi"><span class="sl">Profit · ${esc(RANGE_LBL[range])}</span><b class="num ${cls(last)}">${mv(last, true)}</b></div>
+        <div class="bt-ch-mini"><span><i>Peak</i><b class="num">${mv(dd.peak, true)}</b></span><span><i>Max drawdown</i><b class="num ${dd.maxDrawdown ? "neg" : ""}">${dd.maxDrawdown ? mv(-dd.maxDrawdown, true) : mv(0)}</b></span><span><i>Settled</i><b class="num">${n}</b></span></div>
+        <div class="seg bt-ch-range" role="group" aria-label="Chart range">${[["7d", "7D"], ["30d", "30D"], ["season", "Season"], ["all", "All"]].map(([k, l]) => `<button type="button" data-crange="${k}" class="${range === k ? "on" : ""}"${k === "season" ? ' title="Since Aug 1"' : ""}>${l}</button>`).join("")}</div></div>
+      <div class="bt-plot"></div>`;
+    el.querySelectorAll("[data-crange]").forEach(b => (b.onclick = () => { CHART_RANGE = b.dataset.crange; renderChart(app); }));
+    const plot = $(".bt-plot", el);
+    plot.innerHTML = chart(series, Math.max(280, Math.floor(plot.clientWidth)), range);
+    wireTip(plot);
+  }
+  const dt = s => { const [y, m, d] = String(s).split("-").map(Number); return new Date(y, m - 1, d || 1); };
+  const fdate = (s, o = { month: "short", day: "numeric" }) => dt(s).toLocaleDateString("en-US", o);
+  function chart(series, w, range) {
+    if (!series.length) return `<div class="na bt-nochart">${BETS.some(b => b.status !== "pending" && b.status !== "void") ? `No bets settled in the ${esc(RANGE_LBL[range])}.` : "Settle a bet to start the chart."}</div>`;
+    const sm = w < 500, h = sm ? 210 : 280, L = sm ? 50 : 62, R = 16, T = 18, B = 30;
+    // start the line at $0 the day before the first settled day (or at the start of a 7D / 30D window)
+    const first = dt(series[0].d), start = new Date(first); start.setDate(start.getDate() - 1);
+    if (range === "7d" || range === "30d") { const s0 = new Date(); s0.setHours(12, 0, 0, 0); s0.setDate(s0.getDate() - (range === "7d" ? 7 : 30)); if (s0 < start) start.setTime(s0.getTime()); }
+    const pts = [{ d: null, t: start.getTime(), v: 0, net: 0, n: 0 }, ...series.map(p => ({ ...p, t: dt(p.d).getTime() }))];
+    const t0 = pts[0].t, t1 = Math.max(pts[pts.length - 1].t, t0 + 864e5);
+    const vals = pts.map(p => p.v), lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+    const raw = Math.max((hi - lo) / 4, unitsOn() ? unitSize() / 2 : 5), mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    const stepV = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * mag;
+    let y0 = Math.floor(lo / stepV) * stepV, y1 = Math.ceil(hi / stepV) * stepV;
+    if (y0 === lo && lo < 0) y0 -= stepV; if (y1 === hi && hi > 0) y1 += stepV; if (y1 === y0) y1 = y0 + stepV;
+    const X = t => L + ((t - t0) / (t1 - t0)) * (w - L - R), Y = v => T + (1 - (v - y0) / (y1 - y0)) * (h - T - B);
+    const id = "g" + Math.random().toString(36).slice(2, 7);
+    let svg = `<svg class="bt-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Cumulative profit: ${esc(mv(pts[pts.length - 1].v, true))} over ${series.length} days with settled bets">
+      <defs><linearGradient id="${id}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="ga0"/><stop offset="1" class="ga1"/></linearGradient>
+      <linearGradient id="${id}l" x1="0" y1="0" x2="1" y2="0"><stop offset="0" class="gl0"/><stop offset="1" class="gl1"/></linearGradient></defs>`;
+    const tick = v => mv(Math.round(v * 100) / 100, true).replace(/\.00(?=u?$)/, "");
+    for (let v = y0; v <= y1 + 1e-9; v += stepV) { const y = Y(v); svg += `<line x1="${L}" x2="${w - R}" y1="${y}" y2="${y}" class="gl"/><text x="${L - 8}" y="${y + 4}" class="ax" text-anchor="end">${esc(tick(v))}</text>`; }
+    svg += `<line x1="${L}" x2="${w - R}" y1="${Y(0)}" y2="${Y(0)}" class="zero"/>`;
+    // x ticks: evenly spaced dates
+    const nt = sm ? 3 : 6;
+    for (let i = 0; i <= nt; i++) { const t = t0 + (i / nt) * (t1 - t0), x = X(t); svg += `<text x="${x}" y="${h - 9}" class="ax" text-anchor="${i === 0 ? "start" : i === nt ? "end" : "middle"}">${esc(new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" }))}</text>`; }
+    // step-free line through each day's running total
+    const d = pts.map((p, i) => `${i ? "L" : "M"}${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join("");
+    svg += `<path d="${d}L${X(pts[pts.length - 1].t).toFixed(1)},${Y(y0).toFixed(1)}L${X(t0).toFixed(1)},${Y(y0).toFixed(1)}Z" fill="url(#${id}a)" class="area"/><path d="${d}" class="ln" stroke="url(#${id}l)"/>`;
+    if (pts.length <= 90) pts.slice(1).forEach(p => { svg += `<circle cx="${X(p.t).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="${sm ? 2.5 : 3}" class="pt ${p.net > 0 ? "w" : p.net < 0 ? "l" : ""}"/>`; });
+    const lp = pts[pts.length - 1];
+    svg += `<circle cx="${X(lp.t)}" cy="${Y(lp.v)}" r="9" class="halo ${cls(lp.v)}"/><circle cx="${X(lp.t)}" cy="${Y(lp.v)}" r="5" class="end ${cls(lp.v)}"/>`;
+    svg += `<line class="guide" x1="0" x2="0" y1="${T}" y2="${h - B}" visibility="hidden"/><circle class="hov" r="5" visibility="hidden"/>`;
+    // hover / tap targets, read by wireTip
+    const tip = pts.slice(1).map(p => ({ x: +X(p.t).toFixed(1), y: +Y(p.v).toFixed(1), d: p.d, net: p.net, v: p.v, n: p.n, w: p.won, l: p.lost }));
+    return svg + `</svg><div class="bt-tip" hidden></div><script type="application/json" class="bt-tipdata">${JSON.stringify(tip).replace(/</g, "\\u003c")}</script>`;
+  }
+  function wireTip(plot) {
+    const svg = $(".bt-svg", plot), box = $(".bt-tip", plot), data = $(".bt-tipdata", plot); if (!svg || !box || !data) return;
+    const pts = JSON.parse(data.textContent), g = $(".guide", svg), hv = $(".hov", svg);
+    const hide = () => { box.hidden = true; g.setAttribute("visibility", "hidden"); hv.setAttribute("visibility", "hidden"); };
+    const show = e => {
+      const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) * (svg.viewBox.baseVal.width / r.width);
+      let best = pts[0]; for (const p of pts) if (Math.abs(p.x - x) < Math.abs(best.x - x)) best = p;
+      g.setAttribute("x1", best.x); g.setAttribute("x2", best.x); g.setAttribute("visibility", "visible");
+      hv.setAttribute("cx", best.x); hv.setAttribute("cy", best.y); hv.setAttribute("class", "hov " + cls(best.net)); hv.setAttribute("visibility", "visible");
+      box.innerHTML = `<b>${esc(fdate(best.d, { weekday: "short", month: "short", day: "numeric" }))}</b><span>Day <em class="${cls(best.net)}">${esc(mv(best.net, true))}</em> · ${best.n} bet${best.n === 1 ? "" : "s"}${best.w || best.l ? ` (${best.w}-${best.l})` : ""}</span><span>Total <em class="${cls(best.v)}">${esc(mv(best.v, true))}</em></span>`;
+      box.hidden = false;
+      const px = best.x * (r.width / svg.viewBox.baseVal.width), bw = box.offsetWidth;
+      box.style.left = Math.max(4, Math.min(r.width - bw - 4, px - bw / 2)) + "px";
+      box.style.top = Math.max(0, best.y * (r.height / svg.viewBox.baseVal.height) - box.offsetHeight - 14) + "px";
+    };
+    svg.addEventListener("pointermove", show); svg.addEventListener("pointerdown", show); svg.addEventListener("pointerleave", hide);
+  }
+
+  // ----- breakdowns (sortable tables with a diverging P/L bar)
+  const BD = {
+    sport: { title: "By sport", label: "Sport" },
+    type: { title: "By bet type", label: "Type", note: "Each parlay counts once, settled from its legs." },
+    book: { title: "By sportsbook", label: "Book" },
+    prop: { title: "By prop market", label: "Prop", note: "Single player props only; props inside parlays count under Parlay." },
+  };
+  function bdRows(list, k) {
+    if (k === "sport" && BD_DIM.sport === "league")
+      return C.groupBy(list, b => (b.type === "parlay" ? (C.sportOf(b) === "multi" || C.betLeagues(b).filter((x, i, a) => a.indexOf(x) === i).length > 1 ? "parlay" : C.betLeagues(b)[0] || "parlay") : b.league || "other"))
+        .map(r => ({ ...r, name: r.key === "parlay" ? "Multi-league parlay" : r.key === "other" ? "Other / manual" : lgName(r.key) }));
+    if (k === "sport") return C.groupBy(list, C.sportOf).map(r => ({ ...r, name: C.SPORTS[r.key] || r.key }));
+    if (k === "type") return C.groupBy(list, b => b.type).map(r => ({ ...r, name: { ml: "Moneyline", spread: "Spread", total: "Total", prop: "Prop", parlay: "Parlay" }[r.key] || r.key }));
+    if (k === "book") return C.groupBy(list, b => (b.book === "other" ? "other:" + (b.bookOther || "Other") : b.book)).map(r => ({ ...r, name: r.key.startsWith("other:") ? r.key.slice(6) : C.BOOKS[r.key] || r.key }));
+    return C.groupBy(list.filter(b => C.propMarket(b)), C.propMarket).map(r => {
+      const lg = r.key.split(":")[0];
+      return { ...r, name: C.propMarketLabel(r.key), tag: r.key === "other" ? "" : lgName(lg) };
+    });
+  }
+  function renderBD(app, k) {
+    const el = $(`[data-bd="${k}"]`, app); if (!el) return;
+    const cfg = BD[k], so = SORT[k] || { col: "net", dir: "desc" };
+    const rows = C.sortRows(bdRows(OV, k), so.col, so.dir);
+    const max = Math.max(1e-9, ...rows.map(r => Math.abs(r.net)));
+    const th = (col, label, c = "") => `<th class="${c}" aria-sort="${so.col === col ? (so.dir === "asc" ? "ascending" : "descending") : "none"}"><button type="button" data-sort="${col}" class="${so.col === col ? "on" : ""}">${esc(label)}<i aria-hidden="true">${so.col === col ? (so.dir === "asc" ? "▲" : "▼") : "↕"}</i></button></th>`;
+    const dim = k === "sport" ? `<div class="seg bt-dim" role="group" aria-label="Group by">${[["sport", "Sport"], ["league", "League"]].map(([d, l]) => `<button type="button" data-dim="${d}" class="${BD_DIM.sport === d ? "on" : ""}">${l}</button>`).join("")}</div>` : "";
+    const body = rows.length ? `<div class="tbl-wrap"><table class="bt-tbl bt-bdt"><thead><tr>${th("name", cfg.label)}${th("n", "Bets", "c-n")}${th("rec", "W-L-P")}${th("winRate", "Win %", "c-w")}${th("staked", "Staked", "c-s")}${th("net", "Profit")}${th("roi", "ROI")}</tr></thead><tbody>${rows.map(r =>
+      `<tr><td><span class="bt-nm">${esc(r.name)}${r.tag ? ` <small>${esc(r.tag)}</small>` : ""}</span></td><td class="num c-n">${r.n}</td><td class="num">${r.won}-${r.lost}-${r.push}</td><td class="num c-w">${pct(r.winRate)}</td><td class="num c-s">${mv(r.staked)}</td>
+        <td class="num bt-plc ${cls(r.net)}"><span class="bt-pl-bar" aria-hidden="true"><i class="${r.net < 0 ? "neg" : "pos"}" style="width:${(Math.abs(r.net) / max * 50).toFixed(1)}%"></i></span><span class="bt-plv">${mv(r.net, true)}</span></td><td class="num ${cls(r.roi)}">${pct(r.roi, true)}</td></tr>`).join("")}</tbody></table></div>`
+      : `<div class="na bt-bd-empty">${k === "prop" ? "No single player props in this filter." : "No bets in this filter."}</div>`;
+    const pend = rows.reduce((a, r) => a + r.pending, 0);
+    el.innerHTML = `<h3><span>${esc(cfg.title)}</span>${dim}</h3>${body}${cfg.note || pend ? `<div class="bt-bd-note">${[cfg.note, pend ? `${pend} open bet${pend > 1 ? "s" : ""} not counted yet.` : ""].filter(Boolean).map(esc).join(" ")}</div>` : ""}`;
+    el.querySelectorAll("[data-sort]").forEach(b => (b.onclick = () => {
+      const col = b.dataset.sort, cur = SORT[k] || { col: "net", dir: "desc" };
+      SORT[k] = { col, dir: cur.col === col ? (cur.dir === "desc" ? "asc" : "desc") : col === "name" ? "asc" : "desc" };
+      renderBD(app, k);
+    }));
+    el.querySelectorAll("[data-dim]").forEach(b => (b.onclick = () => { BD_DIM.sport = b.dataset.dim; renderBD(app, k); }));
+  }
+
+  // ----- activity: calendar heatmap (by settle day) + weekday bars
+  function activityCard(list) {
+    const days = C.byDay(list), keys = Object.keys(days).sort();
+    // 8–18 week window: enough to show the history without a wall of empty weeks
+    const WEEKS = Math.max(8, Math.min(18, keys.length ? Math.ceil((Date.now() - dt(keys[0]).getTime()) / 6048e5) + 1 : 8));
+    const now = new Date(); now.setHours(12, 0, 0, 0);
+    const end = new Date(now); end.setDate(end.getDate() + (7 - ((end.getDay() + 6) % 7)) - 1);   // Sunday of this week (Mon-start weeks)
+    const start = new Date(end); start.setDate(start.getDate() - WEEKS * 7 + 1);
+    const vals = Object.values(days).map(x => Math.abs(x.net)), max = Math.max(1e-9, ...vals);
+    let cells = "", months = "", lastM = -1;
+    for (let w = 0; w < WEEKS; w++) {
+      const wk = new Date(start); wk.setDate(wk.getDate() + w * 7);
+      const m = wk.getMonth(); months += `<span>${m !== lastM ? esc(wk.toLocaleDateString("en-US", { month: "short" })) : ""}</span>`; lastM = m;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(wk); d.setDate(d.getDate() + i);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`, x = days[key];
+        const future = d > now, lvl = x ? Math.max(1, Math.ceil((Math.abs(x.net) / max) * 4)) : 0;
+        const c = !x ? (future ? "fut" : "") : x.net > 0 ? `p${lvl}` : x.net < 0 ? `n${lvl}` : "z";
+        const tip = x ? `${fdate(key, { weekday: "short", month: "short", day: "numeric" })}: ${mv(x.net, true)} (${x.n} bet${x.n > 1 ? "s" : ""})` : fdate(key, { weekday: "short", month: "short", day: "numeric" });
+        cells += `<i class="${c}" style="grid-column:${w + 2};grid-row:${i + 1}" title="${esc(tip)}"></i>`;
+      }
+    }
+    const wd = C.byWeekday(list), order = [1, 2, 3, 4, 5, 6, 0], wmax = Math.max(1e-9, ...wd.map(r => Math.abs(r.net)));
+    const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const best = wd.filter(r => r.settled).sort((a, b) => b.net - a.net)[0];
+    const bars = order.map(i => { const r = wd[i];
+      return `<div class="bt-wd-row"><span class="bt-wd-d">${names[i]}</span><span class="bt-pl-bar" aria-hidden="true"><i class="${r.net < 0 ? "neg" : "pos"}" style="width:${(Math.abs(r.net) / wmax * 50).toFixed(1)}%"></i></span><b class="num ${cls(r.net)}">${r.settled ? mv(r.net, true) : "—"}</b><span class="na num">${r.settled ? `${r.won}-${r.lost}-${r.push}` : ""}</span></div>`; }).join("");
+    return `<div class="card bt-act-card"><h3><span>Calendar</span><span class="bt-legend" aria-hidden="true"><span>Loss</span><i class="n4"></i><i class="n2"></i><i></i><i class="p2"></i><i class="p4"></i><span>Win</span></span></h3>
+      <div class="bt-cal-wrap"><div class="bt-cal-m" style="grid-template-columns:28px repeat(${WEEKS},minmax(0,30px))" aria-hidden="true"><span></span>${months}</div>
+        <div class="bt-cal" style="grid-template-columns:28px repeat(${WEEKS},minmax(0,30px))" role="img" aria-label="Daily profit over the last ${WEEKS} weeks">${["Mon", "", "Wed", "", "Fri", "", "Sun"].map((l, i) => `<span class="bt-cal-d" style="grid-row:${i + 1}" aria-hidden="true">${l}</span>`).join("")}${cells}</div></div>
+      <div class="bt-wd"><div class="bt-wd-h"><span>By weekday settled</span>${best && best.net > 0 ? `<span class="na">Best: <b class="pos">${names[best.key]}</b></span>` : ""}</div>${bars}</div></div>`;
+  }
+  const emptyArt = () => `<svg viewBox="0 0 160 70" width="160" height="70"><defs><linearGradient id="bteg" x1="0" x2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--accent2)"/></linearGradient></defs><path d="M4 58 L34 46 L58 52 L86 30 L110 36 L140 12 L156 16" fill="none" stroke="url(#bteg)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 6" opacity=".8"/><circle cx="140" cy="12" r="5" fill="var(--accent2)"/></svg>`;
+
   function recentCard(list) {
     const pend = list.filter(b => b.status === "pending").sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(0, 5);
     return `<div class="card"><h3>Open bets <a class="lnk bt-more" href="#/bets/list">See all ›</a></h3>${pend.length ? `<div class="bt-mini">${pend.map(b => `<a class="bt-mrow" href="#/bets/list" data-focus="${esc(b.id)}"><span><b>${esc(describe(b))}</b><span class="na">${esc(eventLabel(b) || bookName(b))}</span></span><span class="num">${money(b.stake)} <span class="na">@ ${esc(am(b.odds) || am(C.parlayAmerican(b.legs)))}</span></span></a>`).join("")}</div>` : `<div class="na">No open bets.</div>`}</div>`;
   }
 
-  // lightweight SVG line chart (no library) — colours come from CSS custom properties via classes
-  function chart(pts, w) {
-    if (!pts.length) return `<div class="na bt-nochart">Settle a bet to start the chart.</div>`;
-    const h = w < 500 ? 200 : 240, L = w < 500 ? 52 : 64, R = 14, T = 16, B = 28;
-    const series = [{ t: pts[0].t, v: 0 }, ...pts];
-    const vals = series.map(p => p.v);
-    const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
-    const raw = Math.max((hi - lo) / 4, 5), mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
-    const stepV = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * mag;   // "nice" gridline spacing
-    let y0 = Math.floor(lo / stepV) * stepV, y1 = Math.ceil(hi / stepV) * stepV;
-    if (y0 === lo && lo < 0) y0 -= stepV; if (y1 === hi && hi > 0) y1 += stepV; if (y1 === y0) y1 = y0 + stepV;
-    const X = i => L + (i / Math.max(1, series.length - 1)) * (w - L - R), Y = v => T + (1 - (v - y0) / (y1 - y0)) * (h - T - B);
-    let svg = `<svg class="bt-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Cumulative profit and loss over ${pts.length} settled bets">`;
-    const tick = v => (v > 0 ? "+" : v < 0 ? "−" : "") + "$" + Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
-    for (let v = y0; v <= y1 + 1e-9; v += stepV) { const y = Y(v); svg += `<line x1="${L}" x2="${w - R}" y1="${y}" y2="${y}" class="gl"/><text x="${L - 6}" y="${y + 4}" class="ax" text-anchor="end">${esc(tick(Math.round(v * 100) / 100))}</text>`; }
-    svg += `<line x1="${L}" x2="${w - R}" y1="${Y(0)}" y2="${Y(0)}" class="zero"/>`;
-    const d = series.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(p.v).toFixed(1)}`).join("");
-    svg += `<path d="${d}L${X(series.length - 1).toFixed(1)},${Y(0).toFixed(1)}L${X(0).toFixed(1)},${Y(0).toFixed(1)}Z" class="area"/><path d="${d}" class="ln"/>`;
-    const step = Math.max(1, Math.ceil(series.length / 40));
-    series.forEach((p, i) => { if (i && (i % step === 0 || i === series.length - 1)) svg += `<circle cx="${X(i)}" cy="${Y(p.v)}" r="3" class="pt ${p.net > 0 ? "w" : p.net < 0 ? "l" : ""}"><title>${esc(p.t)}: ${esc(money(p.net, true))} → ${esc(money(p.v, true))}</title></circle>`; });
-    const fd = s => { const [y, m, dd] = String(s).split("-"); return y && m ? new Date(+y, m - 1, +dd || 1).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : s; };
-    svg += `<text x="${L}" y="${h - 8}" class="ax">${esc(fd(series[0].t))}</text><text x="${w - R}" y="${h - 8}" class="ax" text-anchor="end">${esc(fd(series[series.length - 1].t))} · ${pts.length} settled</text>`;
-    const last = series[series.length - 1];
-    svg += `<circle cx="${X(series.length - 1)}" cy="${Y(last.v)}" r="5" class="end ${cls(last.v)}"/>`;
-    return svg + "</svg>";
-  }
 
   // ---------- bet list
   function betCard(b) {

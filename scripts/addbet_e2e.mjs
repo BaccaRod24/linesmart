@@ -216,8 +216,39 @@ async function mobile(browser) {
   await ctx.close();
 }
 
+// "Find it" lookup that fails, then finds nothing: "Try again" reruns the same day's scoreboard read
+async function retry(browser, viewport, tag) {
+  const { ctx, page, errors, net } = await setup(browser, viewport);
+  const answers = ["fail", "empty", "ok"];
+  await page.unroute(/espn\.com\/.*\/scoreboard/);
+  await page.route(/espn\.com\/.*\/scoreboard/, r => {
+    net.sb.push(r.request().url()); const a = answers.shift() || "ok";
+    if (a === "fail") return r.fulfill({ status: 503, body: "", headers: { "access-control-allow-origin": "*" } });
+    return r.fulfill({ body: a === "empty" ? JSON.stringify({ events: [] }) : finals(), contentType: "application/json", headers: { "access-control-allow-origin": "*" } });
+  });
+  await openForm(page);
+  await notListed(page, 0);
+  const btn = page.locator(".bt-past-msg .bt-retry");
+  await btn.waitFor();
+  check(/Couldn't load games for that day/.test(await page.locator(".bt-past-msg").textContent()) && await btn.count() === 1, `${tag}: failed lookup shows "Try again"`);
+  const bb = await btn.boundingBox();
+  check(bb && bb.height >= 30, `${tag}: Try again is tappable (${bb && Math.round(bb.height)}px)`);
+  await page.locator(".bt-past").scrollIntoViewIfNeeded(); await page.evaluate(() => scrollBy(0, -160));
+  await shot(page, `findit-failed-${tag}`);
+  await btn.click();
+  await page.waitForFunction(() => /No NBA games that day/.test(document.querySelector(".bt-past-msg")?.textContent || ""));
+  check(net.sb.length === 2 && net.sb[1] === net.sb[0], `${tag}: Try again reruns the same lookup (${net.sb.length} reads)`);
+  check(await page.locator(".bt-past-msg .bt-retry").count() === 1, `${tag}: empty result also offers "Try again"`);
+  await shot(page, `findit-empty-${tag}`);
+  await page.locator(".bt-past-msg .bt-retry").click();
+  await page.waitForSelector(".bt-pg");
+  check(await page.locator(".bt-pg").count() === 9 && net.sb.length === 3 && !await page.locator(".bt-retry").count(), `${tag}: second retry lists the games, button gone`);
+  check(net.odds === 0 && !errors.length, `${tag}: no Odds API requests or page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
+  await ctx.close();
+}
+
 const browser = await chromium.launch();
-try { await desktop(browser); await mobile(browser); }
+try { await desktop(browser); await mobile(browser); await retry(browser, { width: 1366, height: 900 }, "desktop"); await retry(browser, { width: 390, height: 844 }, "mobile"); }
 catch (e) { check(false, "crashed: " + e.message.split("\n")[0]); }
 finally { await browser.close(); }
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall add-bet result e2e checks passed");

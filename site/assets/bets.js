@@ -161,7 +161,7 @@
     : `<div class="note bt-priv">Your bets are saved only in this browser on this device. They aren't linked to any sportsbook account (sportsbooks don't offer a public way to connect). Clearing browser data deletes them, so export a backup, or <a href="#/account">sign in</a> (optional) to keep the same bets on your phone and computer.</div>`;
   const signedIn = () => { try { return !!localStorage.getItem(AC ? AC.AUTH_KEY : "ls-sb-auth"); } catch (e) { return false; } };
   const newsBox = `<div class="news-bets" data-news-signup="bets"></div>`;   // weekly email signup (assets/news.js)
-  const rgNote = `<div class="note bt-rg">Tracking shows what betting really costs you over time. Set a budget you're comfortable losing, and take a break if it stops being fun. Gambling problem? Call <a href="tel:18004262537">1-800-GAMBLER</a>.</div>`;
+  const rgNote = () => `<div class="note bt-rg">Tracking shows what betting really costs you over time. Set a budget you're comfortable losing, and take a break if it stops being fun. Gambling problem? ${window.LSGeo ? window.LSGeo.rgSpan() : ""}</div>`;
 
   function filterBar(all) {
     const opt = (v, cur, label) => `<option value="${esc(v)}"${v === cur ? " selected" : ""}>${esc(label)}</option>`;
@@ -242,7 +242,7 @@
   function viewOverview(app) {
     if (!BETS.length) {
       app.innerHTML = shell("ov", `<div class="empty bt-empty"><div class="bt-empty-art" aria-hidden="true">${emptyArt()}</div><h3>No bets tracked yet</h3>Log a bet you've placed at any sportsbook to see your profit, ROI, record, streaks and breakdowns by sport, bet type, book and prop.
-        <div style="margin-top:16px"><a class="bt-add" href="#/bets/add">+ Add your first bet</a></div></div>${privacyNote()}${dataCard()}${newsBox}${rgNote}`);
+        <div style="margin-top:16px"><a class="bt-add" href="#/bets/add">+ Add your first bet</a></div></div>${privacyNote()}${dataCard()}${newsBox}${rgNote()}`);
       wireData(app); return;
     }
     const list = C.filterBets(BETS, FILT), s = C.stats(list);
@@ -258,7 +258,7 @@
       html += `<div class="section-title">Activity</div><div class="cols bt-cols">${activityCard(list)}${recentCard(list)}</div>`;
       if (window.LSPro) html += window.LSPro.teaser("bets");
     }
-    html += privacyNote() + dataCard() + newsBox + rgNote;
+    html += privacyNote() + dataCard() + newsBox + rgNote();
     app.innerHTML = shell("ov", html);
     wireFilters(app, () => { CHART_RANGE = null; redraw(); });
     wireUnits(app, redraw);
@@ -740,10 +740,12 @@
     if (!PAST[key]) loadPast(l.league, l.pastDay).then(() => {
       const app = document.getElementById("app"); if (F && F.legs.includes(l) && app && app.querySelector(".bt-form")) drawForm(app); });
     const P = PAST[`${l.league}|${l.pastDay}`] || { loading: true };
+    // failed or empty lookup: "Try again" reruns the same league + day (drops the cached result, then redraws)
+    const retry = ` <button type="button" class="chip bt-retry" data-a="pastretry">Try again</button>`;
     const fin = g => g.state === "post" ? `${g.away.abbr} ${g.away.score ?? ""} @ ${g.home.abbr} ${g.home.score ?? ""}` : `${g.away.abbr} @ ${g.home.abbr}`;
     const list = P.loading ? `<div class="na bt-past-msg">Loading ${esc(lgName(l.league))} games…</div>`
-      : P.error ? `<div class="na bt-past-msg">Couldn't load games for that day. Type the game below instead.</div>`
-      : !P.games.length ? `<div class="na bt-past-msg">No ${esc(lgName(l.league))} games that day.</div>`
+      : P.error ? `<div class="na bt-past-msg" role="status">Couldn't load games for that day. Type the game below instead.${retry}</div>`
+      : !P.games.length ? `<div class="na bt-past-msg" role="status">No ${esc(lgName(l.league))} games that day.${retry}</div>`
       : `<div class="bt-past-list">${P.games.map(g => `<button type="button" class="bt-pg" data-a="past" data-v="${esc(g.id)}"><b>${esc(fin(g))}</b><small>${esc(g.state === "post" ? g.detail || "Final" : g.state === "in" ? "Live" : A().timeET(g.date))}</small></button>`).join("")}</div>`;
     return `<div class="bt-past"><div class="bt-past-h"><span class="bt-lbl">Game already played? Find it</span><input data-f="pastday" type="date" aria-label="Game date" min="${addDays(t, -30)}" max="${t}" value="${esc(l.pastDay)}"></div>${list}
       <div class="bt-hint">Pick it to link the game (it then settles from the final score if you leave the Result Open), or type it below.</div></div>`;
@@ -801,6 +803,7 @@
       else if (a === "addleg") { F.legs.push(newLeg(F.legs[F.legs.length - 1].league)); }
       else if (a === "rmleg") { F.legs.splice(+legEl.dataset.leg, 1); legsToStatus(); }
       else if (a === "lres") { l.result = v === "pending" ? undefined : v; delete l.review; legsToStatus(); }
+      else if (a === "pastretry") delete PAST[`${l.league}|${l.pastDay}`];
       else if (a === "past") { const g = (PAST[`${l.league}|${l.pastDay}`] || {}).games?.find(x => String(x.id) === v); if (g) { Object.assign(l, { manual: false, eventId: String(g.id), event: evOf(g, l.league), eventText: "" }); clearProp(l); } }
       drawForm(app);
     });

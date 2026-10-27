@@ -519,7 +519,7 @@ def stub_page(lg, g, path):
 <script>location.replace({json.dumps(target)});</script>
 </head><body class="legal-page preview-page"><main class="wrap" id="app"><article class="legal">
 <h1>{esc(t)}</h1><p>This game {st}. <a href="{esc(target)}">Go to the live game page</a> for scores and closing lines.</p>
-<p class="rg"><span class="age-pill">21+</span> 21+ only. Gambling problem? Call or text <a href="tel:18004262537">1-800-GAMBLER</a>.</p>
+<p class="rg"><span class="age-pill">21+</span> 21+ only. Gambling problem? {build_pages.RG_CALL_STATIC}</p>
 </article></main></body></html>
 """
 

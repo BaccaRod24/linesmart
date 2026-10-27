@@ -73,6 +73,15 @@ def day_et(dt):
     return et(dt).strftime("%Y-%m-%d")
 
 
+# "·" separators in wrapping text: a no-break space before the dot keeps it on the line it follows, so a wrapped
+# line never starts with "·" (prop-card headers use .sx-gl, whose dot is clipped by CSS when it wraps)
+NB = "\u00a0"
+
+
+def nb_sep(s):
+    return (s or "").replace(" · ", NB + "· ")
+
+
 def short_day(dt, year=True):
     d = et(dt)
     return f"{d.strftime('%b')} {d.day}" + (f", {d.year}" if year else "")
@@ -809,9 +818,9 @@ def player_page(L: League, sh: Shell, pid):
         g = L.games.get(gid)
         gl = f'<a href="{esc(L.paths[gid])}">{esc(L.matchup(g, short=True))}</a>' if g and gid in L.paths else ""
         cards.append(f"""<div class="pp-row sx-prop{' hot' if hot else ''}">
-  <div class="pp-h"><b>{esc((L.markets.get(mk) or [mk])[0])}</b> <span class="sx-line">{esc(line_text(mk, ln))}</span>{mv}{' <span class="sx-hot">Hot</span>' if hot else ''}{(' <span class="na">· ' + gl + '</span>') if gl else ''}</div>
+  <div class="pp-h"><b>{esc((L.markets.get(mk) or [mk])[0])}</b> <span class="sx-line">{esc(line_text(mk, ln))}</span>{mv}{' <span class="sx-hot">Hot</span>' if hot else ''}{(' <span class="na sx-gl">' + gl + '</span>') if gl else ''}</div>
   {strip_html(pl.get("log"), mk, ln)}
-  <div class="pp-sum na">Last 5: {rt["o"]}/{rt["n"]} over · last 10: {r10["o"]}/{r10["n"]}{(f' · this season: {tally[0]}/{tally[3]}') if tally and tally[3] else ''}</div>
+  <div class="pp-sum na">Last 5: {rt["o"]}/{rt["n"]} over{NB}· last 10: {r10["o"]}/{r10["n"]}{(f'{NB}· this season: {tally[0]}/{tally[3]}') if tally and tally[3] else ''}</div>
   {px}
 </div>""")
     mks = []
@@ -834,7 +843,7 @@ def player_page(L: League, sh: Shell, pid):
     main = f"""<article class="pv sx-player">
 {crumbs((L.hub, NAMES[L.lg]), (f"{L.hub}#players-s", "Player props"), (None, name))}
 <h1 class="pv-h1">{esc(name)} props: lines &amp; last-5 results</h1>
-<p class="pv-lead">{esc(pl.get("pos") or "")} · {L.team_link(team)}{(' · ' + (f'<a href="{esc(L.paths[nxt["id"]])}">' if nxt and str(nxt["id"]) in L.paths else '') + esc(when) + ('</a>' if nxt and str(nxt["id"]) in L.paths else '')) if when else ''}</p>
+<p class="pv-lead">{esc(pl.get("pos") or "")}{NB}· {L.team_link(team)}{(NB + '· ' + (f'<a href="{esc(L.paths[nxt["id"]])}">' if nxt and str(nxt["id"]) in L.paths else '') + esc(nb_sep(when)) + ('</a>' if nxt and str(nxt["id"]) in L.paths else '')) if when else ''}</p>
 {note}
 {section("lines", "Prop lines", '<div class="card pp-card sx-pcard">' + "".join(cards) + PP_LEGEND + '<p class="pp-note-l note">Every past game is graded against the current line. Past results only, not a prediction.</p></div>')}
 {section("log", "Recent game log", log_tbl)}
@@ -1140,7 +1149,7 @@ def redirect_stub(from_path, to_path, base_url, title):
 <script>location.replace({json.dumps(rel)} + location.hash);</script>
 <style>body{{background:#050b1c;color:#e6edf7;font:15px/1.5 system-ui,sans-serif;padding:40px 20px}}a{{color:#3d9bff}}</style>
 </head><body><p>This page moved to <a href="{esc(rel)}">{esc(title)}</a>.</p>
-<p><small>21+ only. Gambling problem? Call or text 1-800-GAMBLER.</small></p></body></html>
+<p><small>21+ only. Gambling problem? {build_pages.RG_CALL_STATIC}</small></p></body></html>
 """
 
 

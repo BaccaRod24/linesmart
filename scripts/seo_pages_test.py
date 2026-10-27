@@ -210,6 +210,9 @@ def main():
             if gl:
                 check(f'href="{pp}"' in html_of(gl[0]), f"game page {gl[0]} links back to the player")
             check(f'href="{man["l"][lgp]}"' in ph, "player page links the hub")
+            # "·" never starts a wrapped line: prop-header game label uses .sx-gl (CSS-clipped dot), text dots are glued with a no-break space
+            check('class="na sx-gl"' in ph and '<span class="na">· ' not in ph, "player page: prop header game label uses .sx-gl, no literal leading dot")
+            check(not re.search(r'class="(?:pv-lead|pp-sum na)">[^<]*[^\u00a0]· ', ph), "player page: lead / last-5 separators glued with a no-break space")
         some_g = next(iter(man["g"]["nfl"].values())) if man["g"].get("nfl") else None
         if some_g:
             gh = html_of(some_g)

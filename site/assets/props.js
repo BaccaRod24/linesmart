@@ -37,11 +37,13 @@
     return `<div class="pp-bks" aria-label="Lines by sportsbook">${ord.map(one).join("")}</div>`;
   }
 
-  function box(b, mk) {
+  /** One last-5 box. C.strip() is latest first (stats use it as-is); the row reverses it at render time so the newest game sits on the right, tagged "latest". */
+  function box(b, mk, last) {
     const date = b.d ? A().fmt(b.d + "T12:00:00Z", { month: "short", day: "numeric" }) : "";
     const tip = b.r === "x" ? `${date} ${b.ha} ${b.opp}: did not play / not in box score` : `${date} ${b.ha} ${b.opp}: ${C.fmtNum(b.v)} (${RW[b.r]})`;
     const val = b.r === "x" ? "DNP" : mk === "anytime_td" ? (b.v > 0 ? `${C.fmtNum(b.v)} TD` : "0") : C.fmtNum(b.v);
-    return `<span class="pp-b pp-${b.r}" title="${esc(tip)}" aria-label="${esc(tip)}"><b>${esc(val)}</b><i>${esc(b.opp || "")}</i></span>`;
+    const lab = last ? `${tip} (latest)` : tip;
+    return `<span class="pp-b pp-${b.r}" role="listitem" title="${esc(lab)}" aria-label="${esc(lab)}"><b>${esc(val)}</b><i>${esc(b.opp || "")}</i></span>`;
   }
 
   /** "+ Track" link: opens My Bets' add sheet with this player + prop picked (bets.js, window.LSBets). */
@@ -58,7 +60,7 @@
     const hot = C.isHot(log, p.mk, p.line);
     return `<div class="pp-row${hot ? " is-hot" : ""}" data-mk="${esc(p.mk)}" data-hot="${hot ? 1 : 0}">
       <div class="pp-mk"><span class="pp-lab">${esc(p.label)}${MULTI && p.book ? ` <span class="pp-src">${esc(BKS[p.book] || "")}</span>` : ""}</span><span class="pp-line">${esc(C.lineText(p.mk, p.line))}</span>${mv ? `<span class="pp-mv">${esc(mv)}</span>` : ""}</div>
-      <div class="pp-strip" role="list" aria-label="Last 5 games vs this line">${s.length ? s.map(b => box(b, p.mk)).join("") : `<span class="pp-none">No games yet this season</span>`}</div>
+      <div class="pp-strip pp-l5" role="list" aria-label="Last 5 games vs this line, oldest to newest">${s.length ? s.slice().reverse().map((b, i, a) => box(b, p.mk, i === a.length - 1)).join("") : `<span class="pp-none">No games yet this season</span>`}</div>
       <div class="pp-sum">${hot ? `<span class="pp-hot-tag">Hot</span>` : ""}<b class="pp-xs ${cls}">${esc(sm.text)}</b><span>L10 ${l10.n ? `${l10.o}/${l10.n}` : "—"}</span><span>Season ${esc(se.text)}</span>${trackLink(p, ctx, name)}${ctx && ctx.gid && window.LSAlerts && (p.books || []).some(b => avail(b.key) && C.isNum(b.line)) ? window.LSAlerts.propBell(ctx.lg, ctx.gid, ctx.pid, p.mk, name, p.label) : ""}</div>
       ${bookLine(p)}
     </div>`;

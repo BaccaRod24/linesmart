@@ -792,6 +792,10 @@ a[href^="tel:"]{white-space:nowrap}
 .pp-line{font-size:15px;font-weight:750;font-variant-numeric:tabular-nums;color:var(--txt)}
 .pp-mv{font-size:11px;color:var(--dim)}
 .pp-strip{display:flex;gap:4px}
+/* last-5 prop strip reads oldest -> newest; the right-most (newest) box gets a tiny "latest" tag underneath */
+.pp-l5{padding-bottom:11px}
+.pp-l5>.pp-b{position:relative}
+.pp-l5>.pp-b:last-child::after{content:"latest";position:absolute;left:0;right:0;top:100%;margin-top:1px;text-align:center;font-size:8.5px;line-height:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
 .pp-b{display:flex;flex-direction:column;align-items:center;justify-content:center;width:42px;height:40px;border-radius:var(--r-xs);border:1px solid transparent;line-height:1.05}
 .pp-b b{font-size:13.5px;font-weight:800;font-variant-numeric:tabular-nums}
 .pp-b i{font-style:normal;font-size:9.5px;font-weight:650;opacity:.8;letter-spacing:.02em}

@@ -246,12 +246,15 @@ def is_hot(log, mk, ln):
 
 
 def strip_html(log, mk, ln, n=5):
+    """Last-n boxes oldest -> newest, left to right (newest on the right, tagged "latest"). strip() stays latest first for the stats."""
     boxes = []
-    for b in strip(log, mk, ln, n):
+    s = strip(log, mk, ln, n)[::-1]
+    for i, b in enumerate(s):
         word = {"o": "over", "u": "under", "p": "push", "x": "no game"}[b["r"]]
         val = "—" if b["v"] is None else ("✓" if mk == "anytime_td" and b["v"] > 0 else "✗" if mk == "anytime_td" else num(b["v"]))
-        boxes.append(f'<span class="pp-b pp-{b["r"]}" title="{esc(b["d"])} {esc(b["ha"])} {esc(b["opp"])}: {esc(word)}"><b>{esc(val)}</b><i>{esc(b["opp"])}</i></span>')
-    return f'<div class="pp-strip" aria-label="Last {n} games against this line">{"".join(boxes)}</div>'
+        last = i == len(s) - 1
+        boxes.append(f'<span class="pp-b pp-{b["r"]}" role="listitem" title="{esc(b["d"])} {esc(b["ha"])} {esc(b["opp"])}: {esc(word)}{" (latest)" if last else ""}"><b>{esc(val)}</b><i>{esc(b["opp"])}</i></span>')
+    return f'<div class="pp-strip pp-l5" role="list" aria-label="Last {n} games against this line, oldest to newest">{"".join(boxes)}</div>'
 
 
 def line_text(mk, ln):

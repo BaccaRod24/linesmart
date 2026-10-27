@@ -9,6 +9,7 @@
   const G = window.GeoCore, CFG = window.SITE_CONFIG || {}, GC = CFG.geo || {}, OC = CFG.offers || {};
   const K_GEO = "ls-geo", K_STATE = "ls-state", K_FORCE = "ls-geo-force";
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const telA = h => `<a href="tel:${h.tel}">${esc(h.name)}</a>`;
   const ls = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
                set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} } };
   let DOC = null, EV = null;
@@ -44,6 +45,22 @@
     return prev !== JSON.stringify([EV.status, EV.state]);
   }
   const fire = () => window.dispatchEvent(new CustomEvent("ls-state-change", { detail: EV }));
+
+  // ---------- footer: state helpline line ([data-rg-local]). The static HTML is the Florida line; with a known state
+  // it shows that state's own helpline, or is hidden when the state just uses 1-800-GAMBLER (already in the line above).
+  let FL_HTML = null;
+  function updateFooterRG() {
+    document.querySelectorAll("[data-rg-local]").forEach(el => {
+      if (FL_HTML === null) FL_HTML = el.innerHTML;
+      const code = EV && EV.status !== "nonus" ? EV.state : null;
+      const h = G.helpline(code);
+      if (!code || code === "FL") { if (el.innerHTML !== FL_HTML) el.innerHTML = FL_HTML; el.hidden = false; return; }
+      if (!h.local) { el.hidden = true; return; }
+      el.innerHTML = `${esc(EV.stateName || code)}: call ${telA(h)} (<a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.label)}</a>).`;
+      el.hidden = false;
+    });
+  }
+  window.addEventListener("ls-state-change", updateFooterRG);
 
   DOC = window.BOOKS_BY_STATE || null;   // assets/books-by-state.js, loaded before this file
   if (!DOC) console.warn("books-by-state.js missing: no offers will be shown");
@@ -100,7 +117,14 @@
   const naLabel = key => G.naLabel(current(), key);
   const naTag = key => { const t = naLabel(key); return t ? ` <span class="na-st">${esc(t)}</span>` : ""; };
   const providerKey = name => (/draftkings/i.test(name || "") ? "draftkings" : /fanduel/i.test(name || "") ? "fanduel" : /hard ?rock/i.test(name || "") ? "hardrockbet" : /betmgm/i.test(name || "") ? "betmgm" : null);
-  const RG = st => `<p class="of-rg"><span class="of-21">21+</span> Must be 21 or older and physically in ${esc(st || "a state where it's legal")}. Gambling problem? Call <a href="tel:18004262537">1-800-GAMBLER</a>.${st === "Florida" ? ` Florida: <a href="tel:18337529947">1-833-PLAYWISE</a>.` : ""} <a href="responsible-gambling.html">Responsible gambling</a></p>`;
+  // 21+ and helpline line under offers: the visitor's state helpline first (e.g. Florida -> 1-833-PLAYWISE), then 1-800-GAMBLER
+  const RG = (st, code) => {
+    const h = G.helpline(code), gam = G.helpline(null);
+    const call = h.local ? `Call ${telA(h)} (${esc(st)}) or ${telA(gam)}.` : `Call or text ${telA(gam)}.`;
+    return `<p class="of-rg"><span class="of-21">21+</span> Must be 21 or older${st ? ` and physically in ${esc(st)}` : ""}. Gambling problem? ${call} <a href="responsible-gambling.html">Responsible gambling</a></p>`;
+  };
+  // short affiliate disclosure, always shown with sportsbook offers (the full "Ad" line replaces it once affiliate links are on)
+  const DISC = `<p class="of-disc" role="note">LineSmart may earn a commission from sportsbook links. It never changes the odds we show. Offers are state-specific. <a href="affiliate-disclosure.html">Affiliate disclosure</a></p>`;
   function offersHTML(ctx) {
     const ev = current();
     const change = `<button type="button" class="lnk of-change" data-state-pick>${ev.state ? `Your state: <b>${esc(ev.state)}</b> · Change` : "Pick your state"}</button>`;
@@ -110,18 +134,20 @@
         <div class="of-head"><h3>Sportsbooks in ${esc(ev.stateName)}</h3>${change}</div>
         <div class="of-list">${ev.offers.map(o => `<a class="of-book of-${esc(o.key)}" data-book="${esc(o.key)}" href="${esc(o.url)}" target="_blank" rel="${o.affiliate ? "sponsored nofollow noopener" : "nofollow noopener"}">
           <span class="of-txt"><span class="of-nm">Bet on ${esc(o.name)}</span><span class="of-sub">${o.affiliate ? "Partner link" : "Official site"} · legal online in ${esc(ev.state)}</span></span><span class="of-go" aria-hidden="true">↗</span></a>`).join("")}</div>
-        ${RG(ev.stateName)}${aff}</section>`;
+        ${RG(ev.stateName, ev.state)}${aff || DISC}</section>`;
     }
     const msg = ev.status === "notlegal" ? `Online sports betting isn't legal in ${esc(ev.stateName)}, so we don't show sportsbook offers there. Odds and stats are for reference only.`
       : ev.status === "nobooks" ? `We don't show sportsbook offers in ${esc(ev.stateName)}. Odds are for reference only.`
       : ev.status === "nonus" ? "You appear to be outside the US. We only show sportsbook offers in US states where they're legal."
       : "We only show sportsbooks where they're legal. Pick your state to see which ones run there.";
-    return `<section class="card offers of-none" data-offers="${esc(ctx)}" data-status="${esc(ev.status)}"><div class="of-head"><p class="of-msg">${msg}</p>${change}</div></section>`;
+    return `<section class="card offers of-none" data-offers="${esc(ctx)}" data-status="${esc(ev.status)}"><div class="of-head"><p class="of-msg">${msg}</p>${change}</div>${RG(ev.status === "nonus" ? "" : ev.stateName, ev.state)}</section>`;
   }
   // bets tracker uses "hardrock" for Hard Rock Bet
   const defaultBetBook = () => ({ hardrockbet: "hardrock", draftkings: "draftkings", fanduel: "fanduel" }[current().defaultBook] || null);
 
   window.LSGeo = { ready, current, setState, openPicker, offersHTML, naLabel, naTag, providerKey, defaultBetBook,
     isAvailable: key => G.isAvailable(current(), key), sortBooks: keys => G.sortBooks(current(), keys), lookupAllowed };
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", updateButton); else updateButton();
+  const onDom = () => { updateButton(); updateFooterRG(); };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", onDom); else onDom();
+  ready.then(updateFooterRG);
 })();

@@ -62,10 +62,28 @@
   const isAvailable = (ev, key) => !ev || !ev.state || !ev.unavailable.includes(key);
   const naLabel = (ev, key) => (isAvailable(ev, key) ? "" : `Not available in ${ev.state}`);
   // sort book keys so the ones legal in the visitor's state come first, in offer order (Hard Rock first in FL)
+  // State problem-gambling helplines, verified Oct 27, 2026 from official state sources (FL: flgaming.gov / playwise.org;
+  // AZ: problemgambling.az.gov; IN: in.gov/igc; IA: yourlifeiowa.org / hhs.iowa.gov; NY: oasas.ny.gov/hopeline).
+  // Michigan now promotes 1-800-GAMBLER (MGCB, Feb 2024), so it uses the national line. Any other state -> 1-800-GAMBLER.
+  // Only add a state here after checking an official source.
+  const GAMBLER = { name: "1-800-GAMBLER", tel: "18004262537", url: "https://www.1800gambler.net", label: "1800gambler.net", local: false };
+  const HELPLINES = {
+    FL: { name: "1-833-PLAYWISE", tel: "18337529947", url: "https://playwise.org/", label: "playwise.org" },
+    AZ: { name: "1-800-NEXT-STEP", tel: "18006398783", url: "https://problemgambling.az.gov/", label: "problemgambling.az.gov" },
+    IN: { name: "1-800-9-WITH-IT", tel: "18009948448", url: "https://www.in.gov/igc/problemgamblinghelp/problem-gambling-hotline/", label: "in.gov" },
+    IA: { name: "1-800-BETS-OFF", tel: "18002387633", url: "https://yourlifeiowa.org/learn/gambling", label: "yourlifeiowa.org" },
+    NY: { name: "1-877-8-HOPENY", tel: "18778467369", url: "https://oasas.ny.gov/hopeline", label: "oasas.ny.gov" },
+  };
+  // helpline("FL") -> the state's own line ({ ..., local: true }); unknown/other states -> 1-800-GAMBLER (local: false)
+  function helpline(code) {
+    const h = code && HELPLINES[String(code).toUpperCase()];
+    return h ? { ...h, local: true } : { ...GAMBLER };
+  }
+
   function sortBooks(ev, keys) {
     const rank = k => { const i = ev && ev.available ? ev.available.indexOf(k) : -1; return i >= 0 ? i : 50 + BOOK_KEYS.indexOf(k); };
     return [...keys].sort((a, b) => rank(a) - rank(b));
   }
 
-  return { OUTSIDE, BOOK_KEYS, resolve, parseLookup, evaluate, isAvailable, naLabel, sortBooks, offerFor };
+  return { OUTSIDE, BOOK_KEYS, HELPLINES, GAMBLER, helpline, resolve, parseLookup, evaluate, isAvailable, naLabel, sortBooks, offerFor };
 });

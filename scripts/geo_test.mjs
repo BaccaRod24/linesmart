@@ -86,5 +86,14 @@ check(!JSON.stringify(OFFERS).match(/\$\d|bonus|promo/i), "offers config has no 
 check(OFFERS.books.betmgm && OFFERS.books.betmgm.affiliateUrl === "" && OFFERS.books.betmgm.officialUrl === "https://sports.betmgm.com/", "BetMGM config: official URL, no affiliate link");
 check(eq(G.BOOK_KEYS, ["hardrockbet", "draftkings", "fanduel", "betmgm"]), "BOOK_KEYS include BetMGM");
 
+// state helplines: Florida -> 1-833-PLAYWISE; verified states -> their line; everyone else (incl. Michigan) -> 1-800-GAMBLER
+check(G.helpline("FL").name === "1-833-PLAYWISE" && G.helpline("FL").tel === "18337529947" && G.helpline("FL").local, "helpline: Florida = 1-833-PLAYWISE");
+check(G.helpline("NY").tel === "18778467369" && G.helpline("AZ").tel === "18006398783" && G.helpline("IN").tel === "18009948448" && G.helpline("IA").tel === "18002387633", "helpline: NY/AZ/IN/IA state lines");
+check(["NJ", "MI", "NV", "CA", null, "", "XX"].every(c => G.helpline(c).name === "1-800-GAMBLER" && !G.helpline(c).local), "helpline: other states / unknown -> 1-800-GAMBLER");
+check(G.helpline("fl").name === "1-833-PLAYWISE", "helpline: case-insensitive");
+// Nevada hides BetMGM
+check(!ev("NV").offers.some(o => o.key === "betmgm"), "Nevada: no BetMGM offer");
+check(eq(keys(ev("FL")), ["hardrockbet"]), "Florida: Hard Rock Bet offer only");
+
 console.log(`${fail ? "FAIL" : "PASS"} geo: ${pass}/${pass + fail}`);
 process.exit(fail ? 1 : 0);

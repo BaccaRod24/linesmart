@@ -505,7 +505,10 @@ for (const lg of ["nfl", "nba"]) {
     await p.goto(BASE, { waitUntil: "networkidle" }); await p.waitForSelector("[data-offers]", { timeout: 15000 }).catch(() => {});
     const o = await offers(p);
     check(o && JSON.stringify(o.books) === '["hardrockbet"]' && /Hard Rock Bet/.test(o.text), `FL home: only Hard Rock Bet offer (${o && o.books})`, "geo");
-    check(o && /21\+/.test(o.text) && /Gambling problem\? Call 1-800-GAMBLER/.test(o.text) && /PLAYWISE/.test(o.text), "FL offer shows 21+ and 1-800-GAMBLER (+ FL helpline)", "geo");
+    check(o && /21\+/.test(o.text) && /Gambling problem\? Call 1-833-PLAYWISE \(Florida\) or 1-800-GAMBLER/.test(o.text), "FL offer shows 21+, 1-833-PLAYWISE first, then 1-800-GAMBLER", "geo");
+    check(o && /may earn a commission from sportsbook links/.test(o.text) && /never changes the odds/.test(o.text) && /state-specific/.test(o.text), "FL offer: short affiliate disclosure", "geo");
+    const flFoot = await p.$eval("[data-rg-local]", e => ({ hidden: e.hidden, t: e.innerText }));
+    check(!flFoot.hidden && /PLAYWISE/.test(flFoot.t), "FL footer: Florida helpline line shown", "geo");
     check(o && o.hrefs[0] === "https://www.hardrock.bet/" && !/\$\d|bonus|promo/i.test(o.text), "FL offer: official site, no bonus/promo claims", "geo");
     check(!(await dkfdLinks(p)).length, "FL home: no DraftKings/FanDuel/BetMGM links", "geo");
     check((await p.$eval("#stateBtn .st-l", e => e.textContent)) === "FL" && seen.some(u => /ipdata/.test(u)), "FL: lookup used (stubbed) and header shows FL", "geo");
@@ -526,6 +529,8 @@ for (const lg of ["nfl", "nba"]) {
       check(nj && JSON.stringify([...nj.books].sort()) === '["betmgm","draftkings","fanduel","hardrockbet"]', `override NJ: all four offers incl. BetMGM (${nj && nj.books})`, "geo");
       check(nj && nj.hrefs.includes("https://sports.betmgm.com/") && /21\+/.test(nj.text) && /1-800-GAMBLER/.test(nj.text) && !/\$\d|bonus|promo/i.test(nj.text), "NJ: BetMGM official link, 21+ and helpline, no bonus claims", "geo");
       check(!(await p.$$eval(".books thead th", ths => ths.filter(t => /BetMGM/i.test(t.innerText)).length)), "NJ game: no BetMGM odds column", "geo");
+      check(nj && /Call or text 1-800-GAMBLER/.test(nj.text) && !/PLAYWISE/.test(nj.text) && /may earn a commission/.test(nj.text), "NJ offer: 1-800-GAMBLER only + affiliate disclosure", "geo");
+      check(await p.$eval("[data-rg-local]", e => e.hidden && getComputedStyle(e).display === "none"), "NJ footer: Florida helpline line hidden", "geo");
       check(await p.evaluate(() => localStorage.getItem("ls-state")) === "NJ" && (await p.$$(".books th.na-col")).length === 0, "override NJ saved; no columns marked unavailable", "geo");
       await p.reload({ waitUntil: "networkidle" }); await p.waitForSelector("[data-offers]", { timeout: 15000 }).catch(() => {});
       check(((await offers(p)) || {}).books?.length === 4, "override persists over the FL lookup after reload", "geo");

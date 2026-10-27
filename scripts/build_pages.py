@@ -7,7 +7,8 @@ One source of truth for the compliance footer: it is written into site/index.htm
 and the weekly-email pages site/subscribed.html (confirm) and site/unsubscribe.html (not in the legal nav, noindex).
 Run after editing:  python3 scripts/build_pages.py        (--check: exit 1 if files are out of date)
 
-Helpline numbers/URLs were verified on Oct 26, 2026 (see the compliance commit message); re-check them
+Helpline numbers/URLs were verified on Oct 26, 2026 (state lines NY/AZ/IN/IA on Oct 27, 2026;
+Michigan now uses 1-800-GAMBLER per the MGCB, so it has no separate line; see site/assets/geo-core.js HELPLINES) (see the compliance commit message); re-check them
 before changing.
 """
 import re
@@ -16,7 +17,7 @@ from pathlib import Path
 
 SITE = Path(__file__).resolve().parent.parent / "site"
 BASE_URL = "https://linesmart.app/"
-EFFECTIVE = "October 26, 2026"
+EFFECTIVE = "October 27, 2026"   # affiliate-compliance: affiliate links + licensed-books-only sections
 PRIVACY_UPDATED = "October 27, 2026"   # Pro waitlist section added
 CONTACT = "contact@linesmart.app"   # public contact address shown on the legal pages
 
@@ -59,7 +60,7 @@ FOOTER = f"""<footer class="footer" id="siteFooter">
   <div class="wrap">
     <div class="news-foot" data-news-signup="footer"></div>
     <p class="rg"><span class="age-pill">21+</span> <strong>21+ only.</strong> Gambling problem? Call or text {GAMBLER_TEL} · {GAMBLER_WEB}</p>
-    <p class="rg fl">Florida: call or text {PLAYWISE_TEL} ({PLAYWISE_WEB}), or the Florida Council on Compulsive Gambling helpline {ADMIT_TEL} ({ADMIT_WEB}).</p>
+    <p class="rg fl" data-rg-local>Florida: call or text {PLAYWISE_TEL} ({PLAYWISE_WEB}), or the Florida Council on Compulsive Gambling helpline {ADMIT_TEL} ({ADMIT_WEB}).</p>
     <p><strong data-brand>LineSmart</strong> is an informational site and does not accept wagers. Odds are for reference and may change; confirm with the sportsbook.</p>
     <p class="biz">LineSmart · <a href="mailto:{CONTACT}">{CONTACT}</a></p>
     <p class="aff-disc" data-aff-disclosure hidden></p>
@@ -136,6 +137,14 @@ RG = f"""  <p class="legal-lead">Betting should be entertainment, not a way to m
       <h2>Florida</h2>
       <p>Florida's official helpline: call or text {PLAYWISE_TEL} (1-833-752-9947) · {PLAYWISE_WEB}</p>
       <p>Florida Council on Compulsive Gambling: call or text {ADMIT_TEL} (1-888-236-4848) · {ADMIT_WEB}</p>
+    </div>
+    <div class="help-card">
+      <h2>Other state helplines</h2>
+      <p>Arizona: call {'<a href="tel:18006398783">1-800-NEXT-STEP</a>'} (1-800-639-8783) or text NEXTSTEP to 53342 · {ext("https://problemgambling.az.gov/", "problemgambling.az.gov")}</p>
+      <p>Indiana: call {'<a href="tel:18009948448">1-800-9-WITH-IT</a>'} (1-800-994-8448) · {ext("https://www.in.gov/igc/problemgamblinghelp/problem-gambling-hotline/", "in.gov")}</p>
+      <p>Iowa: call {'<a href="tel:18002387633">1-800-BETS-OFF</a>'} (1-800-238-7633) · {ext("https://yourlifeiowa.org/learn/gambling", "yourlifeiowa.org")}</p>
+      <p>New York: call {'<a href="tel:18778467369">1-877-8-HOPENY</a>'} (1-877-846-7369) or text HOPENY (467369) · {ext("https://oasas.ny.gov/hopeline", "oasas.ny.gov")}</p>
+      <p>Everywhere else, including Michigan: {GAMBLER_TEL}.</p>
     </div>
     <div class="help-card">
       <h2>National Council on Problem Gambling</h2>
@@ -303,6 +312,12 @@ TERMS = f"""  <p class="legal-date">Effective date: {EFFECTIVE}</p>
   <h2>No affiliation</h2>
   <p>LineSmart is independent and is not owned by any sportsbook. It is not affiliated with, endorsed by or sponsored by any league, team, ESPN, The Odds API or sportsbook. Links to sportsbooks currently go to their official websites and are not affiliate links. If we join a sportsbook affiliate program, those links will be labeled and listed on our <a href="affiliate-disclosure.html">Affiliate Disclosure</a> page.</p>
 
+  <h2>Affiliate links</h2>
+  <p>LineSmart may earn a commission from sportsbook links, at no extra cost to you. Commissions never change the odds we show: odds come from the data sources named on each page, and the best price is highlighted whichever sportsbook offers it. Sportsbook offers are state-specific: which sportsbooks and offers you see depends on your state, and some states have none. Full details are on our <a href="affiliate-disclosure.html">Affiliate Disclosure</a> page.</p>
+
+  <h2>Licensed, legal sportsbooks only</h2>
+  <p>LineSmart only lists state-licensed, legal US sportsbooks, and only in states where each one is legal online. We never list, link to or promote offshore or unlicensed sportsbooks.</p>
+
   <h2>Sportsbook links and your location</h2>
   <p>We show sportsbook links only in states where we believe that sportsbook runs a legal online sportsbook, based on an approximate location or the state you pick. This may be wrong. Sportsbooks verify your age and location themselves. Don't use LineSmart to decide whether betting is legal for you.</p>
 
@@ -339,6 +354,8 @@ AFFILIATE = f"""  <p class="legal-date">Effective date: {EFFECTIVE}</p>
   <h2>Our standards</h2>
   <ul>
     <li>Affiliate links will only go to sportsbooks licensed where they operate, for users 21+, and only in states where that sportsbook is legal online.</li>
+    <li><b>Offers are state-specific.</b> Which sportsbooks and offers you see depends on your state, and some states have none.</li>
+    <li><b>No offshore sportsbooks.</b> LineSmart only lists state-licensed, legal US sportsbooks. We never list, link to or promote offshore or unlicensed sportsbooks.</li>
     <li>We won't advertise bonus amounts or promotions that the sportsbook hasn't approved and currently offers.</li>
     <li>Responsible gambling information and helplines will stay on every page. See <a href="responsible-gambling.html">Responsible Gambling</a>.</li>
   </ul>
@@ -375,7 +392,10 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
 
   <h2>How LineSmart makes money</h2>
   <p>LineSmart is free to use. It plans to earn money through affiliate links to licensed sportsbooks: if you sign up through one, LineSmart may earn a commission at no cost to you. Affiliate links are labeled and never change the odds we show. Today there are no affiliate links. See our <a href="affiliate-disclosure.html">Affiliate Disclosure</a>.</p>
-  <p>We link to the official sites of Hard Rock Bet, DraftKings, FanDuel and BetMGM, and each link appears only in states where that sportsbook runs a legal online sportsbook. In Florida, that means Hard Rock Bet only. Listing a sportsbook doesn't mean we show its odds: odds comparison covers Hard Rock Bet, DraftKings and FanDuel (not BetMGM). Books that aren't legal online in your state are dimmed and never linked.</p>
+  <p>We link to the official sites of Hard Rock Bet, DraftKings, FanDuel and BetMGM, and each link appears only in states where that sportsbook runs a legal online sportsbook. In Florida, that means Hard Rock Bet only. Listing a sportsbook doesn't mean we show its odds: odds comparison covers Hard Rock Bet, DraftKings and FanDuel (not BetMGM). Books that aren't legal online in your state are dimmed and never linked. Offers are state-specific, so what you see depends on your state.</p>
+
+  <h2>Legal sportsbooks only</h2>
+  <p>LineSmart only lists state-licensed, legal US sportsbooks. We never list, link to or promote offshore or unlicensed sportsbooks.</p>
 
   <h2>Responsible gambling</h2>
   <p><b>LineSmart is for adults 21 and older.</b> Only bet where it's legal, and only what you can afford to lose. Gambling problem? Call or text {GAMBLER_TEL}. In Florida, call or text {PLAYWISE_TEL}, or the Florida Council on Compulsive Gambling at {ADMIT_TEL}. More help and tips: <a href="responsible-gambling.html">Responsible Gambling</a>.</p>

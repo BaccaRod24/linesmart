@@ -9,7 +9,7 @@
   const store = {};          // "lg/id" -> latest overlay
   const sigs = {};           // "lg/id" -> last signature handed to the page
   const boxes = {};          // "lg/id" -> latest parsed box score (summary)
-  let W = null, timer = null, wake = null, inflight = false, failures = 0, lastTick = 0, lastStatic = 0, lastSummary = 0, sumSig = "";
+  let W = null, timer = null, wake = null, inflight = false, failures = 0, lastTick = 0, lastStatic = 0, lastSummary = 0, sumSig = "", rerun = false;
   const TIMEOUT_MS = 10000, STATIC_EVERY_MS = 120000;
 
   const saveData = () => { const c = navigator.connection; return !!(c && (c.saveData || /(^|slow-)2g|3g/.test(c.effectiveType || ""))); };
@@ -51,7 +51,8 @@
 
   async function tick() {
     timer = null;
-    if (!W || inflight) return;
+    if (!W) return;
+    if (inflight) { rerun = true; return; }   // a newer watch() (page re-rendered) while a request is out: run again when it lands
     if (document.hidden) return;   // resumed by visibilitychange
     const w = W, now = Date.now(); lastTick = now;
     const plan = C.plan(w.games, now, store), lgs = Object.keys(plan), wantSum = summaryDue(now);
@@ -71,7 +72,8 @@
     }, () => { bad++; }));
     await Promise.all(jobs);
     inflight = false;
-    if (w !== W) return;   // navigated away meanwhile
+    if (w !== W) { if (W && rerun) { rerun = false; tick(); } return; }   // navigated away / re-watched meanwhile: start polling for the new page
+    rerun = false;
     const wk = watchedKeys(), ch = changedKeys([...new Set(touched)].filter(k => wk.has(k)));
     if (ch.length && w.onChange) try { w.onChange(ch); } catch (e) { console.warn(e); }
     if (model && w.onSummary) { const s = JSON.stringify(model.box) + C.sig(model.overlay); if (s !== sumSig) { sumSig = s; try { w.onSummary(model); } catch (e) { console.warn(e); } } }

@@ -57,6 +57,8 @@ LEAGUES = {
 ORDER = list(LEAGUES)
 NAMES = {"nfl": "NFL", "nba": "NBA", "ncaaf": "College Football", "ncaab": "College Basketball", "nhl": "NHL", "mlb": "MLB", "ufc": "UFC"}
 SHORT = {"nfl": "NFL", "nba": "NBA", "ncaaf": "NCAAF", "ncaab": "NCAAB", "nhl": "NHL", "mlb": "MLB", "ufc": "UFC"}
+PP_LEGEND = ('<div class="pp-legend sx-legend" aria-label="Legend"><span><i class="pp-dot pp-o"></i>Over</span><span><i class="pp-dot pp-u"></i>Under</span>'
+             '<span><i class="pp-dot pp-p"></i>Push</span><span><i class="pp-dot pp-x"></i>No game</span></div>')
 KEEP_DAYS = 60            # finished games keep their page this long
 PLAYER_KEEP_DAYS = 14     # a player page stays this long after his last posted prop
 ARCHIVE_AHEAD_H = 6       # start archiving lines this close to the start (the last copy before the start = closing line)
@@ -645,8 +647,8 @@ def game_props(L: League, gid):
             n_mk = sum(1 for x in rows if str(x[0]) == pid)
             links.append((path, f"{pl.get('n')} props", f"{pl.get('ta') or ''} · {plural(n_mk, 'line')}"))
     tbl = (f'<div class="card"><div class="tbl-wrap pv-tbl"><table class="books sx-props"><thead><tr><th>Player</th><th>Market</th><th>Line</th><th>Last 5 vs line</th><th>Over</th></tr></thead>'
-           f'<tbody>{"".join(trs)}</tbody></table></div><div class="pp-legend note"><span class="pp-b pp-o"></span> over <span class="pp-b pp-u"></span> under <span class="pp-b pp-p"></span> push <span class="pp-b pp-x"></span> no game. '
-           f'{len(rows)} prop lines across {plural(len(best), "player")}; each player page has every line. Past results only, not a prediction.</div></div>')
+           f'<tbody>{"".join(trs)}</tbody></table></div>{PP_LEGEND}<p class="pp-note-l note">'
+           f'{len(rows)} prop lines across {plural(len(best), "player")}; each player page has every line. Past results only, not a prediction.</p></div>')
     return tbl, links
 
 
@@ -834,7 +836,7 @@ def player_page(L: League, sh: Shell, pid):
 <h1 class="pv-h1">{esc(name)} props: lines &amp; last-5 results</h1>
 <p class="pv-lead">{esc(pl.get("pos") or "")} · {L.team_link(team)}{(' · ' + (f'<a href="{esc(L.paths[nxt["id"]])}">' if nxt and str(nxt["id"]) in L.paths else '') + esc(when) + ('</a>' if nxt and str(nxt["id"]) in L.paths else '')) if when else ''}</p>
 {note}
-{section("lines", "Prop lines", '<div class="card pp-card sx-pcard">' + "".join(cards) + '<div class="pp-legend note"><span class="pp-b pp-o"></span> over <span class="pp-b pp-u"></span> under <span class="pp-b pp-p"></span> push <span class="pp-b pp-x"></span> no game. Every past game is graded against the current line. Past results only, not a prediction.</div></div>')}
+{section("lines", "Prop lines", '<div class="card pp-card sx-pcard">' + "".join(cards) + PP_LEGEND + '<p class="pp-note-l note">Every past game is graded against the current line. Past results only, not a prediction.</p></div>')}
 {section("log", "Recent game log", log_tbl)}
 <p class="pv-cta"><a class="pv-live" href="#/p/{L.lg}/{esc(pid)}/log">Open {esc(name)} in the app →</a> <span class="na">Full game log, matchup and line alerts.</span></p>
 <p class="note pv-upd">{stamp("Lines from LineSmart data refreshed " + esc(fmt_et(L.generated)))}. Lines change; confirm with the sportsbook. For adults 21+.</p>

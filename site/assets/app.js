@@ -317,13 +317,13 @@
     const sum = k => Object.values(L).reduce((a, x) => a + (x[k] || 0), 0);
     const T = (S && S.totals) || { upcoming: sum("upcoming"), props: Object.values(META.props || {}).reduce((a, x) => a + (x.props || 0), 0) };
     const ldat = k => ((S && S.leagues) || {})[k] || {};
-    const stat = (cls, icon, label, val, sub) => (val === undefined || val === null ? "" :
-      `<div class="st ${cls}"><span class="mlbl">${ICON(icon)}${esc(label)}</span><b>${esc(val)}</b>${sub ? `<small>${sub}</small>` : ""}</div>`);
+    const stat = (cls, icon, label, val, sub, href) => (val === undefined || val === null ? "" :
+      `<${href ? `a href="${href}"` : "div"} class="st ${cls}${href ? " st-go" : ""}"><span class="mlbl">${ICON(icon)}${esc(label)}</span><b>${esc(val)}</b>${sub ? `<small>${sub}</small>` : ""}</${href ? "a" : "div"}>`);
     const today = S && S.day ? new Date(S.day + "T12:00:00Z").toISOString() : new Date().toISOString();
     const propLgs = Object.entries((S && S.leagues) || {}).filter(([, e]) => e.props).map(([k]) => esc((L[k] || {}).name || k)).join(" · ");
     const stats = [
       stat("", "cal", S ? "Games today" : "Upcoming", S ? T.today : T.upcoming, S ? `${esc(T.upcoming)} upcoming` : ""),
-      stat(T.live ? "live" : "", "pulse", "Live now", S ? T.live : null, T.live ? "in progress" : "none right now"),
+      stat(T.live ? "live" : "", "pulse", "Live now", S ? T.live : null, (T.live ? "in progress" : "none right now") + ' <span class="st-arrow">· see all ›</span>', "#/live"),
       stat("", "layers", "Props tracked", T.props, propLgs || "DraftKings"),
       stat("hot", "bolt", "Hot props", S ? T.hot : null, "4/5+ over"),
       stat("wxw", "cloud", "Weather watch", S ? T.wxWatch : null, "wind · cold · rain"),
@@ -1091,6 +1091,127 @@
     }
   }
 
+
+  // ---------- Live tab (#/live): every game in progress across leagues, plus starting soon / just finished.
+  // Bucketing lives in assets/livetab-core.js (scripts/livetab_test.mjs). Scores: the same client-side ESPN polling as
+  // the rest of the site (assets/live.js, ~25 s, only while this tab is visible); no new server calls.
+  const LTC = () => window.LiveTabCore || null;
+  const FIN = {}, LSEEN = {};    // "lg/id" -> ms we saw it go final this session / last state rendered
+  let LIVE_N = null, LIVE_N_AT = 0;
+  const liveCount = () => (LIVE_N !== null && Date.now() - LIVE_N_AT < 10 * 60e3 ? LIVE_N : (((META || {}).slate || {}).totals || {}).live || 0);
+  function setLiveBadge(n) {
+    document.querySelectorAll("[data-live-badge]").forEach(el => { el.textContent = n > 99 ? "99+" : String(n || 0); el.hidden = !n; });
+    document.querySelectorAll("[data-live-link]").forEach(el => {
+      el.classList.toggle("has-live", !!n);
+      el.setAttribute("aria-label", n ? `Live: ${n} game${n === 1 ? "" : "s"} in progress` : "Live scores");
+    });
+  }
+  const pendingBetKeys = () => {
+    const C = window.BetCore; if (!C || !LTC()) return new Set();
+    try { const d = JSON.parse(localStorage.getItem(C.KEY) || "null"); return LTC().betKeys(Array.isArray(d && d.bets) ? d.bets : []); } catch (e) { return new Set(); }
+  };
+  const inMin = ms => { const m = Math.round(ms / 60e3); return m <= 0 ? "now" : m < 60 ? `in ${m} min` : `in ${Math.floor(m / 60)}h${m % 60 ? " " + (m % 60) + "m" : ""}`; };
+  function ltRow(x, kind, bets, now) {
+    const { lg, g } = x, k = `${lg}/${g.id}`, mma = kind === "mma";
+    if (x.fights) {   // a UFC card (soon / just finished): one row per event
+      const ev = x.event || {}, mn = x.main;
+      return `<a class="lt-row lt-ev" href="#/l/ufc"><div class="lt-st">${x.g.state === "pre" ? `<span>${esc(timeET(x.g.date))}</span><small>${esc(x.starting ? "starting" : inMin(x.at - now))}</small>` : `<span>Final</span>`}</div>
+        <div class="lt-body"><div class="lt-evn">${esc(ev.name || "UFC")}</div><div class="lt-sub">${mn ? esc(`${mn.away.name} vs ${mn.home.name} · `) : ""}${x.fights} fight${x.fights === 1 ? "" : "s"}</div></div></a>`;
+    }
+    const A = g.away || {}, Hm = g.home || {}, ov = g.live;
+    const sc = !mma && g.state !== "pre" && A.score != null && Hm.score != null && A.score !== "" && Hm.score !== "";
+    const aw = sc && +A.score > +Hm.score, hw = sc && +Hm.score > +A.score;
+    const poss = ov && g.state === "in" && ov.situation && ov.situation.possession;
+    const possSide = poss ? (String(ov.home.id) === String(poss) ? "home" : String(ov.away.id) === String(poss) ? "away" : null) : null;
+    const name = t => (mma ? t.short || t.name : t.short || t.name || t.abbr) || "TBD";
+    const tm = (t, side, lead, trail) => `<div class="lt-tm${lead ? " w" : trail && g.state === "post" ? " l" : ""}">${logo(t, "lt-logo")}<span class="lt-n">${t.rank ? `<i class="lt-rk">${esc(t.rank)}</i>` : ""}${esc(name(t))}</span>${possSide === side ? '<i class="lt-poss" title="Possession" aria-label="has the ball"></i>' : ""}${mma && g.state === "post" && t.winner ? '<i class="lt-win">W</i>' : ""}<b class="lt-sc">${sc ? esc(t.score) : ""}</b></div>`;
+    const st = g.state === "in" ? `<span class="lt-clk"><span class="live-dot"></span>${esc(LTC().clockText(lg, g, kind))}</span>`
+      : g.state === "pre" ? `<span>${esc(timeET(g.date))}</span><small>${esc(x.starting ? "starting" : inMin(x.at - now))}</small>`
+      : `<span>${esc(g.statusDetail || "Final")}</span>${x.at ? `<small>${esc(Math.max(1, Math.round((now - x.at) / 60e3)))} min ago</small>` : ""}`;
+    const sit = g.state === "in" && ov && ov.situation && ov.situation.text ? `<div class="lt-sit${ov.situation.redZone ? " rz" : ""}">${esc(ov.situation.text)}</div>` : "";
+    const fight = mma ? `<div class="lt-sub">${esc([g.weightClass || g.note, g.event && g.event.short].filter(Boolean).join(" · "))}</div>` : "";
+    const bet = bets.has(k) ? `<span class="lt-bet" title="You have a pending bet on this game in My Bets">${ICON("ticket", "ic")}You have a bet</span>` : "";
+    return `<a class="lt-row lt-${esc(g.state)}" href="#/g/${esc(lg)}/${esc(g.id)}" data-lk="${esc(k)}"><div class="lt-st">${st}</div>
+      <div class="lt-body">${tm(A, "away", aw, hw)}${tm(Hm, "home", hw, aw)}${fight}${sit}${bet ? `<div class="lt-tags">${bet}</div>` : ""}</div></a>`;
+  }
+  async function viewLive() {
+    renderTabs(null);
+    const tok = NAV, alive = () => tok === NAV, C = LTC();
+    if (!C) return (app.innerHTML = `<div class="empty"><h3>Live scores didn't load</h3>Reload the page to try again.</div>`);
+    if (!app.querySelector(".lt-page")) showSkel(skelLeague());
+    const idx = {};   // lg -> data/<lg>/index.json
+    const load = async () => {
+      const m = await getJSON("data/meta.json").catch(() => META); if (m) META = m;
+      await Promise.all(C.leaguesToLoad(META).map(lg => getJSON(`data/${lg}/index.json`).then(d => { idx[lg] = d; }, () => {})));
+    };
+    await load();
+    if (!alive()) return;
+    let watched = "";
+    const render = () => {
+      if (!alive()) return;
+      const now = Date.now(), items = [], kinds = {};
+      for (const [lg, d] of Object.entries(idx)) {
+        kinds[lg] = (d.league || {}).kind;
+        for (const g0 of d.games || []) {
+          const g = liveG(lg, g0), k = `${lg}/${g.id}`;
+          if (LSEEN[k] === "in" && g.state === "post" && !FIN[k]) FIN[k] = now;
+          LSEEN[k] = g.state; items.push({ lg, g });
+        }
+      }
+      const B = C.classify(items, now, { finishedAt: FIN }), bets = pendingBetKeys(), order = META.order || [];
+      LIVE_N = B.live.length; LIVE_N_AT = now; setLiveBadge(LIVE_N);
+      const lgName2 = lg => (META.leagues[lg] || {}).name || lg.toUpperCase();
+      const block = (list, cap) => {
+        let shown = 0, more = 0;
+        const html = C.group(list, order).map(({ lg, items: xs }) => {
+          const room = cap ? Math.max(0, cap - shown) : xs.length, vis = xs.slice(0, room); more += xs.length - vis.length; shown += vis.length;
+          if (!vis.length) return "";
+          const n = xs.filter(x => x.g.state === "in").length;
+          return `<div class="lt-lg"><div class="lt-lgh"><a href="#/l/${esc(lg)}">${esc(lgName2(lg))}</a>${n ? `<span class="lt-n-live">${n} live</span>` : `<span>${xs.length}</span>`}</div>
+            <div class="lt-grid">${vis.map(x => ltRow(x, kinds[x.lg], bets, now)).join("")}</div></div>`;
+        }).join("");
+        return html + (more ? `<div class="lt-more">+ ${more} more · see each league for the full list</div>` : "");
+      };
+      const soon = C.collapseFights(B.soon), recent = C.collapseFights(B.recent);
+      const next = B.live.length || soon.length ? null : items.filter(x => x.g.state === "pre" && Date.parse(x.g.date) > now).sort((a, b) => Date.parse(a.g.date) - Date.parse(b.g.date))[0];
+      const nextLine = next ? `Next up: <a href="#/g/${esc(next.lg)}/${esc(next.g.id)}">${esc(lgName2(next.lg))} · ${esc((next.g.away || {}).short || (next.g.away || {}).name || "")} ${kinds[next.lg] === "mma" ? "vs" : "@"} ${esc((next.g.home || {}).short || (next.g.home || {}).name || "")}</a>, ${esc(dayKey(next.g.date) === dayKey(new Date(now).toISOString()) ? timeET(next.g.date) : fullET(next.g.date))}` : "";
+      const liveSec = B.live.length ? block(B.live)
+        : `<div class="empty lt-empty"><div class="lt-empty-ic">${ICON("pulse", "ic")}</div><h3>Nothing live right now</h3>
+            <p>${soon.length ? "Games are starting soon; see below. This page updates on its own once they tip off." : "No games are in progress in any league. Check back closer to game time."}</p>${nextLine ? `<p class="lt-next">${nextLine}</p>` : ""}
+            <p><a class="lt-cta" href="#/">See today's slate</a></p></div>`;
+      const hasLive = B.live.length > 0, old = app.querySelector(".lt-page [data-lv-stamp]"), stamp = old && old.textContent ? old.textContent : hasLive ? "Live · connecting…" : "";
+      app.innerHTML = `<div class="lt-page"><div class="page-head"><div><span class="eyebrow">${hasLive ? '<span class="live-dot"></span>' : ICON("pulse", "ic")}Live scores</span>
+          <h1>Live games${hasLive ? ` <span class="lt-count" aria-label="${B.live.length} in progress">${B.live.length}</span>` : ""}</h1>
+          <div class="sub">Every game in progress across ${order.length} leagues · tap a game for the live box score · times in ${TZL}</div></div>
+          <div class="lt-stamp${old && old.classList.contains("lv-off") ? " lv-off" : ""}" data-lv-stamp>${esc(hasLive || (old && old.textContent) ? stamp : "")}</div></div>
+        <section class="lt-sec" aria-label="In progress"><div class="section-title">In progress</div>${liveSec}</section>
+        ${soon.length ? `<section class="lt-sec lt-small" aria-label="Starting soon"><div class="section-title">Starting soon <span class="st-sub">next 2 hours</span></div>${block(soon, 12)}</section>` : ""}
+        ${recent.length ? `<section class="lt-sec lt-small" aria-label="Just finished"><div class="section-title">Just finished <span class="st-sub">last hour</span></div>${block(recent, 12)}</section>` : ""}
+        <div class="note lt-note">Scores refresh from ESPN about every 25 s while this tab is open (paused in the background). UFC fights update with each site data refresh (about every 30 min). Not affiliated with any league.</div></div>`;
+      return items;
+    };
+    const rewatch = items => {
+      const L = LV(); if (!L || !alive()) return;
+      const now = Date.now();
+      // in progress, about to start (12 h covers tonight), or final but maybe stale in the static file
+      const refs = items.filter(({ g }) => g.state === "in" || (g.state === "pre" && Date.parse(g.date) - now < 12 * 3600e3 && now - Date.parse(g.date) < 8 * 3600e3)).map(({ lg, g }) => liveRef(lg, (idx[lg].games || []).find(x => x.id === g.id) || g));
+      const sig = refs.map(r => `${r.lg}/${r.id}/${r.state}`).sort().join(",");
+      if (sig === watched) return;
+      watched = sig;
+      L.watch({ games: refs, onChange: () => render(),
+        onStatic: async lgs => { for (const lg of lgs) delete cache[`data/${lg}/index.json`]; await load(); if (!alive()) return null; const it = render(); return (it || []).filter(({ lg }) => lgs.includes(lg)).map(({ lg, g }) => liveRef(lg, g)); } });
+    };
+    rewatch(render() || []);
+    // move games between sections as the clock runs, and pick up new static data; nothing runs while the tab is hidden
+    let ticks = 0;
+    const iv = setInterval(async () => {
+      if (!alive()) return clearInterval(iv);
+      if (document.hidden) return;
+      if (++ticks % 6 === 0) { await load(); if (!alive()) return; }   // every ~3 min: re-read our data files (60 s cache)
+      const it = render(); if (it) rewatch(it);
+    }, 30e3);
+  }
+
   // ---------- router
   async function route() {
     if (GEO()) await GEO().ready;
@@ -1108,12 +1229,15 @@
     const bb = document.getElementById("betsBtn"); if (bb) bb.classList.toggle("on", h[0] === "bets");
     const vb = document.getElementById("valueBtn"); if (vb) vb.classList.toggle("on", isValue);
     const ab = document.getElementById("acctBtn"); if (ab) ab.classList.toggle("on", h[0] === "account");
-    const navOn = h[0] === "search" || h[0] === "bets" || h[0] === "account" ? h[0] : isValue ? "value" : !h[0] ? "home" : "";
+    const lb = document.getElementById("liveBtn"); if (lb) lb.classList.toggle("on", h[0] === "live");
+    const navOn = h[0] === "search" || h[0] === "bets" || h[0] === "account" || h[0] === "live" ? h[0] : isValue ? "value" : !h[0] ? "home" : "";
+    setLiveBadge(liveCount());
     if (intro) intro.hidden = navOn !== "home";   // static SEO intro: home only
     document.querySelectorAll("#bnav [data-nav]").forEach(a => { const on = a.dataset.nav === navOn; a.classList.toggle("on", on); if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     if (h[0] === "bets") return window.LSBets ? window.LSBets.view() : (app.innerHTML = `<div class="empty"><h3>My Bets didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "account") return window.LSAccount ? window.LSAccount.view() : (app.innerHTML = `<div class="empty"><h3>Account didn't load</h3>Reload the page to try again.</div>`);
     if (isValue) return window.LSValue ? window.LSValue.view() : (app.innerHTML = `<div class="empty"><h3>Value finder didn't load</h3>Reload the page to try again.</div>`);
+    if (h[0] === "live") return viewLive();
     if (h[0] === "search") return viewSearch(decodeURIComponent(h.slice(1).join("/") || ""));
     if (h[0] === "t" && h[1] && h[2]) return viewTeam(h[1], h[2]);
     if (h[0] === "p" && h[1] && h[2]) return viewPlayer(h[1], h[2], h[3]);

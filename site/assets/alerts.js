@@ -150,7 +150,8 @@
         : LERR && !rows.length ? ""
         : rows.length ? `<ul class="al-list">${rows.map(row).join("")}</ul>` : `<p class="ac-p">No alerts yet. Tap <b>🔔 Alert</b> on a game or player prop to get one email when the line moves or hits your number.</p>`}
         <div class="note">Each alert emails you once, then turns off, and ends when the game starts. Up to ${C.MAX_ACTIVE} active alerts. Checked after each odds update, about every 30 minutes. Every alert email has a link back here to stop alerts.</div>
-        ${rows.length ? `<div class="ac-btns"><button type="button" class="chip bt-del" data-al-delall>Delete all alerts</button></div>` : ""}</div>`;
+        ${rows.length ? `<div class="ac-btns"><button type="button" class="chip bt-del" data-al-delall>Delete all alerts</button></div>` : ""}</div>
+      ${window.LSPro ? window.LSPro.teaser("alerts") : ""}`;
   }
   function paint() { if (HOST && HOST.isConnected) { HOST.innerHTML = accountHtml(); } }
   function bindAccount(host) {

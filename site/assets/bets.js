@@ -256,6 +256,7 @@
       html += `<div class="section-title">Profit over time</div><div class="card bt-chart" data-chart></div>`;
       html += `<div class="section-title">Breakdowns</div><div class="bt-bd-grid">${["sport", "type", "book", "prop"].map(k => `<div class="card bt-bd" data-bd="${k}"></div>`).join("")}</div>`;
       html += `<div class="section-title">Activity</div><div class="cols bt-cols">${activityCard(list)}${recentCard(list)}</div>`;
+      if (window.LSPro) html += window.LSPro.teaser("bets");
     }
     html += privacyNote() + dataCard() + newsBox + rgNote;
     app.innerHTML = shell("ov", html);

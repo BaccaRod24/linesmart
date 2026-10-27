@@ -1238,6 +1238,7 @@
     if (h[0] === "account") return window.LSAccount ? window.LSAccount.view() : (app.innerHTML = `<div class="empty"><h3>Account didn't load</h3>Reload the page to try again.</div>`);
     if (isValue) return window.LSValue ? window.LSValue.view() : (app.innerHTML = `<div class="empty"><h3>Value finder didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "live") return viewLive();
+    if (h[0].split("?")[0] === "pro") return window.LSPro ? window.LSPro.view() : (app.innerHTML = `<div class="empty"><h3>LineSmart Pro didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "search") return viewSearch(decodeURIComponent(h.slice(1).join("/") || ""));
     if (h[0] === "t" && h[1] && h[2]) return viewTeam(h[1], h[2]);
     if (h[0] === "p" && h[1] && h[2]) return viewPlayer(h[1], h[2], h[3]);
@@ -1250,7 +1251,7 @@
   // visitor state changed (lookup finished or picker): re-render odds/offers views in place (not the bet form or search)
   window.addEventListener("ls-state-change", () => {
     const h0 = location.hash.replace(/^#\/?/, "").split("/")[0];
-    if (h0 === "bets" || h0 === "search" || h0 === "account") return;
+    if (h0 === "bets" || h0 === "search" || h0 === "account" || h0.split("?")[0] === "pro") return;
     const y = window.scrollY;
     Promise.resolve(route()).then(() => window.scrollTo(0, y));
   });

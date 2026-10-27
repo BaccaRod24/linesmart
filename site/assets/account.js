@@ -221,7 +221,7 @@
       </form>
       <div class="note ac-note">An account is optional. Without one, My Bets keeps working and stays only in this browser on this device.</div>
       <div class="section-title" id="acAlertsInfo">Line alerts</div>
-      <div class="card ac-card"><p class="ac-p">Get one email when a line moves or hits your number. Sign in above, then tap <b>🔔 Alert</b> on any game or player prop. Your alerts are listed here.</p></div>${privacyHtml()}`;
+      <div class="card ac-card"><p class="ac-p">Get one email when a line moves or hits your number. Sign in above, then tap <b>🔔 Alert</b> on any game or player prop. Your alerts are listed here.</p></div>${window.LSPro ? window.LSPro.teaser("alerts") : ""}${privacyHtml()}`;
   }
   function syncBox() {
     const st = ls.get(AC.SYNC_KEY) || {};

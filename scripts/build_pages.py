@@ -42,6 +42,7 @@ TOOLS = [  # (href, label): footer quick links into the app (relative, so subpat
     ("preview/", "Game previews"),
     ("./#/account/alerts", "Line alerts"),
     ("./#/bets", "My Bets"),
+    ("./#/pro", "Pro: join the waitlist"),
 ]
 
 FOOTER = f"""<footer class="footer" id="siteFooter">
@@ -193,7 +194,7 @@ PRIVACY = f"""  <p class="legal-date">Last updated: {EFFECTIVE}</p>
 
   <h2 id="location">Approximate location (state-aware offers)</h2>
   <p>Sports betting is legal only in some states, and each sportsbook runs only in certain states. To show only sportsbooks that are legal where you are, your browser sends a request to {ext("https://ipdata.info/", "ipdata.info")}, a free IP geolocation service. ipdata.info sees your IP address and returns your approximate country and state. Under its {ext("https://ipdata.info/privacy", "privacy policy")}, it keeps IP addresses only briefly for rate limiting.</p>
-  <p>We keep only the country and state code, in your browser (localStorage, <code>ls-geo</code>), for up to 24 hours. It is never sent to us. If the lookup fails, we show no sportsbook offers until you pick a state. You can choose your state with the <b>Your state</b> picker (stored as <code>ls-state</code>); that choice replaces the lookup. IP location is approximate. Sportsbooks verify your location themselves before you can bet.</p>
+  <p>We keep only the country and state code, in your browser (localStorage, <code>ls-geo</code>), for up to 24 hours. It is never sent to us, except the two-letter state code if you join the <a href="#pro-waitlist">Pro waitlist</a>. If the lookup fails, we show no sportsbook offers until you pick a state. You can choose your state with the <b>Your state</b> picker (stored as <code>ls-state</code>); that choice replaces the lookup. IP location is approximate. Sportsbooks verify your location themselves before you can bet.</p>
 
   <h2 id="accounts">Optional accounts (bet sync)</h2>
   <p>You can use LineSmart without an account. If you sign in on the <a href="./#/account">Account</a> tab, here is what happens:</p>
@@ -219,6 +220,16 @@ PRIVACY = f"""  <p class="legal-date">Last updated: {EFFECTIVE}</p>
     <li><b>Unsubscribing</b>: click <b>Unsubscribe</b> at the bottom of any LineSmart email. One click removes you right away, with no login. You can also email <a href="mailto:{CONTACT}?subject=unsubscribe">{CONTACT}</a> with the subject "unsubscribe". To have your address deleted entirely rather than just unsubscribed, email us from that address and we'll delete it and confirm.</li>
   </ul>
 
+  <h2 id="pro-waitlist">LineSmart Pro waitlist</h2>
+  <p>Joining the <a href="./#/pro">LineSmart Pro</a> waitlist is free and optional. Here is what happens:</p>
+  <ul>
+    <li><b>What we store</b>: your email address, that you confirmed you're 21 or older, your optional survey answers (features you'd use, sports you follow, a fair monthly price), the two-letter code of your state if the site already knows it, which page you joined from, your account ID if you're signed in, and when you joined. Joining again with the same email updates your answers instead of adding a second entry.</li>
+    <li><b>Why</b>: to tell you when Pro opens and to decide what to build first. We send no confirmation email and no other email from this list; you'll get one email when Pro opens. We never sell, rent or share the list.</li>
+    <li><b>Where it's stored</b>: with {ext("https://supabase.com/privacy", "Supabase")} in the United States. The list can't be read from the website; only we can read it. To stop abuse we keep a one-way hash of the IP address of each attempt for up to 2 days, never the IP address itself.</li>
+    <li><b>On your device</b>: your browser remembers the address you joined with (localStorage, <code>ls-pro-v1</code>) so the page can show you're on the list.</li>
+    <li><b>Leaving the list</b>: email <a href="mailto:{CONTACT}?subject=Pro%20waitlist">{CONTACT}</a> from that address and we'll delete your entry and confirm.</li>
+  </ul>
+
   <h2>Hosting (GitHub Pages)</h2>
   <p>The site is hosted on GitHub Pages. Like most web hosts, GitHub may log technical data when your browser requests a page, such as your IP address, browser type and the page requested. It uses this data for security and to run the service. We don't receive these logs. See the {ext("https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement", "GitHub Privacy Statement")}.</p>
 
@@ -229,6 +240,7 @@ PRIVACY = f"""  <p class="legal-date">Last updated: {EFFECTIVE}</p>
     <li><b>Your state</b> (localStorage, <code>ls-state</code>, and the cached lookup <code>ls-geo</code>): see above.</li>
     <li><b>Recently viewed</b> (localStorage, <code>ls-recent</code>): up to 8 teams or players you opened, shown on the search screen.</li>
     <li><b>Weekly email signup</b> (localStorage, <code>ls-news-v1</code>): see <a href="#newsletter">Weekly email</a>.</li>
+    <li><b>Pro waitlist</b> (localStorage, <code>ls-pro-v1</code>): see <a href="#pro-waitlist">Pro waitlist</a>.</li>
     <li><b>21+ notice</b> (localStorage, <code>ls-age-ok</code>): the time you dismissed the age notice, so it isn't shown again.</li>
     <li><b>View preferences</b> (sessionStorage, <code>filter-&lt;league&gt;</code>): your "Upcoming" or "Incl. today's finals" choice on a league page. It is cleared when you close the tab.</li>
     <li><b>Offline cache</b> (service worker and Cache Storage): copies of the site's files, the odds and stats data files, and recently opened ESPN team and player data, so the site loads fast and works offline.</li>

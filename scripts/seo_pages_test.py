@@ -116,12 +116,13 @@ def build_copy(tmp, name="site"):
 
 
 def main():
-    # last-5 prop strip: boxes render oldest -> newest (newest on the right, titled "latest"); the stats stay latest first
+    # last-5 prop strip: boxes render oldest -> newest (newest on the right), each with its M/D date under it; the stats stay latest first
     lg5 = [["2026-10-25", "DDD", "vs", {}], ["2026-10-24", "CCC", "@", {"points": 20}], ["2026-10-22", "BBB", "vs", {"points": 30}],
            ["2026-10-20", "EEE", "@", {"points": 24.5}], ["2026-10-18", "FFF", "vs", {"points": 28}], ["2026-10-16", "GGG", "vs", {"points": 40}]]
     sh5 = SP.strip_html(lg5, "points", 24.5)
     check(re.findall(r"<i>(\w+)</i>", sh5) == ["FFF", "EEE", "BBB", "CCC", "DDD"], "last-5 strip oldest -> newest, left to right")
-    check(sh5.count("(latest)") == 1 and 'DDD: no game (latest)"' in sh5 and "oldest to newest" in sh5, "newest box tagged latest + aria label")
+    check(re.findall(r'data-d="([^"]*)"', sh5) == ["10/18", "10/20", "10/22", "10/24", "10/25"] and sh5.count("<span class=\"pp-b") == 5, "M/D game date under every box (incl. DNP), no UTC day shift")
+    check('10/25 vs DDD: no game (latest)"' in sh5 and sh5.count("(latest)") == 1 and "oldest to newest" in sh5, "tooltip has date, newest says (latest), aria label")
     check([b["r"] for b in SP.strip(lg5, "points", 24.5)] == ["x", "u", "o", "p", "o"] and SP.rate(lg5, "points", 24.5) == {"o": 2, "n": 4} and not SP.is_hot(lg5, "points", 24.5), "strip()/rate()/is_hot unchanged (latest first)")
     tmp = Path(tempfile.mkdtemp(prefix="seotest-"))
     try:

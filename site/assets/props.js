@@ -37,13 +37,15 @@
     return `<div class="pp-bks" aria-label="Lines by sportsbook">${ord.map(one).join("")}</div>`;
   }
 
-  /** One last-5 box. C.strip() is latest first (stats use it as-is); the row reverses it at render time so the newest game sits on the right, tagged "latest". */
+  /** One last-5 box. C.strip() is latest first (stats use it as-is); the row reverses it at render time so the newest game sits on the right.
+   *  data-d = the game's M/D (straight from the ET date string, no Date/UTC parsing), shown under the box by CSS. */
   function box(b, mk, last) {
     const date = b.d ? A().fmt(b.d + "T12:00:00Z", { month: "short", day: "numeric" }) : "";
     const tip = b.r === "x" ? `${date} ${b.ha} ${b.opp}: did not play / not in box score` : `${date} ${b.ha} ${b.opp}: ${C.fmtNum(b.v)} (${RW[b.r]})`;
     const val = b.r === "x" ? "DNP" : mk === "anytime_td" ? (b.v > 0 ? `${C.fmtNum(b.v)} TD` : "0") : C.fmtNum(b.v);
     const lab = last ? `${tip} (latest)` : tip;
-    return `<span class="pp-b pp-${b.r}" role="listitem" title="${esc(lab)}" aria-label="${esc(lab)}"><b>${esc(val)}</b><i>${esc(b.opp || "")}</i></span>`;
+    const md = /^\d{4}-\d{2}-\d{2}/.test(b.d || "") ? `${+b.d.slice(5, 7)}/${+b.d.slice(8, 10)}` : "";
+    return `<span class="pp-b pp-${b.r}" role="listitem"${md ? ` data-d="${md}"` : ""} title="${esc(lab)}" aria-label="${esc(lab)}"><b>${esc(val)}</b><i>${esc(b.opp || "")}</i></span>`;
   }
 
   /** "+ Track" link: opens My Bets' add sheet with this player + prop picked (bets.js, window.LSBets). */

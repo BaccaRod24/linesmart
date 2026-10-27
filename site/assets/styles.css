@@ -1845,3 +1845,28 @@ body:has(.news-bets) .footer .news-foot{display:none}
   .lt-page .page-head{align-items:flex-start}
   .lt-stamp{white-space:normal}
 }
+
+/* ---------- add-bet form: Result field, per-leg results, finished-game lookup */
+.bt-resrow{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg2)}
+.bt-resrow .bt-row{grid-template-columns:repeat(2,minmax(0,220px))}
+.bt-resrow .bt-hint{margin-top:2px}
+.bt-legfoot{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end}
+.bt-lrf{flex:1 1 220px}
+.bt-lres button{min-width:44px;min-height:36px;font-weight:700}
+.bt-lres button[data-v="won"].on{color:var(--pos,#3ddc97)}
+.bt-lres button[data-v="lost"].on{color:var(--neg,#ff6b6b)}
+.bt-past{margin:8px 0 4px;padding:10px 12px;border:1px dashed var(--line2);border-radius:var(--r-sm);background:var(--bg2)}
+.bt-past-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.bt-past-h .bt-lbl{margin:0}
+.bt-past-h input{min-height:40px}
+.bt-past-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:8px;max-height:220px;overflow:auto}
+.bt-pg{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-height:44px;padding:6px 10px;border-radius:var(--r-sm);border:1px solid var(--line2);background:var(--surface);color:var(--txt);font:inherit;cursor:pointer;text-align:left}
+.bt-pg:hover{border-color:var(--accent)}
+.bt-pg b{font-size:13px}.bt-pg small{font-size:11px;color:var(--dim)}
+.bt-past-msg{margin-top:8px;font-size:12.5px}
+@media (max-width:760px){
+  .bt-resrow .bt-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .bt-resrow .bt-row .bt-f:only-child{grid-column:1/-1}
+  .bt-past-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .bt-lrf{flex-basis:100%}
+}

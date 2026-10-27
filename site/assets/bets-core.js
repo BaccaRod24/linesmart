@@ -289,6 +289,52 @@
     return sels.filter(canAutoSettle).map(s => { const e = { league: s.league || s.event.lg, id: String(s.event.id), date: s.event.date }; if (isPropSel(s)) e.box = true; return e; });
   }
 
+  // ---------- result chosen by hand when adding / editing a bet (the add-bet form's Result field)
+  const RESULTS = ["won", "lost", "push", "void", "cashout"];
+  const LEG_RESULTS = ["won", "lost", "push", "void"];
+  /** Overall result for a parlay from what the user picked plus any per-leg W/L/P.
+   *  chosen: "" (Open) or a RESULTS key. Returns { status, auto, error }: auto = worked out from the legs. */
+  function parlayResult(legs, chosen = "") {
+    const graded = (legs || []).filter(l => LEG_RESULTS.includes(l.result));
+    const fromLegs = graded.length ? parlayStatus(legs) : "pending";
+    if (!chosen || chosen === "pending") return { status: fromLegs, auto: fromLegs !== "pending" };
+    if (chosen === "cashout" || chosen === "void") return { status: chosen, auto: false };
+    const lostLeg = (legs || []).findIndex(l => l.result === "lost");
+    if (chosen !== "lost" && lostLeg >= 0) return { status: chosen, error: `Leg ${lostLeg + 1} is marked Lost, so the parlay lost. Change that leg or set the result to Lost.` };
+    if (fromLegs !== "pending" && fromLegs !== chosen) return { status: chosen, error: `The legs work out to ${STATUS[fromLegs]}, not ${STATUS[chosen]}. Change a leg result or the bet result.` };
+    if (chosen === "won" && (legs || []).some(l => l.result === "push" || l.result === "void") && parlayDecimal(legs) === null)
+      return { status: chosen, error: "A leg pushed, so the payout is re-priced from the other legs: enter each leg's odds." };
+    return { status: chosen, auto: false };
+  }
+  /** Mark a bet settled by hand (or re-open it). date = placed date (YYYY-MM-DD) so it lands on that day in the charts;
+   *  manual: true keeps auto-settle from overriding it. */
+  function manualSettle(bet, status, { cashout, date, today } = {}) {
+    const b = { ...bet };
+    if (!RESULTS.includes(status)) {
+      Object.assign(b, { status: "pending", manual: false, settledAt: null, settledBy: null, cashout: null, final: null });
+      return b;
+    }
+    delete b.review;
+    Object.assign(b, { status, manual: true, settledBy: "manual", settledAt: date || bet.date || today || new Date().toISOString().slice(0, 10) });
+    if (status === "cashout") b.cashout = isNum(cashout) ? r2(Number(cashout)) : 0; else delete b.cashout;
+    return b;
+  }
+  /** Finished / scheduled games from an ESPN scoreboard (site.web.api.espn.com, read in the browser) for the
+   *  "Look up a finished game" picker: same shape as data/<lg>/index.json games so the form can link them. */
+  function scoreboardGames(sb) {
+    const out = [];
+    for (const e of (sb && sb.events) || []) {
+      const c = (e.competitions || [])[0]; if (!c) continue;
+      const side = ha => { const x = (c.competitors || []).find(t => t.homeAway === ha); if (!x) return null; const t = x.team || {};
+        return { id: String(t.id || x.id || ""), abbr: t.abbreviation || t.shortDisplayName || "", name: t.displayName || t.name || "", short: t.shortDisplayName || t.name || t.abbreviation || "",
+          score: x.score === undefined || x.score === null || x.score === "" ? null : Number(typeof x.score === "object" ? x.score.value : x.score) }; };
+      const home = side("home"), away = side("away"); if (!home || !away) continue;
+      const st = ((e.status || c.status || {}).type) || {};
+      out.push({ id: String(e.id), date: e.date || c.date, state: st.state || "pre", completed: !!st.completed, detail: st.shortDetail || st.detail || "", home, away });
+    }
+    return out.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  }
+
   // ---------- stats
   function inRange(bet, range, now = new Date()) {
     if (!range || range === "all") return true;
@@ -491,5 +537,6 @@
 
   return { PROP_MARKETS, YESNO, propLabel, normName, boxScore, findPlayer, gradeProp, isPropSel, describeProp, propQuote, FEED_KEY, needsReview, BOOKS, TYPES, STATUS, SOCCER, MMA, KEY, isNum, toDecimal, toAmerican, validAmerican, winProfit, impliedProb, parlayDecimal, parlayAmerican, parlayStatus,
     effectiveDecimal, netResult, payout, toWin, gradeSelection, canAutoSettle, autoSettle, pendingEvents, inRange, seasonStart, filterBets, betLeagues,
-    summarize, roi, groupBy, cumulative, SPORT_OF, SPORTS, settleDay, settledOrder, sportOf, propMarket, propMarketLabel, streaks, stats, dayInRange, dailySeries, drawdown, byWeekday, byDay, toUnits, sortRows, normalizeBet, parseImport, mergeBets, toCSV, uid };
+    summarize, roi, groupBy, cumulative, SPORT_OF, SPORTS, settleDay, settledOrder, sportOf, propMarket, propMarketLabel, streaks, stats, dayInRange, dailySeries, drawdown, byWeekday, byDay, toUnits, sortRows, normalizeBet, parseImport, mergeBets, toCSV, uid,
+    RESULTS, LEG_RESULTS, parlayResult, manualSettle, scoreboardGames };
 });

@@ -188,5 +188,56 @@ check(G({ type: "prop", side: "home" }, F(1, 0)) === null, "props are never auto
   check(near(last, fs2.net) && fs2.n === fx.bets.length, `stats fixture: series ends at net (${fs2.net})`, "stats");
 }
 
+// ---------- Result picked in the add-bet form (manual settle on the placed date)
+{
+  const T = "add-result";
+  const single = bet({ odds: 150, stake: 20, date: "2026-10-20", league: "nba", event: { id: "401", lg: "nba" }, side: "home" });
+  const w = C.manualSettle(single, "won", { date: "2026-10-20", today: "2026-10-27" });
+  check(w.status === "won" && w.manual === true && w.settledBy === "manual" && w.settledAt === "2026-10-20", "won: manual, settledAt = placed date", T);
+  check(C.netResult(w) === 30, "won +150 $20 nets +$30", T);
+  check(C.manualSettle(bet({ date: undefined }), "lost", { today: "2026-10-27" }).settledAt === "2026-10-27", "no placed date: settledAt = today", T);
+  const co = C.manualSettle(single, "cashout", { cashout: "12.345", date: "2026-10-20" });
+  check(co.status === "cashout" && co.cashout === 12.35 && C.netResult(co) === -7.65, "cash-out amount rounded, net = cashout − stake", T);
+  check(C.manualSettle(co, "won", { date: "2026-10-20" }).cashout === undefined, "switching away from cash-out drops the amount", T);
+  const back = C.manualSettle(w, "", { date: "2026-10-20" });
+  check(back.status === "pending" && back.manual === false && back.settledAt === null && back.settledBy === null, "Open re-opens a settled bet", T);
+  check(C.autoSettle(w, { "nba:401": { home: 90, away: 100, completed: true } }) === null, "auto-settle never overrides a result set in the form", T);
+  check(C.pendingEvents(w).length === 0, "no score lookups for a bet settled in the form", T);
+  const s = C.stats([w, C.manualSettle(bet({ id: "b", odds: -110, stake: 11, date: "2026-10-21" }), "lost", { date: "2026-10-21" })]);
+  check(s.net === 19 && s.won === 1 && s.lost === 1, `stats count form-settled bets at once (net ${s.net})`, T);
+  const ser = C.dailySeries([w], "all");
+  check(ser.length === 1 && ser[0].d === "2026-10-20" && ser[0].v === 30, "profit chart puts it on the placed date", T);
+  check(C.settleDay(w) === "2026-10-20", "settleDay = placed date", T);
+
+  // parlays: per-leg W/L/P work out the result
+  const L = (r, odds = -110) => ({ league: "nfl", type: "ml", odds, result: r });
+  check(C.parlayResult([L("won"), L("won")]).status === "won" && C.parlayResult([L("won"), L("won")]).auto, "legs W+W -> Won (auto)", T);
+  check(C.parlayResult([L("won"), L("lost")]).status === "lost", "any lost leg -> Lost", T);
+  check(C.parlayResult([L("won"), L(undefined)]).status === "pending", "an open leg keeps it Open", T);
+  check(C.parlayResult([L("lost"), L(undefined)]).status === "lost", "lost leg settles it even with open legs", T);
+  check(C.parlayResult([L("push"), L("push")]).status === "push", "all pushed -> Push", T);
+  check(C.parlayResult([L("won"), L("push")]).status === "won", "W + P -> Won (re-priced)", T);
+  check(!!C.parlayResult([L("won"), L("lost")], "won").error, "Won with a lost leg is rejected", T);
+  check(!!C.parlayResult([L("won"), L("won")], "lost").error, "Lost when every leg won is rejected", T);
+  check(!C.parlayResult([L("won"), L("lost")], "cashout").error && C.parlayResult([L("won"), L(undefined)], "cashout").status === "cashout", "Cashed out is allowed with any legs", T);
+  check(C.parlayResult([L(undefined), L(undefined)], "won").status === "won", "Won with no leg results is fine", T);
+  check(!!C.parlayResult([L("won", null), L("push", null)], "won").error, "W + P with no leg odds asks for leg odds", T);
+  const pl = { id: "p", type: "parlay", stake: 10, date: "2026-10-22", legs: [L("won", 100), L("push", 150), L("won", 100)] };
+  const pw = C.manualSettle(pl, C.parlayResult(pl.legs).status, { date: pl.date });
+  check(pw.status === "won" && C.netResult(pw) === 30, "parlay W/P/W at +100 legs: pushed leg drops out, $10 nets +$30", T);
+  const pl2 = { ...pl, status: "pending", legs: [L("won", 100), L(undefined, 100)] };
+  check(C.parlayResult(pl2.legs).status === "pending" && C.autoSettle({ ...pl2, legs: [{ ...pl2.legs[0] }, { ...pl2.legs[1], event: { id: "9", lg: "nfl" }, side: "home" }] }, { "nfl:9": { home: 20, away: 10, completed: true } }).status === "won",
+    "partly graded open parlay: auto-settle finishes the linked leg", T);
+
+  // ESPN scoreboard -> lookup list
+  const sb = JSON.parse(fs.readFileSync(new URL("./fixtures/live/sb_nba.json", import.meta.url)));
+  const gs = C.scoreboardGames(sb);
+  check(gs.length === (sb.events || []).length && gs.every(g => g.id && g.home.abbr && g.away.abbr && g.date), `scoreboardGames parses ${gs.length} games`, T);
+  check(gs.every((g, i) => !i || g.date >= gs[i - 1].date), "sorted by start time", T);
+  const one = gs.find(g => g.id === "401909868");
+  check(one && /^\d+$/.test(one.home.id) && typeof one.home.score === "number", "teams carry id + numeric score", T);
+  check(C.scoreboardGames(null).length === 0 && C.scoreboardGames({ events: [{ id: 1 }] }).length === 0, "empty / malformed scoreboard -> []", T);
+}
+
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall bet-tracker unit tests passed");
 process.exit(fails.length ? 1 : 0);

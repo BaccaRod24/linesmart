@@ -593,9 +593,10 @@
           // older free-text props on a game keep their text ("Something else"); structured props reopen in the picker
           pid: pr && pr.pid ? String(pr.pid) : "", player: pr ? pr.player || "" : "", pmk: pr ? pr.mk : (s.type === "prop" && s.event ? "other" : ""), custom: !!(pr ? !pr.pid : s.type === "prop" && s.event) }; };
       F = { id: ex.id, book: ex.book, bookOther: ex.bookOther || "", type: ex.type, date: ex.date || today(), stake: ex.stake, odds: ex.odds ?? "", oddsManual: !!ex.oddsManual, notes: ex.notes || "",
-        legs: ex.type === "parlay" ? ex.legs.map(l => ({ ...toLeg(l), mk: l.type || "ml" })) : [toLeg(ex)] };
+        legs: ex.type === "parlay" ? ex.legs.map(l => ({ ...toLeg(l), mk: l.type || "ml" })) : [toLeg(ex)],
+        status: ex.status === "pending" ? "" : ex.status, cashout: ex.cashout ?? "", statusPicked: ex.status !== "pending" };
     } else {
-      F = { book: defaultBook(), bookOther: p.bookOther || "", type: "ml", date: today(), stake: p.stake || "", odds: "", oddsManual: false, notes: "", legs: [newLeg()] };
+      F = { book: defaultBook(), bookOther: p.bookOther || "", type: "ml", date: today(), stake: p.stake || "", odds: "", oddsManual: false, notes: "", legs: [newLeg()], status: "", cashout: "", statusPicked: false };
       if (qs && qs.get("lg")) {
         const leg = F.legs[0]; leg.league = qs.get("lg"); leg.eventId = qs.get("ev") || "";
         const mk = qs.get("mk"); if (C.TYPES[mk] && mk !== "parlay") { F.type = mk; leg.mk = mk; }
@@ -631,8 +632,8 @@
     if (parlay) h += `<div class="bt-leg-h"><b>Leg ${i + 1}</b><div class="seg bt-mk">${["ml", "spread", "total", "prop"].map(k => `<button type="button" data-a="mk" data-v="${k}" class="${l.mk === k ? "on" : ""}">${k === "ml" ? "ML" : k === "prop" ? "Prop" : C.TYPES[k].replace(" (O/U)", "")}</button>`).join("")}</div>${F.legs.length > 1 ? `<button type="button" class="sclear bt-rm" data-a="rmleg" aria-label="Remove leg ${i + 1}">✕</button>` : ""}</div>`;
     if (l.review) h += legReview(l.review);
     h += `<div class="bt-lbl">League</div><div class="chips bt-scroll">${lgs.map(k => `<button type="button" class="chip${k === l.league ? " on" : ""}" data-a="lg" data-v="${k}">${esc(lgName(k))}</button>`).join("")}</div>`;
-    h += `<label class="bt-f"><span class="bt-lbl">Game</span><select data-f="game"><option value="">${games.length ? "Choose a game…" : "No games in our data right now"}</option>${known ? `<option value="${esc(l.eventId)}" selected>${esc(l.event.name)}</option>` : ""}${games.map(x => `<option value="${esc(x.id)}"${String(x.id) === String(l.eventId) && !l.manual ? " selected" : ""}>${esc(dayOpt(x))}</option>`).join("")}<option value="__manual"${l.manual ? " selected" : ""}>Not listed: type it in</option></select></label>`;
-    if (l.manual) h += `<label class="bt-f"><span class="bt-lbl">Event</span><input data-f="eventText" value="${esc(l.eventText)}" placeholder="e.g. Chiefs vs Bills, or UFC 310" autocomplete="off"></label>`;
+    h += `<label class="bt-f"><span class="bt-lbl">Game</span><select data-f="game"><option value="">${games.length ? "Choose a game…" : "No games in our data right now"}</option>${known ? `<option value="${esc(l.eventId)}" selected>${esc(l.event.name)}</option>` : ""}${games.map(x => `<option value="${esc(x.id)}"${String(x.id) === String(l.eventId) && !l.manual ? " selected" : ""}>${esc(dayOpt(x))}</option>`).join("")}<option value="__manual"${l.manual ? " selected" : ""}>Not listed or already played: type it in</option></select></label>`;
+    if (l.manual) h += pastHtml(l) + `<label class="bt-f"><span class="bt-lbl">Event <span class="na">(teams or fight)</span></span><input data-f="eventText" value="${esc(l.eventText)}" placeholder="${esc(eventPh(l.league))}" autocomplete="off"></label>`;
     h += typeSeg;
     const linked = !l.manual && (g || l.event);
     if (linked && mk !== "prop" && mk !== "parlay") {
@@ -648,7 +649,11 @@
       h += `<label class="bt-f"><span class="bt-lbl">Your pick</span><input data-f="selection" value="${esc(l.selection)}" placeholder="${mk === "prop" ? "e.g. Jalen Hurts over 1.5 pass TD" : "e.g. Eagles -3.5"}" autocomplete="off"></label>`;
       if (mk === "prop" && PROP_LG.has(l.league) && !linked) h += `<div class="bt-hint">Pick the game above to choose the player and prop from the list (and have it settle automatically).</div>`;
     }
-    if (parlay) h += `<label class="bt-f bt-half"><span class="bt-lbl">Leg odds</span><input data-f="odds" type="text" inputmode="numeric" value="${esc(l.odds)}" placeholder="-110"></label>`;
+    if (parlay) {
+      const lr = C.LEG_RESULTS.includes(l.result) ? l.result : "pending";
+      h += `<div class="bt-legfoot"><label class="bt-f bt-half"><span class="bt-lbl">Leg odds</span><input data-f="odds" type="text" inputmode="numeric" value="${esc(l.odds)}" placeholder="-110"></label>
+        <div class="bt-f bt-lrf"><span class="bt-lbl">Leg result <span class="na">(optional)</span></span><div class="seg bt-lres" role="group" aria-label="Leg ${i + 1} result">${[["pending", "Open"], ["won", "W"], ["lost", "L"], ["push", "P"]].concat(lr === "void" ? [["void", "Void"]] : []).map(([k, n]) => `<button type="button" data-a="lres" data-v="${k}" class="${lr === k ? "on" : ""}" aria-pressed="${lr === k}" title="${C.STATUS[k] === "Pending" ? "Not settled" : C.STATUS[k]}">${n}</button>`).join("")}</div></div></div>`;
+    }
     return h + `</div>`;
   }
 
@@ -692,6 +697,57 @@
     return h;
   }
 
+  // ---------- result + finished-game lookup for the add / edit form
+  const EVENT_PH = { ufc: "e.g. Pereira vs Ankalaev, UFC 320", nba: "e.g. Lakers @ Celtics", ncaab: "e.g. Duke @ North Carolina", nhl: "e.g. Rangers @ Bruins", mlb: "e.g. Yankees @ Dodgers", epl: "e.g. Arsenal vs Liverpool", mls: "e.g. Inter Miami vs LAFC", ucl: "e.g. Real Madrid vs Bayern" };
+  const eventPh = lg => EVENT_PH[lg] || "e.g. Chiefs @ Bills";
+  /** parlay: per-leg W/L/P work out the overall result unless the user picked one themselves */
+  function legsToStatus() {
+    if (F.type !== "parlay" || (F.statusPicked && F.status)) return;
+    const r = C.parlayResult(F.legs, "");
+    F.status = r.status === "pending" ? "" : r.status; F.statusPicked = false;
+  }
+  function resultBlock(parlay) {
+    const fromLegs = parlay && F.status && !F.statusPicked;
+    const graded = parlay ? F.legs.filter(l => C.LEG_RESULTS.includes(l.result)).length : 0;
+    const hint = fromLegs ? `Worked out from the leg results. ${C.STATUS[F.status]} counts in your stats as soon as you save.`
+      : F.status ? `Settled by you on the date placed: counts in your profit, ROI and streaks right away. Auto-settle won't change it.`
+      : parlay && graded ? `${graded} of ${F.legs.length} legs settled. The rest settle automatically if they're linked to a game, or set the result here.`
+      : `Leave it Open for a bet that's still running (bets linked to a game settle automatically). Already finished? Pick the result.`;
+    return `<div class="bt-resrow"><div class="bt-row">${resultSel(fromLegs ? " (from the legs)" : "")}</div><div class="bt-hint">${esc(hint)}</div></div>`;
+  }
+  // a finished game that's left the picker: one ESPN scoreboard read for the chosen day (in the browser, site.web.api.espn.com)
+  const PAST = {};
+  const addDays = (iso, n) => { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  async function loadPast(lg, day) {
+    const k = `${lg}|${day}`, LC = window.LiveCore;
+    if (PAST[k]) return PAST[k];
+    if (!LC || !LC.supported(lg) || !/^\d{4}-\d{2}-\d{2}$/.test(day || "")) return (PAST[k] = { games: [] });
+    PAST[k] = { loading: true };
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 10000);
+    try {
+      const r = await fetch(LC.scoreboardUrl(lg, day.replace(/-/g, "")), { signal: ctl.signal });
+      if (!r.ok) throw new Error(r.status);
+      return (PAST[k] = { games: C.scoreboardGames(await r.json()) });
+    } catch (e) { return (PAST[k] = { error: true }); } finally { clearTimeout(t); }
+  }
+  function pastHtml(l) {
+    const LC = window.LiveCore;
+    if (!LC || !LC.supported(l.league)) return `<div class="bt-hint">Type the ${l.league === "ufc" ? "fight" : "game"} and your pick below, then set the Result if it's already over.</div>`;
+    const t = today(), def = F.date && F.date < t ? F.date : addDays(t, -1);
+    if (!l.pastDay) l.pastDay = def;
+    const key = `${l.league}|${l.pastDay}`;
+    if (!PAST[key]) loadPast(l.league, l.pastDay).then(() => {
+      const app = document.getElementById("app"); if (F && F.legs.includes(l) && app && app.querySelector(".bt-form")) drawForm(app); });
+    const P = PAST[`${l.league}|${l.pastDay}`] || { loading: true };
+    const fin = g => g.state === "post" ? `${g.away.abbr} ${g.away.score ?? ""} @ ${g.home.abbr} ${g.home.score ?? ""}` : `${g.away.abbr} @ ${g.home.abbr}`;
+    const list = P.loading ? `<div class="na bt-past-msg">Loading ${esc(lgName(l.league))} games…</div>`
+      : P.error ? `<div class="na bt-past-msg">Couldn't load games for that day. Type the game below instead.</div>`
+      : !P.games.length ? `<div class="na bt-past-msg">No ${esc(lgName(l.league))} games that day.</div>`
+      : `<div class="bt-past-list">${P.games.map(g => `<button type="button" class="bt-pg" data-a="past" data-v="${esc(g.id)}"><b>${esc(fin(g))}</b><small>${esc(g.state === "post" ? g.detail || "Final" : g.state === "in" ? "Live" : A().timeET(g.date))}</small></button>`).join("")}</div>`;
+    return `<div class="bt-past"><div class="bt-past-h"><span class="bt-lbl">Game already played? Find it</span><input data-f="pastday" type="date" aria-label="Game date" min="${addDays(t, -30)}" max="${t}" value="${esc(l.pastDay)}"></div>${list}
+      <div class="bt-hint">Pick it to link the game (it then settles from the final score if you leave the Result Open), or type it below.</div></div>`;
+  }
+
   function drawForm(app) {
     const parlay = F.type === "parlay";
     const combined = parlay ? C.parlayAmerican(F.legs.map(l => ({ odds: isNum(l.odds) ? Number(l.odds) : null }))) : null;
@@ -711,7 +767,8 @@
     const showOdds = !parlay || F.oddsManual;
     h += `<div class="bt-row">${showOdds ? `<label class="bt-f"><span class="bt-lbl">Odds (American)</span><input data-f="odds" type="text" inputmode="numeric" value="${esc(F.odds)}" placeholder="-110 or +150"></label>` : ""}
       <label class="bt-f"><span class="bt-lbl">Stake ($)</span><input data-f="stake" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(F.stake)}" placeholder="10.00"></label>
-      <label class="bt-f"><span class="bt-lbl">Date placed</span><input data-f="date" type="date" value="${esc(F.date)}"></label></div>
+      <label class="bt-f"><span class="bt-lbl">Date placed</span><input data-f="date" type="date" max="${today()}" value="${esc(F.date)}"></label></div>
+      ${R ? "" : resultBlock(parlay)}
       <div class="bt-towin" aria-live="polite"></div>
       <label class="bt-f"><span class="bt-lbl">Notes <span class="na">(optional)</span></span><input data-f="notes" value="${esc(F.notes)}" placeholder="e.g. bet ID, boost, reasoning" autocomplete="off"></label>
       <div class="bt-err" role="alert"></div>
@@ -729,6 +786,7 @@
       else if (a === "type") {
         const was = F.type; F.type = v;
         if (v === "parlay" && was !== "parlay") { F.legs.forEach(x => { x.mk = was === "parlay" ? x.mk : was; if (!isNum(x.odds) && isNum(F.odds)) x.odds = F.odds; }); if (F.legs.length < 2) F.legs.push(newLeg(F.legs[0].league)); F.odds = ""; }
+        if (v !== "parlay" && was === "parlay" && !F.statusPicked) F.status = "";
         if (v !== "parlay") { F.legs = [F.legs[0]]; F.legs[0].mk = v; if (was === "parlay") F.odds = F.legs[0].odds; if (was !== v) clearProp(F.legs[0]); }
       }
       else if (a === "mk") { l.mk = v; clearProp(l); }
@@ -740,21 +798,24 @@
       else if (a === "custom") { l.custom = true; l.pid = ""; }
       else if (a === "uncustom") clearProp(l);
       else if (a === "addleg") { F.legs.push(newLeg(F.legs[F.legs.length - 1].league)); }
-      else if (a === "rmleg") { F.legs.splice(+legEl.dataset.leg, 1); }
+      else if (a === "rmleg") { F.legs.splice(+legEl.dataset.leg, 1); legsToStatus(); }
+      else if (a === "lres") { l.result = v === "pending" ? undefined : v; delete l.review; legsToStatus(); }
+      else if (a === "past") { const g = (PAST[`${l.league}|${l.pastDay}`] || {}).games?.find(x => String(x.id) === v); if (g) { Object.assign(l, { manual: false, eventId: String(g.id), event: evOf(g, l.league), eventText: "" }); clearProp(l); } }
       drawForm(app);
     });
     form.addEventListener("change", e => {
       const t = e.target, legEl = t.closest("[data-leg]"), l = legEl ? F.legs[+legEl.dataset.leg] : null;
       if (t.dataset.f === "game") {
         l.manual = t.value === "__manual"; l.eventId = l.manual ? "" : t.value; clearProp(l);
-        const g = (GAMES[l.league].games || []).find(x => String(x.id) === l.eventId); l.event = g ? evOf(g, l.league) : null;
+        const g = ((GAMES[l.league] || {}).games || []).find(x => String(x.id) === l.eventId); l.event = g ? evOf(g, l.league) : null;
         drawForm(app);
       } else if (t.dataset.f === "oddsManual") { F.oddsManual = t.checked; drawForm(app); }
-      else if (t.dataset.f === "status") { F.status = t.value; drawForm(app); }
+      else if (t.dataset.f === "status") { F.status = t.value; F.statusPicked = !!t.value; drawForm(app); }
+      else if (t.dataset.f === "pastday") { if (t.value) { l.pastDay = t.value; drawForm(app); } }
       else if (t.dataset.f === "pmk") { l.pmk = t.value; l.side = C.YESNO.has(t.value) ? "over" : ""; l.line = ""; drawForm(app); }
     });
     form.addEventListener("input", e => {
-      const t = e.target, f = t.dataset.f; if (!f || f === "game" || f === "oddsManual" || f === "pmk" || f === "status") return;
+      const t = e.target, f = t.dataset.f; if (!f || f === "game" || f === "oddsManual" || f === "pmk" || f === "status" || f === "pastday") return;
       if (f === "psearch") {   // filter the player list in place (no redraw, keeps the keyboard up)
         const q = C.normName(t.value);
         t.closest("[data-leg]").querySelectorAll(".bt-pl").forEach(b => (b.hidden = !!q && !b.dataset.n.includes(q)));
@@ -775,7 +836,7 @@
         if (l.side) { l.odds = isNum(q.odds) ? q.odds : ""; if (F.type !== "parlay") F.odds = l.odds; }
         return;
       }
-      const g = (GAMES[l.league].games || []).find(x => String(x.id) === String(l.eventId)); if (!g) return;
+      const g = ((GAMES[l.league] || {}).games || []).find(x => String(x.id) === String(l.eventId)); if (!g) return;
       const pr = priceFor(quote(g, F.book), mk, l.side);
       if (isNum(pr.line)) l.line = pr.line;
       if (isNum(pr.odds)) { l.odds = pr.odds; if (F.type !== "parlay") F.odds = pr.odds; }
@@ -829,9 +890,12 @@
     const odds = currentOdds();
     if (!C.validAmerican(odds)) return err("Enter American odds, e.g. -110 or +150 (at least 100 either way).");
     const prev = F.id ? BETS.find(b => b.id === F.id) : null;
-    const R = F.review, slipSt = R && C.STATUS[F.status] && F.status !== "pending" ? F.status : "";
+    const R = F.review;
+    let chosen = C.RESULTS.includes(F.status) ? F.status : "";
+    if (parlay) { const pr = C.parlayResult(legs, chosen); if (pr.error) return err(pr.error); chosen = pr.status === "pending" ? "" : pr.status; }
+    const slipSt = R ? chosen : "";
     let co = null;
-    if (slipSt === "cashout") { co = parseFloat(F.cashout); if (!isNum(co) || co < 0) return err("Enter the cash-out amount you received."); co = Math.round(co * 100) / 100; }
+    if (chosen === "cashout") { co = parseFloat(F.cashout); if (!isNum(co) || co < 0) return err("Enter the cash-out amount you received."); co = Math.round(co * 100) / 100; }
     const base = { id: F.id || C.uid(), createdAt: prev ? prev.createdAt : new Date().toISOString(), date: F.date || today(), book: F.book, bookOther: F.book === "other" ? F.bookOther.trim() : undefined,
       type: F.type, odds, stake: Math.round(stake * 100) / 100, notes: F.notes.trim() || undefined, status: prev ? prev.status : "pending" };
     if (prev) for (const k of ["settledAt", "settledBy", "manual", "cashout", "final", "slipRef", "source"]) if (prev[k] !== undefined) base[k] = prev[k];
@@ -843,14 +907,18 @@
     if (!parlay) delete bet.result;
     bet = C.normalizeBet(JSON.parse(JSON.stringify(bet)));
     // a changed selection on an auto-settled bet re-opens it so it can be graded again
-    if (prev && prev.settledBy === "auto") Object.assign(bet, { status: "pending", settledAt: null, settledBy: null, final: null });
+    // Result picked in the form: settled by hand on the placed date (counts in stats now; auto-settle leaves it alone)
+    const prevSt = prev && prev.status !== "pending" ? prev.status : "";
+    const resultSet = !R && (prev ? chosen !== prevSt || (chosen === "cashout" && co !== prev.cashout) || (chosen && prev.settledBy === "manual" && (F.date || today()) !== prev.date) : !!chosen);
+    if (resultSet) bet = C.manualSettle(bet, chosen, { cashout: co, date: F.date || today(), today: today() });
+    else if (prev && prev.settledBy === "auto") Object.assign(bet, { status: "pending", settledAt: null, settledBy: null, final: null });
     BETS = prev ? BETS.map(b => (b.id === prev.id ? bet : b)) : [bet, ...BETS];
     if (!save()) return;
     if (R) { lastAuto = 0; if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); return nextImport(document.getElementById("app"), true); }
     setPref("book", F.book); if (F.book === "other") setPref("bookOther", F.bookOther.trim()); setPref("stake", F.stake);
     if (!prev && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     lastAuto = 0;
-    toast(prev ? "Bet updated." : "Bet saved on this device.");
+    toast((prev ? "Bet updated." : "Bet saved on this device.") + (resultSet && chosen ? ` Marked ${C.STATUS[chosen].toLowerCase()}.` : ""));
     location.hash = "#/bets/list";
   }
 
@@ -1002,6 +1070,7 @@
     const tok = A().nav();
     F = JSON.parse(JSON.stringify(q.items[i]));
     Object.assign(F.review, { i, n: q.items.length });
+    F.statusPicked = !!F.status;
     for (const l of F.legs) { await gamesFor(l.league); await propsFor(l.league); }
     if (tok !== A().nav()) return;
     for (const l of F.legs) if (l.mk === "prop" && l.pid && !feedPlayers(l).some(p => p.pid === String(l.pid))) { l.pid = ""; l.custom = true; }
@@ -1030,13 +1099,17 @@
     const why = r.why || (r.status === "matched" ? "Linked to this game: settles automatically." : r.status === "manual" ? "Pick the game below to auto-settle, or leave “Not listed” and settle it yourself." : "");
     return `<div class="bt-from rv-${cls}"><span class="bt-rvb"><i aria-hidden="true">${ic}</i>${label}</span><span class="bt-from-t">From slip: <q>${esc(r.text || "—")}</q></span>${why ? `<span class="bt-from-why">${esc(why)}</span>` : ""}</div>`;
   }
+  /** Result select shared by the add / edit form and the slip review (Open = not settled yet); cash-out asks for the amount */
+  function resultSel(suffix = "") {
+    return `<label class="bt-f bt-half"><span class="bt-lbl">Result${suffix}</span><select data-f="status" aria-label="Result">${[["", "Open (not settled yet)"], ["won", "Won"], ["lost", "Lost"], ["push", "Push"], ["void", "Void"], ["cashout", "Cashed out"]].map(([k, n]) => `<option value="${k}"${(F.status || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select></label>${F.status === "cashout" ? `<label class="bt-f bt-half"><span class="bt-lbl">Cash-out amount ($)</span><input data-f="cashout" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(F.cashout)}" placeholder="0.00"></label>` : ""}`;
+  }
   function reviewPanel() {
     const R = F.review, s = R.sum || {};
     const cells = [["Stake", isNum(s.stake) ? money(s.stake) : "—"], ["Odds", isNum(s.odds) ? am(s.odds) : "—"], [isNum(s.payout) ? "Payout" : "To win", isNum(s.payout) ? money(s.payout) : isNum(s.toWin) ? money(s.toWin) : "—"], ["Bet ID", s.ref || "—"]];
     const counts = {}; for (const l of F.legs) if (l.review) counts[l.review.status] = (counts[l.review.status] || 0) + 1;
     const book = R.bookFromSlip || R.bookTouched ? "" : `<li>Sportsbook isn't on the slip: set to ${esc(C.BOOKS[F.book] || F.book)}. Change it below if needed.</li>`;
     const warn = [...(R.warnings || []).map(w => `<li>${esc(w)}</li>`), book].filter(Boolean).join("");
-    const resSel = `<label class="bt-f bt-half"><span class="bt-lbl">Result${s.status ? " (from the slip)" : ""}</span><select data-f="status">${[["", "Open (not settled yet)"], ["won", "Won"], ["lost", "Lost"], ["push", "Push"], ["void", "Void"], ["cashout", "Cashed out"]].map(([k, n]) => `<option value="${k}"${(F.status || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select></label>${F.status === "cashout" ? `<label class="bt-f bt-half"><span class="bt-lbl">Cash-out amount ($)</span><input data-f="cashout" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(F.cashout)}" placeholder="0.00"></label>` : ""}`;
+    const resSel = resultSel(s.status ? " (from the slip)" : "");
     return `<div class="bt-rv" role="region" aria-label="What we read from your slip">
       <div class="bt-rv-h"><span class="bt-rv-tag">${R.bookFromSlip ? esc(R.bookName || C.BOOKS[F.book] || "Sportsbook") + " slip" : "Bet slip"}</span><span class="na">Nothing is saved until you tap Save. Fix anything that looks off.</span></div>
       <div class="bt-rv-sum">${cells.map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join("")}</div>

@@ -42,5 +42,18 @@ site/preview/
 site/.preview.tmp/
 site/.preview.old/
 site/data/previews.json
+
+# Generated SEO pages (league hubs, game/prop/team/fighter/event pages) + manifest + redirect stubs
+# (built in CI each refresh by scripts/seo_pages.py from site/data and the _history/pages archive)
+site/nfl/
+site/nba/
+site/mlb/
+site/nhl/
+site/ncaaf/
+site/ncaab/
+site/ufc/
+site/.seo.tmp/
+site/.*.old/
+site/data/pages.json
 # node_modules may be a symlink in local worktrees
 node_modules

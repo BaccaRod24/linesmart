@@ -139,12 +139,19 @@ jobs:
               json.load(open(f))
           PY
 
-      # Static, crawlable preview pages for upcoming games (site/preview/**), the hub page, data/previews.json for
-      # the app's "Preview" links and the previews block in sitemap.xml. Reads site/data only (no network, no API key).
-      # Pages are rebuilt from scratch every run, so started games become redirects and old games drop out.
-      - name: Build game preview pages
+      # Crawlable SEO pages (scripts/seo_pages.py): league hubs, game, player-props, team, UFC event and fighter pages
+      # under site/<league>/**, redirect stubs for retired URLs (incl. the old /preview/ pages), data/pages.json for the
+      # app's real-URL links, the pages block in sitemap.xml and the homepage cards in index.html. Reads site/data only
+      # (no network, no API key). Finished games are kept ~60 days (final score + closing lines) in an archive on the
+      # data-history branch (_history/pages); without the worktree it builds from site/data alone.
+      - name: Build SEO pages
+        id: seo
         continue-on-error: true
-        run: python scripts/previews.py
+        env:
+          ARCHIVE_DIR: ${{ steps.hist.outcome == 'success' && '_history/pages' || '' }}
+        run: |
+          python scripts/seo_pages.py
+          if [ -d _history/pages ]; then rm -rf .linehist-snap/_pages && mkdir -p .linehist-snap && cp -r _history/pages .linehist-snap/_pages; fi
 
       # Only persist history from a successful build. On a push race, re-apply this run's
       # snapshot on top of the latest branch tip and try again; never force-push.
@@ -156,7 +163,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           msg="line history snapshot $(date -u +%Y-%m-%dT%H:%MZ) (run ${{ github.run_id }})"
-          git add -A history odds rosters matchups weather advstats
+          git add -A history odds rosters matchups weather advstats $( [ -d pages ] && echo pages )
           if git diff --cached --quiet; then echo "No history changes."; exit 0; fi
           git commit -qm "$msg"
           for i in 1 2 3 4 5; do
@@ -173,7 +180,8 @@ jobs:
             if [ -d ../.linehist-snap/_matchups ]; then mkdir -p matchups && cp -f ../.linehist-snap/_matchups/*.json matchups/; fi
             if [ -d ../.linehist-snap/_weather ]; then mkdir -p weather && cp -f ../.linehist-snap/_weather/*.json weather/; fi
             if [ -d ../.linehist-snap/_adv ]; then mkdir -p advstats && cp -f ../.linehist-snap/_adv/*.json advstats/; fi
-            git add -A history odds rosters matchups weather advstats
+            if [ -d ../.linehist-snap/_pages ]; then mkdir -p pages && cp -f ../.linehist-snap/_pages/*.json pages/; fi
+            git add -A history odds rosters matchups weather advstats $( [ -d pages ] && echo pages )
             if git diff --cached --quiet; then echo "Nothing left to push."; exit 0; fi
             git commit -qm "$msg"
           done

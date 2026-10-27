@@ -7,16 +7,31 @@
   const DATA_TTL_MS = 60000;   // parsed data/*.json is reused for 60 s, then revalidated (was: kept until a full reload)
   let netGen = 0;  // bumped when the browser comes back online
   let META = null;
-  let PREV = {};   // data/previews.json from scripts/previews.py: {leagues: {lg: {gameId: "preview/lg/slug/"}}}; absent locally → no links
-  const previewHref = (lg, id) => ((PREV.leagues || {})[lg] || {})[id] || null;
-  const previewLink = (lg, g, cls = "pv-tile") => { const h = g && g.state === "pre" ? previewHref(lg, g.id) : null; return h ? `<a class="${cls}" href="${esc(h)}" title="Game preview: odds, line movement, form and injuries" aria-label="${esc(`Preview: ${g.away.name} at ${g.home.name}`)}">Preview</a>` : ""; };
+  let ROUTED = null;   // the route last rendered (generated pages ignore in-page #anchor jumps)
+  // ---------- crawlable pages (scripts/seo_pages.py): data/pages.json maps app routes to real URLs
+  // {generated, l: {lg: "nfl/"}, g: {lg: {id: "nfl/games/…/"}}, t: {lg: {id: path}}, p: {lg: {id: path}}}; absent locally → hash routes only.
+  // On a generated page <body data-page data-route> says which app view (if any) the page hydrates into.
+  const PAGE = document.body.dataset.page || "", PAGE_ROUTE = document.body.dataset.route || "", PAGE_LG = document.body.dataset.lg || "";
+  let PAGES = {};
+  const realPath = hash => {   // "#/g/nfl/401…" → "nfl/games/…/" (only exact app views that have a page; sub-views like /log stay in the app)
+    const m = /^#\/([lgtp])\/([a-z0-9]+)(?:\/([^/?#]+))?\/?$/.exec(hash || "");
+    if (!m) return null;
+    const [, k, lg, id] = m, M = PAGES[k] || {};
+    return k === "l" ? (id ? null : M[lg] || null) : id ? ((M[lg] || {})[id] || null) : null;
+  };
+  const realizeLinks = root => {   // rewrite app links to their real URLs (kept in data-h for code that looks tiles up by route)
+    if (!PAGES.generated) return;
+    (root || document).querySelectorAll('a[href^="#/"]').forEach(a => { const h = a.getAttribute("href"), p = realPath(h); if (p) { a.dataset.h = h; a.setAttribute("href", p); } });
+  };
+  const previewHref = (lg, id) => realPath(`#/g/${lg}/${id}`);
+  const previewLink = () => "";   // the old "Preview" chip: every game tile now opens its real page
   // ---------- live scores (assets/live.js + live-core.js): overlays newer than the static file win
   const GENS = {};                       // league -> generated stamp of its data/<lg>/index.json
   const LV = () => window.LSLive || null;
   const liveG = (lg, g) => (LV() ? LV().merge(lg, g, GENS[lg]) : g);
   const TILES = {}, TICKS = {};          // "lg/id" -> static game / ticker item last rendered (re-rendered on live updates)
 
-  if (!document.title.startsWith(CFG.name)) document.title = CFG.name;   // keep the descriptive static <title> (SEO)
+  if (!PAGE && !document.title.startsWith(CFG.name)) document.title = CFG.name;   // keep the descriptive static <title> (SEO)
   const intro = document.getElementById("intro");
   if (intro) intro.classList.add("js");
   document.querySelectorAll("[data-brand]").forEach(e => (e.textContent = CFG.name));
@@ -236,7 +251,7 @@
       if (!alive()) return;
       for (const k of keys) {
         const [lg] = k.split("/"), T = TILES[k];
-        if (T) app.querySelectorAll(`a.game[href="#/g/${k}"]`).forEach(el => { const w = el.parentElement && el.parentElement.classList.contains("gwrap") ? el.parentElement : el; w.outerHTML = gameTile(T.g, lg, T.kind); });   // a pre-game tile wrapped with its alert bell is replaced whole
+        if (T) app.querySelectorAll(`a.game[href="#/g/${k}"], a.game[data-h="#/g/${k}"]`).forEach(el => { const w = el.parentElement && el.parentElement.classList.contains("gwrap") ? el.parentElement : el; w.outerHTML = gameTile(T.g, lg, T.kind); });   // a pre-game tile wrapped with its alert bell is replaced whole
         const t = TICKS[k];
         if (t && tickerOne) document.querySelectorAll(`a.tk[data-lk="${k}"]`).forEach(el => (el.outerHTML = tickerOne(t, !!el.closest('[aria-hidden="true"]'))));
         if (sum && k === `${sum.lg}/${sum.id}`) { const m = app.querySelector(".match .lv-mid"); if (m) m.outerHTML = heroMid(liveG(sum.lg, sum.g)); }
@@ -307,7 +322,6 @@
   function toolsHtml() {
     const t = (href, icon, name, sub) => `<a class="tool" href="${href}">${ICON(icon)}<span><b>${esc(name)}</b><small>${esc(sub)}</small></span></a>`;
     return `<nav class="tools" aria-label="Tools">${[
-      META.previews ? t("preview/", "doc", "Game previews", "Lines, form and injuries per game") : "",
       t("#/account/alerts", "bell", "Line alerts", "Email me when a line moves"),
       t("#/bets", "ticket", "Bet tracker", "Track bets or import a slip"),
     ].join("")}</nav>`;
@@ -1216,12 +1230,28 @@
   async function route() {
     if (GEO()) await GEO().ready;
     if (!META) {
-      try { META = await getJSON("data/meta.json"); const pv = META.previews; if (!pv) PREV = {}; else if (PREV.generated !== pv.generated) PREV = await getJSON("data/previews.json").catch(() => ({})); }
+      try { META = await getJSON("data/meta.json"); const pg = META.pages; if (!pg) PAGES = {}; else if (PAGES.generated !== pg.generated) PAGES = await getJSON("data/pages.json").catch(() => ({})); }
       catch (e) { app.innerHTML = `<div class="empty"><h3>No data yet</h3>Run <code>python3 scripts/build_data.py</code> then reload.</div>`; return; }
+      realizeLinks();
       const gen = META.generated ? new Date(META.generated) : null;
       if (gen) { const iso = gen.toISOString(); const u = document.getElementById("updated"); u.title = "Data updated " + fullET(iso); u.innerHTML = `<span class="dot"></span><span><span class="u-long">Updated ${esc(fmt(iso, { weekday: "short", month: "short", day: "numeric" }))}, </span>${esc(timeET(iso))}</span>`; }
     }
-    const h = location.hash.replace(/^#\/?/, "").split("/");
+    // an app route that has a real page: go there (replace, so Back doesn't bounce)
+    const real = realPath(location.hash);
+    if (real) {
+      const u = new URL(real, document.baseURI);
+      if (u.pathname !== location.pathname) { location.replace(u.href); return; }
+      history.replaceState(null, "", location.pathname + location.search);   // already on it
+    }
+    // generated pages: no app hash (or an in-page #anchor) → the page's own view, or just the header chrome on static pages
+    const own = PAGE && !location.hash.startsWith("#/");
+    if (own && !PAGE_ROUTE) {
+      renderTabs(PAGE_LG || null); setLiveBadge(liveCount()); realizeLinks();
+      return;
+    }
+    if (own && ROUTED === PAGE_ROUTE && location.hash) return;   // jumping to an in-page anchor: keep the view
+    const h = (own ? PAGE_ROUTE : location.hash.replace(/^#\/?/, "")).split("/");
+    ROUTED = own ? PAGE_ROUTE : location.hash;
     const isValue = h[0].split("?")[0] === "value";   // #/value?lg=&mk=&min=&h=
     NAV++;
     if (LV()) LV().stop();   // each view starts its own live watch for the games it shows
@@ -1248,6 +1278,9 @@
     return viewLeague(def, true);
   }
   window.addEventListener("hashchange", route);
+  // keep app links pointing at real pages as views render
+  new MutationObserver(ms => { if (PAGES.generated) for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches && n.matches('a[href^="#/"]')) realizeLinks(n.parentNode); else realizeLinks(n); } })
+    .observe(document.body, { childList: true, subtree: true });
   // visitor state changed (lookup finished or picker): re-render odds/offers views in place (not the bet form or search)
   window.addEventListener("ls-state-change", () => {
     const h0 = location.hash.replace(/^#\/?/, "").split("/")[0];

@@ -2,39 +2,82 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#050b1c">
 <title>Page not found · LineSmart</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
 <script>
-/* GitHub Pages serves this for any missing path. Game preview pages (/preview/<league>/<game>/) are rebuilt every
- * data refresh and drop out once the game is a few days old: send those to the league's page in the app.
- * Works at the domain root or under a project subpath (everything before /preview/ is the site root). */
+/* GitHub Pages serves this for any missing path, at the domain root or under a project subpath.
+ * - Old game previews (/preview/<league>/...) moved to the league pages: go there.
+ * - Game, player, team and fighter pages (/<league>/games|props|teams|fights|fighters|events/...) are rebuilt every
+ *   data refresh and drop out once they're old: show "expired" and link to the league hub (below). */
 (function () {
   var p = location.pathname, i = p.indexOf("/preview/");
   if (i < 0) return;
-  var root = p.slice(0, i + 1), m = p.slice(i + 9).match(/^([a-z0-9]+)\//);
-  location.replace(root + (m ? "#/l/" + m[1] : "preview/"));
+  var m = p.slice(i + 9).match(/^(nfl|nba|mlb|nhl|ncaaf|ncaab|ufc)\//);
+  location.replace(p.slice(0, i + 1) + (m ? m[1] + "/" : "") + location.hash);
 })();
 </script>
 <style>
-body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#050b1c;color:#e8eeff;font:15px/1.6 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{max-width:520px;padding:32px 24px;text-align:center}
-h1{font-size:26px;margin:0 0 8px}
-a{color:#3d9bff;font-weight:650}
-.rg{color:#7f90ba;font-size:12.5px;margin-top:28px}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(1200px 600px at 50% -10%,#0d1f45 0%,#050b1c 60%) #050b1c;color:#e8eeff;font:15px/1.6 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{width:100%;max-width:560px;padding:40px 22px;text-align:center}
+.brand{display:inline-flex;align-items:center;gap:8px;font-weight:800;font-size:18px;letter-spacing:.2px;color:#e8eeff;text-decoration:none}
+.brand i{width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg,#3d9bff,#22e1ff);box-shadow:0 0 14px #22e1ff88}
+.code{font-size:64px;font-weight:850;line-height:1;margin:26px 0 6px;background:linear-gradient(90deg,#3d9bff,#22e1ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+h1{font-size:24px;margin:0 0 8px}
+p{color:#b5c2e3;margin:6px 0}
+.btn{display:inline-block;margin:18px 0 6px;padding:11px 20px;border-radius:12px;background:linear-gradient(90deg,#3d9bff,#22e1ff);color:#04122b;font-weight:750;text-decoration:none}
+.hubs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:22px 0 0;padding:0;list-style:none}
+.hubs a{display:block;padding:10px 12px;border:1px solid #1b2b52;border-radius:12px;background:#0a1530;color:#e8eeff;text-decoration:none;font-weight:650}
+.hubs a:hover,.hubs a:focus{border-color:#3d9bff}
+.hubs a.cur{border-color:#22e1ff;box-shadow:0 0 0 1px #22e1ff55 inset}
+a{color:#3d9bff}
+.rg{color:#7f90ba;font-size:12.5px;margin-top:30px}
 </style>
 </head>
 <body>
 <main>
-<h1>Page not found</h1>
-<p>This page doesn't exist or has moved. If it was a game preview, the game has probably finished.</p>
-<p><a id="home" href="/">Go to LineSmart odds &amp; lines</a></p>
-<p class="rg">21+ only. Gambling problem? Call or text <a href="tel:18004262537">1-800-GAMBLER</a>.</p>
+<a class="brand" id="home" href="/"><i></i>LineSmart</a>
+<div class="code">404</div>
+<h1 id="h">Page not found</h1>
+<p id="msg">This page doesn't exist or has moved.</p>
+<a class="btn" id="cta" href="/">Today's odds &amp; lines</a>
+<ul class="hubs" id="hubs">
+<li><a data-lg="nfl" href="/nfl/">NFL odds</a></li>
+<li><a data-lg="nba" href="/nba/">NBA odds</a></li>
+<li><a data-lg="mlb" href="/mlb/">MLB odds</a></li>
+<li><a data-lg="nhl" href="/nhl/">NHL odds</a></li>
+<li><a data-lg="ncaaf" href="/ncaaf/">College football</a></li>
+<li><a data-lg="ncaab" href="/ncaab/">College basketball</a></li>
+<li><a data-lg="ufc" href="/ufc/">UFC odds</a></li>
+</ul>
+<p class="rg"><strong>21+ only.</strong> Gambling problem? Call or text <a href="tel:18004262537">1-800-GAMBLER</a>.<br>LineSmart is an informational site and does not accept wagers.</p>
 </main>
 <script>
-/* subpath-safe home link: first path segment is the project path on github.io, none on the custom domain */
-(function () { if (/\.github\.io$/.test(location.hostname)) { var s = location.pathname.split("/")[1]; if (s) document.getElementById("home").href = "/" + s + "/"; } })();
+/* subpath-safe links: on *.github.io the first path segment is the project path; the custom domain has none */
+(function () {
+  var p = location.pathname, root = "/";
+  var lm = p.match(/^(.*?\/)(nfl|nba|mlb|nhl|ncaaf|ncaab|ufc)\/(games|fights|props|teams|fighters|events)\//);
+  if (lm) root = lm[1];
+  else if (/\.github\.io$/.test(location.hostname)) { var s = p.split("/")[1]; if (s) root = "/" + s + "/"; }
+  document.getElementById("home").href = root;
+  document.getElementById("cta").href = root;
+  var as = document.querySelectorAll("#hubs a");
+  for (var i = 0; i < as.length; i++) as[i].href = root + as[i].getAttribute("data-lg") + "/";
+  if (lm) {
+    var names = { nfl: "NFL", nba: "NBA", mlb: "MLB", nhl: "NHL", ncaaf: "college football", ncaab: "college basketball", ufc: "UFC" };
+    var kind = { games: "game", fights: "fight", props: "player props", teams: "team", fighters: "fighter", events: "event" }[lm[3]];
+    document.getElementById("h").textContent = "This " + kind + " page has expired";
+    document.getElementById("msg").textContent = "We rebuild game, player and team pages every refresh and retire old ones. Current " + names[lm[2]] + " odds, props and results are on the league page.";
+    var c = document.getElementById("cta");
+    c.href = root + lm[2] + "/";
+    c.textContent = "Go to " + names[lm[2]] + " odds";
+    var cur = document.querySelector('#hubs a[data-lg="' + lm[2] + '"]');
+    if (cur) cur.className = "cur";
+  }
+})();
 </script>
 </body>
 </html>

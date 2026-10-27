@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 os.environ.pop("ODDS_API_KEY", None)
 import build_data as BD  # noqa: E402
 import lastgood as LG  # noqa: E402
-import previews as P  # noqa: E402
+import seo_pages as SP  # noqa: E402
 
 passed = failed = 0
 
@@ -215,19 +215,19 @@ def main():
         check(load(out / "mls" / "games" / "1102.json")["detail"].get("injuries"), "mls fresh game reused last good detail when its summary 403'd")
         check(sx["teams"].get("9568", {}).get("recordSummary") == "19-8-7", "mls team splits reused after 403")
 
-        # --- previews + sitemap survive
-        st = P.build(site, out, NOW)
-        man = load(out / "previews.json")["leagues"]
+        # --- SEO pages + sitemap survive (scripts/seo_pages.py, the successor of previews.py)
+        shutil.copy(ROOT / "site" / "index.html", site / "index.html")
+        SP.build(site, out, NOW, archive_dir=tmp / "pages-archive")
+        man = load(out / "pages.json")
         sm = (site / "sitemap.xml").read_text()
-        exp = lambda k: sum(1 for _, m in P.select(k, load(src / k / "index.json")["games"], NOW) if m == "index")   # what the deployed copy had
-        check(exp("nhl") == 3, "nhl: 3 of the deployed games fall inside the preview horizon")
-        for lg, n in (("nhl", exp("nhl")), ("mlb", 2), ("ufc", 2)):
-            check(len(man.get(lg, {})) == n, f"previews: {lg} has {n} pages (got {len(man.get(lg, {}))})")
-            check(all(("https://linesmart.app/" + p) in sm for p in man.get(lg, {}).values()), f"sitemap lists the {lg} previews")
-        page = next(iter(man["nhl"].values()))
+        for lg in ("nhl", "mlb", "ufc"):
+            check(len(man["g"].get(lg, {})) >= 2, f"seo pages: {lg} kept its last good games ({len(man['g'].get(lg, {}))})")
+            check(all(("https://linesmart.app/" + p) in sm for p in man["g"].get(lg, {}).values()), f"sitemap lists the {lg} game pages")
+        check(set(man["g"]["mlb"]) == {"501", "502"}, f"mlb game pages are the World Series games: {sorted(man['g']['mlb'])}")
+        page = man["g"]["nhl"]["403"]
         html = (site / page / "index.html").read_text()
-        check("stale-note" in html and "last good update" in html, "nhl preview page shows the delayed-data note")
-        check("nba" not in man, "nba (real empty) has no preview pages")
+        check("stale-note" in html and "last good update" in html, "nhl game page shows the delayed-data note")
+        check(not man["g"].get("nba"), "nba (real empty) has no game pages")
 
         # --- a second failing run re-serves the stale copy: asOf is carried from the real fetch, so max age still applies
         src2 = tmp / "deployed2"; shutil.copytree(out, src2)

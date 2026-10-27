@@ -3,9 +3,15 @@
   const CFG = window.SITE_CONFIG || { name: "LineSmart", timeZone: "America/New_York", tzLabel: "ET" };
   const TZ = CFG.timeZone, TZL = CFG.tzLabel || "ET";
   const app = document.getElementById("app");
-  const cache = {};
+  const cache = {}, cacheAt = {};
+  const DATA_TTL_MS = 60000;   // parsed data/*.json is reused for 60 s, then revalidated (was: kept until a full reload)
   let netGen = 0;  // bumped when the browser comes back online
   let META = null;
+  // ---------- live scores (assets/live.js + live-core.js): overlays newer than the static file win
+  const GENS = {};                       // league -> generated stamp of its data/<lg>/index.json
+  const LV = () => window.LSLive || null;
+  const liveG = (lg, g) => (LV() ? LV().merge(lg, g, GENS[lg]) : g);
+  const TILES = {}, TICKS = {};          // "lg/id" -> static game / ticker item last rendered (re-rendered on live updates)
 
   if (!document.title.startsWith(CFG.name)) document.title = CFG.name;   // keep the descriptive static <title> (SEO)
   const intro = document.getElementById("intro");
@@ -23,11 +29,13 @@
   const line = v => (isNum(v) ? (v > 0 ? "+" + v : v === 0 ? "PK" : String(v)) : null);
   const fx = (v, d = 1) => (isNum(v) ? Number(v).toFixed(d) : null);
   const getJSON = async url => {
-    if (cache[url]) return cache[url];
+    if (cache[url] && Date.now() - (cacheAt[url] || 0) < DATA_TTL_MS) return cache[url];
     const gen = netGen, r = await fetch(url, { cache: "no-cache" });
     if (!r.ok) throw new Error(url + " " + r.status);
     if (r.headers.get("X-LineSmart-Offline") && gen === netGen) showOffline();  // ignore a stale offline reply that started before we came back online
-    return (cache[url] = await r.json());
+    const j = await r.json(); cacheAt[url] = Date.now();
+    const m = /^data\/([a-z0-9]+)\/index\.json$/.exec(url); if (m && j && j.generated) GENS[m[1]] = j.generated;
+    return (cache[url] = j);
   };
   const fmt = (iso, opts) => new Intl.DateTimeFormat("en-US", { timeZone: TZ, ...opts }).format(new Date(iso));
   const dayKey = iso => fmt(iso, { year: "numeric", month: "2-digit", day: "2-digit" });
@@ -127,12 +135,18 @@
       chips = kind === "soccer" ? chip(am(o[side + "ML"])) + tot
         : chip(line(o[side + "Spread"]), am(o[side + "SpreadOdds"]), spreadArrow(g, side)) + chip(am(o[side + "ML"])) + tot;
     }
-    return `<div class="trow ${lose ? "lose" : ""}">${logo(t, "tl")}<div class="tn"><div class="tname">${t.rank ? `<span class="rk">#${t.rank}</span>` : ""}<span class="nm-l">${esc(t.name)}</span><span class="nm-s">${esc(t.short || t.name)}</span></div>
+    const poss = g.state === "in" && g.live && g.live.situation && g.live.situation.possession && String(g.live.situation.possession) === String(t.id) ? `<span class="poss" title="Possession"><span class="sr-only">(has the ball)</span></span>` : "";
+    return `<div class="trow ${lose ? "lose" : ""}">${logo(t, "tl")}<div class="tn"><div class="tname">${t.rank ? `<span class="rk">#${t.rank}</span>` : ""}<span class="nm-l">${esc(t.name)}</span><span class="nm-s">${esc(t.short || t.name)}</span>${poss}</div>
       <div class="tmeta">${esc(t.record || "—")}${formDots(t.form)}</div></div>
       <div class="tscore">${showScore ? esc(t.score) : ""}</div>${chips}</div>`;
   }
 
+  function sitLine(g, cls = "lv-sit") {
+    const s = g.live && g.state === "in" && g.live.situation;
+    return s && s.text ? `<div class="${cls}${s.redZone ? " rz" : ""}">${esc(s.text)}</div>` : "";
+  }
   function gameTile(g, key, kind) {
+    TILES[`${key}/${g.id}`] = { g, kind }; g = liveG(key, g);
     const o = g.odds, soccer = kind === "soccer";
     const cols = !o ? [] : soccer ? ["1X2", "Total"] : [spreadLabelOf(kind), "Money", "Total"];
     const head = cols.length ? `<div class="gt-head"><span></span><span></span><span></span>${cols.map(c => `<span>${esc(c)}</span>`).join("")}</div>` : "";
@@ -151,8 +165,80 @@
     const net = esc([g.note, (g.broadcasts || []).slice(0, 2).join(", ")].filter(Boolean).join(" · "));
     return `<a class="game c${cols.length}${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
       <div class="game-top">${statusHtml(g)}${g.state === "pre" ? notableBadge(g) : ""}<span class="net">${net}</span></div>
-      ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${foot}${o ? pkTile(g, kind) : ""}</a>`;
+      ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${sitLine(g)}${foot}${o ? pkTile(g, kind) : ""}</a>`;
   }
+
+  // ---------- live scores: hero, box score, poller wiring
+  function heroMid(g) {
+    const s = g.live && g.state === "in" && g.live.situation, lp = s && s.lastPlay;
+    return `<div class="lv-mid"><div class="score">${esc(g.away.score)} – ${esc(g.home.score)}</div><div class="when${g.state === "in" ? " is-live" : ""}">${g.state === "in" ? '<span class="live-dot"></span>' : ""}${esc(g.statusDetail || "")}</div>${sitLine(g)}${lp ? `<div class="where lv-lp" title="Last play">${esc(lp)}</div>` : ""}</div>`;
+  }
+  const REG_PERIODS = { football: 4, basketball: 4, hockey: 3, soccer: 2, baseball: 9 };
+  function liveBoxHtml(box, A, H, kind, g, lg) {
+    const fin = g.state === "post", title = fin ? "Final box score" : "Live box score";
+    const stamp = `<span class="st-sub lv-stamp" data-lv-stamp>${fin ? "ESPN" : "Connecting to live data…"}</span>`;
+    if (!box) return `<div class="section-title">${title} ${stamp}</div><div class="card note lbx-wait">${fin ? "Loading the box score from ESPN…" : "Loading live stats from ESPN… Scores update about every 25 seconds while the game is live."}</div>`;
+    const ov = g.live || {}, ha = ov.away || {}, hh = ov.home || {};
+    const reg = lg === "ncaab" ? 2 : REG_PERIODS[kind] || 4, n = Math.max(box.periods || 0, (ha.linescores || []).length, (hh.linescores || []).length);
+    const plab = i => (i < reg || kind === "baseball" ? String(i + 1) : kind === "soccer" ? (i === 2 ? "ET" : "PK") : i === reg ? "OT" : `${i - reg + 1}OT`);
+    const rhe = kind === "baseball", cell = (t, i) => `<td class="num">${esc(((t.linescores || [])[i]) ?? "")}</td>`;
+    const lrow = (T, t) => `<tr><td>${logo(T, "tlogo")}${esc(T.abbr)}</td>${Array.from({ length: n }, (_, i) => cell(t, i)).join("")}<td class="num tot">${esc(t.score ?? T.score ?? "")}</td>${rhe ? `<td class="num">${esc(t.hits ?? "")}</td><td class="num">${esc(t.errors ?? "")}</td>` : ""}</tr>`;
+    const lines = n ? `<div class="tbl-wrap"><table class="lbx-ls"><thead><tr><th></th>${Array.from({ length: n }, (_, i) => `<th>${plab(i)}</th>`).join("")}<th>${rhe ? "R" : "T"}</th>${rhe ? "<th>H</th><th>E</th>" : ""}</tr></thead><tbody>${lrow(A, ha)}${lrow(H, hh)}</tbody></table></div>` : "";
+    const sa = box.away.stats, sh = box.home.stats, labels = [...new Set([...sa, ...sh].map(r => r.label))].slice(0, 16);
+    const v = (arr, l) => (arr.find(r => r.label === l) || {}).value;
+    const tstats = labels.length ? `<div class="card"><h3>Team stats</h3>${cmpTable(A, H, labels.map(l => ({ label: l, a: v(sa, l), h: v(sh, l) })))}</div>` : "";
+    const grp = gp => `<div class="lbx-g"><h4>${esc(gp.title)}</h4><div class="tbl-wrap"><table class="lbx-t"><thead><tr><th>Player</th>${gp.labels.map(l => `<th>${esc(l)}</th>`).join("")}</tr></thead><tbody>${gp.rows.map(r => `<tr><td>${r.id ? `<a class="lnk" href="#/p/${esc(lg)}/${esc(r.id)}">${esc(r.name)}</a>` : esc(r.name)}</td>${r.stats.map(x => `<td class="num">${esc(x)}</td>`).join("")}</tr>`).join("")}${gp.totals && kind !== "football" ? `<tr class="tot"><td>Team</td>${gp.totals.map(x => `<td class="num">${esc(x)}</td>`).join("")}</tr>` : ""}</tbody></table></div>${gp.more ? `<div class="note">+${gp.more} more</div>` : ""}</div>`;
+    const pcard = (T, t) => (t.players.length ? `<div class="card lbx-p"><h3>${logo(T)}${esc(T.name || T.abbr)}</h3>${t.players.map(grp).join("")}</div>` : "");
+    const players = box.away.players.length || box.home.players.length ? `<div class="cols">${pcard(A, box.away)}${pcard(H, box.home)}</div>` : "";
+    return `<div class="section-title">${title} ${stamp}</div><div class="card lbx-lines">${lines || '<div class="note">No line score yet.</div>'}</div>${tstats}${players}
+      <div class="note">${fin ? "Final stats from ESPN." : "Live from ESPN: scores about every 25 s, box score about every 30 s while this tab is open (paused in the background)."}</div>`;
+  }
+  // Start polling for the games on screen (no-op when none is live). sum = the open game page, if any.
+  function startLive(games, sum) {
+    const L = LV(); if (!L) return;
+    const tok = NAV;
+    const alive = () => tok === NAV;
+    const patch = keys => {
+      if (!alive()) return;
+      for (const k of keys) {
+        const [lg] = k.split("/"), T = TILES[k];
+        if (T) app.querySelectorAll(`a.game[href="#/g/${k}"]`).forEach(el => (el.outerHTML = gameTile(T.g, lg, T.kind)));
+        const t = TICKS[k];
+        if (t && tickerOne) document.querySelectorAll(`a.tk[data-lk="${k}"]`).forEach(el => (el.outerHTML = tickerOne(t, !!el.closest('[aria-hidden="true"]'))));
+        if (sum && k === `${sum.lg}/${sum.id}`) { const m = app.querySelector(".match .lv-mid"); if (m) m.outerHTML = heroMid(liveG(sum.lg, sum.g)); }
+      }
+      const lbl = document.querySelector(".ticker .tl-t");
+      if (lbl) { const on = Object.values(TICKS).some(t => (L.mergeTicker(t, (META || {}).generated) || {}).st === "in"); lbl.textContent = on ? "LIVE" : "SCORES"; }
+    };
+    L.watch({
+      games: games.filter(Boolean),
+      summary: sum ? { lg: sum.lg, id: sum.id, state: sum.g.state, date: sum.g.date } : null,
+      onChange: patch,
+      onSummary: model => {
+        const el = alive() && document.getElementById("liveBox"); if (!el) return;
+        el.innerHTML = liveBoxHtml(model.box, sum.A, sum.H, sum.kind, liveG(sum.lg, sum.g), sum.lg);
+      },
+      // ESPN unreachable: re-read our own (GitHub Actions-built) data files instead
+      onStatic: async lgs => {
+        if (!alive()) return null;
+        const keys = [];
+        for (const lg of lgs) {
+          delete cache[`data/${lg}/index.json`];
+          const d = await getJSON(`data/${lg}/index.json`).catch(() => null); if (!d || !alive()) continue;
+          for (const ng of d.games || []) {
+            const k = `${lg}/${ng.id}`;
+            if (TILES[k]) { TILES[k].g = ng; keys.push(k); }
+            if (TICKS[k]) { TICKS[k] = Object.assign({}, TICKS[k], { st: ng.state, det: ng.statusDetail, a: Object.assign({}, TICKS[k].a, { s: ng.away.score }), h: Object.assign({}, TICKS[k].h, { s: ng.home.score }) }); keys.push(k); }
+            if (sum && sum.lg === lg && String(ng.id) === sum.id) { sum.g = Object.assign({}, sum.g, { state: ng.state, statusDetail: ng.statusDetail, home: Object.assign({}, sum.g.home, { score: ng.home.score }), away: Object.assign({}, sum.g.away, { score: ng.away.score }) }); keys.push(k); }
+          }
+          GENS[lg] = d.generated || GENS[lg];
+        }
+        patch([...new Set(keys)]);
+        return games.map(x => { const k = `${x.lg}/${x.id}`, T = TILES[k], t = TICKS[k]; return T ? { lg: x.lg, id: x.id, state: T.g.state, date: T.g.date } : t ? { lg: x.lg, id: x.id, state: t.st, date: t.d } : x; });
+      },
+    });
+  }
+  const liveRef = (lg, g) => ({ lg, id: String(g.id), state: g.state, date: g.date });
 
   // ---------- skeleton loaders (shown while JSON loads)
   const skTile = `<div class="skel-tile"><span class="sk" style="width:40%;height:12px"></span>${'<div class="r"><span class="sk"></span><span class="sk"></span><span class="sk c"></span><span class="sk c"></span><span class="sk c"></span></div>'.repeat(2)}</div>`;
@@ -162,10 +248,12 @@
   const teamColor = (t, fb) => (/^[0-9a-f]{6}$/i.test(t.color || "") ? "#" + t.color : fb);
 
   // ---------- home: scores ticker + "Today's slate" (meta.slate from scripts/slate.py; falls back to meta counts)
+  let tickerOne = null;
   function tickerHtml(S) {
     const items = (S && S.ticker) || [];
     if (!items.length) return "";
-    const one = (t, hide) => {
+    const one = (t0, hide) => {
+      TICKS[`${t0.lg}/${t0.id}`] = t0; const t = LV() ? LV().mergeTicker(t0, (META || {}).generated) : t0;
       const lgN = esc((META.leagues[t.lg] || {}).name || t.lg.toUpperCase());
       const sc = t.st !== "pre" && t.a.s != null && t.h.s != null;
       const aw = sc && +t.a.s > +t.h.s, hw = sc && +t.h.s > +t.a.s;
@@ -173,8 +261,9 @@
                      : `<span>${esc(t.a.a)} @ ${esc(t.h.a)}</span>`;
       const st = t.st === "in" ? `<span class="live-dot"></span><span class="ts">${esc(t.det || "Live")}</span>` : t.st === "post" ? `<span class="ts">${esc(t.det || "Final")}</span>`
                : `<span class="ts">${esc(dayKey(t.d) === dayKey(new Date().toISOString()) ? timeET(t.d) : fmt(t.d, { weekday: "short" }) + " " + timeET(t.d))}</span>`;
-      return `<a class="tk${t.st === "in" ? " live" : ""}" href="#/g/${esc(t.lg)}/${esc(t.id)}"${hide ? ' tabindex="-1"' : ""}><i>${lgN}</i>${mid}${st}</a>`;
+      return `<a class="tk${t.st === "in" ? " live" : ""}" data-lk="${esc(t.lg)}/${esc(t.id)}" href="#/g/${esc(t.lg)}/${esc(t.id)}"${hide ? ' tabindex="-1"' : ""}><i>${lgN}</i>${mid}${st}</a>`;
     };
+    tickerOne = one;
     const set = hide => `<div class="tk-set"${hide ? ' aria-hidden="true"' : ""}>${items.map(t => one(t, hide)).join("")}</div>`;
     const live = items.some(t => t.st === "in");
     return `<div class="ticker" role="region" aria-label="Scores ticker"><span class="tk-lbl">${live ? '<span class="live-dot"></span>' : ICON("pulse", "ic")}<span class="tl-t">${live ? "LIVE" : "SCORES"}</span></span>
@@ -246,6 +335,8 @@
     app.innerHTML = html;
     app.querySelectorAll(".seg button").forEach(b => (b.onclick = () => { sessionStorage.setItem("filter-" + key, b.dataset.f); viewLeague(key, home); }));
     wireSort(app.querySelector("#teamTbl"));
+    const tick = home ? ((META.slate || {}).ticker || []).map(t => ({ lg: t.lg, id: String(t.id), state: t.st, date: t.d })) : [];
+    startLive([...games.map(g => liveRef(key, g)), ...tick]);
   }
 
   function teamTable(data, kind) {
@@ -290,11 +381,12 @@
     try { [d, idx] = await Promise.all([getJSON(`data/${key}/games/${id}.json`), getJSON(`data/${key}/index.json`)]); }
     catch (e) { return (app.innerHTML = `<a class="back" href="#/l/${key}">← Back</a><div class="empty"><h3>Game not found</h3>It may have dropped out of the data window. Refresh the data.</div>`); }
     if (idx.league.kind === "mma" && window.LSUfc) return window.LSUfc.fight(d, idx, key);
-    const g = d.game, det = d.detail || {}, kind = idx.league.kind, u = unitWord(kind);
+    const g0 = d.game, det = d.detail || {}, kind = idx.league.kind, u = unitWord(kind);
+    const g = liveG(key, g0);
     const H = g.home, A = g.away, tH = d.teams[H.id] || {}, tA = d.teams[A.id] || {};
     const mid = g.state === "pre"
       ? `<div class="vs">${g.neutral ? "VS" : "AT"}</div><div class="when">${fullET(g.date)}</div>`
-      : `<div class="score">${esc(A.score)} – ${esc(H.score)}</div><div class="when">${esc(g.statusDetail || "")}</div>`;
+      : heroMid(g);
     let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>
       <div class="match" style="--ca:${teamColor(A, "#334155")};--ch:${teamColor(H, "#475569")}">
         <div class="mteam">${logo(A)}<div><div class="nm">${A.rank ? `<span class="rk" style="color:var(--warn)">#${A.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${A.id}">${esc(A.name)}</a></div><div class="rec">${esc(A.record || "—")} · Away ${esc(A.awayRecord || "—")}${formDots(A.form)}</div></div></div>
@@ -302,6 +394,8 @@
         <div class="mteam home">${logo(H)}<div><div class="nm">${H.rank ? `<span class="rk" style="color:var(--warn)">#${H.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${H.id}">${esc(H.name)}</a></div><div class="rec">${esc(H.record || "—")} · Home ${esc(H.homeRecord || "—")}${formDots(H.form)}</div></div></div>
       </div>`;
 
+    if (LV() && window.LiveCore && window.LiveCore.supported(key) && (g.state !== "pre" || window.LiveCore.needsLive({ lg: key, id: g.id, state: g.state, date: g.date })))
+      html += `<div id="liveBox" class="lbx-wrap">${liveBoxHtml(LV().box(key, g.id), A, H, kind, g, key)}</div>`;
     html += `<div class="section-title">Betting lines</div><div class="cols">${linesCard(g, kind)}${booksCard(g, kind, key)}</div>${offersSlot("game")}`;
     if (window.LSBets) html += window.LSBets.trackCard(key, g, kind);
     const lm = lineMoveSection(d, g, kind);
@@ -370,6 +464,7 @@
     if (km) { const tok = NAV; window.LSMatchup.keyMatchups(km, key, g, det, () => tok === NAV).catch(e => console.warn(e)); }
     const av = document.getElementById("advGame");
     if (av) { const tok = NAV; window.LSAdv.mountGame(av, key, g, () => tok === NAV).catch(e => console.warn(e)); }
+    startLive([liveRef(key, g0)], { lg: key, id: String(g0.id), g: g0, A, H, kind });
     const pp = document.getElementById("ppBox");
     if (pp) { const tok = NAV; window.LSProps.mountGame(pp, key, g, () => tok === NAV).catch(e => { pp.innerHTML = notAvail("Player props", "Couldn't load player props right now."); console.warn(e); }); }
   }
@@ -856,6 +951,7 @@
       html += notAvail("Roster", "ESPN didn't return a roster for this team.");
     }
     app.innerHTML = html;
+    if (ng) startLive([liveRef(lg, ng)]);
     const av = document.getElementById("advTeam");
     if (av) window.LSAdv.mountTeam(av, lg, id, () => tok === NAV).catch(e => console.warn(e));
   }
@@ -957,6 +1053,7 @@
     }
     const h = location.hash.replace(/^#\/?/, "").split("/");
     NAV++;
+    if (LV()) LV().stop();   // each view starts its own live watch for the games it shows
     const sb = document.getElementById("searchBtn"); if (sb) sb.classList.toggle("on", h[0] === "search");
     const bb = document.getElementById("betsBtn"); if (bb) bb.classList.toggle("on", h[0] === "bets");
     const ab = document.getElementById("acctBtn"); if (ab) ab.classList.toggle("on", h[0] === "account");
@@ -1002,7 +1099,7 @@
   // which keeps scroll/UI state and can't race a navigation the user starts at the same moment.
   window.addEventListener("online", () => {
     const el = document.getElementById("offlineNote"); if (!el || el.hidden) return;
-    netGen++; el.hidden = true; for (const c of [cache, espnCache]) for (const k of Object.keys(c)) delete c[k]; META = null; route();
+    netGen++; el.hidden = true; for (const c of [cache, cacheAt, espnCache]) for (const k of Object.keys(c)) delete c[k]; META = null; route();
   });
   // service worker registration lives in assets/site.js (shared with the legal pages)
   const installBtn = document.getElementById("installBtn");

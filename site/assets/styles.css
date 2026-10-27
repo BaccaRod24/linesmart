@@ -2022,3 +2022,106 @@ body:has(.news-bets) .footer .news-foot{display:none}
 .pp-dot.pp-x{background:color-mix(in srgb,var(--draw) 35%,transparent)}
 .sx-legend{margin-top:10px}
 .pp-note-l{margin:6px 0 0;font-size:11.5px;color:var(--dim)}
+
+/* ===================================================================================================
+   Design refresh (2026-10, branch design-refresh): sharper and calmer. A consistent type scale, crisper
+   hairlines, softer glows, cleaner tables (zebra + hover rows, aligned numbers, clear best price), one focus
+   ring everywhere and no horizontal scroll on phones. Visual only: tokens + overrides, so every page that
+   links this file (app, SEO pages, previews, 404, legal pages) and every theme picks it up.
+   =================================================================================================== */
+:root{
+  /* Midnight Blue, refined: a touch deeper and more neutral, crisper borders, brighter secondary text */
+  --bg:#050a18;--bg2:#09101f;--surface:#0f1932;--surface2:#141f3b;--elev:#1a2745;
+  --line:rgba(148,168,224,.15);--line2:rgba(148,168,224,.27);
+  --mute:#b1bede;--dim:#8a99c2;
+  --glow-a:9%;
+  --r:14px;--r-sm:10px;--r-xs:8px;
+  /* type scale (1.125 steps around a 15px body) */
+  --fs-2xs:10.5px;--fs-xs:11.5px;--fs-sm:13px;--fs-base:15px;--fs-md:17px;--fs-lg:20px;--fs-xl:24px;--fs-2xl:30px;
+  --ring:0 0 0 2px var(--bg),0 0 0 4px color-mix(in srgb,var(--accent) 85%,transparent);
+  --shadow-1:0 1px 2px color-mix(in srgb,var(--shade) 28%,transparent),0 6px 18px -12px color-mix(in srgb,var(--shade) 70%,transparent);
+  --shadow-2:0 1px 3px color-mix(in srgb,var(--shade) 30%,transparent),0 16px 36px -22px color-mix(in srgb,var(--shade) 85%,transparent);
+  --glass-brd:color-mix(in srgb,var(--accent) 10%,var(--line));
+  --glow:0 0 0 1px color-mix(in srgb,var(--accent) 34%,transparent),0 10px 28px -18px color-mix(in srgb,var(--accent) 55%,transparent);
+}
+html{text-rendering:optimizeLegibility}
+/* no sideways scroll on phones: nothing may push the page wider than the screen (in-page scrollers still scroll) */
+@supports (overflow:clip){html,body{overflow-x:clip}}
+img{max-width:100%}
+h1,h2,h3{overflow-wrap:break-word}
+h2,h3{text-wrap:balance}
+p{text-wrap:pretty}
+
+/* calmer background: the terminal grid stays, just quieter */
+body::before{opacity:.55}
+
+/* header: tighter rhythm; never wider than the window (the tagline gives way first) */
+.topbar-inner{gap:10px;height:60px}
+.topbar::after{opacity:.7}
+@media (max-width:1360px){.brand-tag{display:none}}
+@media (max-width:1180px) and (min-width:761px){.top-about{display:none}}
+.updated{font-size:12px;padding:5px 11px}
+
+/* headings: one scale, solid ink (sharper than the gradient fill) */
+.page-head h1{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--txt);font-size:var(--fs-2xl);letter-spacing:-.03em;line-height:1.12}
+.intro h1{font-size:var(--fs-xl);letter-spacing:-.028em;line-height:1.15}
+@media (max-width:760px){.intro h1{font-size:20px}}
+.phero h1{font-size:var(--fs-2xl);letter-spacing:-.03em}
+.section-title{font-size:var(--fs-xs);letter-spacing:.13em;color:var(--mute);margin:32px 0 12px}
+.section-title::before{width:3px;height:12px;box-shadow:none;border-radius:2px}
+.eyebrow,.gt-head,th,.mlbl{font-size:var(--fs-2xs);letter-spacing:.11em}
+@media (max-width:760px){
+  .page-head h1,.phero h1{font-size:var(--fs-xl)}
+  .section-title{margin:26px 0 10px}
+}
+
+/* cards: crisp hairline, gentle depth, consistent radius */
+.game,.card,.tbl-wrap,.sr,.hc-card{border-radius:var(--r)}
+.game,.card,.skel-tile,.sr,.tbl-wrap{box-shadow:var(--inner),var(--shadow-1)}
+.match,.phero{border-radius:18px;box-shadow:var(--inner),var(--shadow-2)}
+.game::before{opacity:.35}
+.game:hover::before{opacity:.8}
+.hc-card{transition:border-color .15s,transform .15s var(--ease),background .15s}
+
+/* pills, tabs, segmented controls, back links: same height, same hover, quieter active glow */
+.search-btn,.back,.chip,.tab{transition:border-color .15s,background .15s,color .15s,box-shadow .15s}
+.search-btn:hover,.back:hover,button.chip:hover,a.chip:hover,.tab:not(.active):hover{border-color:var(--accent-line);color:var(--txt)}
+.tab.active{box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 55%,transparent),0 4px 14px -6px color-mix(in srgb,var(--accent) 60%,transparent)}
+.seg{border-radius:12px}
+.seg button{transition:background .15s,color .15s,box-shadow .15s}
+.seg button.on{box-shadow:0 1px 2px color-mix(in srgb,var(--shade) 45%,transparent),inset 0 0 0 1px var(--line2)}
+
+/* one visible keyboard focus ring everywhere (mouse clicks stay clean) */
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.sbox input:focus-visible,.bt-usize input:focus-visible{outline:0}
+.tab:focus-visible,.search-btn:focus-visible,.chip:focus-visible,.back:focus-visible,.seg button:focus-visible,.hc-card:focus-visible,.game:focus-visible{outline:0;box-shadow:var(--ring)}
+
+/* tables: aligned numbers, quiet zebra rows, clear hover, sticky header with a firmer rule */
+table{font-variant-numeric:tabular-nums lining-nums}
+th{background:var(--surface2);color:var(--dim);border-bottom-color:var(--line2)}
+:where(tbody tr:nth-child(even)){background:color-mix(in srgb,var(--tint) 1.6%,transparent)}
+tbody tr:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.tbl-wrap tbody tr:last-child>td{border-bottom:0}
+td.num,td .num,.num{font-variant-numeric:tabular-nums}
+/* odds grid: the best price reads at a glance (solid tint + firm edge, no blur) */
+.books .px{border-radius:var(--r-xs);transition:border-color .15s,background .15s}
+.books td.best .px{box-shadow:inset 0 0 0 1px var(--best-line);border-color:var(--best-line)}
+.books td.best .px::after{top:-7px;right:-6px;border-radius:4px;box-shadow:0 1px 2px color-mix(in srgb,var(--shade) 40%,transparent)}
+
+/* footer: a hairline accent on top, calmer type, clear link hover */
+.footer{position:relative;background:linear-gradient(180deg,var(--bg2),var(--bg));border-top-color:var(--line);line-height:1.55}
+.footer::before{content:"";position:absolute;left:0;right:0;top:-1px;height:1px;pointer-events:none;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent) 35%,transparent) 30%,color-mix(in srgb,var(--accent2) 30%,transparent) 70%,transparent)}
+.footer a{text-underline-offset:3px;text-decoration-thickness:1px}
+.footer a:hover{text-decoration:underline}
+
+/* mobile: flex/grid children may shrink, long names wrap instead of pushing the page sideways */
+@media (max-width:760px){
+  .phero>*,.match>*,.pp-row>*,.cols>*{min-width:0}
+  .phero h1{overflow-wrap:anywhere}
+}
+/* line-movement log: an opened "Recorded changes" table scrolls inside the card instead of widening the page */
+.lmlog{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.lmlog summary{position:sticky;left:0}
+@media (prefers-reduced-motion:reduce){.hc-card,.search-btn,.back,.chip,.tab{transition:none}}

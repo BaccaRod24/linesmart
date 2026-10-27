@@ -188,6 +188,27 @@ Screenshots + comparison sheets (serve the site under `/linesmart/` first):
 - Units view: toggle $ / Units and set "1u = $" (saved in `ls-bets-prefs` on the device only).
 - Stats screenshots: `node scripts/gen_stats_fixture.mjs` writes `scripts/fixtures/stats-bets.json` (seeded example bets, not shipped), then `BASE=... OUT=screenshots node scripts/screenshots_stats.mjs` (blocks every non-localhost request, never signs in).
 
+## Value finder (`#/value`)
+
+`site/assets/value-core.js` (math, unit-tested) + `site/assets/value.js` (page). Uses only the odds the hourly build already wrote
+(`data/<lg>/index.json` game books, `data/props/{nba,nfl}.json` prop books): no extra Odds API calls or credits.
+
+- **Fair price:** for each market (moneyline, spread, total, two-sided player props) take every book on the consensus line (the line most
+  books hang), remove each book's margin proportionally (no-vig), and average. Needs at least 3 books on that line, so DraftKings-only
+  markets (UFC, most NCAAB) never show.
+- **EV** = fair probability × decimal odds − 1. **Outlier** = a price ≥ 3 points of probability better than the other books' mean
+  (outliers are listed down to −3% EV, since with three books the outlier is part of its own consensus). **Off-consensus lines** = a book
+  hanging a spread/total 1.5+ (football, basketball) or 0.5+ (other sports) better than the consensus number.
+- **Guards:** pre-game only (start time in the future, not `state: in/post`), no `stale` (last-good) books, book `asOf` (or the file stamp)
+  within 18 h (= `LASTGOOD_MAX_H`), market hold between −0.5% and 20%, prices from −1000 to +400, and anything > +15% EV is treated as
+  bad data and hidden (counted on the page).
+- **State-aware:** every fresh book counts toward the fair price, but only books legal in the visitor's state are listed and trackable
+  (Florida: Hard Rock Bet only; Nevada / Texas / outside the US: nothing listed; no state picked: all books, with a prompt to pick).
+- Filters (URL params): `lg`, `mk` (`ml|spread|total|prop`), `min` (EV %, default 0), `h` (start window in hours, default any).
+  "+ Track" opens the bet tracker's add form prefilled (book, game, market, side, line, price).
+- The home page "Value spots" card links to it ("All value ›"). Header "Value" button (desktop) and bottom-nav tab (phones).
+- Tests: `node scripts/value_test.mjs`.
+
 ## Compliance pages (footer, 21+ notice, legal pages)
 
 - `scripts/build_pages.py` generates `site/responsible-gambling.html`, `privacy.html`, `terms.html`, `affiliate-disclosure.html` and the shared footer inside `site/index.html` (between the `footer:start`/`footer:end` markers). Edit the script, not the HTML, then run `python3 scripts/build_pages.py` (`--check` exits 1 if the files are out of date).

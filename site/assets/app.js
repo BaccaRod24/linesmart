@@ -1070,16 +1070,19 @@
       if (gen) { const iso = gen.toISOString(); const u = document.getElementById("updated"); u.title = "Data updated " + fullET(iso); u.innerHTML = `<span class="dot"></span><span><span class="u-long">Updated ${esc(fmt(iso, { weekday: "short", month: "short", day: "numeric" }))}, </span>${esc(timeET(iso))}</span>`; }
     }
     const h = location.hash.replace(/^#\/?/, "").split("/");
+    const isValue = h[0].split("?")[0] === "value";   // #/value?lg=&mk=&min=&h=
     NAV++;
     if (LV()) LV().stop();   // each view starts its own live watch for the games it shows
     const sb = document.getElementById("searchBtn"); if (sb) sb.classList.toggle("on", h[0] === "search");
     const bb = document.getElementById("betsBtn"); if (bb) bb.classList.toggle("on", h[0] === "bets");
+    const vb = document.getElementById("valueBtn"); if (vb) vb.classList.toggle("on", isValue);
     const ab = document.getElementById("acctBtn"); if (ab) ab.classList.toggle("on", h[0] === "account");
-    const navOn = h[0] === "search" || h[0] === "bets" || h[0] === "account" ? h[0] : !h[0] ? "home" : "";
+    const navOn = h[0] === "search" || h[0] === "bets" || h[0] === "account" ? h[0] : isValue ? "value" : !h[0] ? "home" : "";
     if (intro) intro.hidden = navOn !== "home";   // static SEO intro: home only
     document.querySelectorAll("#bnav [data-nav]").forEach(a => { const on = a.dataset.nav === navOn; a.classList.toggle("on", on); if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     if (h[0] === "bets") return window.LSBets ? window.LSBets.view() : (app.innerHTML = `<div class="empty"><h3>My Bets didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "account") return window.LSAccount ? window.LSAccount.view() : (app.innerHTML = `<div class="empty"><h3>Account didn't load</h3>Reload the page to try again.</div>`);
+    if (isValue) return window.LSValue ? window.LSValue.view() : (app.innerHTML = `<div class="empty"><h3>Value finder didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "search") return viewSearch(decodeURIComponent(h.slice(1).join("/") || ""));
     if (h[0] === "t" && h[1] && h[2]) return viewTeam(h[1], h[2]);
     if (h[0] === "p" && h[1] && h[2]) return viewPlayer(h[1], h[2], h[3]);

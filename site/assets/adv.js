@@ -83,7 +83,7 @@
         <span class="vs-p"><b class="px">${am(x.price)}</b><small>${esc(BKS[x.bk] || x.bk)}</small></span><span class="lv-out">Outlier</span></a>`;
     const nPos = rows.filter(x => x.o[1] > 0).length;
     const body = rows.length ? rows.map(item).join("") : `<div class="na vs-empty">No ${st ? `${esc(ev.stateName)}-legal ` : ""}price is within 3% of the fair line in the next ${esc(V.hours || 36)} hours.</div>`;
-    return `<section class="card vspots" aria-label="Value spots"><div class="vs-head"><h3>Value spots</h3><span class="st-sub">best price vs no-vig fair line · next ${esc(V.hours || 36)} h</span></div>
+    return `<section class="card vspots" aria-label="Value spots"><div class="vs-head"><h3>Value spots</h3><span class="st-sub">best price vs no-vig fair line · next ${esc(V.hours || 36)} h</span>${window.LSValue ? window.LSValue.link("All value ›") : ""}</div>
       <div class="vs-list">${body}</div>${lines.length ? `<div class="vs-sub">Off-consensus lines</div><div class="vs-list">${lines.map(lrow).join("")}</div>` : ""}
       <div class="note">${nPos ? `${nPos} price${nPos > 1 ? "s" : ""} currently beat${nPos > 1 ? "" : "s"} the consensus fair line. ` : "Nothing beats the consensus fair line right now; these are the closest prices. "}Fair line = the three books' prices with their margin removed, averaged. Edge = fair probability × decimal odds − 1. Long shots past +${esc(V.maxPrice || 400)} are left out.${st === "FL" ? " Florida: only Hard Rock Bet prices are listed, the only one of these books legal in Florida." : st ? ` Only books legal in ${esc(ev.stateName)} are listed.` : ""} Informational, not a prediction.</div></section>`;
   }

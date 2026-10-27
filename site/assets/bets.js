@@ -1073,11 +1073,12 @@
   }
   /** "+ Track" on a player-prop row: opens the add sheet with the game, player and prop picked (you tap Over / Under).
    *  feedBook = the row's graded book (props feed key); left off when it isn't legal in the visitor's state so the form's default (Hard Rock in FL) applies. */
-  function propHref(lg, gid, pid, mk, feedBook, line) {
+  function propHref(lg, gid, pid, mk, feedBook, line, side) {
     const p = new URLSearchParams({ lg, ev: gid, mk: "prop", pid, pm: mk });
     const bk = TRACK_BOOK[feedBook];
     if (bk && okBook(bk)) p.set("bk", bk);
     if (isNum(line)) p.set("ln", line);
+    if (side === "over" || side === "under") p.set("side", side);   // Value finder: the side it found
     return "#/bets/add?" + p.toString();
   }
   /** "+" on an odds-comparison cell: book (odds-file key) + market + side, prefilled with that book's line and price. */

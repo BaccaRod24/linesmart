@@ -421,6 +421,91 @@ def crumbs_ld(base_url, items):
         {"@type": "ListItem", "position": i + 1, "name": n, "item": base_url + p} for i, (p, n) in enumerate([("", "LineSmart")] + items)]}
 
 
+# ---------------------------------------------------------------- SportsEvent JSON-LD (Google Event structured data)
+# Search Console "Events" recommended fields: endDate, performer, organizer.url (offers is deliberately left out: LineSmart
+# sells no tickets, and Google wants offers.url to be a page that predominantly sells tickets to that event, so a ticket
+# offer here would be invented; sportsbook links are not ticket offers either).
+EVENT_HOURS = {"nfl": 3.5, "ncaaf": 3.5, "nba": 2.5, "ncaab": 2.5, "nhl": 2.5, "mlb": 3, "ufc": 3}   # estimated length (UFC: one card segment)
+UFC_CARD_TAIL_H = 3      # a UFC event page ends about this long after its last segment (main card) starts
+ORGANIZER = {
+    "nfl": ("National Football League", "NFL", "https://www.nfl.com/"),
+    "nba": ("National Basketball Association", "NBA", "https://www.nba.com/"),
+    "mlb": ("Major League Baseball", "MLB", "https://www.mlb.com/"),
+    "nhl": ("National Hockey League", "NHL", "https://www.nhl.com/"),
+    "ncaaf": ("National Collegiate Athletic Association", "NCAA", "https://www.ncaa.org/"),
+    "ncaab": ("National Collegiate Athletic Association", "NCAA", "https://www.ncaa.org/"),
+    "ufc": ("Ultimate Fighting Championship", "UFC", "https://www.ufc.com/"),
+}
+
+
+def organizer_ld(lg):
+    name, alt, url = ORGANIZER[lg]
+    return {"@type": "SportsOrganization", "name": name, "alternateName": alt, "url": url}
+
+
+def event_status(g):
+    """schema.org status from the ESPN status text. Finished games stay EventScheduled (schema.org has no 'completed')."""
+    d = str((g or {}).get("statusDetail") or "").lower()
+    if "postpon" in d:
+        return "https://schema.org/EventPostponed"
+    if "cancel" in d:
+        return "https://schema.org/EventCancelled"
+    return "https://schema.org/EventScheduled"
+
+
+def side_ld(L: League, t):
+    """A team (SportsTeam) or fighter (Person), with its LineSmart page when it has one."""
+    ent = {"@type": "Person", "name": tname(t)} if L.lg == "ufc" else {"@type": "SportsTeam", "name": tname(t)}
+    if L.lg != "ufc" and pv.SPORT.get(L.kind):
+        ent["sport"] = pv.SPORT[L.kind]
+    p = L.team_paths.get(str((t or {}).get("id") or ""))
+    if p:
+        ent["url"] = L.base_url + p
+    return ent
+
+
+def end_iso(start, hours):
+    return et(start + timedelta(hours=hours)).isoformat(timespec="minutes")
+
+
+def game_event_ld(L: League, g, ev):
+    """Fill in the SportsEvent from previews.jsonld(): endDate, performer, organizer (name + url), eventStatus, linked
+    teams/fighters, and a location without placeholder values. Only the JSON-LD changes, never the visible page."""
+    a, h = g["away"], g["home"]
+    dt = parse_dt(g["date"])
+    ev["endDate"] = end_iso(dt, EVENT_HOURS.get(L.lg, 3))
+    ev["eventStatus"] = event_status(g)
+    ev["eventAttendanceMode"] = "https://schema.org/OfflineEventAttendanceMode"
+    ev["organizer"] = organizer_ld(L.lg)
+    ev["competitor"] = [side_ld(L, a), side_ld(L, h)]
+    ev["performer"] = [side_ld(L, a), side_ld(L, h)]
+    if L.lg != "ufc":
+        ev["homeTeam"], ev["awayTeam"] = side_ld(L, h), side_ld(L, a)
+    ev["location"] = place_ld(g)
+    if L.lg == "ufc":
+        e = L.ev.get(str((g.get("event") or {}).get("id"))) if hasattr(L, "ev") else None
+        if e and e.get("path"):
+            ev["superEvent"] = {"@type": "SportsEvent", "name": e["name"], "url": L.base_url + e["path"]}
+    order = ["@context", "@type", "name", "description", "url", "startDate", "endDate", "eventStatus", "eventAttendanceMode", "sport", "image",
+             "location", "organizer", "performer", "competitor", "homeTeam", "awayTeam", "superEvent"]
+    return {k: ev[k] for k in order if k in ev} | {k: v for k, v in ev.items() if k not in order}
+
+
+def place_ld(x):
+    """Place with the venue name and address. Google: leave location.name out rather than use a placeholder."""
+    addr = {"@type": "PostalAddress"}
+    if x.get("city"):
+        addr["addressLocality"] = x["city"]
+    if x.get("venueState"):
+        addr["addressRegion"] = x["venueState"]
+    addr["addressCountry"] = x.get("venueCountry") or "US"
+    place = {"@type": "Place"}
+    if x.get("venue"):
+        place["name"] = x["venue"]
+    place["address"] = addr
+    return place
+
+
 def stamp(s):
     """Volatile text (build times) is wrapped so it doesn't change a page's lastmod."""
     return f"<!--v-->{s}<!--/v-->"
@@ -924,6 +1009,7 @@ def game_page(L: League, sh: Shell, gid):
         section("sameday", "Same card" if L.lg == "ufc" else f"Other {esc(SHORT[L.lg])} games on {esc(short_day(dt, False))}", link_list(sd)),
     ] if x)
     ld = pv.jsonld(L.lg, L.name, L.kind, g, L.base_url + path, desc, L.base_url)
+    ld[0] = game_event_ld(L, g, ld[0])
     ld[1] = crumbs_ld(L.base_url, [(L.hub, NAMES[L.lg]), (path, mtch)])
     route = f"g/{L.lg}/{gid}" if cur and not final else ""
     if cur and final and L.lg != "ufc":
@@ -1110,10 +1196,17 @@ def event_page(L: League, sh: Shell, eid):
 </article>"""
     others = sorted([(x["path"], x["name"], short_day(parse_dt(x["date"]), False)) for k, x in L.ev.items() if k != eid], key=lambda x: x[2])
     more = section("events", "More UFC events", link_list(others + [(L.hub, "All UFC odds", "")]))
+    fighters = {}
+    for g in bouts:
+        for s in ("away", "home"):
+            fighters.setdefault(str(g[s].get("id") or tname(g[s])), side_ld(L, g[s]))
+    starts = [parse_dt(g.get("date")) for g in bouts if parse_dt(g.get("date"))] + [parse_dt(s.get("start")) for s in (e.get("segments") or []) if parse_dt(s.get("start"))]
+    last = max([x for x in starts if x >= dt] or [dt])
+    st = "https://schema.org/EventCancelled" if bouts and all(event_status(g).endswith("Cancelled") for g in bouts) else "https://schema.org/EventScheduled"
     ld = [{"@context": "https://schema.org", "@type": "SportsEvent", "name": e["name"], "url": L.base_url + path, "description": desc, "sport": "Mixed martial arts",
-           "startDate": et(dt).isoformat(timespec="minutes"), "eventStatus": "https://schema.org/EventScheduled", "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
-           "location": {"@type": "Place", "name": e.get("venue") or "TBD", "address": {"@type": "PostalAddress", "addressLocality": e.get("city") or "", "addressCountry": e.get("venueCountry") or "US"}},
-           "organizer": {"@type": "SportsOrganization", "name": "UFC"}, "image": [L.base_url + "assets/brand/og-image.png"]},
+           "startDate": et(dt).isoformat(timespec="minutes"), "endDate": end_iso(last, UFC_CARD_TAIL_H), "eventStatus": st,
+           "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode", "location": place_ld(e),
+           "organizer": organizer_ld("ufc"), "performer": list(fighters.values()), "image": [L.base_url + "assets/brand/og-image.png"]},
           crumbs_ld(L.base_url, [(L.hub, "UFC"), (path, e["name"])])]
     return sh.page(path, title, desc, main, more, kind="event", lg="ufc", ld=ld), title
 

@@ -31,6 +31,10 @@ App-only sub-routes such as `#/l/nfl/all` stay hash routes.
 ## What is on a page
 
 - A unique title, description, canonical, Open Graph and Twitter tags, plus JSON-LD.
+- Game, fight and UFC event pages carry a `SportsEvent` (Google Event structured data): startDate plus an estimated endDate
+  (`EVENT_HOURS` per league; UFC cards end `UFC_CARD_TAIL_H` after the main card starts), eventStatus, attendance mode,
+  venue location, the league as organizer (name + official site), and the teams/fighters as performer (linked to their
+  LineSmart pages). No `offers`: LineSmart sells no tickets, so Search Console's "missing offers" note is expected.
 - Real text content in `main#app`: matchup, time and venue, lines by book, movement, weather, injuries, form, props and result.
 - The persistent internal links in `section.seo-more`:
   - game ↔ props, teams, weather, movement and related games;

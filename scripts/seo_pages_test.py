@@ -82,6 +82,62 @@ OFFER = re.compile(r'class="of-book|Bet on (DraftKings|FanDuel|Hard Rock|BetMGM|
 BAD_NAME = re.compile(r"\bRod\b|Rodney", re.I)
 
 
+EV_DUR = {"nfl": 3.5, "ncaaf": 3.5, "nba": 2.5, "ncaab": 2.5, "nhl": 2.5, "mlb": 3, "ufc": 3}
+ISO_OFF = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d)?[+-]\d\d:\d\d$")
+
+
+def event_ld_ok(rel, h, lg, kind):
+    """Google Event structured data on a game / fight / UFC event page: parses, has the required fields (name, startDate,
+    location + address) and the ones Search Console flagged (endDate, performer, organizer.url), no invented offers."""
+    lds = [json.loads(x.replace("<\\/", "</")) for x in re.findall(r'<script type="application/ld\+json">(.*?)</script>', h, re.S)]
+    evs = [x for x in lds if x.get("@type") == "SportsEvent"]
+    check(len(evs) == 1, f"{rel}: one SportsEvent JSON-LD ({len(evs)})")
+    if not evs:
+        return None
+    ev = evs[0]
+    st, en = pv.parse_dt(ev.get("startDate")), pv.parse_dt(ev.get("endDate"))
+    check(ev.get("name") and ev.get("url") == SP.BASE_URL + rel and ISO_OFF.match(ev.get("startDate") or ""), f"{rel}: name, url, startDate with offset")
+    check(ISO_OFF.match(ev.get("endDate") or "") and st and en and en > st, f"{rel}: endDate with offset after startDate ({ev.get('startDate')} -> {ev.get('endDate')})")
+    if kind != "event":
+        check(bool(st and en) and en - st == timedelta(hours=EV_DUR[lg]), f"{rel}: endDate = start + {EV_DUR[lg]}h for {lg}")
+    loc = ev.get("location") or {}
+    check(loc.get("@type") == "Place" and (loc.get("address") or {}).get("@type") == "PostalAddress" and (loc.get("address") or {}).get("addressCountry"), f"{rel}: location Place + PostalAddress")
+    check(loc.get("name") not in ("TBD", ""), f"{rel}: no placeholder venue name")
+    org = ev.get("organizer") or {}
+    check(org.get("name") and str(org.get("url") or "").startswith("https://") and org.get("url") == SP.ORGANIZER[lg][2], f"{rel}: organizer name + official url ({org})")
+    perf = ev.get("performer") or []
+    want = "Person" if lg == "ufc" else "SportsTeam"
+    check(len(perf) >= 2 and (kind == "event" or len(perf) == 2) and all(p.get("@type") == want and p.get("name") for p in perf), f"{rel}: performer {want}s with names")
+    check(all(str(p.get("url", SP.BASE_URL)).startswith(SP.BASE_URL) for p in perf) and any(p.get("url") for p in perf), f"{rel}: performers link LineSmart team/fighter pages")
+    check(ev.get("eventStatus", "").startswith("https://schema.org/Event") and ev.get("eventAttendanceMode") == "https://schema.org/OfflineEventAttendanceMode", f"{rel}: eventStatus + attendance mode")
+    check("offers" not in ev, f"{rel}: no offers (LineSmart sells no tickets)")
+    if lg != "ufc":
+        check(ev.get("homeTeam", {}).get("name") and ev.get("awayTeam", {}).get("name") and len(ev.get("competitor") or []) == 2, f"{rel}: homeTeam / awayTeam / competitor kept")
+    return ev
+
+
+def ufc_fixture(now):
+    """Small UFC card (upcoming, two segments) + a finished one, in the shape scripts/ufc.py writes."""
+    def f(i, name, rec="10-2-0", win=None):
+        return {"id": str(i), "abbr": name.split()[-1].upper(), "name": name, "short": name, "last": name.split()[-1], "record": rec, "country": "USA", "winner": win}
+    def ev(eid, name, d0, segs, state, venue):
+        return {"id": eid, "name": name, "short": name.split(":")[0], "date": d0, "state": state, **venue, "segments": segs, "broadcasts": ["Paramount+"]}
+    now = now.replace(minute=0, second=0, microsecond=0)   # JSON-LD times are to the minute
+    vx = {"venue": "Meta APEX", "city": "Las Vegas", "venueState": "NV", "venueCountry": "USA"}
+    d_pre, d_main = SP.iso(now + timedelta(days=2)), SP.iso(now + timedelta(days=2, hours=3))
+    d_past = SP.iso(now - timedelta(days=2))
+    def bout(i, d, a, h, e, seg, state="pre", main=False):
+        return {"id": str(i), "date": d, "name": f"{a['name']} vs. {h['name']}", "state": state, "statusDetail": "Final" if state == "post" else "Sat",
+                "completed": state == "post", **vx, "away": a, "home": h, "event": {"id": e["id"], "name": e["name"]}, "segment": seg,
+                "segmentName": "Main Card" if seg == "main" else "Prelims", "matchNo": 1 if main else 5, "weightClass": "Lightweight", "rounds": 5 if main else 3,
+                "mainEvent": main, "result": ({"winner": a["id"], "method": "Decision"} if state == "post" else None), "books": {}, "odds": None}
+    e1 = ev("900001", "UFC Fight Night: Alpha vs. Bravo", d_pre, [{"key": "main", "name": "Main Card", "start": d_main}, {"key": "prelims1", "name": "Prelims", "start": d_pre}], "pre", vx)
+    e2 = ev("900002", "UFC 999: Charlie vs. Delta", d_past, [{"key": "main", "name": "Main Card", "start": d_past}], "post", vx)
+    games = [bout(1, d_main, f(11, "Alan Alpha"), f(12, "Bob Bravo"), e1, "main", main=True), bout(2, d_pre, f(13, "Carl Echo"), f(14, "Dan Fox"), e1, "prelims1"),
+             bout(3, d_past, f(15, "Cal Charlie", win=True), f(16, "Don Delta", win=False), e2, "main", state="post", main=True)]
+    return {"generated": SP.iso(now), "league": {"key": "ufc", "name": "UFC", "full": "UFC (Mixed Martial Arts)", "kind": "mma"}, "teams": {}, "events": [e1, e2], "games": games}
+
+
 def page_dirs(site):
     for d in SP.GEN_DIRS:
         if (site / d).exists():
@@ -149,6 +205,7 @@ def main():
         titles, canon, descs = {}, {}, {}
         stubs, real, broken = [], [], []
         hydrated = []
+        event_pages = []
         for f in page_dirs(site):
             rel = str(f.parent.relative_to(site)) + "/"
             h = f.read_text()
@@ -181,6 +238,10 @@ def main():
             check('<main class="wrap" id="app">' in h and 'class="wrap seo-more"' in h, f"{rel}: content in #app + persistent links")
             check(len(re.sub(r"<[^>]+>", " ", h.split('id="app">', 1)[1].split("</main>", 1)[0]).split()) >= 25, f"{rel}: real content in the page")
             check(re.search(r'<nav class="hub-links"', h), f"{rel}: footer links the league hubs")
+            seg = rel.split("/")
+            if len(seg) > 2 and seg[1] in ("games", "fights", "events"):
+                event_ld_ok(rel, h, seg[0], "event" if seg[1] == "events" else "game")
+                event_pages.append(rel)
             route = d.body.get("data-route")
             if route:
                 hydrated.append((rel, route))
@@ -191,6 +252,16 @@ def main():
         check(real and all(len(v) == 1 for v in titles.values()), f"titles unique ({[v for v in titles.values() if len(v) > 1][:3]})")
         check(all(len(v) == 1 for v in canon.values()), "canonicals unique")
         check(sum(len(v) > 1 for v in descs.values()) <= len(real) // 50, f"descriptions (nearly) unique ({sum(len(v) > 1 for v in descs.values())} dupes)")
+        ev_lgs = {r.split("/")[0] for r in event_pages}
+        check({"nfl", "nba", "nhl", "ncaaf"} <= ev_lgs and len(event_pages) == sum(len(v) for v in man["g"].values()), f"SportsEvent JSON-LD checked on every game page ({len(event_pages)}, {sorted(ev_lgs)})")
+        nfl_ix = json.loads((data / "nfl" / "index.json").read_text())
+        past = [g for g in nfl_ix["games"] if g.get("state") == "post" and g["id"] in man["g"].get("nfl", {})]
+        if past:
+            pev = event_ld_ok(man["g"]["nfl"][past[0]["id"]], (site / man["g"]["nfl"][past[0]["id"]] / "index.html").read_text(), "nfl", "game")
+            check(pev and pev["eventStatus"] == "https://schema.org/EventScheduled", "finished game keeps EventScheduled (schema.org has no 'completed')")
+        check(SP.event_status({"statusDetail": "Postponed"}).endswith("EventPostponed") and SP.event_status({"statusDetail": "Canceled"}).endswith("EventCancelled")
+              and SP.event_status({"statusDetail": "Final/OT"}).endswith("EventScheduled"), "event_status(): postponed / canceled / final")
+        check(SP.place_ld({"city": "Miami"}) == {"@type": "Place", "address": {"@type": "PostalAddress", "addressLocality": "Miami", "addressCountry": "US"}}, "place_ld(): no venue -> no placeholder name")
         check(not broken, f"all internal links resolve ({len(broken)} broken, e.g. {broken[:4]})")
         check(len(real) == st["pages"], f"page files match stats ({len(real)} vs {st['pages']})")
         # hydration: only hubs and current, unfinished games hand #app to the live app view
@@ -368,6 +439,27 @@ def main():
             # 404 page handles the expired URL
             nf = (site2 / "404.html").read_text()
             check("expired" in nf and "noindex" in nf and "1-800-GAMBLER" in nf, "404 page explains expired pages")
+
+        # ---- UFC fight + event pages: SportsEvent JSON-LD (the committed snapshot has no UFC data)
+        site4 = build_copy(tmp, "site4")
+        (site4 / "data" / "ufc").mkdir(parents=True, exist_ok=True)
+        (site4 / "data" / "ufc" / "index.json").write_text(json.dumps(ufc_fixture(now)))
+        SP.build(site4, site4 / "data", now, archive_dir=None)
+        man4 = json.loads((site4 / "data" / "pages.json").read_text())
+        fights = list((man4["g"].get("ufc") or {}).values())
+        check(len(fights) == 3, f"UFC fixture: 3 fight pages ({fights})")
+        for rel in fights:
+            fev = event_ld_ok(rel, (site4 / rel / "index.html").read_text(), "ufc", "game")
+            check(fev and (fev.get("superEvent") or {}).get("url", "").startswith(SP.BASE_URL + "ufc/events/"), f"{rel}: fight links its card (superEvent)")
+        evs = sorted(p.parent for p in (site4 / "ufc" / "events").glob("*/index.html"))
+        check(len(evs) == 2, f"UFC fixture: 2 event pages ({len(evs)})")
+        for p in evs:
+            rel = str(p.relative_to(site4)) + "/"
+            eev = event_ld_ok(rel, (p / "index.html").read_text(), "ufc", "event")
+            if eev and "alpha" in rel:
+                main_start = pv.parse_dt(ufc_fixture(now)["events"][0]["segments"][0]["start"])
+                check(pv.parse_dt(eev["endDate"]) == main_start + timedelta(hours=SP.UFC_CARD_TAIL_H) and len(eev["performer"]) == 4,
+                      f"{rel}: card ends {SP.UFC_CARD_TAIL_H}h after the main card starts; every fighter is a performer")
 
         # ---- no archive dir (data-history unavailable): still builds from site/data alone
         site3 = build_copy(tmp, "site3")

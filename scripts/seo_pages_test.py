@@ -78,6 +78,131 @@ def parse(html):
     return d
 
 
+def ld_scripts(h):
+    return [json.loads(raw.replace("<\\/", "</")) for raw in re.findall(r'<script type="application/ld\+json">(.*?)</script>', h, re.S)]
+
+
+def walk_nodes(o, acc=None):
+    acc = [] if acc is None else acc
+    if isinstance(o, dict):
+        acc.append(o)
+        for v in o.values():
+            walk_nodes(v, acc)
+    elif isinstance(o, list):
+        for v in o:
+            walk_nodes(v, acc)
+    return acc
+
+
+def node_types(nodes):
+    types = set()
+    for n in nodes:
+        t = n.get("@type")
+        if isinstance(t, str):
+            types.add(t)
+        elif isinstance(t, list):
+            types.update(x for x in t if isinstance(x, str))
+    return types
+
+
+GAME_HREF = re.compile(r"(?:^|/)(?:games|fights)/")
+LD_TYPES = {
+    "hub": {"CollectionPage", "BreadcrumbList"},
+    "team": {"SportsTeam", "CollectionPage", "BreadcrumbList"},
+    "fighter": {"Person", "CollectionPage", "BreadcrumbList"},
+    "game": {"SportsEvent", "BreadcrumbList"},
+    "player": {"ProfilePage", "Person", "BreadcrumbList"},
+    "event": {"SportsEvent", "BreadcrumbList"},
+}
+
+
+def visible_game_paths(hrefs):
+    """Game and fight URLs in document order, first time each path appears."""
+    out, seen = [], set()
+    for href in hrefs:
+        if not href or href.startswith(("#", "http:", "https:", "mailto:", "tel:", "sms:", "javascript:", "//")):
+            continue
+        path = href.split("#", 1)[0].split("?", 1)[0]
+        if not GAME_HREF.search(path):
+            continue
+        if not path.endswith("/"):
+            path += "/"
+        if path not in seen:
+            seen.add(path)
+            out.append(path)
+    return out
+
+
+def check_item_list(rel, il):
+    els = il.get("itemListElement") or []
+    check(il.get("@type") == "ItemList" and els and il.get("numberOfItems") == len(els), f"{rel}: ItemList has entries ({il.get('numberOfItems')})")
+    ok = all(isinstance(e, dict) and e.get("@type") == "ListItem" and e.get("position") == i and e.get("name") and str(e.get("url") or "").startswith(SP.BASE_URL) for i, e in enumerate(els, 1))
+    check(ok, f"{rel}: ItemList positions, names and absolute urls")
+    return [e.get("url", "")[len(SP.BASE_URL):] if str(e.get("url") or "").startswith(SP.BASE_URL) else e.get("url") for e in els]
+
+
+def check_page_ld(rel, h, hrefs, kind):
+    """Every generated page: JSON-LD parses and carries the types that page should. Hubs and team pages: ItemList matches the game links."""
+    try:
+        tops = ld_scripts(h)
+    except json.JSONDecodeError as e:
+        check(False, f"{rel}: JSON-LD does not parse ({e})")
+        return
+    nodes = walk_nodes(tops)
+    types = node_types(nodes)
+    check(bool(tops) and bool(types), f"{rel}: JSON-LD present")
+    missing = LD_TYPES.get(kind, set()) - types
+    check(not missing, f"{rel}: JSON-LD types {sorted(types)} missing {sorted(missing)}")
+    check("SearchAction" not in types, f"{rel}: no SearchAction")
+    games = visible_game_paths(hrefs)
+    lists = [n for n in nodes if n.get("@type") == "ItemList"]
+    if kind in ("hub", "team", "fighter"):
+        if not games:
+            check(not lists, f"{rel}: no ItemList when the page links no games")
+            return
+        check(len(lists) == 1, f"{rel}: one ItemList ({len(lists)})")
+        if not lists:
+            return
+        paths = check_item_list(rel, lists[0])
+        check(paths == games, f"{rel}: ItemList matches visible game links ({len(paths)} vs {len(games)}; extra {paths[:2] if paths != games else ''})")
+        pages = [n for n in nodes if n.get("@type") == "CollectionPage"]
+        check(pages and (pages[0].get("mainEntity") or {}).get("@type") == "ItemList", f"{rel}: ItemList is the CollectionPage mainEntity")
+        if kind == "hub":
+            check(any(n.get("@type") == "CollectionPage" for n in tops), f"{rel}: hub CollectionPage is top-level")
+        else:
+            want = "Person" if kind == "fighter" else "SportsTeam"
+            ents = [n for n in nodes if n.get("@type") == want]
+            about = (pages[0].get("about") or {}).get("@id") if pages else ""
+            check(ents and ents[0].get("@id") and ents[0].get("@id") == about, f"{rel}: page about the {want}")
+    else:
+        check(not lists, f"{rel}: ItemList only on hubs and team pages")
+
+
+def title_limit_tests():
+    """Title cap includes the brand suffix; descriptions stop at 155; dedupe cannot push a title back over."""
+    check(SP.TITLE_MAX == 60 and SP.DESC_MAX == 155 and len(SP.SUFFIX) == 12, "title 60 including suffix, description 155")
+    check(SP.short_person("Christopher Rodriguez Jr.") == "Rodriguez" and SP.short_person("Alan Alpha") == "Alpha", "short person name skips Jr/Sr")
+    check(SP.fit("x" * 70, "Short") == "Short" + SP.SUFFIX, "fit(): first candidate that fits with the suffix")
+    check(SP.fit("y" * 50, "z" * 55) == "y" * 50, "fit(): drop the suffix rather than exceed 60")
+    check(SP.fit("z" * 55, "y" * 50) == "z" * 55, "fit(): first candidate that fits without the suffix")
+    long = "North Carolina State Wolfpack versus Appalachian State Mountaineers Odds"
+    out = SP.fit(long)
+    bare = SP.bare_title(out)
+    check(len(out) <= SP.TITLE_MAX and long.startswith(bare) and (bare == long or long[len(bare):].startswith(" ")), f"fit(): word boundary, never mid-word ({out})")
+    check(SP.fit("x" * 70) == "x" * SP.TITLE_MAX, "fit(): a single over-long token still stays within 60")
+    dated = SP.with_extra("A" * 48, ", Oct 27")
+    check(len(dated) <= SP.TITLE_MAX and dated.endswith(", Oct 27") and not dated.endswith(SP.SUFFIX), f"with_extra(): date kept by dropping the suffix ({dated})")
+    kept = SP.with_extra("Rays vs Brewers Odds", ", Oct 27")
+    check(kept == "Rays vs Brewers Odds, Oct 27" + SP.SUFFIX and len(kept) <= SP.TITLE_MAX, f"with_extra(): suffix stays when the dated title fits ({kept})")
+    slug = SP.with_extra("M" * 40, " (" + "n" * 80 + ")")
+    check(len(slug) <= SP.TITLE_MAX and "n" in slug, f"with_extra(): long slug stays inside the cap ({len(slug)})")
+    clipped = SP.cut("word " * 80)
+    check(len(clipped) <= SP.DESC_MAX and clipped.endswith("…") and not clipped[:-1].endswith(" "), f"cut(): descriptions end on a word ({len(clipped)})")
+    check(SP.cut("Short description.") == "Short description.", "cut(): short text unchanged")
+    sample = "Free NFL odds comparison: spreads, totals and moneylines from DraftKings, Hard Rock Bet and FanDuel, line movement and final scores."
+    check(len(sample) <= SP.DESC_MAX and not PROMO_RE.search(sample) and "Florida" not in sample, "comparison description: no promo wording and no Florida availability claim")
+
+
 OFFER = re.compile(r'class="of-book|Bet on (DraftKings|FanDuel|Hard Rock|BetMGM|Caesars|Fanatics)|href="https?://[^"]*(draftkings|fanduel|hardrock|betmgm|caesars|fanatics)[^"]*"', re.I)
 PROMO_RE = re.compile(r"\b(free bets?|risk[- ]free|no[- ]risk|guaranteed|bonus bets?|no[- ]sweat|free plays?)\b", re.I)   # same list as compliance_test.mjs
 BAD_NAME = re.compile(r"\bRod\b|Rodney", re.I)
@@ -260,6 +385,7 @@ def wtw_tests():
 
 
 def main():
+    title_limit_tests()
     wtw_tests()
     # last-5 prop strip: boxes render oldest -> newest (newest on the right), each with its M/D date under it; the stats stay latest first
     lg5 = [["2026-10-25", "DDD", "vs", {}], ["2026-10-24", "CCC", "@", {"points": 20}], ["2026-10-22", "BBB", "vs", {"points": 30}],
@@ -307,9 +433,13 @@ def main():
             descs.setdefault(d.meta.get("description"), []).append(rel)
             check(d.links.get("canonical") == SP.BASE_URL + rel, f"{rel}: canonical is its own URL ({d.links.get('canonical')})")
             check(d.meta.get("og:url") == SP.BASE_URL + rel and d.meta.get("og:title") and d.meta.get("og:description"), f"{rel}: og tags")
-            check(40 <= len(d.meta.get("description") or "") <= 170, f"{rel}: description length {len(d.meta.get('description') or '')}")
-            check(d.title and d.title.endswith(SP.SUFFIX) and len(d.title) - len(SP.SUFFIX) <= SP.TITLE_MAX, f"{rel}: title <= {SP.TITLE_MAX} chars + brand ({d.title})")
+            desc_len = len(d.meta.get("description") or "")
+            check(40 <= desc_len <= SP.DESC_MAX, f"{rel}: description length {desc_len} (max {SP.DESC_MAX})")
+            check(d.title and len(d.title) <= SP.TITLE_MAX, f"{rel}: title <= {SP.TITLE_MAX} including the brand ({len(d.title)}: {d.title})")
+            check(not d.title.endswith(SP.SUFFIX) or len(SP.bare_title(d.title)) <= SP.TITLE_MAX - len(SP.SUFFIX), f"{rel}: suffix only when the phrase fits ({d.title})")
+            check(not PROMO_RE.search(d.meta.get("description") or ""), f"{rel}: description has no promo wording")
             check(d.meta.get("og:title") == d.title == d.meta.get("twitter:title"), f"{rel}: og:title / twitter:title match <title>")
+            check_page_ld(rel, h, d.hrefs, d.body.get("data-page") or "")
             check("noindex" not in (d.meta.get("robots") or ""), f"{rel}: indexable")
             check(any(s.endswith("assets/app.js") for s in d.scripts), f"{rel}: loads the app JS")
             check(d.meta.get("_base") == "../" * rel.count("/"), f"{rel}: <base> points at the site root")
@@ -528,13 +658,13 @@ def main():
                 if g and g.get("state") == "pre":
                     check(" Odds" in t, f"{rel}: upcoming title says Odds ({t})")
                     bk = [SP.TITLE_BOOK[k] for k in SP.page_books(g, lg)]
-                    if bk and len(f"{a_ if lg != 'ufc' else g['away'].get('name')} vs ") + len(", ".join(bk)) < 30:
+                    vs0 = f"{g['away'].get('name')} vs {g['home'].get('name')}" if lg == "ufc" else f"{a_} vs {h_}"
+                    if bk and len(f"{vs0} Odds: {', '.join(bk)}") <= SP.TITLE_MAX - len(SP.SUFFIX):
                         check(t.split(" Odds", 1)[-1].startswith(": "), f"{rel}: books in the title when they fit ({t})")
                 if "/games/" in rel and 'class="card sx-result"' in h or (g and g.get("state") == "post"):
                     check("Result" in t or "Final Score" in t, f"{rel}: finished game says Result ({t})")
         nfl_t = [parse((site / r / "index.html").read_text()).title for r in man["g"].get("nfl", {}).values()]
         check(any(re.search(r" vs .+ Odds: (Hard Rock, )?DraftKings(, FanDuel)? \| LineSmart$", x) for x in nfl_t), f"NFL titles carry the books ({nfl_t[:2]})")
-        check(SP.fit("x" * 70, "Short") == "Short" + SP.SUFFIX and SP.fit("x" * 70) == "x" * 70 + SP.SUFFIX, "fit(): first candidate that fits, else shortest")
         check(SP.and_list(["Hard Rock", "DraftKings", "FanDuel"]) == "Hard Rock, DraftKings and FanDuel" and SP.and_list(["FanDuel"]) == "FanDuel", "and_list()")
         g0 = {"odds": {"provider": "DraftKings", "homeML": -150, "awayML": 130}, "books": {}}
         check(SP.page_books({"odds": {"provider": "ESPN BET", "homeML": -150, "awayML": 130}}, "nba") == [] and
@@ -542,6 +672,19 @@ def main():
 
         # ---- homepage cards
         ih = (site / "index.html").read_text()
+        home = parse(ih)
+        hdesc = home.meta.get("description") or ""
+        check(home.title and len(home.title) <= SP.TITLE_MAX, f"homepage title <= {SP.TITLE_MAX} ({len(home.title or '')}: {home.title})")
+        check(40 <= len(hdesc) <= SP.DESC_MAX, f"homepage description <= {SP.DESC_MAX} ({len(hdesc)})")
+        check("Hard Rock Bet" in hdesc and "DraftKings" in hdesc and "FanDuel" in hdesc, "homepage description names Hard Rock Bet, DraftKings and FanDuel")
+        check("available in Florida" not in hdesc and "legal in Florida" not in hdesc and "DraftKings (via ESPN) and Hard Rock Bet" not in hdesc, "homepage description does not place DraftKings or FanDuel in Florida")
+        check(not PROMO_RE.search(hdesc), "homepage description: no promo wording")
+        home_nodes = walk_nodes(ld_scripts(ih))
+        org = next((n for n in home_nodes if n.get("@type") == "Organization"), {})
+        web = next((n for n in home_nodes if n.get("@type") == "WebSite"), {})
+        check(org.get("sameAs") == ["https://x.com/LineSmartApp", "https://www.youtube.com/@LineSmartApp"], f"homepage Organization sameAs ({org.get('sameAs')})")
+        check(org.get("alternateName") == "Line Smart" and web.get("alternateName") == "Line Smart" and web.get("name") == "LineSmart", "homepage alternateName for the site name")
+        check(all(n.get("@type") != "SearchAction" and (not isinstance(n.get("potentialAction"), dict) or n["potentialAction"].get("@type") != "SearchAction") for n in home_nodes), "homepage has no SearchAction")
         block = ih.split(SP.HOME_START, 1)[1].split(SP.HOME_END, 1)[0]
         check("home-cards" in block and "Top games" in block, "homepage cards filled in")
         hrefs = re.findall(r'href="([^"]+)"', block)

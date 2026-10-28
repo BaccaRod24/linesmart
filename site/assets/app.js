@@ -1283,6 +1283,12 @@
     if (h[0] === "p" && h[1] && h[2]) return viewPlayer(h[1], h[2], h[3]);
     if (h[0] === "g" && h[1] && h[2]) return viewGame(h[1], h[2]);
     if (h[0] === "l" && h[1]) return viewLeague(h[1]);
+    if (h[0].split("?")[0] === "owner") {
+      if (window.LSProGate && window.LSProGate.ready) await window.LSProGate.ready;
+      if (window.LSProApp && window.LSProApp.view) return window.LSProApp.view();
+      location.replace(location.pathname + location.search + "#/");
+      return;
+    }
     const def = (META.leagues[CFG.defaultLeague]?.upcoming ? CFG.defaultLeague : META.order.find(k => META.leagues[k]?.upcoming)) || META.order[0];
     return viewLeague(def, true);
   }

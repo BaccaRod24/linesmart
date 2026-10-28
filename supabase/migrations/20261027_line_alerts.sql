@@ -161,8 +161,50 @@ begin
   return false;
 end $$;
 
+-- 21+ helpline line for an alert email: {html, text}. Same numbers and order as the site (GeoCore.HELPLINES in
+-- site/assets/geo-core.js; line_alerts_test.mjs checks they match). Known state with its own line -> that line first,
+-- then 1-800-GAMBLER; other known states -> 1-800-GAMBLER; unknown (null) -> one compact multi-state line plus a link
+-- to the site's helplines page. The state is not stored anywhere today, so alert emails use the unknown-state line.
+create or replace function public.line_alert_helpline(p_state text, p_site text)
+returns jsonb
+language plpgsql immutable set search_path = ''
+as $$
+declare
+  st constant text[] := array['FL', 'NY', 'AZ', 'IN', 'IA'];
+  nm constant text[] := array['Florida', 'New York', 'Arizona', 'Indiana', 'Iowa'];
+  ph constant text[] := array['1-833-PLAYWISE', '1-877-8-HOPENY', '1-800-NEXT-STEP', '1-800-9-WITH-IT', '1-800-BETS-OFF'];
+  tl constant text[] := array['18337529947', '18778467369', '18006398783', '18009948448', '18002387633'];
+  gam constant text := '<a href="tel:18004262537" style="color:inherit;text-decoration:underline">1-800-GAMBLER</a>';
+  code text := case when p_state ~ '^[A-Za-z]{2}$' then upper(p_state) end;
+  i int := array_position(st, code);
+  rg text := coalesce(nullif(p_site, ''), 'https://linesmart.app') || '/responsible-gambling.html';
+  h text := ''; t text := '';
+  tel text;
+begin
+  if i is not null then
+    tel := format('<a href="tel:%s" style="color:inherit;text-decoration:underline">%s</a>', tl[i], ph[i]);
+    return jsonb_build_object(
+      'html', format('21+ | Gambling problem? Call %s (%s) or %s.', tel, nm[i], gam),
+      'text', format('21+ | Gambling problem? Call %s (%s) or 1-800-GAMBLER.', ph[i], nm[i]));
+  end if;
+  if code is not null then
+    return jsonb_build_object('html', '21+ | Gambling problem? Call ' || gam || '.', 'text', '21+ | Gambling problem? Call 1-800-GAMBLER.');
+  end if;
+  for j in 1 .. cardinality(st) loop
+    h := h || format('%s: <span style="white-space:nowrap"><a href="tel:%s" style="color:inherit;text-decoration:underline">%s</a></span> &middot; ', nm[j], tl[j], ph[j]);
+    t := t || nm[j] || ': ' || ph[j] || ' · ';
+  end loop;
+  return jsonb_build_object(
+    'html', '21+ | Gambling problem? ' || h || 'Elsewhere: <span style="white-space:nowrap">' || gam || '</span>. <a href="'
+            || public.line_alert_esc(rg) || '" style="color:#22e1ff">All state helplines</a>',
+    'text', '21+ | Gambling problem? ' || t || 'Elsewhere: 1-800-GAMBLER. All state helplines: ' || rg);
+end $$;
+
 -- The email for one fired alert: {subject, html, text}. Every user-supplied label is escaped; links are built here.
-create or replace function public.line_alert_email(a public.line_alerts, p_book text, p_value numeric, p_price numeric)
+-- p_state: the recipient's state code if known (null today: no state is stored), for the helpline line.
+-- (Before this took 4 arguments; drop that version so a re-run leaves one function.)
+drop function if exists public.line_alert_email(public.line_alerts, text, numeric, numeric);
+create or replace function public.line_alert_email(a public.line_alerts, p_book text, p_value numeric, p_price numeric, p_state text default null)
 returns jsonb
 language plpgsql stable set search_path = ''
 as $$
@@ -175,9 +217,10 @@ declare
   base numeric := case when jsonb_typeof(a.baseline -> p_book) = 'number' then (a.baseline ->> p_book)::numeric end;
   cur text := public.line_alert_fmt(p_value, how);
   was text := public.line_alert_fmt(base, how);
-  head text; rule text; link text; manage text; kick text; px text := ''; html text; txt text;
+  head text; rule text; link text; manage text; kick text; px text := ''; html text; txt text; rg jsonb;
 begin
   select * into s from public.line_alert_settings where id = 1;
+  rg := public.line_alert_helpline(p_state, s.site_url);
   head := case a.kind
     when 'spread_move'   then who || ' spread moved ' || was || ' to ' || cur || ' at ' || bk
     when 'total_move'    then 'Total moved ' || was || ' to ' || cur || ' at ' || bk
@@ -211,19 +254,19 @@ begin
 <tr><td style="padding:12px 28px 0;font-size:13px;line-height:1.6;color:#a3b3d9">Your alert: %8$s at %4$s. It's now off and won't email you again.</td></tr>
 <tr><td style="padding:20px 28px"><a href="%9$s" style="display:inline-block;background:#3d9bff;color:#00132e;font-weight:700;font-size:15px;text-decoration:none;padding:12px 22px;border-radius:10px">See all lines for this game</a></td></tr>
 <tr><td style="padding:0 28px 20px;font-size:12.5px;line-height:1.6;color:#7f90ba">Lines change often and may have moved again since this check. Check the sportsbook before you bet.</td></tr>
-<tr><td style="padding:14px 28px 24px;border-top:1px solid #1f2d55;font-size:12px;line-height:1.7;color:#7f90ba"><a href="%10$s" style="color:#22e1ff">Manage or stop line alerts</a><br>21+ | Gambling problem? Call 1-800-GAMBLER. Florida: 1-833-PLAYWISE.<br>LineSmart is a free odds and stats site. We don't take bets. Questions: <a href="mailto:%11$s" style="color:#22e1ff">%11$s</a></td></tr>
+<tr><td style="padding:14px 28px 24px;border-top:1px solid #1f2d55;font-size:12px;line-height:1.7;color:#7f90ba"><a href="%10$s" style="color:#22e1ff">Manage or stop line alerts</a><br>%12$s<br>LineSmart is a free odds and stats site. We don't take bets. Questions: <a href="mailto:%11$s" style="color:#22e1ff">%11$s</a></td></tr>
 </table></td></tr></table></body></html>$h$,
     public.line_alert_esc(a.game_label), public.line_alert_esc(kick), public.line_alert_esc(head), public.line_alert_esc(bk), public.line_alert_esc(cur),
     case when was <> '' and a.kind <> 'ml_target' then format('<tr><td style="padding:0 14px 10px;font-size:13px;color:#7f90ba">When you set the alert</td><td align="right" style="padding:0 14px 10px;font-size:14px;color:#a3b3d9">%s</td></tr>', public.line_alert_esc(was)) else '' end,
     case when px <> '' then format('<tr><td colspan="2" style="padding:0 14px 12px;font-size:13px;color:#7f90ba">%s</td></tr>', public.line_alert_esc(px)) else '' end,
-    public.line_alert_esc(rule), public.line_alert_esc(link), public.line_alert_esc(manage), public.line_alert_esc(s.reply_to));
+    public.line_alert_esc(rule), public.line_alert_esc(link), public.line_alert_esc(manage), public.line_alert_esc(s.reply_to), rg ->> 'html');
   txt := 'LineSmart line alert' || chr(10) || chr(10) || head || chr(10) || a.game_label || ' - ' || kick || chr(10) ||
          case when px <> '' then px || chr(10) else '' end ||
          'Your alert: ' || rule || ' at ' || bk || '. It''s now off and won''t email you again.' || chr(10) || chr(10) ||
          'All lines for this game: ' || link || chr(10) ||
          'Lines change often and may have moved again since this check. Check the sportsbook before you bet.' || chr(10) || chr(10) ||
          'Manage or stop line alerts: ' || manage || chr(10) ||
-         '21+ | Gambling problem? Call 1-800-GAMBLER. Florida: 1-833-PLAYWISE.' || chr(10) ||
+         (rg ->> 'text') || chr(10) ||
          'LineSmart is a free odds and stats site. We don''t take bets. Questions: ' || s.reply_to;
   return jsonb_build_object('subject', left('Line alert: ' || head || ' (' || a.game_label || ')', 150), 'html', html, 'text', txt);
 end $$;
@@ -286,7 +329,7 @@ begin
     if n_user >= s.user_daily_cap then ucap := ucap + 1; continue; end if;
     select u.email into v_to from auth.users u where u.id = a.user_id;
     if v_to is null or v_to = '' then gone := gone + 1; continue; end if;
-    v_mail := public.line_alert_email(a, h ->> 'book', v_val, v_px);
+    v_mail := public.line_alert_email(a, h ->> 'book', v_val, v_px, null);   -- state unknown: multi-state helpline line
     v_req := net.http_post(
       url     := 'https://api.resend.com/emails',
       headers := jsonb_build_object('Authorization', 'Bearer ' || v_key, 'Content-Type', 'application/json',
@@ -304,7 +347,8 @@ begin
 end $$;
 
 revoke all on function public.line_alerts_before_insert() from public, anon, authenticated;
-revoke all on function public.line_alert_email(public.line_alerts, text, numeric, numeric) from public, anon, authenticated;
+revoke all on function public.line_alert_email(public.line_alerts, text, numeric, numeric, text) from public, anon, authenticated;
+revoke all on function public.line_alert_helpline(text, text) from public, anon, authenticated;
 revoke all on function public.line_alerts_key_ok(text) from public, anon, authenticated;
 revoke all on function public.line_alerts_pending(text) from public;
 revoke all on function public.line_alerts_fire(text, jsonb) from public;

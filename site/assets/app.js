@@ -576,15 +576,17 @@
         const ser = pts.filter(p => isNum(p.v[s.key]));
         if (!ser.length) return "";
         const cur = ser[ser.length - 1], open = isNum(op[s.key]) ? op[s.key] : ser[0].v[s.key];
-        let big = cur.v[s.key], bigT = cur.t;
-        ser.forEach(p => { if (Math.abs(p.v[s.key] - open) > Math.abs(big - open)) { big = p.v[s.key]; bigT = p.t; } });
+        const ml = st.mk === "ml", C = window.LineCore;   // cents across even money; a raw subtraction is 200 too big
+        const vals = ser.map(p => p.v[s.key]);
+        const big = C.biggest(open, vals, ml);
         // last change time = first point of the current run of equal values
         let lc = null; for (let i = ser.length - 1; i > 0; i--) if (ser[i].v[s.key] !== ser[i - 1].v[s.key]) { lc = ser[i].t; break; }
-        const dlt = cur.v[s.key] - open;
+        const dlt = C.moveDelta(open, cur.v[s.key], ml), bd = C.moveDelta(open, big, ml);
+        const ch = C.formatSigned(dlt, ml), bg = C.formatSigned(bd, ml);
         return `<tr><td><i class="sw" style="background:${s.color}"></i>${esc(s.name)}</td><td class="num">${esc(M.f(open) ?? "")}${isNum(op[s.key]) ? "" : '<span class="na">*</span>'}</td>
           <td class="num"><b>${esc(M.f(cur.v[s.key]) ?? "")}</b></td>
-          <td class="num ${dlt ? "chg" : ""}">${dlt ? (dlt > 0 ? "▲ +" : "▼ ") + +dlt.toFixed(2) : "—"}</td>
-          <td class="num">${big !== open ? `${esc(M.f(big))} <span class="na">(${big - open > 0 ? "+" : ""}${+(big - open).toFixed(2)})</span>` : "—"}</td>
+          <td class="num ${ch ? "chg" : ""}">${ch ? (dlt > 0 ? "▲ " : "▼ ") + ch : "—"}</td>
+          <td class="num">${bg ? `${esc(M.f(big))} <span class="na">(${bg})</span>` : "—"}</td>
           <td class="num na">${lc ? shortET(lc) + " " + TZL : fromOdds ? "—" : "no change tracked"}</td></tr>`;
       }).join("");
     }

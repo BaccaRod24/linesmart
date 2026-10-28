@@ -12,6 +12,8 @@
   // {generated, l: {lg: "nfl/"}, g: {lg: {id: "nfl/games/…/"}}, t: {lg: {id: path}}, p: {lg: {id: path}}}; absent locally → hash routes only.
   // On a generated page <body data-page data-route> says which app view (if any) the page hydrates into.
   const PAGE = document.body.dataset.page || "", PAGE_ROUTE = document.body.dataset.route || "", PAGE_LG = document.body.dataset.lg || "";
+  // the generated page's "What to watch" notes (static, crawlable): kept and shown under the match header when this page's game hydrates
+  const PAGE_WTW = (document.querySelector("#app #wtw-s") || {}).outerHTML || "";
   let PAGES = {};
   const realPath = hash => {   // "#/g/nfl/401…" → "nfl/games/…/" (only exact app views that have a page; sub-views like /log stay in the app)
     const m = /^#\/([lgtp])\/([a-z0-9]+)(?:\/([^/?#]+))?\/?$/.exec(hash || "");
@@ -460,6 +462,7 @@
         <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}${g.neutral ? " (neutral)" : ""}</div><div class="where">${esc(g.broadcasts.join(", "))}</div>${g.note ? `<div class="where">${esc(g.note)}</div>` : ""}${window.LSWeather && g.state !== "post" && g.weather ? `<div class="where wx-where">${window.LSWeather.chip(g)}</div>` : ""}</div>
         <div class="mteam home">${logo(H)}<div><div class="nm">${H.rank ? `<span class="rk" style="color:var(--warn)">#${H.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${H.id}">${esc(H.name)}</a></div><div class="rec">${esc(H.record || "—")} · Home ${esc(H.homeRecord || "—")}${formDots(H.form)}</div></div></div>
       </div>${staleNote(g0.stale, "game details")}`;
+    if (PAGE_WTW && g.state === "pre" && PAGE_ROUTE === `g/${key}/${id}`) html += PAGE_WTW;
 
     if (LV() && window.LiveCore && window.LiveCore.supported(key) && (g.state !== "pre" || window.LiveCore.needsLive({ lg: key, id: g.id, state: g.state, date: g.date })))
       html += `<div id="liveBox" class="lbx-wrap">${liveBoxHtml(LV().box(key, g.id), A, H, kind, g, key)}</div>`;

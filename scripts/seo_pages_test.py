@@ -173,7 +173,94 @@ def build_copy(tmp, name="site"):
     return site
 
 
+WTW_ADVICE = re.compile(r"\b(cents?|bet this|lean|value play|sharp|juice|vig|hook|steam|chalk|fade|hammer|lock)\b", re.I)
+
+
+def wtw_league(lg, kind, games, props=None):
+    ix = {"league": {"kind": kind}, "games": games, "generated": "2026-10-26T00:00:00Z"}
+    L = SP.League(lg, ix, props, None, pv.parse_dt("2026-10-26T00:00:00Z"), SP.BASE_URL)
+    L.current = {g["id"] for g in games}
+    return L
+
+
+def wtw_game(**kw):
+    g = {"id": "9001", "state": "pre", "date": "2026-11-01T17:00Z",
+         "away": {"id": "6", "name": "Dallas Cowboys", "short": "Cowboys", "abbr": "DAL"},
+         "home": {"id": "21", "name": "Philadelphia Eagles", "short": "Eagles", "abbr": "PHI"}}
+    g.update(kw)
+    return g
+
+
+def wtw_clean(notes, what):
+    for k, t in notes:
+        bad = pv.FORBIDDEN.search(t) or PROMO_RE.search(t) or WTW_ADVICE.search(t)
+        check(not bad, f"wtw {what}/{k}: no pick, promo or slang words ({bad and bad.group(0)})")
+
+
+def wtw_tests():
+    """'What to watch' notes: real data only, plain dollars, skipped when missing."""
+    books = {"draftkings": {"homeML": -162, "awayML": 136, "homeSpread": -3.5, "awaySpread": 3.5, "homeSpreadOdds": -110, "awaySpreadOdds": -110,
+                            "total": 44.5, "overOdds": -110, "underOdds": -110},
+             "hardrockbet": {"homeML": -150, "awayML": 134, "homeSpread": -3.5, "awaySpread": 3.5, "homeSpreadOdds": -112, "awaySpreadOdds": -108,
+                             "total": 44.5, "overOdds": -108, "underOdds": -112},
+             "fanduel": {"homeML": -158, "awayML": 134, "homeSpread": -4, "awaySpread": 4, "homeSpreadOdds": -105, "awaySpreadOdds": -115,
+                         "total": 45, "overOdds": -110, "underOdds": -110}}
+    move = {"book": "draftkings", "since": "2026-10-20T12:00:00Z", "spread": {"open": 3, "cur": -3.5, "delta": -6.5}, "total": {"open": 48.5, "cur": 44.5, "delta": -4}}
+    wx = {"kind": "forecast", "label": "Light rain", "temp": 41, "wind": 18, "gust": 29, "pop": 70, "precipType": "rain", "watch": [{"k": "wind"}]}
+    detail = {"injuriesAvailable": True, "injuries": {
+        "6": [{"player": "Guard One", "pos": "G", "status": "Out"}, {"player": "Dak Prescott", "pos": "QB", "status": "Out"},
+              {"player": "Wide Out", "pos": "WR", "status": "Doubtful"}, {"player": "Maybe Guy", "pos": "TE", "status": "Questionable"}],
+        "21": [{"player": "Long Term", "pos": "RB", "status": "Injured Reserve"}]}}
+    log = [["2026-10-25", "NYG", "vs", {"rec_yds": 80}], ["2026-10-18", "WSH", "@", {"rec_yds": 95}], ["2026-10-11", "NYG", "@", {"rec_yds": 71}],
+           ["2026-10-04", "SF", "vs", {"rec_yds": 102}], ["2026-09-27", "LAR", "@", {"rec_yds": 40}]]
+    props = {"markets": {"rec_yds": ["Receiving yards", "Rec yds"]}, "players": {"77": {"n": "CeeDee Lamb", "ta": "DAL", "pos": "WR", "log": log}},
+             "games": {"9001": {"props": [["77", "rec_yds", 65.5, None, None, {"draftkings": {}}]]}}}
+    g = wtw_game(books=books, move=move, weather=wx)
+    L = wtw_league("nfl", "football", [g], props)
+    notes = SP.what_to_watch(L, g, "9001", detail)
+    by = dict(notes)
+    check([k for k, _ in notes] == ["gap", "move", "inj", "wx"], f"wtw: gap, move, injuries, notable weather first; max {SP.WTW_MAX} ({[k for k, _ in notes]})")
+    check(by.get("gap") == "Eagles moneyline: risk $150 to win $100 at Hard Rock Bet vs $162 at DraftKings.", f"wtw gap in plain dollars ({by.get('gap')})")
+    check(by.get("move") == "Eagles spread moved from +3 to -3.5 and the total from 48.5 to 44.5 since the opening line (DraftKings).", f"wtw movement ({by.get('move')})")
+    check(by.get("inj") == "Listed out for the Cowboys: Guard One (G), Dak Prescott (QB) and 1 more.", f"wtw injuries: out/doubtful only, report order, IR/questionable skipped ({by.get('inj')})")
+    check(by.get("wx") == "Forecast near the start: Light rain, 41°F, wind 18 mph (gusts 29 mph), 70% chance of rain.", f"wtw weather ({by.get('wx')})")
+    check(SP.wtw_prop(L, "9001") == "CeeDee Lamb went over 65.5 receiving yards in 4 of the last 5 games.", f"wtw hot prop with last-5 rate ({SP.wtw_prop(L, '9001')})")
+    wtw_clean(notes + [("prop", SP.wtw_prop(L, "9001"))], "full")
+    sec = SP.wtw_section(notes)
+    check(sec.count("<li ") == 4 and 'id="wtw-s"' in sec and ">What to watch</h2>" in sec and "not a prediction" in sec and "ld+json" not in sec, "wtw section: visible list + disclaimer, no JSON-LD")
+    # underdog prices: what a $100 bet wins
+    g2 = wtw_game(books={"draftkings": {"awayML": 170}, "fanduel": {"awayML": 185}})
+    check(SP.wtw_gap(wtw_league("nfl", "football", [g2]), g2) == "Cowboys moneyline: a $100 bet wins $185 at FanDuel vs $170 at DraftKings.", "wtw gap: underdog wording")
+    # mild weather fills a spare slot after the prop; one book = no gap; small gaps skipped
+    g3 = wtw_game(books={"draftkings": books["draftkings"]}, weather=dict(wx, wind=6, gust=8, pop=0, label="Clear", watch=[]))
+    L3 = wtw_league("nfl", "football", [g3], props)
+    n3 = SP.what_to_watch(L3, g3, "9001", {})
+    check([k for k, _ in n3] == ["prop", "wx"] and dict(n3)["wx"] == "Forecast near the start: Clear, 41°F, wind 6 mph (gusts 8 mph).", f"wtw: one book -> no gap, no move/injuries data -> skipped, mild weather last ({n3})")
+    g4 = wtw_game(books={"draftkings": {"homeML": -110}, "fanduel": {"homeML": -112}})
+    check(SP.wtw_gap(wtw_league("nfl", "football", [g4]), g4) is None, "wtw gap: under $5 difference skipped")
+    # nothing known -> no notes, no section; indoor / pending weather never a note
+    g5 = wtw_game(weather={"kind": "indoor", "roof": "dome"})
+    L5 = wtw_league("nfl", "football", [g5])
+    check(SP.what_to_watch(L5, g5, "9001", {}) == [] and SP.wtw_section([]) == "", "wtw: no data -> no section")
+    # finals, live games and games outside the data window get nothing
+    for st, extra in (("post", {}), ("in", {}), ("pre", {"completed": True})):
+        gf = wtw_game(state=st, books=books, move=move, **extra)
+        check(SP.what_to_watch(wtw_league("nfl", "football", [gf], props), gf, "9001", detail) == [], f"wtw: none for state={st} {extra}")
+    gx = wtw_game(books=books)
+    Lx = wtw_league("nfl", "football", [gx]); Lx.current = set()
+    check(SP.what_to_watch(Lx, gx, "9001", {}) == [], "wtw: none for archived games")
+    # hockey: moneyline move (not -101 -> +101 noise), puck line label, goals total
+    gh = wtw_game(books={"draftkings": {"homeSpread": -1.5, "homeSpreadOdds": 180, "total": 6.5, "overOdds": 102}, "fanduel": {"homeSpread": -1.5, "homeSpreadOdds": 165, "total": 6.5, "overOdds": -104}},
+                  move={"book": "draftkings", "homeML": {"open": -135, "cur": -162}, "awayML": {"open": 101, "cur": -101}})
+    Lh = wtw_league("nhl", "hockey", [gh])
+    check(SP.wtw_gap(Lh, gh) == "Eagles -1.5 puck line: a $100 bet wins $180 at DraftKings vs $165 at FanDuel.", f"wtw hockey gap ({SP.wtw_gap(Lh, gh)})")
+    check(SP.wtw_move(Lh, gh) == "Eagles moneyline moved from -135 to -162 since the opening line (DraftKings).", f"wtw hockey move ({SP.wtw_move(Lh, gh)})")
+    gn = wtw_game(move={"book": "draftkings", "awayML": {"open": 101, "cur": -101}})
+    check(SP.wtw_move(wtw_league("nhl", "hockey", [gn]), gn) is None, "wtw: +101 -> -101 is not a move")
+
+
 def main():
+    wtw_tests()
     # last-5 prop strip: boxes render oldest -> newest (newest on the right), each with its M/D date under it; the stats stay latest first
     lg5 = [["2026-10-25", "DDD", "vs", {}], ["2026-10-24", "CCC", "@", {"points": 20}], ["2026-10-22", "BBB", "vs", {"points": 30}],
            ["2026-10-20", "EEE", "@", {"points": 24.5}], ["2026-10-18", "FFF", "vs", {"points": 28}], ["2026-10-16", "GGG", "vs", {"points": 40}]]
@@ -528,6 +615,29 @@ def main():
                 main_start = pv.parse_dt(ufc_fixture(now)["events"][0]["segments"][0]["start"])
                 check(pv.parse_dt(eev["endDate"]) == main_start + timedelta(hours=SP.UFC_CARD_TAIL_H) and len(eev["performer"]) == 4,
                       f"{rel}: card ends {SP.UFC_CARD_TAIL_H}h after the main card starts; every fighter is a performer")
+
+        # ---- "What to watch": only on upcoming pages that hydrate, clean wording, and the JSON-LD is identical without it
+        ld = lambda h: re.findall(r'<script type="application/ld\+json">(.*?)</script>', h, re.S)
+        wtw_pages = {}
+        for p in site.glob("*/*/*/index.html"):
+            h = p.read_text()
+            if 'id="wtw-s"' in h:
+                rel = str(p.parent.relative_to(site)) + "/"
+                wtw_pages[rel] = h
+                lis = re.findall(r'<span class="wtw-t">(.*?)</span>', h)
+                check(1 <= len(lis) <= SP.WTW_MAX and 'data-route="g/' in h, f"{rel}: wtw has 1-{SP.WTW_MAX} notes, upcoming page only")
+                check(h.index('id="wtw-s"') < h.index('Betting lines') if 'Betting lines' in h else True, f"{rel}: wtw sits above the odds")
+                wtw_clean([("t", html.unescape(t)) for t in lis], rel)
+        check(len(wtw_pages) >= 10, f"snapshot: wtw on upcoming game pages ({len(wtw_pages)})")
+        site5 = build_copy(tmp, "site5")
+        real = SP.what_to_watch
+        SP.what_to_watch = lambda *a, **k: []
+        try:
+            SP.build(site5, site5 / "data", now, archive_dir=tmp / "arch5")
+        finally:
+            SP.what_to_watch = real
+        same = all(ld(h) == ld((site5 / rel / "index.html").read_text()) for rel, h in wtw_pages.items())
+        check(same and not any('id="wtw-s"' in (site5 / rel / "index.html").read_text() for rel in wtw_pages), "wtw: JSON-LD unchanged, section is the only difference")
 
         # ---- no archive dir (data-history unavailable): still builds from site/data alone
         site3 = build_copy(tmp, "site3")

@@ -2149,3 +2149,18 @@ td.num,td .num,.num{font-variant-numeric:tabular-nums}
 .age-pill{height:22px}
 /* compact "Ad" label on outbound sportsbook links (offers card) */
 .of-ad{display:block;margin-top:3px;font-size:12px;font-weight:600;color:var(--mute);letter-spacing:.01em}
+
+/* "What to watch" notes on upcoming game pages (scripts/seo_pages.py wtw_section; app.js keeps it under the match header) */
+.wtw{margin-top:6px}
+.wtw .section-title{margin-top:22px}
+.wtw-card{border-color:var(--accent-line);background:linear-gradient(180deg,var(--accent-soft),transparent 75%),var(--surface);padding:14px 18px}
+.wtw-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.wtw-list li{display:grid;grid-template-columns:96px 1fr;gap:4px 12px;align-items:baseline;font-size:14.5px;line-height:1.5;color:var(--txt)}
+.wtw-list li+li{padding-top:10px;border-top:1px solid var(--line)}
+.wtw-k{font-size:11.5px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;color:var(--accent2)}
+.wtw-t{min-width:0;overflow-wrap:anywhere}
+.wtw-card .note{margin-top:12px}
+@media (max-width:560px){
+  .wtw-card{padding:12px 14px}
+  .wtw-list li{grid-template-columns:1fr;gap:2px}
+}

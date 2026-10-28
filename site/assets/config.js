@@ -20,8 +20,10 @@ window.SITE_CONFIG = {
     cfToken: "353a52038b2e4d338fcc1ebde3aa17be",
     hosts: ["linesmart.app", "www.linesmart.app"],
     // Daily visits-by-state count (assets/geo.js, privacy.html#state-counts): only the 2-letter state code, once a day per
-    // browser, on `hosts` only. Needs supabase/migrations/20261028_state_visits.sql run first (until then the call just
-    // 404s, once a day). Set rpc to "" to turn it off. The key is the public publishable key (same as news-core.js).
+    // real visible browser, on `hosts` only. Crawlers, monitors, headless browsers, prefetch/prerender and hidden loads
+    // are skipped (assets/geo-core.js visitDecision). Needs supabase/migrations/20261028_state_visits.sql and
+    // 20261028_state_visits_bot_filter.sql run first (until then the call just 404s, or accepts bots if only the first
+    // ran). Set rpc to "" to turn it off. The key is the public publishable key (same as news-core.js).
     stateCounts: {
       rpc: "https://ctklbryattbbsqdmteny.supabase.co/rest/v1/rpc/state_visit_bump",
       key: "sb_publishable_CP-WGhBFJnoN8exJRtCu2g_CPODay7V",

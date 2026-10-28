@@ -137,18 +137,36 @@ try {
     check(/New York: call 1-877-8-HOPENY or text HOPENY/.test(ny.t) && !/PLAYWISE/.test(ny.t), `${f} NY footer: HOPENY (${ny.t.slice(0, 60)})`);
     check(/PLAYWISE/.test(fl.t), `${f} FL footer: PLAYWISE`);
   }
-  // visits-by-state count: on the live host only, once a day, just {"p_state": "NY"} (served locally; Supabase never contacted)
+  // visits-by-state count: on the live host only, once a day, just {"p_state": "NY"} (served locally; Supabase never contacted).
+  // A stock Playwright context (navigator.webdriver, and a HeadlessChrome UA) must NOT count. A context given a
+  // normal Chrome UA with webdriver forced off still counts once.
   {
-    const ctx = await browser.newContext(), calls = [];
-    await ctx.addInitScript(() => { localStorage.setItem("ls-age-ok", "1"); localStorage.setItem("ls-state", "NY"); });
+    const serveLive = r => { const f = path.join("site", new URL(r.request().url()).pathname.replace(/\/$/, "/index.html"));
+      fs.existsSync(f) ? r.fulfill({ status: 200, contentType: types[path.extname(f)] || "application/octet-stream", body: fs.readFileSync(f) }) : r.fulfill({ status: 404, body: "" }); };
+    const botCtx = await browser.newContext(), botCalls = [];
+    await botCtx.addInitScript(() => { localStorage.setItem("ls-age-ok", "1"); localStorage.setItem("ls-state", "NY"); });
+    await botCtx.route(/ipdata\.info|cloudflareinsights|cdn-cgi\/rum|espncdn|espn\.com|googleapis|gstatic/, r => r.abort());
+    await botCtx.route(/supabase\.co/, r => { botCalls.push(r.request().url()); r.fulfill({ status: 204, body: "" }); });
+    await botCtx.route(/^https:\/\/linesmart\.app\//, serveLive);
+    const bp = await botCtx.newPage();
+    await bp.goto("https://linesmart.app/privacy.html", { waitUntil: "load" }); await bp.waitForTimeout(800);
+    const botDec = await bp.evaluate(() => ({ webdriver: navigator.webdriver, d: window.GeoCore.visitDecision({ userAgent: navigator.userAgent, webdriver: navigator.webdriver, visibilityState: document.visibilityState, prerendering: document.prerendering }) }));
+    check(botDec.webdriver === true && botDec.d === "skip" && !botCalls.some(u => /state_visit_bump/.test(u)), `state count: Playwright/webdriver is not counted (${botDec.webdriver} ${botDec.d} calls=${botCalls.length})`);
+    await botCtx.close();
+
+    const ctx = await browser.newContext({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36" }), calls = [];
+    await ctx.addInitScript(() => {
+      localStorage.setItem("ls-age-ok", "1"); localStorage.setItem("ls-state", "NY");
+      try { Object.defineProperty(Navigator.prototype, "webdriver", { get: () => false, configurable: true }); } catch (e) {}
+    });
     await ctx.route(/ipdata\.info|cloudflareinsights|cdn-cgi\/rum|espncdn|espn\.com|googleapis|gstatic/, r => r.abort());
     await ctx.route(/supabase\.co/, r => { const q = r.request(); calls.push({ url: q.url(), body: q.postData(), h: q.headers() }); r.fulfill({ status: 204, body: "" }); });
-    await ctx.route(/^https:\/\/linesmart\.app\//, r => { const f = path.join("site", new URL(r.request().url()).pathname.replace(/\/$/, "/index.html"));
-      fs.existsSync(f) ? r.fulfill({ status: 200, contentType: types[path.extname(f)] || "application/octet-stream", body: fs.readFileSync(f) }) : r.fulfill({ status: 404, body: "" }); });
+    await ctx.route(/^https:\/\/linesmart\.app\//, serveLive);
     const p = await ctx.newPage();
     await p.goto("https://linesmart.app/privacy.html", { waitUntil: "load" }); await p.waitForTimeout(800);
+    const wd = await p.evaluate(() => navigator.webdriver);
     const sv = calls.filter(c => /rpc\/state_visit_bump$/.test(c.url));
-    check(sv.length === 1 && sv[0].body === '{"p_state":"NY"}' && !sv[0].h.cookie && !sv[0].h.authorization, `state count: one call, state code only (${sv.length} ${sv[0] && sv[0].body})`);
+    check(wd === false && sv.length === 1 && sv[0].body === '{"p_state":"NY"}' && !sv[0].h.cookie && !sv[0].h.authorization, `state count: one call from a normal browser, state code only (webdriver=${wd} ${sv.length} ${sv[0] && sv[0].body})`);
     await p.goto("https://linesmart.app/terms.html", { waitUntil: "load" }); await p.waitForTimeout(800);
     check(calls.filter(c => /state_visit_bump/.test(c.url)).length === 1, "state count: once a day per browser");
     await ctx.close();

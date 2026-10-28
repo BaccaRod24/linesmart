@@ -98,5 +98,59 @@
     return [...keys].sort((a, b) => rank(a) - rank(b));
   }
 
-  return { OUTSIDE, BOOK_KEYS, HELPLINES, GAMBLER, helpline, rgCallHTML, resolve, parseLookup, evaluate, isAvailable, naLabel, sortBooks, offerFor };
+  // Visits-by-state: which page views are real enough to count. The same pattern is embedded in
+  // supabase/migrations/20261028_state_visits_bot_filter.sql (matched there, never stored).
+  // Literals are lowercase; isBotUserAgent lowercases the UA before testing. `\.` is a literal dot
+  // in both JavaScript and Postgres POSIX regexes. The trailing alternative is a standalone
+  // bot/crawler/spider token, so "Cubot" and "both" are not treated as bots.
+  const BOT_UA_SOURCES = [
+    "googlebot", "adsbot-google", "mediapartners-google", "feedfetcher-google", "storebot-google",
+    "google-inspectiontool", "google-read-aloud", "google-safety", "apis-google", "duplexweb-google",
+    "google favicon", "bingbot", "bingpreview", "msnbot", "adidxbot", "duckduckbot", "yandexbot",
+    "applebot", "ahrefsbot", "ahrefs", "semrushbot", "semrush", "mj12bot", "dotbot", "rogerbot",
+    "petalbot", "amazonbot", "gptbot", "chatgpt-user", "oai-searchbot", "searchbot", "claudebot",
+    "claude-user", "anthropic-ai", "perplexitybot", "perplexity-user", "ccbot", "ia_archiver",
+    "archive.org_bot", "facebot", "facebookexternalhit", "meta-externalagent", "meta-externalfetcher",
+    "twitterbot", "linkedinbot", "slackbot", "slack-imgproxy", "discordbot", "telegrambot", "embedly",
+    "quora link preview", "skypeuripreview", "redditbot", "pinterestbot", "uptimerobot", "pingdom",
+    "pingbot", "statuscake", "site24x7", "betteruptime", "better uptime", "freshping", "hetrix",
+    "checkly", "datadog", "newrelic", "catchpoint", "thousandeyes", "alertsite", "headlesschrome",
+    "headless", "phantomjs", "puppeteer", "playwright", "selenium", "webdriver", "cypress",
+    "nightwatch", "slimerjs", "electron", "screaming frog", "curl/", "wget", "python-requests",
+    "python-urllib", "python/", "aiohttp", "httpx/", "go-http-client", "okhttp", "libwww", "scrapy",
+    "java/", "apache-httpclient", "node-fetch", "undici", "axios/", "postman", "insomnia",
+    "lighthouse", "chrome-lighthouse", "ptst/", "gtmetrix", "pagespeed", "bytespider", "baiduspider",
+    "yisouspider", "sogou web spider", "sogou spider", "exabot", "seznambot", "qwantify", "barkrowler",
+    "blexbot", "seekport", "zoominfobot", "dataforseobot", "serpstatbot", "megaindex", "linesmart/",
+    "cron-job.org", "spider", "crawler", "slurp", "robot",
+  ];
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const BOT_UA_EXTRA = "(?:^|[^a-z0-9])(?:bots?|crawlers?|spiders?)(?:[^a-z0-9]|$)";
+  const BOT_UA_RE = BOT_UA_SOURCES.map(escRe).join("|") + "|" + BOT_UA_EXTRA;
+  const BOT_UA = new RegExp(BOT_UA_RE);
+
+  function isBotUserAgent(ua) {
+    if (ua == null) return false;
+    const s = String(ua);
+    if (!s) return false;
+    return BOT_UA.test(s.toLowerCase());
+  }
+
+  // "count" sends the once-a-day bump. "wait" is a real browser that isn't visible yet (background tab
+  // or a prerender that may still be activated). "skip" is automation, a known crawler/monitor, or a
+  // prefetch/prerender request. Purpose headers describe that one request; prerendering describes the
+  // document, which can become a real view, so prerendering waits instead of skipping.
+  function visitDecision(env) {
+    const e = env || {};
+    if (e.webdriver === true || e.webdriver === 1) return "skip";
+    if (isBotUserAgent(e.userAgent)) return "skip";
+    if (e.prerendering === true) return "wait";
+    const vis = e.visibilityState == null || e.visibilityState === "" ? "visible" : String(e.visibilityState);
+    if (vis !== "visible") return "wait";
+    const purpose = `${e.purpose || ""} ${e.secPurpose || ""} ${e.xPurpose || ""}`.toLowerCase();
+    if (/prefetch|prerender|preview/.test(purpose)) return "skip";
+    return "count";
+  }
+
+  return { OUTSIDE, BOOK_KEYS, HELPLINES, GAMBLER, helpline, rgCallHTML, resolve, parseLookup, evaluate, isAvailable, naLabel, sortBooks, offerFor, BOT_UA_SOURCES, BOT_UA_RE, isBotUserAgent, visitDecision };
 });

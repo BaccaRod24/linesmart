@@ -2164,3 +2164,60 @@ td.num,td .num,.num{font-variant-numeric:tabular-nums}
   .wtw-card{padding:12px 14px}
   .wtw-list li{grid-template-columns:1fr;gap:2px}
 }
+
+/* ===== private Pro preview (#/pro-preview). Not a live product. ===== */
+.ppv-banner{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin:16px 0 4px;padding:12px 16px;border-radius:var(--r-sm);border:1px solid color-mix(in srgb,var(--warn) 48%,transparent);background:color-mix(in srgb,var(--warn) 14%,var(--surface));color:var(--warn-txt);font-size:14.5px;line-height:1.4}
+.ppv-banner b{color:var(--txt);font-weight:800;letter-spacing:.01em}
+.ppv-back{display:inline-block;margin-bottom:4px;color:var(--accent);font-size:13px;font-weight:650}
+.ppv-nav{margin:0 0 16px}
+.ppv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:14px}
+.ppv-card{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:148px;padding:16px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow)}
+.ppv-card:hover{border-color:var(--accent-line)}
+.ppv-card b{font-size:15.5px;line-height:1.35;letter-spacing:-.01em}
+.ppv-card span{color:var(--mute);font-size:13.5px;line-height:1.45}
+.ppv-go{margin-top:auto;color:var(--accent);font-weight:700}
+.ppv-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px;font-size:16px}
+.ppv-h .st-sub{font-weight:500}
+.ppv-sample{display:inline-flex;align-items:center;margin-left:6px;padding:1px 7px;border-radius:999px;border:1px dashed var(--accent-line);color:var(--accent2);font-size:10.5px;font-weight:750;letter-spacing:.02em;text-transform:none;vertical-align:middle;white-space:nowrap}
+.ppv-frow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:10px}
+.ppv-q{display:flex;gap:8px;align-items:flex-end}
+.ppv-q input,.ppv-form input,.ppv-form select,.ppv-books select{font:500 14px var(--font);color:var(--txt);background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r-sm);min-height:40px;padding:0 10px}
+.ppv-list{display:flex;flex-direction:column;gap:8px}
+.ppv-line{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg2)}
+.ppv-line.on{border-color:var(--accent-line);background:var(--accent-soft)}
+.ppv-line b{display:block;font-weight:750}
+.ppv-line small{display:block;color:var(--dim);font-size:12.5px}
+.ppv-line .num{text-align:right;font-variant-numeric:tabular-nums}
+.ppv-line .num small,.ppv-line .num .na-st{display:block}
+.ppv-cap-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline}
+.ppv-cap-row b{font-size:22px;letter-spacing:-.02em}
+.ppv-meter{height:8px;margin:10px 0 4px;border-radius:99px;background:var(--bg2);border:1px solid var(--line);overflow:hidden}
+.ppv-meter i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.ppv-mail .ppv-em{display:grid;grid-template-columns:72px minmax(0,1fr);gap:6px 10px;font-size:14.5px}
+.ppv-mail .k{color:var(--dim);font-size:11px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;padding-top:3px}
+.ppv-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0 0}
+.ppv-form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.ppv-ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.ppv-ul li{display:flex;flex-direction:column;gap:2px;padding-bottom:10px;border-bottom:1px solid var(--line);font-size:14px}
+.ppv-ul li:last-child{border-bottom:0;padding-bottom:0}
+.ppv-ul span{color:var(--mute)}
+.ppv-out{margin:12px 0 0}
+.ppv-tags{margin:14px 0}
+.ppv-bets .chip{margin:2px 4px 2px 0}
+.ppv-books .books th{min-width:88px}
+.ppv .card{margin-top:14px}
+.ppv .statgrid{margin:0 0 4px}
+@media (max-width:720px){
+  .ppv-grid{grid-template-columns:1fr}
+  .ppv-line{align-items:flex-start}
+  .ppv-mail .ppv-em{grid-template-columns:1fr;gap:2px}
+  .ppv-mail .k{padding-top:8px}
+  .ppv-q,.ppv-form{width:100%}
+  .ppv-q input,.ppv-form input,.ppv-form select{font-size:16px}
+}
+.chip.ppv-off{opacity:.72}
+.ppv-saved{margin-top:8px}
+.ppv-saved-chip{gap:4px;padding-right:6px}
+.ppv-saved-chip a{color:inherit}
+.ppv-x{border:0;background:transparent;color:var(--mute);font:700 16px var(--font);line-height:1;padding:0 4px;cursor:pointer}
+.ppv-x:hover{color:var(--txt)}

@@ -34,6 +34,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_pages  # noqa: E402  (shared footer: 21+, 1-800-GAMBLER, legal links)
+import line_history as LH  # noqa: E402  (even-money-aware moneyline move)
 
 ROOT = Path(__file__).resolve().parent.parent
 ET = ZoneInfo("America/New_York")
@@ -236,8 +237,14 @@ def movement(g, kind):
         x = m.get(key)
         if not isinstance(x, dict) or not isnum(x.get("open")) or not isnum(x.get("cur")):
             continue
-        d = x.get("delta") if isnum(x.get("delta")) else x["cur"] - x["open"]
-        dtxt = "no change" if not d else (("+" if d > 0 else "") + (num(d) if key in ("spread", "total") else str(int(d))))
+        # Recompute from open/cur. Stored delta on older snapshots is cur-open, which is 200 too big
+        # whenever a moneyline crossed even money (-110 -> +114 stored as +224).
+        if key in ("homeML", "awayML"):
+            d = LH.ml_cents(x["open"], x["cur"])
+            dtxt = "no change" if d == 0 else f"{d:+g}"
+        else:
+            d = x["cur"] - x["open"]
+            dtxt = "no change" if not d else ("+" if d > 0 else "") + num(d)
         rows.append(f"<tr><td>{esc(label)}</td><td class=\"num\">{esc(fmt(x['open']))}</td><td class=\"num\">{esc(fmt(x['cur']))}</td><td class=\"num{' mv-up' if d and d > 0 else ' mv-dn' if d else ''}\">{esc(dtxt)}</td></tr>")
         if key in ("spread", "total") and d:
             facts.append((key, x["open"], x["cur"], d))

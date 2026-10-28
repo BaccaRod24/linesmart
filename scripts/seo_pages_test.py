@@ -676,7 +676,8 @@ def main():
         hdesc = home.meta.get("description") or ""
         check(home.title and len(home.title) <= SP.TITLE_MAX, f"homepage title <= {SP.TITLE_MAX} ({len(home.title or '')}: {home.title})")
         check(40 <= len(hdesc) <= SP.DESC_MAX, f"homepage description <= {SP.DESC_MAX} ({len(hdesc)})")
-        check("DraftKings (via ESPN)" in hdesc and "Hard Rock Bet" in hdesc and "FanDuel" not in hdesc and "Florida" not in hdesc, "homepage description names DraftKings via ESPN and Hard Rock Bet only")
+        check("Hard Rock Bet" in hdesc and "DraftKings" in hdesc and "FanDuel" in hdesc, "homepage description names Hard Rock Bet, DraftKings and FanDuel")
+        check("available in Florida" not in hdesc and "legal in Florida" not in hdesc and "DraftKings (via ESPN) and Hard Rock Bet" not in hdesc, "homepage description does not place DraftKings or FanDuel in Florida")
         check(not PROMO_RE.search(hdesc), "homepage description: no promo wording")
         home_nodes = walk_nodes(ld_scripts(ih))
         org = next((n for n in home_nodes if n.get("@type") == "Organization"), {})

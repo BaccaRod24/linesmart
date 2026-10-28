@@ -34,6 +34,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_pages  # noqa: E402
+import line_history as LH  # noqa: E402  (even-money-aware moneyline move, shared with the game page)
 import previews as pv  # noqa: E402  (formatting, odds tables, line movement, summaries, form/injury cards)
 import final_label as FL  # noqa: E402  ("Final/OT", "Final/12"... labels)
 from previews import esc, isnum, parse_dt, et, fmt_et, num, line, am, slugify, plural, load_json  # noqa: E402
@@ -1141,8 +1142,7 @@ def wtw_move(L: League, g):
         bits.append(f"{wtw_name(L, t)} spread moved from {line(f * sp['open'])} to {line(f * sp['cur'])}")
     elif L.kind not in ("football", "basketball"):
         hm, am_ = m.get("homeML"), m.get("awayML")
-        flat = lambda o: o + 100 if o < 0 else o - 100   # -110 / +110 sit 20 apart, -101 / +101 only 2
-        cands = [(t, x) for t, x in ((h, hm), (a, am_)) if ok(x) and abs(flat(x["cur"]) - flat(x["open"])) >= 15]
+        cands = [(t, x) for t, x in ((h, hm), (a, am_)) if ok(x) and abs(LH.ml_cents(x["open"], x["cur"])) >= LH.ML_MIN_CENTS]
         if cands:
             t, x = min(cands, key=lambda c: c[1]["cur"])   # current favorite first
             bits.append(f"{wtw_name(L, t)} {'moneyline' if L.lg != 'ufc' else 'odds'} moved from {am(x['open'])} to {am(x['cur'])}")
@@ -1604,6 +1604,10 @@ def upcoming(L: League):
 
 
 def big_moves(L: League, n=6):
+    """Biggest open-to-now moves. Spread and total are scored in points (a total counts a bit less in
+    football and basketball). A moneyline is scored in implied-probability points on both sides, with the
+    same 15-cent floor as the what-to-watch note, so a flip across even money or a longshot can't outrank
+    a real spread move. Open and current stay raw American odds in the tile text."""
     out = []
     for gid, g in upcoming(L):
         m = g.get("move") or {}
@@ -1614,11 +1618,23 @@ def big_moves(L: League, n=6):
             cand.append((abs(sp["cur"] - sp["open"]), "Spread", f"{h.get('abbr')} {line(sp['open'])} → {line(sp['cur'])}"))
         if isnum(tt.get("open")) and isnum(tt.get("cur")) and tt["open"] != tt["cur"]:
             cand.append((abs(tt["cur"] - tt["open"]) * (0.6 if L.kind in ("football", "basketball") else 2), "Total", f"{num(tt['open'])} → {num(tt['cur'])}"))
-        ml = m.get("homeML") or {}
-        if not cand and isnum(ml.get("open")) and isnum(ml.get("cur")) and ml["open"] != ml["cur"] and L.kind in ("hockey", "baseball", "mma"):
-            d = abs(ml["cur"] - ml["open"])
-            if d >= 20:
-                cand.append((d / 20, "Moneyline", f"{h.get('abbr') if L.lg != 'ufc' else h.get('last')} {am(ml['open'])} → {am(ml['cur'])}"))
+        if L.kind in ("hockey", "baseball", "mma"):
+            best_ml = None
+            for t, key in ((h, "homeML"), (a, "awayML")):
+                x = m.get(key) or {}
+                if not (isnum(x.get("open")) and isnum(x.get("cur"))):
+                    continue
+                if abs(LH.ml_cents(x["open"], x["cur"])) < LH.ML_MIN_CENTS:
+                    continue
+                pts = LH.ml_prob_pts(x["open"], x["cur"])
+                if pts is None:
+                    continue
+                who = (t.get("last") if L.lg == "ufc" else t.get("abbr")) or ""
+                row = (abs(pts), "Moneyline", f"{who} {am(x['open'])} → {am(x['cur'])}")
+                if best_ml is None or row[0] > best_ml[0]:
+                    best_ml = row
+            if best_ml:
+                cand.append(best_ml)
         if cand:
             sc, what, txt = max(cand)
             out.append((sc, L.lg, gid, g, what, txt))
@@ -1677,6 +1693,22 @@ def prop_tile(x, Ls):
             f'<div class="hc-pn">{esc(pl.get("n"))}</div><div class="hc-pm">{esc((L.markets.get(r[1]) or [r[1], r[1]])[1])} {esc(line_text(r[1], r[2]).replace("O/U ", ""))}</div>{strip_html(pl.get("log"), r[1], r[2])}</a>')
 
 
+def hub_lead(L: League, n_up):
+    """Opening sentence on a league hub. UFC odds are DraftKings lines via ESPN only.
+    The other leagues compare Hard Rock Bet, DraftKings and FanDuel."""
+    if not n_up:
+        if L.lg == "ufc":
+            return ("No UFC bouts are on the board right now. When the next ones are scheduled, this page lists their moneylines and totals "
+                    "(DraftKings lines via ESPN), every fighter's record, full fight cards and results with closing odds.")
+        return (f"No {NAMES[L.lg]} games are on the board right now. When the next ones are scheduled, this page lists their odds "
+                "from DraftKings, Hard Rock Bet and FanDuel, line movement and final scores with closing lines.")
+    if L.lg == "ufc":
+        return (f"Moneylines and totals for {plural(n_up, 'upcoming UFC bout')} (DraftKings lines via ESPN), "
+                "every fighter's record, full fight cards and results with closing odds.")
+    return (f"Compare spreads, totals and moneylines for {plural(n_up, 'upcoming ' + NAMES[L.lg] + ' game')} across DraftKings, Hard Rock Bet and FanDuel, with line movement"
+            + (", player props with last-5 hit rates" if L.players else "") + ", weather, injuries and final scores with closing lines.")
+
+
 def hub_page(L: League, sh: Shell, Ls):
     path = L.hub
     up = upcoming(L)
@@ -1690,11 +1722,7 @@ def hub_page(L: League, sh: Shell, Ls):
         sched_items.extend(items)
         days.append(f'<h3 class="sx-seg">{esc(lab)}</h3>{link_list(items)}')
     n_up = len(up)
-    lead = (f"No {NAMES[L.lg]} {'bouts' if L.lg == 'ufc' else 'games'} are on the board right now. When the next ones are scheduled, this page lists their odds "
-            "from DraftKings, Hard Rock Bet and FanDuel, line movement and final scores with closing lines.") if not n_up else {
-        "ufc": f"Moneylines and totals for {plural(n_up, 'upcoming UFC bout')} from DraftKings, Hard Rock Bet and FanDuel, every fighter's record, full fight cards and results with closing odds.",
-    }.get(L.lg, f"Compare spreads, totals and moneylines for {plural(n_up, 'upcoming ' + NAMES[L.lg] + ' game')} across DraftKings, Hard Rock Bet and FanDuel, with line movement"
-                + (", player props with last-5 hit rates" if L.players else "") + ", weather, injuries and final scores with closing lines.")
+    lead = hub_lead(L, n_up)
     evs = ""
     # today's slate (or the next one) near the top, every game a real link to its page
     words = "bouts" if L.lg == "ufc" else "games"
@@ -1921,7 +1949,7 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
                 retitle(p, t, with_extra(base, f", {game_days[p]}"))
             else:
                 titles2.setdefault(t, []).append(p)
-    # list() so adding a slug title inside retitle cannot change the dict during iteration
+    # list() so retitle() can add the disambiguated title without changing the dict mid-loop
     for t, ps in list(titles2.items()):
         if len(ps) > 1:
             base = bare_title(t)

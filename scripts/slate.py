@@ -10,6 +10,9 @@ Standard library only. CLI (refresh a data dir's meta.json in place):  python3 s
 import datetime as dt, json, math, os, sys
 from zoneinfo import ZoneInfo
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import final_label as FL  # noqa: E402
+
 ET = ZoneInfo("America/New_York")
 TICKER_MAX = 24
 HOT_SHARE, HOT_MIN = 0.8, 2
@@ -45,9 +48,17 @@ def _wx_watch(g):
     w = g.get("weather") or {}
     return w.get("kind") == "forecast" and bool(w.get("watch")) and w.get("roof") != "retractable"
 
+def _det(g):
+    """ticker status text; a final with extra time keeps its label ("Final/OT", "Final/12") even if statusDetail lost it"""
+    det = g.get("statusDetail") or ""
+    if g.get("state") == "post" and FL.suffix(FL.of_game(g)):
+        return FL.of_game(g)
+    return det
+
+
 def _tick(lg, g):
     t = lambda s: dict(a=(g.get(s) or {}).get("abbr") or (g.get(s) or {}).get("short") or "", s=(g.get(s) or {}).get("score"))
-    return dict(lg=lg, id=g["id"], st=g.get("state"), d=g.get("date"), det=g.get("statusDetail") or "", a=t("away"), h=t("home"))
+    return dict(lg=lg, id=g["id"], st=g.get("state"), d=g.get("date"), det=_det(g), a=t("away"), h=t("home"))
 
 def build(out_dir, order, now=None):
     now = now or dt.datetime.now(dt.timezone.utc)

@@ -35,6 +35,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_pages  # noqa: E402
 import previews as pv  # noqa: E402  (formatting, odds tables, line movement, summaries, form/injury cards)
+import final_label as FL  # noqa: E402  ("Final/OT", "Final/12"... labels)
 from previews import esc, isnum, parse_dt, et, fmt_et, num, line, am, slugify, plural, load_json  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -130,7 +131,7 @@ class Archive:
         return wrote
 
 
-GAME_KEYS = ["id", "date", "name", "state", "statusDetail", "completed", "venue", "city", "venueState", "venueCountry", "neutral",
+GAME_KEYS = ["id", "date", "name", "state", "statusDetail", "finalLabel", "completed", "venue", "city", "venueState", "venueCountry", "neutral",
              "broadcasts", "note", "event", "segment", "segmentName", "matchNo", "weightClass", "rounds", "mainEvent", "title", "result", "weather"]
 SIDE_KEYS = ["id", "abbr", "name", "short", "last", "logo", "color", "record", "score", "winner", "form", "rank", "country"]
 
@@ -194,7 +195,7 @@ def recent_match(gid, dt, opp_abbr, home, rows):
 
 
 def final_from_recent(rec, gid, teams, by_id_only=False):
-    """(home score, away score) for an archived game from either team's recent results, or None."""
+    """(home score, away score, final label or None) for an archived game from either team's recent results, or None."""
     dt = parse_dt(rec.get("date"))
     h, a = rec.get("home") or {}, rec.get("away") or {}
     for side, other, is_home in ((h, a, True), (a, h, False)):
@@ -204,7 +205,7 @@ def final_from_recent(rec, gid, teams, by_id_only=False):
         r = recent_match(gid, dt, other.get("abbr"), is_home, rows)
         if r:
             pf, pa = score_num(r["pf"]), score_num(r["pa"])
-            return (pf, pa) if is_home else (pa, pf)
+            return ((pf, pa) if is_home else (pa, pf)) + (r.get("fin"),)
     return None
 
 
@@ -245,13 +246,19 @@ def merge_archive(arch: Archive, lg, games, teams, now):
             sc = final_from_recent(rec, gid, teams, by_id_only=done)
             if not sc:
                 continue
-            hs, as_ = sc
+            hs, as_, fin = sc
             h, a = rec.setdefault("home", {}), rec.setdefault("away", {})
             if done and h.get("score") == hs and a.get("score") == as_:
+                if fin and fin != rec.get("finalLabel"):   # right score, label missing (older build): add "Final/OT" etc.
+                    rec.update(statusDetail=fin, finalLabel=fin)
                 continue
             h["score"], a["score"] = hs, as_
             h["winner"], a["winner"] = hs > as_, as_ > hs
-            rec.update(state="post", statusDetail="Final", completed=True)
+            rec.update(state="post", statusDetail=fin or "Final", completed=True)
+            if fin:
+                rec["finalLabel"] = fin
+            else:
+                rec.pop("finalLabel", None)
     cut = now - timedelta(days=KEEP_DAYS)
     for gid in [k for k, v in A.items() if (parse_dt(v.get("date")) or now) < cut]:
         del A[gid]
@@ -613,7 +620,12 @@ class League:
             res = g.get("result") or {}
             how = " ".join(str(x) for x in [res.get("method"), f"({res['detail']})" if res.get("detail") else "", f"in round {res['round']}" if res.get("round") else "", f"at {res['clock']}" if res.get("clock") else ""] if x)
             return f"{tname(w)} won{(' by ' + how) if how else ''}" if w else (g.get("statusDetail") or "Final")
-        return f"{a.get('abbr')} {num(a.get('score'))}, {h.get('abbr')} {num(h.get('score'))}"
+        sfx = FL.suffix(FL.of_game(g)) if self.is_final(g) else ""
+        return f"{a.get('abbr')} {num(a.get('score'))}, {h.get('abbr')} {num(h.get('score'))}" + (f" ({sfx})" if sfx else "")
+
+    def final_label(self, g):
+        """'Final', 'Final/OT', 'Final/2OT', 'Final/SO', 'Final/12', 'AET'... (archived records without one: 'Final')"""
+        return "Final" if self.lg == "ufc" else FL.of_game(g)
 
 
 # ---------------------------------------------------------------- game / fight pages
@@ -634,7 +646,7 @@ def hero(L: League, g):
         evl = ""
     wx = g.get("weather") or {}
     wx_line = f'<div class="where">Weather: {esc(wx.get("label"))}{(", " + esc(wx.get("temp")) + "°F") if isnum(wx.get("temp")) else ""}</div>' if wx.get("label") and not final else ""
-    status = "Final" if final else ("Live: " + (g.get("statusDetail") or "in progress")) if g.get("state") == "in" else ""
+    status = L.final_label(g) if final else ("Live: " + (g.get("statusDetail") or "in progress")) if g.get("state") == "in" else ""
     ca, ch = ((a.get("color") or "334155").lstrip("#")), ((h.get("color") or "475569").lstrip("#"))
     side = lambda t, cls: f'<div class="mteam{cls}">{logo(t)}<div><div class="nm">{L.team_link(t)}</div><div class="rec">{esc(t.get("record") or "—")}</div></div>{sc(t)}</div>'
     return f"""<div class="match pv-match" style="--ca:#{esc(ca)};--ch:#{esc(ch)}">
@@ -660,7 +672,7 @@ def result_card(L: League, g):
     sa, sh = a.get("score"), h.get("score")
     if not (isnum(sa) and isnum(sh)):
         return ""
-    bits = [f"Final: {tname(a)} {num(sa)}, {tname(h)} {num(sh)}."]
+    bits = [f"{L.final_label(g)}: {tname(a)} {num(sa)}, {tname(h)} {num(sh)}."]
     _, b = pv.ref_book(g)
     if b and g.get("_closing"):
         hs = b.get("homeSpread")
@@ -760,9 +772,11 @@ def game_page(L: League, sh: Shell, gid):
         if L.lg == "ufc":
             title = f"{mtch} Result & Closing Odds, {day}"
         else:
-            title = f"{pv.side_name(a)} {num(a.get('score'))}, {pv.side_name(h)} {num(h.get('score'))}: Final Score & Closing Odds, {day}"
+            sfx = FL.suffix(L.final_label(g))
+            sfx = f" ({sfx})" if sfx else ""
+            title = f"{pv.side_name(a)} {num(a.get('score'))}, {pv.side_name(h)} {num(h.get('score'))}{sfx}: Final Score & Closing Odds, {day}"
         if len(title) > 70:
-            title = f"{a.get('abbr')} {num(a.get('score'))}, {h.get('abbr')} {num(h.get('score'))}: Final & Closing Odds, {day}" if L.lg != "ufc" else f"{a.get('last') or tname(a)} vs. {h.get('last') or tname(h)} Result & Closing Odds, {day}"
+            title = f"{a.get('abbr')} {num(a.get('score'))}, {h.get('abbr')} {num(h.get('score'))}{sfx}: Final & Closing Odds, {day}" if L.lg != "ufc" else f"{a.get('last') or tname(a)} vs. {h.get('last') or tname(h)} Result & Closing Odds, {day}"
     else:
         title = f"{mtch} Odds & Preview, {day}"
         if len(title) > 62:
@@ -934,7 +948,7 @@ def team_page(L: League, sh: Shell, tid):
     past_items = [(L.paths[gid], f"{res_of(g)} {'vs. ' if L.lg == 'ufc' else ('vs ' if str(g['home'].get('id')) == tid else 'at ')}{tname(opp_of(g))}", " · ".join(x for x in [short_day(parse_dt(g['date']), False), L.score_line(g)] if x)) for gid, g in past]
     linked_dates = {day_et(parse_dt(g["date"])) for _, g in past}
     extra_recent = [r for r in (ts.get("recent") or []) if day_et(parse_dt(r.get("date"))) not in linked_dates] if L.lg != "ufc" else []
-    rec_rows = "".join(f'<li><span class="pv-f pv-{esc(r.get("res") or "x")}">{esc(r.get("res") or "?")}</span> {"vs" if r.get("home") else "at"} {esc(r.get("opp"))} <span class="na">{esc(num(r.get("pf")))}-{esc(num(r.get("pa")))} · {esc(short_day(parse_dt(r.get("date")), False))}</span></li>' for r in extra_recent[:8])
+    rec_rows = "".join(f'<li><span class="pv-f pv-{esc(r.get("res") or "x")}">{esc(r.get("res") or "?")}</span> {"vs" if r.get("home") else "at"} {esc(r.get("opp"))} <span class="na">{esc(num(r.get("pf")))}-{esc(num(r.get("pa")))}{esc(" (" + FL.suffix(r.get("fin")) + ")" if FL.suffix(r.get("fin")) else "")} · {esc(short_day(parse_dt(r.get("date")), False))}</span></li>' for r in extra_recent[:8])
     rec = lambda x: f"{x.get('w', 0)}-{x.get('l', 0)}{'-' + str(x['d']) if x.get('d') else ''}" if x and x.get("gp") else None
     facts = [("Record", t.get("record") or ts.get("recordSummary")), ("Standing", ts.get("standingSummary")), ("Home", rec(ts.get("homeSplit"))), ("Away", rec(ts.get("awaySplit"))), ("Streak", ts.get("streak"))]
     if L.lg == "ufc":

@@ -202,6 +202,26 @@
     return { score: back || SCORE_MS, summary: back || (saveData ? SAVE_DATA_SUMMARY_MS : SUMMARY_MS) };
   }
 
+  /* ---- final-score labels: "Final/OT", "Final/2OT", "Final/SO" (NHL/NBA/NFL/college), "Final/12" (extra-inning MLB), "AET" / "FT-Pens"
+   * (soccer). Same rules as scripts/final_label.py; games archived before labels existed fall back to their plain text / "Final". */
+  const FINAL_X = /^\s*(?:final|f)\s*\/\s*([0-9]*\s*(?:ot|so)|[0-9]+)\s*$/i;
+  function normFinal(s) { const m = FINAL_X.exec(String(s || "")); return m ? "Final/" + m[1].replace(/\s+/g, "").toUpperCase() : null; }
+  /** label for a finished game (static record, possibly live-merged): the extra-time label when known, else ESPN's text, else "Final" */
+  function finalLabel(g) {
+    const c = [g && g.statusDetail, g && g.finalLabel].map(s => String(s || "").trim());
+    for (const s of c) { const n = normFinal(s); if (n) return n; if (s === "AET" || s === "FT-Pens") return s; }
+    return c[0] || c[1] || "Final";
+  }
+  /** short tag for compact score lines: "OT", "2OT", "SO", "12 inn", "AET", "pens"; "" for a regulation final */
+  function finalSuffix(label) {
+    const s = String(label || "").trim();
+    if (s === "AET") return "AET";
+    if (s === "FT-Pens") return "pens";
+    const m = FINAL_X.exec(s); if (!m) return "";
+    const x = m[1].replace(/\s+/g, "").toUpperCase();
+    return /^\d+$/.test(x) ? x + " inn" : x;
+  }
+
   return { HOST, LEAGUES, SCORE_MS, SUMMARY_MS, SAVE_DATA_SUMMARY_MS, MAX_BACKOFF_MS, supported, kindOf, etDay, scoreboardUrl, summaryUrl, needsLive, plan, key,
-           situation, parseScoreboard, parseSummary, mergeGame, mergeTicker, sig, intervals, fresher };
+           situation, parseScoreboard, parseSummary, mergeGame, mergeTicker, sig, intervals, fresher, finalLabel, finalSuffix };
 });

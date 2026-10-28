@@ -64,6 +64,11 @@ KEEP_DAYS = 60            # finished games keep their page this long
 PLAYER_KEEP_DAYS = 14     # a player page stays this long after his last posted prop
 ARCHIVE_AHEAD_H = 6       # start archiving lines this close to the start (the last copy before the start = closing line)
 UNIT = {"football": "point", "basketball": "point", "hockey": "goal", "baseball": "run"}
+# <title> / og:title / twitter:title: "<search phrase> | LineSmart". TITLE_MAX is for the part before the brand suffix
+# (Google cuts titles at ~600px, about 60 characters; the brand is the part we can afford to lose).
+SUFFIX = " | LineSmart"
+TITLE_MAX = 60
+TITLE_BOOK = {"hardrockbet": "Hard Rock", "draftkings": "DraftKings", "fanduel": "FanDuel"}   # short names for titles/descriptions
 
 
 def iso(dt):
@@ -90,6 +95,55 @@ def short_day(dt, year=True):
 
 def tname(t):
     return (t or {}).get("name") or (t or {}).get("abbr") or "TBD"
+
+
+def and_list(xs):
+    xs = [x for x in xs if x]
+    return xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + " and " + xs[-1] if xs else ""
+
+
+def fit(*cands, limit=TITLE_MAX):
+    """First candidate that fits in `limit` characters (else the shortest), plus the brand suffix."""
+    cands = [c for c in cands if c]
+    ok = [c for c in cands if len(c) <= limit]
+    return (ok[0] if ok else min(cands, key=len)) + SUFFIX
+
+
+def cut(desc, n=160):
+    return desc if len(desc) <= n else desc[:n - 3].rsplit(" ", 1)[0].rstrip(",:;") + "…"
+
+
+def page_books(g, lg):
+    """Sportsbooks whose lines are actually shown in this page's odds table, in Hard Rock, DraftKings, FanDuel order.
+    No live book columns: the ESPN fallback column counts only when its provider is one of our books. UFC: DraftKings only."""
+    live = pv.live_books(g)
+    keys = [k for k in pv.SUMMARY_BOOK_ORDER if k in live]
+    if not keys and pv.has_line(g):
+        prov = ((g.get("odds") or {}).get("provider") or "").strip().lower()
+        keys = [k for k, n in pv.BOOKS if n.lower() == prov or TITLE_BOOK[k].lower() == prov]
+    if lg == "ufc":
+        keys = [k for k in keys if k == "draftkings"]
+    return keys
+
+
+def market_words(g, kind):
+    """Markets in the odds table: ["spread", "moneyline", "total"] (puck line / run line for NHL / MLB)."""
+    bs = list(pv.live_books(g).values()) or ([g.get("odds")] if pv.has_line(g) else [])
+    has = lambda *ks: any(isinstance(b, dict) and any(isnum(b.get(k)) for k in ks) for b in bs)
+    out = []
+    if kind != "mma" and has("homeSpread", "awaySpread"):
+        out.append("puck line" if kind == "hockey" else "run line" if kind == "baseball" else "spread")
+    if has("homeML", "awayML"):
+        out.append("moneyline")
+    if has("total"):
+        out.append("total rounds" if kind == "mma" else "total")
+    return out
+
+
+def title_day(dt):
+    """'Sun, Nov 1' (ET)"""
+    d = et(dt)
+    return f"{d.strftime('%a, %b')} {d.day}"
 
 
 # ---------------------------------------------------------------- archive
@@ -373,9 +427,12 @@ def stamp(s):
 
 
 def content_hash(html):
+    """Page content (main#app onward, minus build stamps) plus the <title> and meta description, so a new search
+    title / snippet also moves lastmod (and is sent to IndexNow)."""
     core = re.sub(r"<!--v-->.*?<!--/v-->", "", html, flags=re.S)
     m = re.search(r'<main class="wrap" id="app">.*', core, flags=re.S)
-    return hashlib.sha1((m.group(0) if m else core).encode()).hexdigest()[:16]
+    head = "".join(re.findall(r"<title>.*?</title>|<meta name=\"description\" content=\"[^\"]*\">", core[:m.start()] if m else "", flags=re.S))
+    return hashlib.sha1((head + (m.group(0) if m else core)).encode()).hexdigest()[:16]
 
 
 def section(sid, title, inner):
@@ -757,6 +814,59 @@ def related_games(L: League, g, limit=10):
     return [x[1] for x in same_team[:limit]], [x[1] for x in same_day[:limit]]
 
 
+def game_meta(L: League, g, gid):
+    """Search-style <title> and meta description for a game / fight page.
+    Upcoming / live: "Cardinals vs Cowboys Odds: Hard Rock, DraftKings, FanDuel | LineSmart" (away first; only books shown
+    on the page), falling back to "... Odds & Props" / "Odds & Lines" / "Odds & Preview" when the books don't fit.
+    Finished: "Cardinals vs Cowboys Result & Closing Odds (27-20) | LineSmart". UFC: "Fighter vs Fighter Odds: DraftKings"."""
+    a, h = g["away"], g["home"]
+    dt = parse_dt(g["date"])
+    final = L.is_final(g)
+    books = page_books(g, L.lg)
+    bnames = [TITLE_BOOK[k] for k in books]
+    has_props = bool(((L.props.get("games") or {}).get(gid) or {}).get("props")) and not final
+    day = title_day(dt)
+    if L.lg == "ufc":
+        vs = [f"{tname(a)} vs {tname(h)}", f"{a.get('last') or tname(a)} vs {h.get('last') or tname(h)}"]
+    else:
+        vs = [f"{pv.side_name(a)} vs {pv.side_name(h)}", f"{a.get('abbr') or pv.side_name(a)} vs {h.get('abbr') or pv.side_name(h)}"]
+    mk = market_words(g, L.kind)
+    if final:
+        closing = bool(g.get("_closing")) and pv.has_line(g)
+        if L.lg == "ufc":
+            cands = [f"{v} Result & Odds" if closing else f"{v} Result" for v in vs]
+        else:
+            sfx = FL.suffix(L.final_label(g))
+            sc = f"{num(a.get('score'))}-{num(h.get('score'))}{', ' + sfx if sfx else ''}"
+            cands = ([f"{vs[0]} Result & Closing Odds ({sc})", f"{vs[0]} Result & Odds ({sc})"] if closing else [f"{vs[0]} Final Score: {sc}"]) + \
+                    [f"{vs[0]} Result & Odds" if closing else f"{vs[0]} Result", f"{vs[1]} Result & Odds ({sc})" if closing else f"{vs[1]} Final Score: {sc}"]
+        title = fit(*cands)
+        res = L.score_line(g)
+        if closing:
+            graded = and_list([mk[0]] + (["total"] if "total" in mk else [])) if L.lg != "ufc" and mk and mk[0] != "moneyline" else ""
+            tail = (f" Closing odds from {and_list(bnames)}" if bnames else " Closing odds") + (", line movement and how the " + graded + " graded." if graded else " and line movement.")
+        else:
+            tail = " No lines were recorded before the start."
+        head = f"{vs[0]} result, {day}: {res}."
+        desc = head + tail
+        if len(desc) > 160 and closing:
+            desc = head + (f" Closing odds from {and_list(bnames)} and line movement." if bnames else " Closing odds and line movement.")
+        if len(desc) > 160:
+            desc = head + (" Closing odds and line movement." if closing else "")
+    else:
+        what = (" and ".join([", ".join(mk), "player props"]) if has_props else and_list(mk)) if mk else ("player props" if has_props else "")
+        rest = "Odds & Props" if has_props else "Odds & Lines" if pv.has_line(g) else "Odds & Preview"
+        cands = ([f"{vs[0]} Odds: {', '.join(bnames)}"] if bnames else []) + [f"{vs[0]} {rest}", f"{vs[0]} Odds", f"{vs[1]} {rest}", f"{vs[1]} Odds"]
+        title = fit(*cands)
+        if pv.has_line(g):
+            desc = f"Compare {vs[0]} odds for {day}" + (f" at {and_list(bnames)}" if bnames else "") + (f": {what}." if what else ".")
+            if len(desc) < 110 and L.lg != "ufc" and not has_props:
+                desc += " Line movement, form and injuries."
+        else:
+            desc = f"{vs[0]} odds for {day}: lines appear here as soon as books post them." + (" Player props, form and injuries." if has_props else " Records, form and injuries." if L.lg != "ufc" else " Fighter records and recent results.")
+    return title, cut(desc)
+
+
 def game_page(L: League, sh: Shell, gid):
     g = L.games[gid]
     path = L.paths[gid]
@@ -765,30 +875,9 @@ def game_page(L: League, sh: Shell, gid):
     final, live = L.is_final(g), g.get("state") == "in"
     cur = gid in L.current
     detail = ((load_json(L.data_dir / L.lg / "games" / f"{gid}.json") or {}).get("detail") or {}) if cur else {}
-    day = short_day(dt)
     mtch = L.matchup(g)
     mshort = L.matchup(g, short=True)
-    if final:
-        if L.lg == "ufc":
-            title = f"{mtch} Result & Closing Odds, {day}"
-        else:
-            sfx = FL.suffix(L.final_label(g))
-            sfx = f" ({sfx})" if sfx else ""
-            title = f"{pv.side_name(a)} {num(a.get('score'))}, {pv.side_name(h)} {num(h.get('score'))}{sfx}: Final Score & Closing Odds, {day}"
-        if len(title) > 70:
-            title = f"{a.get('abbr')} {num(a.get('score'))}, {h.get('abbr')} {num(h.get('score'))}{sfx}: Final & Closing Odds, {day}" if L.lg != "ufc" else f"{a.get('last') or tname(a)} vs. {h.get('last') or tname(h)} Result & Closing Odds, {day}"
-    else:
-        title = f"{mtch} Odds & Preview, {day}"
-        if len(title) > 62:
-            title = f"{mshort} Odds & Preview, {day}" if L.lg != "ufc" else f"{a.get('last') or tname(a)} vs. {h.get('last') or tname(h)} Odds & Preview, {day}"
-    title += " · LineSmart"
-    lb = L.lines_brief(g)
-    if final:
-        desc = f"{L.name} final, {short_day(dt)}: {L.score_line(g)}." + (f" Closing line {lb}." if lb and g.get("_closing") else "") + " Closing odds across books, line movement and how the spread and total graded."
-    else:
-        desc = f"{L.name}: {mtch}, {fmt_et(dt)}." + (f" Line: {lb}." if lb else "") + " Compare DraftKings, Hard Rock Bet and FanDuel odds, line movement" + (", player props" if L.props.get("games", {}).get(gid) else "") + (", weather" if (g.get("weather") or {}).get("label") else "") + " and form."
-    if len(desc) > 160:
-        desc = desc[:157].rsplit(" ", 1)[0] + "…"
+    title, desc = game_meta(L, g, gid)
     props_html, props_links = game_props(L, gid) if not final else ("", [])
     mv_html, mv_facts = pv.movement(g, L.kind)
     odds_title = "Closing lines" if final else "Odds across books"
@@ -893,7 +982,7 @@ def player_page(L: League, sh: Shell, pid):
                + "".join(f"<th>{esc((L.markets.get(m) or [m, m])[1])}</th>" for m in mks) + f"</tr></thead><tbody>{log_rows}</tbody></table></div></div>") if log_rows else ""
     when = f"{L.matchup(nxt, short=True)}, {fmt_et(parse_dt(nxt['date']))}" if nxt else ""
     stale = e.get("archived")
-    title = f"{name} Props: Lines & Last-5 Results ({ta}) · LineSmart"
+    title = fit(f"{name} Props: Lines & Last-5 Results ({ta})" if ta else "", f"{name} Props: Lines & Last-5 Results", f"{name} Props & Last-5 Results", f"{name} Props")
     mk_txt = ", ".join(f"{(L.markets.get(r[1]) or [r[1]])[1]} {num(r[2])}" if r[1] != "anytime_td" else "anytime TD" for _, r in rows[:3])
     desc = f"{name} ({pl.get('pos') or ''}, {tname(team)}) player props" + (f" for {when}" if when else "") + f": {mk_txt}. Last-5 results against each line, season over/under counts and game log."
     if len(desc) > 160:
@@ -921,7 +1010,7 @@ def player_page(L: League, sh: Shell, pid):
         section("game", "Next game", link_list(gl + tl + [(L.hub, f"All {NAMES[L.lg]} odds", "")])),
         section("others", "More props in this game", link_list(others[:24])),
     ] if x)
-    ld = [{"@context": "https://schema.org", "@type": "ProfilePage", "name": title.replace(" · LineSmart", ""), "url": L.base_url + path, "description": desc,
+    ld = [{"@context": "https://schema.org", "@type": "ProfilePage", "name": title[:-len(SUFFIX)], "url": L.base_url + path, "description": desc,
            "mainEntity": {"@type": "Person", "name": name, **({"affiliation": {"@type": "SportsTeam", "name": tname(team)}} if team.get("name") else {})}},
           crumbs_ld(L.base_url, [(L.hub, NAMES[L.lg]), (path, name)])]
     return sh.page(path, title, desc, main, more, kind="player", lg=L.lg, ld=ld, og_type="profile"), title
@@ -958,11 +1047,12 @@ def team_page(L: League, sh: Shell, tid):
         chips += f'<div class="sx-fact"><span>Avg score</span><b>{esc(num(ts["all"]["pf"]))}-{esc(num(ts["all"].get("pa")))}</b></div>'
     players = sorted([(e["path"], f"{e['p'].get('n')} props", e["p"].get("pos") or "") for pid, e in L.players.items() if str(e["p"].get("t") or "") == tid], key=lambda x: x[1])
     if L.lg == "ufc":
-        title = f"{name} UFC Odds, Record & Fight Results · LineSmart"
-        desc = f"{name} ({t.get('record') or 'record n/a'}{', ' + t['country'] if t.get('country') else ''}): upcoming fight odds across DraftKings, Hard Rock Bet and FanDuel, and recent results."
+        title = fit(f"{name} UFC Odds, Record & Fight Results", f"{name} UFC Odds & Fight Results", f"{name} UFC Odds")
+        dk = any(page_books(g, "ufc") for _, g in up)   # name only books actually shown (UFC lines are DraftKings only)
+        desc = f"{name} ({t.get('record') or 'record n/a'}{', ' + t['country'] if t.get('country') else ''}): " + ("upcoming fight odds at DraftKings, record and recent results." if dk else "next fight, record and recent results." if up else "record and recent fight results.")
         h1 = f"{esc(name)}: fight odds &amp; results"
     else:
-        title = f"{name} Odds, Schedule & Results ({SHORT[L.lg]}) · LineSmart"
+        title = fit(f"{name} Odds, Schedule & Results ({SHORT[L.lg]})", f"{name} Odds, Schedule & Results", f"{name} Odds & Schedule ({SHORT[L.lg]})", f"{name} Odds & Schedule")
         nx = up[0][1] if up else None
         desc = f"{name} ({t.get('record') or ts.get('recordSummary') or 'record n/a'}) betting odds" + (f" for {L.matchup(nx, short=True)} {short_day(parse_dt(nx['date']), False)}" if nx else "") + ", schedule, recent results with closing lines, splits and player props."
         h1 = f"{esc(name)} odds, schedule &amp; results"
@@ -1005,7 +1095,8 @@ def event_page(L: League, sh: Shell, eid):
             f'<td class="num">{esc(L.lines_brief(g) or "—")}</td><td>{esc(L.score_line(g)) if L.is_final(g) else "—"}</td></tr>' for g in gs)
         secs.append(f'<h3 class="sx-seg">{esc(seg)}</h3><div class="card"><div class="tbl-wrap"><table class="books sx-card"><thead><tr><th>Bout</th><th>Fighters</th><th>{"Closing" if done else "Line"}</th><th>Result</th></tr></thead><tbody>{rows}</tbody></table></div></div>')
     where = ", ".join(x for x in [e.get("venue"), e.get("city"), e.get("venueState")] if x)
-    title = f"{e['name']} Odds & {'Results' if done else 'Fight Card'}, {short_day(dt)} · LineSmart"
+    what = "Results" if done else "Fight Card"
+    title = fit(f"{e['name']} Odds & {what}, {short_day(dt)}", f"{e['name']} Odds & {what}, {short_day(dt, False)}", f"{e['name']} Odds & {what}")
     desc = f"{e['name']}, {fmt_et(dt)}{' at ' + where if where else ''}: {plural(len(bouts), 'bout')} with moneylines across books" + (", results and closing odds." if done else ", records and fighter pages.")
     if len(desc) > 160:
         desc = desc[:157].rsplit(" ", 1)[0] + "…"
@@ -1150,10 +1241,10 @@ def hub_page(L: League, sh: Shell, Ls):
         section("teams-l", "Fighters" if L.lg == "ufc" else "Teams", link_list(teams, "pv-list sx-grid")),
         section("leagues", "Other sports", link_list([(f"{k}/", f"{NAMES[k]} odds", "") for k in ORDER if k != L.lg and k in Ls])),
     ] if x)
-    title = {"ufc": "UFC Odds: Fight Cards, Moneylines & Results · LineSmart"}.get(L.lg, f"{NAMES[L.lg]} Odds Today: Spreads, Totals{' & Player Props' if L.players else ' & Moneylines'} · LineSmart")
+    title = {"ufc": "UFC Odds: Fight Cards, Moneylines & Results" + SUFFIX}.get(L.lg, f"{NAMES[L.lg]} Odds Today: Spreads, Totals{' & Player Props' if L.players else ' & Moneylines'}{SUFFIX}")
     desc = (f"Free {NAMES[L.lg]} odds comparison: " + ("UFC moneylines and totals by fight card, fighter records and results with closing odds." if L.lg == "ufc" else
             f"spreads, totals and moneylines from DraftKings, Hard Rock Bet and FanDuel, line movement{', player props' if L.players else ''} and final scores."))
-    ld = [{"@context": "https://schema.org", "@type": "CollectionPage", "name": title.replace(" · LineSmart", ""), "url": L.base_url + path, "description": desc,
+    ld = [{"@context": "https://schema.org", "@type": "CollectionPage", "name": title[:-len(SUFFIX)], "url": L.base_url + path, "description": desc,
            "about": {"@type": "SportsOrganization", "name": L.full}}, crumbs_ld(L.base_url, [(path, NAMES[L.lg])])]
     return sh.page(path, title, desc, main, more, kind="hub", lg=L.lg, route=f"l/{L.lg}" if getattr(L, "has_data", True) else "", ld=ld, og_type="website"), title
 
@@ -1263,6 +1354,8 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
     pages, titles, stats = {}, {}, {}
     manifest = {"generated": iso(now), "l": {}, "g": {}, "t": {}, "p": {}}
 
+    game_days = {}   # game path -> "Oct 27" (title tie-breaker for series / rematches)
+
     def put(path, html, title, kind, lg):
         pages[path] = html
         titles.setdefault(title, []).append(path)
@@ -1276,6 +1369,7 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
         for gid in L.games:
             html, t = game_page(L, sh, gid)
             put(L.paths[gid], html, t, "past" if L.is_final(L.games[gid]) else "game", lg)
+            game_days[L.paths[gid]] = short_day(parse_dt(L.games[gid]["date"]), False)
             manifest["g"].setdefault(lg, {})[gid] = L.paths[gid]
         for pid in L.players:
             html, t = player_page(L, sh, pid)
@@ -1288,12 +1382,30 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
         for eid in getattr(L, "ev", {}):
             html, t = event_page(L, sh, eid)
             put(L.ev[eid]["path"], html, t, "event", lg)
-    # titles must be unique: disambiguate the rare collision with the page's own path
+    # titles must be unique. Same matchup on several dates (series, rematches): every one of those game pages gets its
+    # date; anything still colliding gets the page's own path. og:title / twitter:title follow the <title>.
+    def retitle(p, old, new):
+        h = pages[p]
+        for a, b in ((f"<title>{esc(old)}</title>", f"<title>{esc(new)}</title>"),
+                     (f'<meta property="og:title" content="{esc(old)}">', f'<meta property="og:title" content="{esc(new)}">'),
+                     (f'<meta name="twitter:title" content="{esc(old)}">', f'<meta name="twitter:title" content="{esc(new)}">')):
+            h = h.replace(a, b, 1)
+        pages[p] = h
+        titles2.setdefault(new, []).append(p)
+
+    titles2 = {}
     for t, ps in titles.items():
+        base = t[:-len(SUFFIX)] if t.endswith(SUFFIX) else t
+        for p in ps:
+            if len(ps) > 1 and p in game_days:
+                retitle(p, t, f"{base}, {game_days[p]}{SUFFIX}")
+            else:
+                titles2.setdefault(t, []).append(p)
+    for t, ps in titles2.items():
         if len(ps) > 1:
+            base = t[:-len(SUFFIX)] if t.endswith(SUFFIX) else t
             for p in ps[1:]:
-                tail = p.strip("/").rsplit("/", 1)[-1]
-                pages[p] = pages[p].replace(f"<title>{esc(t)}</title>", f"<title>{esc(t.replace(' · LineSmart', ''))} ({esc(tail)}) · LineSmart</title>", 1)
+                retitle(p, t, f"{base} ({p.strip('/').rsplit('/', 1)[-1]}){SUFFIX}")
     # redirects: old /preview/ URLs and older paths of rescheduled games
     redirects = {}
     for lg, L in Ls.items():

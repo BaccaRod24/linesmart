@@ -37,6 +37,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # IndexNow baseline: the live sitemap as deployed by the previous run, fetched before this run builds or deploys.
+      # The indexnow job (scripts/indexnow_ping.py) pings only URLs that are new or re-dated against it. A failed fetch
+      # just means no ping this run.
+      - name: Fetch live sitemap (IndexNow baseline)
+        continue-on-error: true
+        run: |
+          mkdir -p _indexnow
+          if curl -fsS --max-time 20 --retry 2 -H 'Cache-Control: no-cache' -o _indexnow/prev-sitemap.xml "https://linesmart.app/sitemap.xml?indexnow=${{ github.run_id }}"; then
+            echo "IndexNow baseline: $(grep -c '<loc>' _indexnow/prev-sitemap.xml) URLs in the live sitemap"
+          else
+            rm -f _indexnow/prev-sitemap.xml
+            echo "::warning title=IndexNow::could not fetch the live sitemap; this run will not ping IndexNow"
+          fi
+
       # Line-movement history lives on its own branch (never main), checked out as a worktree in _history/.
       - name: Check out line history (data-history branch)
         id: hist
@@ -153,6 +167,23 @@ jobs:
           python scripts/seo_pages.py
           if [ -d _history/pages ]; then rm -rf .linehist-snap/_pages && mkdir -p .linehist-snap && cp -r _history/pages .linehist-snap/_pages; fi
 
+      # The sitemap this run deploys, for the indexnow job. Only when the SEO build ran with the archive, so each
+      # page's lastmod is the stored content-change date (not "now") and the diff stays small.
+      - name: Keep deployed sitemap for IndexNow
+        if: steps.seo.outcome == 'success' && steps.hist.outcome == 'success' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        run: mkdir -p _indexnow && cp site/sitemap.xml _indexnow/new-sitemap.xml
+
+      - name: Upload IndexNow sitemaps
+        if: steps.seo.outcome == 'success' && steps.hist.outcome == 'success' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: indexnow
+          path: _indexnow/
+          retention-days: 1
+          if-no-files-found: ignore
+
       # Only persist history from a successful build. On a push race, re-apply this run's
       # snapshot on top of the latest branch tip and try again; never force-push.
       - name: Save line history snapshot
@@ -219,3 +250,33 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  # IndexNow (Bing, Yandex, Seznam...): after a successful deploy of main, POST the new / changed SEO page URLs
+  # (sitemap diff against the pre-deploy live sitemap) once, in one batch. The key file is site/<key>.txt.
+  # Never fails the run: the script always exits 0 and the job is continue-on-error. See docs/seo-pages.md.
+  indexnow:
+    needs: deploy
+    if: github.ref == 'refs/heads/main' && needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (ping script + key file only)
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            /scripts/indexnow_ping.py
+            /site/*.txt
+          sparse-checkout-cone-mode: false
+
+      - name: Download IndexNow sitemaps
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: indexnow
+          path: _indexnow
+
+      - name: Ping IndexNow
+        run: python3 scripts/indexnow_ping.py --prev _indexnow/prev-sitemap.xml --new _indexnow/new-sitemap.xml

@@ -62,8 +62,10 @@ App-only sub-routes such as `#/l/nfl/all` stay hash routes.
 
 ## Titles and descriptions
 
-Titles use the phrases people search for and end in ` | LineSmart`. The part before the suffix is kept to 60 characters
-or less (`TITLE_MAX`): `fit()` takes the first candidate that fits, so long names fall back to shorter forms.
+Titles use the phrases people search for and end in ` | LineSmart`. The whole title, suffix included, is kept to 60
+characters (`TITLE_MAX`). `fit()` takes the first candidate that fits with the suffix (the phrase itself can be at most
+48 characters). If none fit, it drops the suffix, then cuts at a word boundary. Long names fall back to shorter forms
+(abbreviations, `NCAAF` / `NCAAB`, dropping "Lines &").
 
 - Upcoming game, away team first: `Cardinals vs Cowboys Odds: Hard Rock, DraftKings, FanDuel`, then
   `X vs Y Odds & Props` (`Odds & Lines` without props, `Odds & Preview` before books post lines), then `X vs Y Odds`,
@@ -73,11 +75,15 @@ or less (`TITLE_MAX`): `fit()` takes the first candidate that fits, so long name
 - Finished game: `X vs Y Result & Closing Odds (97-111)`, then `Result & Odds`. With no closing lines: `X vs Y Final Score: 97-111`.
 - Description: `Compare X vs Y odds for Sun, Nov 1 at Hard Rock, DraftKings and FanDuel: spread, moneyline, total and
   player props.` Finished games: `X vs Y result, Tue, Oct 27: DET 97, NY 111. Closing odds from ..., line movement and
-  how the spread and total graded.` At most 160 characters.
+  how the spread and total graded.` At most 155 characters (`DESC_MAX`), including the homepage.
+- League hubs and team/fighter pages add an `ItemList` of the game or fight URLs linked on the page (hub: inside the
+  `CollectionPage`; team: `mainEntity` of the page about the `SportsTeam` or fighter `Person`). The homepage
+  `Organization` has `sameAs` and `alternateName`. No `SearchAction`.
 - Team, player, fighter and event pages: `<Team> Odds & Schedule (NFL)`, `<Player> Props & Last-5 Results (TEAM)`,
   `<Fighter> UFC Odds, Record & Fight Results`.
 - `og:title` and `twitter:title` always equal `<title>`. If two game pages would share a title (a series), the date is
-  added: `Yankees vs Red Sox Odds & Lines, Oct 27`. The H1 and the visible content don't change with the title.
+  added: `Yankees vs Red Sox Odds & Lines, Oct 27`. That pass goes through `with_extra()` / `fit()` so the date or the
+  path slug cannot push the title back over 60 characters. The H1 and the visible content don't change with the title.
 
 `content_hash()` covers the title and meta description as well as `main#app`, so a new title or snippet moves the page's
 `lastmod` (and gets sent to IndexNow).

@@ -123,6 +123,42 @@ def save(path, hist):
     os.replace(tmp, path)
 
 # ---------------------------------------------------------------- movement summary for the site
+# American odds jump from -100 to +100, so cur - open inflates any move across even money by 200
+# (-110 -> +114 is +24 cents, not +224). flat() puts both sides on one cent scale.
+ML_MIN_CENTS = 15   # same bar the "what to watch" note uses: smaller than this is noise around even money
+
+def flat(x):
+    """American odds on a continuous cent scale. -110 and +110 are 20 apart, not 220."""
+    return x + 100 if x < 0 else x - 100
+
+def ml_cents(open_, cur):
+    """Signed moneyline move in cents. -110 -> +114 is +24; +100 and -100 are the same price."""
+    d = flat(cur) - flat(open_)
+    r = round(d)
+    return int(r) if abs(d - r) < 1e-6 else round(d, 2)
+
+def implied(a):
+    """Implied win probability of an American price (includes the book's margin). None for a missing price."""
+    if a is None or a == 0:
+        return None
+    a = float(a)
+    return 100.0 / (a + 100.0) if a > 0 else -a / (-a + 100.0)
+
+def ml_prob_pts(open_, cur):
+    """Change in implied win probability, in percentage points. -110 -> +114 is about -5.7."""
+    po, pc = implied(open_), implied(cur)
+    if po is None or pc is None:
+        return None
+    return (pc - po) * 100.0
+
+def move_delta(open_, cur, ml=False):
+    """Signed move. Moneyline uses cents; spreads and totals use the raw number."""
+    return ml_cents(open_, cur) if ml else cur - open_
+
+def biggest(open_, values, ml=False):
+    """The price farthest from open. Moneyline distance is cents, so +100 doesn't beat -140 off a -105 open."""
+    return max(values, key=lambda v: abs(move_delta(open_, v, ml)))
+
 def _primary(gh):
     ks = list((gh.get("books") or {}).keys())
     for k in BOOK_ORDER:
@@ -155,8 +191,10 @@ def summarize(gh, kind, league):
         o = o if o is not None else (series[0] if series else None)
         c = cur.get(key)
         if o is None or c is None: continue
-        big = max(series + [c], key=lambda v: abs(v - o))
-        out[label] = dict(open=o, cur=c, delta=round(c - o, 2), maxMove=round(big - o, 2))
+        ml = key in ("hml", "aml")
+        big = biggest(o, series + [c], ml)          # raw |cur-open| picks the even-money crossing, not the real move
+        delta = ml_cents(o, c) if ml else round(c - o, 2)
+        out[label] = dict(open=o, cur=c, delta=delta, maxMove=ml_cents(o, big) if ml else round(big - o, 2))
         if label in ("spread", "total"):   # opening line first (ESPN's open can predate the tracked points), then the tracked series
             sp = ([o] if series and series[0] != o else []) + series
             if len(sp) >= 2: out.setdefault("spark", {})[label] = spark(sp)

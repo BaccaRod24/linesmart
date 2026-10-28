@@ -1113,6 +1113,16 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .st-act{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
 .st-act button{min-height:40px;padding:0 16px;border-radius:999px;border:1px solid var(--line2);background:var(--surface2);color:var(--txt);font-weight:650;cursor:pointer}
 .st-act .st-save{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.st-pages{display:flex;flex-wrap:wrap;gap:4px 10px;max-height:9.5em;overflow:auto;padding-top:4px}
+.st-pages a{font-size:13px;font-weight:650;color:var(--accent)}
+.footer .state-links{display:flex;flex-wrap:wrap;gap:4px 10px;margin:8px 0}
+.footer .state-links a{color:var(--txt);font-weight:600;font-size:13px}
+.footer .state-links a:hover{color:var(--accent)}
+.intro-states{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:0 0 12px}
+.intro-states-l{font-size:12px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;color:var(--dim)}
+.st-faq{margin:0}
+.st-faq dt{font-weight:750;margin-top:14px}
+.st-faq dd{margin:4px 0 0;color:var(--mute);line-height:1.5}
 .top-about{flex:none;color:var(--mute);font-weight:650;font-size:13px;padding:6px 4px}
 @media (max-width:760px){.top-about{display:none}}
 

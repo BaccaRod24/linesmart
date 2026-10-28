@@ -1,4 +1,6 @@
-# Where each sportsbook is legal online (`site/assets/books-by-state.js`)
+# Where each sportsbook is legal online (`data/books-by-state.json`)
+
+`site/assets/books-by-state.js` is generated from that JSON. Edit the JSON, then run `python3 scripts/seo_pages.py` (or any build that calls it) so the browser copy stays in step. The page build refuses to run when `asOf` is more than 30 days old.
 
 As of **October 26, 2026**. Used by `site/assets/geo-core.js` to decide which sportsbook offers a visitor may see.
 This is not legal advice. Each sportsbook geolocates bettors itself, so a wrong entry here can show or hide a link
@@ -22,9 +24,9 @@ betting is authorized but not live (WI). Source: Action Network's 50-state table
 - **LA**: online betting is legal only in parishes that approved it, and parishes aren't modeled.
 - **WI**: mobile betting is authorized but not live; re-check.
 - **PR**: a territory with different regulation.
-- **AR**: FanDuel operates as "Oaklawn Sports powered by FanDuel".
+- **AR**: FanDuel operates as "Oaklawn Sports powered by FanDuel". Flagged `uncertain` so the state page says "status unconfirmed" and does not give a flat yes or no.
 - **DE, RI, NV**: online betting is legal, but we show none of the four books we list (Hard Rock Bet, DraftKings, FanDuel, BetMGM) there. Visitors see a neutral note ("We don't show sportsbook offers in …").
 - **NV**: BetMGM is the only book we list that runs a Nevada sportsbook app, but it is **excluded by the owner's choice** (Oct 26, 2026) because sign-up there can require an in-person casino visit. NV stays `uncertain`.
-- **MS**: BetMGM's Mississippi app is on-premises only, so MS stays `onlineLegal: false` with no offers.
+- **MS**: BetMGM's Mississippi app is on-premises only, so MS stays `onlineLegal: false` with no offers. Flagged `uncertain` (no state page in this launch).
 - **FL**: BetMGM offers only horse racing in Florida, not sports betting, so FL shows Hard Rock Bet only.
 - **NH and OR**: DraftKings is the only online sportsbook.

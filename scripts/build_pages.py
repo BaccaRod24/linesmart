@@ -11,6 +11,7 @@ Helpline numbers/URLs were verified on Oct 26, 2026 (state lines NY/AZ/IN/IA on 
 Michigan now uses 1-800-GAMBLER per the MGCB, so it has no separate line; see site/assets/geo-core.js HELPLINES) (see the compliance commit message); re-check them
 before changing.
 """
+import json
 import re
 import sys
 from pathlib import Path
@@ -58,6 +59,18 @@ TOOLS = [  # (href, label): footer quick links into the app (relative, so subpat
     ("./#/pro", "Pro: join the waitlist"),
 ]
 
+
+def state_footer_links():
+    """Crawlable links for the legal-online states. Slugs come from data/books-by-state.json."""
+    doc = json.loads((SITE.parent / "data" / "books-by-state.json").read_text())
+    rows = []
+    for st in (doc.get("states") or {}).values():
+        if st.get("onlineLegal") and st.get("slug") and st.get("name"):
+            rows.append((st["name"], st["slug"]))
+    rows.sort()
+    links = " ".join(f'<a href="{slug}/">{name}</a>' for name, slug in rows)
+    return f'<nav class="state-links" aria-label="Sports betting by state"><a href="states/">Sports betting by state</a> {links}</nav>'
+
 FOOTER = f"""<footer class="footer" id="siteFooter">
   <div class="wrap">
     <div class="news-foot" data-news-signup="footer"></div>
@@ -69,6 +82,7 @@ FOOTER = f"""<footer class="footer" id="siteFooter">
     <p class="aff-disc" data-aff-disclosure hidden></p>
     <nav class="legal-links" aria-label="Legal">{" ".join(f'<a href="{f}">{n}</a>' for f, n in PAGES)}</nav>
     <nav class="hub-links" aria-label="Sports">{" ".join(f'<a href="{f}">{n}</a>' for f, n in HUBS)}</nav>
+    {state_footer_links()}
     <nav class="tool-links" aria-label="Tools">{" ".join(f'<a href="{f}">{n}</a>' for f, n in TOOLS)}</nav>
     <p class="src">Data: ESPN public endpoints (schedules, stats, DraftKings opening lines and fallback lines); Hard Rock Bet, FanDuel and DraftKings lines and props via The Odds API; weather by Open-Meteo. Independent: not owned by or affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
   </div>

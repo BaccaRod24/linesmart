@@ -16,7 +16,7 @@ import shutil
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
-from datetime import timedelta
+from datetime import datetime, timedelta
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -115,6 +115,8 @@ LD_TYPES = {
     "player": {"ProfilePage", "Person", "BreadcrumbList"},
     "event": {"SportsEvent", "BreadcrumbList"},
     "results": {"CollectionPage", "ItemList", "BreadcrumbList"},
+    "state": {"WebPage", "BreadcrumbList", "FAQPage"},
+    "states": {"CollectionPage", "BreadcrumbList", "ItemList"},
 }
 
 
@@ -192,8 +194,32 @@ def check_page_ld(rel, h, hrefs, kind):
             check(paths == want, f"{rel}: ItemList matches result links ({len(paths)} vs {len(want)})")
         elif lists:
             check(lists[0].get("numberOfItems") == 0, f"{rel}: empty results page has an empty ItemList")
+    elif kind == "state":
+        pages = [n for n in nodes if n.get("@type") == "WebPage"]
+        about = (pages[0].get("about") or {}) if pages else {}
+        check(pages and about.get("@type") == "State" and about.get("name"), f"{rel}: WebPage about a State")
+        faqs = [n for n in nodes if n.get("@type") == "FAQPage"]
+        check(len(faqs) == 1, f"{rel}: one FAQPage")
+        ents = (faqs[0].get("mainEntity") or []) if faqs else []
+        check(4 <= len(ents) <= 6, f"{rel}: FAQ has 4-6 questions ({len(ents)})")
+        visible = html.unescape(h)
+        for ent in ents:
+            q, a = ent.get("name") or "", ((ent.get("acceptedAnswer") or {}).get("text") or "")
+            check(bool(q and a) and q in visible and a in visible, f"{rel}: FAQ schema matches the visible text ({q[:48]})")
+        book_lists = [n for n in lists if str(n.get("name") or "").startswith("Books we compare")]
+        if book_lists:
+            els = book_lists[0].get("itemListElement") or []
+            check(book_lists[0].get("numberOfItems") == len(els) and els, f"{rel}: book ItemList has entries")
+            check(all(e.get("@type") == "ListItem" and e.get("position") == i and str(e.get("url") or "").startswith("https://") for i, e in enumerate(els, 1)), f"{rel}: book ItemList positions and https urls")
+    elif kind == "states":
+        check(any(n.get("@type") == "CollectionPage" for n in tops), f"{rel}: CollectionPage is top-level")
+        check(len(lists) == 1, f"{rel}: one ItemList ({len(lists)})")
+        if lists:
+            paths = check_item_list(rel, lists[0])
+            want = [p for p in _listed_paths(hrefs, re.compile(r"^[a-z0-9-]+/$")) if p.split("/")[0] not in SP.LEAGUE_DIRS and p != "states/"]
+            check(paths == want, f"{rel}: ItemList matches state links ({len(paths)} vs {len(want)})")
     else:
-        check(not lists, f"{rel}: ItemList only on hubs, team and results pages")
+        check(not lists, f"{rel}: ItemList only on hubs, team, results and state pages")
 
 
 def title_limit_tests():
@@ -222,6 +248,13 @@ def title_limit_tests():
 
 
 OFFER = re.compile(r'class="of-book|Bet on (DraftKings|FanDuel|Hard Rock|BetMGM|Caesars|Fanatics)|href="https?://[^"]*(draftkings|fanduel|hardrock|betmgm|caesars|fanatics)[^"]*"', re.I)
+
+
+def mask_official(h):
+    """Official book URLs from the data file are not offers. Any other book-domain href still fails."""
+    for url in (SP.load_books().get("urls") or {}).values():
+        h = h.replace(f'href="{url}"', 'href="https://example.com/book"')
+    return h
 PROMO_RE = re.compile(r"\b(free bets?|risk[- ]free|no[- ]risk|guaranteed|bonus bets?|no[- ]sweat|free plays?)\b", re.I)   # same list as compliance_test.mjs
 BAD_NAME = re.compile(r"\bRod\b|Rodney", re.I)
 
@@ -500,9 +533,83 @@ def edge_cases(tmp):
     check("Closing lines not recorded" in (site / man["pp-thin"] / "index.html").read_text(), "thin final still says closing lines were not recorded")
 
 
+def _main_text(h):
+    return h.split('id="app">', 1)[1].split("</main>", 1)[0]
+
+
+def state_built_checks(site):
+    """Pages built from the data file: Florida, a full legal state, an uncertain state, an empty book list."""
+    doc = SP.load_books()
+    legal = {slug for _, _, slug in SP.legal_states(doc)}
+    check(len(legal) == 33 and all((site / slug / "index.html").exists() for slug in legal), "a page for every onlineLegal state")
+    check((site / "states" / "index.html").exists(), "/states/ index exists")
+    for code, st in doc["states"].items():
+        slug = st.get("slug") or ""
+        if st.get("onlineLegal"):
+            continue
+        check(not slug or not (site / slug).exists(), f"{code}: no neutral page yet")
+    fl = (site / "florida" / "index.html").read_text()
+    fl_main = _main_text(fl)
+    check("only legal online sportsbook" in fl_main and "Hard Rock Bet" in fl_main, "Florida says Hard Rock Bet is the only legal online sportsbook")
+    check("DraftKings" not in fl_main and "FanDuel" not in fl_main, "Florida main does not name DraftKings or FanDuel")
+    check("BetMGM" not in fl_main and "betmgm" not in fl_main.lower(), "BetMGM never appears on the Florida page")
+    check("https://www.hardrock.bet/" in fl_main and "as of" in fl_main.lower() or "October 26, 2026" in fl_main, "Florida has the as-of date")
+    check("October 26, 2026" in fl_main and "https://www.americangaming.org/" in fl_main, "Florida shows asOf and a source link")
+    check("1-833-PLAYWISE" in fl_main and "1-800-GAMBLER" in fl_main, "Florida helpline is 1-833-PLAYWISE plus 1-800-GAMBLER")
+    check('data-page="state"' in fl and 'data-route="' not in fl, "Florida page stays static")
+    ny = _main_text((site / "new-york" / "index.html").read_text())
+    check("DraftKings" in ny and "FanDuel" in ny and "BetMGM" in ny, "New York lists its books")
+    check("Status unconfirmed" not in ny and "1-877-8-HOPENY" in ny, "New York is a straight legal page with its helpline")
+    la = _main_text((site / "louisiana" / "index.html").read_text())
+    check("Status unconfirmed" in la and "parishes" in la, "Louisiana shows the note and status unconfirmed")
+    check("Online sports betting is legal in Louisiana" not in la, "Louisiana does not get a flat yes")
+    de = _main_text((site / "delaware" / "index.html").read_text())
+    check("lists none of the books we compare" in de and "Status unconfirmed" not in de, "Delaware says we list none of our books")
+    nv = _main_text((site / "nevada" / "index.html").read_text())
+    check("Status unconfirmed" in nv and "lists none of the books we compare" in nv, "Nevada is unconfirmed and lists no books")
+    check("1-800-GAMBLER" in _main_text((site / "ohio" / "index.html").read_text()) and "1-833-PLAYWISE" not in _main_text((site / "ohio" / "index.html").read_text()), "Ohio uses 1-800-GAMBLER")
+    hub = (site / "nfl" / "index.html").read_text()
+    check('href="states/"' in hub, "NFL hub links to /states/")
+    idx = (site / "states" / "index.html").read_text()
+    check(idx.count('href="florida/"') >= 1 and "texas/" not in idx and "wisconsin/" not in idx, "index lists legal states only")
+
+
+def state_unit_tests():
+    """Slug clash, stale asOf, and templates with no state-specific legal strings."""
+    import inspect
+    doc = SP.load_books()
+    check(len(SP.legal_states(doc)) == 33, f"33 onlineLegal states ({len(SP.legal_states(doc))})")
+    check(not SP.slug_clashes(doc), f"state slugs do not clash ({SP.slug_clashes(doc)})")
+    check(doc["states"]["DC"]["slug"] == "washington-dc" and doc["states"]["NY"]["slug"] == "new-york", "DC and New York slugs")
+    check(doc["states"]["FL"]["books"] == ["hardrockbet"] and "betmgm" not in doc["states"]["FL"]["books"], "Florida data is Hard Rock Bet only")
+    for code in ("LA", "WI", "PR", "AR", "MS"):
+        check(doc["states"][code].get("uncertain") and doc["states"][code].get("note"), f"{code}: uncertain, with a note")
+    fake = json.loads(json.dumps(doc))
+    fake["states"]["ZZ"] = {"name": "NFL", "onlineLegal": True, "books": [], "slug": "nfl"}
+    check("nfl" in SP.slug_clashes(fake), "a slug of nfl clashes with the league folder")
+    stale_day = datetime(2026, 11, 26).date()
+    check(SP.books_age_days(doc, stale_day) == 31, "asOf age is counted in days")
+    try:
+        SP.require_fresh_books(doc, stale_day)
+        check(False, "stale asOf must abort the build")
+    except SystemExit as e:
+        check("asOf" in str(e), f"stale asOf aborts ({e})")
+    check(SP.books_age_days(doc, datetime(2026, 10, 28).date()) <= SP.ASOF_MAX_DAYS, "asOf is fresh on 2026-10-28")
+    src = "\n".join(inspect.getsource(fn) for fn in (SP.legal_copy, SP.state_faqs, SP.state_title, SP.state_desc, SP.state_page, SP.states_index, SP.books_block, SP.lines_block))
+    for bad in ("Florida", "Louisiana", "BetMGM", "Hard Rock", "DraftKings", "FanDuel", "only legal"):
+        check(bad not in src, f"state templates have no {bad!r}")
+    js = (ROOT / "site" / "assets" / "books-by-state.js").read_text()
+    check(js == SP.books_js(doc), "books-by-state.js is the generated copy of the JSON")
+    home = (ROOT / "site" / "index.html").read_text()
+    check(re.search(re.escape(SP.HOME_START) + re.escape(SP.HOME_END), home), "homepage markers stay empty in the committed file")
+    for slug in ("florida", "new-york", "new-jersey", "pennsylvania", "illinois", "ohio", "michigan", "arizona", "colorado", "north-carolina", "virginia", "massachusetts", "states"):
+        check(f'href="{slug}/"' in home, f"homepage links {slug}/")
+
+
 def main():
     title_limit_tests()
     wtw_tests()
+    state_unit_tests()
     # last-5 prop strip: boxes render oldest -> newest (newest on the right), each with its M/D date under it; the stats stay latest first
     lg5 = [["2026-10-25", "DDD", "vs", {}], ["2026-10-24", "CCC", "@", {"points": 20}], ["2026-10-22", "BBB", "vs", {"points": 30}],
            ["2026-10-20", "EEE", "@", {"points": 24.5}], ["2026-10-18", "FFF", "vs", {"points": 28}], ["2026-10-16", "GGG", "vs", {"points": 40}]]
@@ -564,7 +671,7 @@ def main():
             # page chrome only (header, footer, meta): game/player content can contain real names like Rodney
             chrome = re.sub(r'<main class="wrap" id="app">.*?</main>|<section class="wrap seo-more".*?</section>\s*(?=<footer|<nav|<div class="ftr|$)|<script.*?</script>', " ", h, flags=re.S)
             check("Florida-based" not in h and not BAD_NAME.search(chrome), f"{rel}: no owner location or name")
-            m = OFFER.search(h)
+            m = OFFER.search(mask_official(h))
             check(not m, f"{rel}: no hard-coded sportsbook offer ({m and m.group(0)})")
             prose = " ".join(re.findall(r'<div class="card pv-summary"><p>(.*?)</p>', h, re.S) + re.findall(r'<div class="card sx-result">(.*?)</div>', h, re.S))
             m = pv.FORBIDDEN.search(re.sub(r"<[^>]+>", " ", prose))
@@ -597,6 +704,7 @@ def main():
               and SP.event_status({"statusDetail": "Final/OT"}).endswith("EventScheduled"), "event_status(): postponed / canceled / final")
         check(SP.place_ld({"city": "Miami"}) == {"@type": "Place", "address": {"@type": "PostalAddress", "addressLocality": "Miami", "addressCountry": "US"}}, "place_ld(): no venue -> no placeholder name")
         check(not broken, f"all internal links resolve ({len(broken)} broken, e.g. {broken[:4]})")
+        state_built_checks(site)
         check(len(real) == st["pages"], f"page files match stats ({len(real)} vs {st['pages']})")
         # hydration: only hubs and current, unfinished games hand #app to the live app view
         for rel, route in hydrated:
@@ -781,6 +889,11 @@ def main():
         check(set(SP.BASE_URL + p for p in real) <= set(urls), "sitemap lists every page")
         check(not any(u[len(SP.BASE_URL):] in {r for r, _, _ in stubs} for u in urls), "sitemap: no redirect stubs")
         check(any(u.endswith("/results/") for u in urls), "sitemap-results (or a child) lists results pages")
+        core_txt = (site / "sitemap-core.xml").read_text()
+        for rel in ("florida/", "new-york/", "louisiana/", "delaware/", "states/"):
+            check(SP.BASE_URL + rel in core_txt, f"sitemap-core lists {rel}")
+        live_txt = (site / "sitemap-live.xml").read_text() if (site / "sitemap-live.xml").exists() else ""
+        check(SP.BASE_URL + "florida/" not in live_txt and SP.BASE_URL + "states/" not in live_txt, "state pages are not in sitemap-live")
         for u in urls:
             p = u[len(SP.BASE_URL):]
             if p.startswith("sitemap-"):

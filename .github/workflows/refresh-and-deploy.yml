@@ -43,11 +43,27 @@ jobs:
       - name: Fetch live sitemap (IndexNow baseline)
         continue-on-error: true
         run: |
-          mkdir -p _indexnow
-          if curl -fsS --max-time 20 --retry 2 -H 'Cache-Control: no-cache' -o _indexnow/prev-sitemap.xml "https://linesmart.app/sitemap.xml?indexnow=${{ github.run_id }}"; then
-            echo "IndexNow baseline: $(grep -c '<loc>' _indexnow/prev-sitemap.xml) URLs in the live sitemap"
+          mkdir -p _indexnow/prev
+          if curl -fsS --max-time 20 --retry 2 -H 'Cache-Control: no-cache' -o _indexnow/prev/sitemap.xml "https://linesmart.app/sitemap.xml?indexnow=${{ github.run_id }}"; then
+            python3 - <<'PY'
+          import pathlib, re, subprocess, sys
+          p = pathlib.Path("_indexnow/prev/sitemap.xml")
+          xml = p.read_text(encoding="utf-8", errors="replace")
+          if "<sitemapindex" not in xml:
+              print(f"IndexNow baseline: urlset, {xml.count('<loc>')} URLs")
+              sys.exit(0)
+          n = 0
+          for loc in re.findall(r"<loc>\s*(.*?)\s*</loc>", xml):
+              name = loc.split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+              if not name.endswith(".xml"):
+                  continue
+              url = loc.split("?", 1)[0]
+              subprocess.check_call(["curl", "-fsS", "--max-time", "20", "--retry", "2", "-H", "Cache-Control: no-cache", "-o", str(p.parent / name), url])
+              n += 1
+          print(f"IndexNow baseline: sitemap index with {n} child file(s)")
+          PY
           else
-            rm -f _indexnow/prev-sitemap.xml
+            rm -rf _indexnow/prev
             echo "::warning title=IndexNow::could not fetch the live sitemap; this run will not ping IndexNow"
           fi
 
@@ -153,11 +169,12 @@ jobs:
               json.load(open(f))
           PY
 
-      # Crawlable SEO pages (scripts/seo_pages.py): league hubs, game, player-props, team, UFC event and fighter pages
-      # under site/<league>/**, redirect stubs for retired URLs (incl. the old /preview/ pages), data/pages.json for the
-      # app's real-URL links, the pages block in sitemap.xml and the homepage cards in index.html. Reads site/data only
-      # (no network, no API key). Finished games are kept ~60 days (final score + closing lines) in an archive on the
-      # data-history branch (_history/pages); without the worktree it builds from site/data alone.
+      # Crawlable SEO pages (scripts/seo_pages.py): league hubs, game, player-props, team, UFC event and fighter pages,
+      # and /<lg>/results/ archives, under site/<league>/**. Redirect stubs for retired URLs (incl. the old /preview/
+      # pages), data/pages.json for the app's real-URL links, sitemap.xml (a sitemap index) and the homepage cards in
+      # index.html. Reads site/data only (no network, no API key). Finished games stay up permanently (final score +
+      # closing lines) in an archive on the data-history branch (_history/pages); without the worktree it builds from
+      # site/data alone.
       - name: Build SEO pages
         id: seo
         continue-on-error: true
@@ -172,7 +189,11 @@ jobs:
       - name: Keep deployed sitemap for IndexNow
         if: steps.seo.outcome == 'success' && steps.hist.outcome == 'success' && github.ref == 'refs/heads/main'
         continue-on-error: true
-        run: mkdir -p _indexnow && cp site/sitemap.xml _indexnow/new-sitemap.xml
+        run: |
+          mkdir -p _indexnow/new
+          cp site/sitemap.xml _indexnow/new/sitemap.xml
+          shopt -s nullglob
+          cp site/sitemap-*.xml _indexnow/new/
 
       - name: Upload IndexNow sitemaps
         if: steps.seo.outcome == 'success' && steps.hist.outcome == 'success' && github.ref == 'refs/heads/main'
@@ -279,4 +300,4 @@ jobs:
           path: _indexnow
 
       - name: Ping IndexNow
-        run: python3 scripts/indexnow_ping.py --prev _indexnow/prev-sitemap.xml --new _indexnow/new-sitemap.xml
+        run: python3 scripts/indexnow_ping.py --prev _indexnow/prev/sitemap.xml --new _indexnow/new/sitemap.xml

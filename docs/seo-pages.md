@@ -17,6 +17,8 @@ The output is **not committed** (see `.gitignore`). Each deploy rebuilds it from
 | UFC fight | `/ufc/fights/<a>-vs-<b>-<YYYY-MM-DD>/` | `/ufc/fights/aaron-pico-vs-losene-keita-2026-10-24/` (demo data) |
 | UFC fighter | `/ufc/fighters/<name>/` | `/ufc/fighters/aaron-pico/` (demo data) |
 | UFC event | `/ufc/events/<slug>-<YYYY-MM-DD>/` | `/ufc/events/ufc-333-volkanovski-vs-evloev-2026-10-24/` (demo data) |
+| Results archive | `/<lg>/results/` | `/nba/results/` |
+| Results month | `/<lg>/results/YYYY-MM/` | `/nba/results/2026-10/` |
 
 `<lg>` is one of `nfl nba mlb nhl ncaaf ncaab ufc`. Every league always has a hub, even an empty one, so footer links
 never break. The date is the game's date in ET. If two pages would get the same slug, `-2`, `-3` and so on are added.
@@ -98,9 +100,18 @@ Set `ARCHIVE_DIR` (or `--archive`) to keep finished games. In the workflow this 
 - `players-<lg>.json`: player URLs and their recent props.
 - `state.json`: a content hash and lastmod for each page, so `lastmod` only changes when the content changes.
 
-Finished games keep their page, with the final score, closing lines and how each line graded, for `KEEP_DAYS` (60)
-days. After that they are pruned from the pages, the sitemap and the archive, and the URL falls through to `404.html`,
-which says the page expired and links the league hub.
+Finished games keep their page permanently, with the final score, closing lines and how each line graded.
+Nothing is pruned from the archive. A game with no stored closing line says "Closing lines not recorded" instead of
+showing an empty table. Postponed games stay up labeled Postponed and are never treated as a final. Canceled games
+stay up labeled Canceled, with no score. Team URLs are remembered in `state.json` (`team_paths`); a rename leaves the
+old slug as a canonical + meta-refresh stub, because GitHub Pages can't send a 301.
+
+`/<lg>/results/` lists the last 14 days and links each month. `/<lg>/results/YYYY-MM/` lists that month's finals
+(UFC: events). Hubs link the archive. Team pages link the last 10 results from the archive and a "Full results" jump
+to that team's section on the archive page.
+
+The archive grows with the season (on the order of 10k games across 7 leagues). If `games-<lg>.json` or the 20-minute
+job starts to strain, shard `games-<lg>.json` by season. Don't do that until the file is actually large.
 
 If the archive can't be checked out, the step still runs without one. Finished games then only exist while they are
 still in the live data.
@@ -119,8 +130,12 @@ unknown `/preview/<lg>/...` URLs to the hub.
 
 ## Site files
 
-- `sitemap.xml`: the generated block sits between `<!-- pages:start -->` and `<!-- pages:end -->`. It has a W3C `lastmod`
-  for each page and leaves out stubs. The committed file keeps that block empty.
+- `sitemap.xml` is a sitemap index. Children, each a urlset under 50,000 URLs and with no URL repeated:
+  - `sitemap-core.xml`: home, tool pages (about, responsible gambling, privacy, terms, affiliate disclosure), hubs, teams and fighters. Tool pages sit outside the generated block.
+  - `sitemap-live.xml`: upcoming and live games, props, and games that are postponed or canceled.
+  - `sitemap-games-<lg>-YYYY-MM.xml`: finished games (and finished UFC cards) for that month. A month that would pass 50,000 URLs is split into `…-2.xml`, `…-3.xml`.
+  - `sitemap-results.xml`: `/<lg>/results/` and the month pages.
+  `lastmod` comes from a content hash that ignores the cross-link blocks. A finished game's lastmod freezes when the final is recorded and moves only if the score or the closing line changes. The committed `sitemap.xml` points at `sitemap-core.xml`; the build rewrites the index and the children.
 - `robots.txt`: points to the sitemap.
 - `index.html`: the homepage cards (top games, line moves, hot props with last-5 strips) are filled in between the
   `HOME` markers. The committed file keeps them empty.
@@ -137,8 +152,8 @@ recrawl it without waiting for the sitemap. Google doesn't use IndexNow; it keep
   (push, the 30-minute schedule and manual runs). It sends at most one request per run.
 - **What it sends:** at the start of the build job, the live `sitemap.xml` is fetched (the version from before this
   deploy). After the SEO build, the new sitemap is saved, and both are passed to the indexnow job as the short-lived
-  `indexnow` artifact. `scripts/indexnow_ping.py` compares only the generated pages block. A URL is sent if it is new, or
-  if its `lastmod` changed, which only happens when the page's content, title or description changed. Up to 10,000 URLs
+  `indexnow` artifact (`_indexnow/prev/` and `_indexnow/new/`, index plus child files). `scripts/indexnow_ping.py` reads a sitemap index and the child files next to it, and compares only the generated pages block of each urlset. A URL is sent if it is new, or
+  if its `lastmod` changed, which only happens when the page's content, title or description changed (a finished game's lastmod stays put). Up to 10,000 URLs
   go in one POST to `https://api.indexnow.org/indexnow` with `host`, `key`, `keyLocation` and `urlList`. Removed
   (expired) pages are not sent; they return the 404 page.
 - **Skips:** nothing new or changed; the live sitemap couldn't be fetched (the job never resubmits everything blind);
@@ -152,6 +167,36 @@ recrawl it without waiting for the sitemap. Google doesn't use IndexNow; it keep
 - **Dry run:** `python3 scripts/indexnow_ping.py --prev old-sitemap.xml --new site/sitemap.xml --dry-run` prints what
   would be sent, and sends nothing.
 
+## One-time backfill (games before the archive)
+
+The finished-game archive on `data-history` starts 2026-10-27 (commit `fcbc0d3`). Games before that were never captured.
+ESPN's public scoreboard (`?dates=YYYYMMDD`) still returns events back to at least the 2010 season for all 7 leagues
+(checked 2026-10-28: NFL, NBA, NCAAF, NCAAB, NHL, MLB and UFC all had real events on 2010 dates; the current season's
+calendar start is the right place to begin). Closing lines exist in git history of `history/<lg>.json` from
+2026-10-26 02:46 UTC. Earlier games are stored with `"closing": null`.
+
+Run this once, locally, after this change is on main. It never calls The Odds API, and it never commits or pushes.
+
+```sh
+# How far back ESPN goes, and where this season starts. No files written.
+env -u ODDS_API_KEY python3 scripts/backfill_results.py --probe
+
+# A few dates into a scratch directory (safe to try before the full run):
+env -u ODDS_API_KEY python3 scripts/backfill_results.py \
+  --league nba --dates 2026-10-20,2026-10-23,2026-10-26 --out /tmp/linesmart-backfill
+
+# Full backfill. --history is a checkout of data-history (the workflow uses _history/).
+# --out is the pages directory the SEO build reads (workflow: _history/pages).
+# Existing games that already have closing lines are left alone.
+env -u ODDS_API_KEY python3 scripts/backfill_results.py \
+  --out /path/to/data-history/pages \
+  --history /path/to/data-history \
+  --through 2026-10-27
+```
+
+Then review `games-*.json`, commit on `data-history`, and push that branch yourself. The next refresh builds the pages.
+Do not run this from CI.
+
 ## Running and testing locally
 
 ```sh
@@ -160,6 +205,7 @@ env -u ODDS_API_KEY python3 scripts/seo_pages_test.py     # static checks (title
 env -u ODDS_API_KEY python3 scripts/series_results_test.py # same two teams on back-to-back dates: finals never cross games
 env -u ODDS_API_KEY node scripts/seo_pages_test.mjs       # browser checks (state offers, #/ -> real URL, tiles, 404, stubs)
 env -u ODDS_API_KEY python3 scripts/indexnow_ping_test.py  # IndexNow: sitemap diff, one batched POST, skips, errors (no network)
+env -u ODDS_API_KEY python3 scripts/backfill_results_test.py  # backfill merge + closing lines from a local git fixture (no network)
 ```
 
 Both tests build into a temp copy, so `site/` is never touched. Set `DATA_DIR=/path/to/data` to test with other data.

@@ -56,7 +56,8 @@
       const h = G.helpline(code);
       if (!code || code === "FL") { if (el.innerHTML !== FL_HTML) el.innerHTML = FL_HTML; el.hidden = false; return; }
       if (!h.local) { el.hidden = true; return; }
-      el.innerHTML = `${esc(EV.stateName || code)}: call ${telA(h)} (<a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.label)}</a>).`;
+      const txt = h.sms ? ` or text <a href="sms:${esc(h.sms)}">${esc(h.smsName || h.sms)}</a>` : "";
+      el.innerHTML = `${esc(EV.stateName || code)}: call ${telA(h)}${txt} (<a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.label)}</a>).`;
       el.hidden = false;
     });
   }
@@ -72,6 +73,26 @@
       await Promise.race([p, new Promise(r => setTimeout(r, 1200))]);
     }
   })();
+
+  // ---------- visits-by-state count (privacy.html#state-counts). Cloudflare Web Analytics reports country only, so on the
+  // live site (analytics.hosts) each browser sends just its two-letter state code once a day (ET) to state_visit_bump()
+  // (supabase/migrations/20261028_state_visits.sql), which adds 1 to (day, state). No IP, ID or cookie is stored;
+  // localStorage ls-sv keeps only the date last counted. Unknown or non-US visitors aren't counted.
+  const AN = CFG.analytics || {}, SVC = AN.stateCounts || {}, K_SV = "ls-sv";
+  const etDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  function countState() {
+    if (!SVC.rpc || !SVC.key || !(AN.hosts || []).includes(location.hostname)) return;
+    if (!EV || EV.status === "nonus" || !/^[A-Z]{2}$/.test(EV.state || "")) return;
+    const day = etDay();
+    if (ls.get(K_SV) === day) return;
+    ls.set(K_SV, day);
+    try {
+      fetch(SVC.rpc, { method: "POST", headers: { apikey: SVC.key, "Content-Type": "application/json" }, body: JSON.stringify({ p_state: EV.state }),
+        credentials: "omit", cache: "no-store", keepalive: true, referrerPolicy: "no-referrer" }).catch(() => {});
+    } catch (e) {}
+  }
+  ready.then(countState);
+  window.addEventListener("ls-state-change", countState);
 
   function setState(code) {   // "FL" | GeoCore.OUTSIDE | null (automatic)
     ls.set(K_STATE, code || null);
@@ -116,7 +137,7 @@
   const current = () => EV || G.evaluate(DOC, OC, null);
   const naLabel = key => G.naLabel(current(), key);
   const naTag = key => { const t = naLabel(key); return t ? ` <span class="na-st">${esc(t)}</span>` : ""; };
-  const providerKey = name => (/draftkings/i.test(name || "") ? "draftkings" : /fanduel/i.test(name || "") ? "fanduel" : /hard ?rock/i.test(name || "") ? "hardrockbet" : /betmgm/i.test(name || "") ? "betmgm" : null);
+  const providerKey = name => (/draft ?kings/i.test(name || "") ? "draftkings" : /fan ?duel/i.test(name || "") ? "fanduel" : /hard ?rock/i.test(name || "") ? "hardrockbet" : /betmgm/i.test(name || "") ? "betmgm" : null);
   // 21+ and helpline line under offers: the visitor's state helpline first (e.g. Florida -> 1-833-PLAYWISE), then 1-800-GAMBLER
   const RG = (st, code) => {
     const h = G.helpline(code), gam = G.helpline(null);
@@ -135,6 +156,8 @@
   window.addEventListener("ls-state-change", updateRGCalls);
   // short affiliate disclosure, always shown with sportsbook offers (the full "Ad" line replaces it once affiliate links are on)
   const DISC = `<p class="of-disc" role="note">LineSmart may earn a commission from sportsbook links. It never changes the odds we show. Offers are state-specific. <a href="affiliate-disclosure.html">Affiliate disclosure</a></p>`;
+  // compact ad label on every outbound sportsbook link (odds cells never link out, so they don't carry it)
+  const AD = `<span class="of-ad" data-ad-label>Ad · We may earn a commission · 21+</span>`;
   function offersHTML(ctx) {
     const ev = current();
     const change = `<button type="button" class="lnk of-change" data-state-pick>${ev.state ? `Your state: <b>${esc(ev.state)}</b> · Change` : "Pick your state"}</button>`;
@@ -143,7 +166,7 @@
       return `<section class="card offers" data-offers="${esc(ctx)}" aria-label="Sportsbooks in ${esc(ev.stateName)}">
         <div class="of-head"><h3>Sportsbooks in ${esc(ev.stateName)}</h3>${change}</div>
         <div class="of-list">${ev.offers.map(o => `<a class="of-book of-${esc(o.key)}" data-book="${esc(o.key)}" href="${esc(o.url)}" target="_blank" rel="${o.affiliate ? "sponsored nofollow noopener" : "nofollow noopener"}">
-          <span class="of-txt"><span class="of-nm">Bet on ${esc(o.name)}</span><span class="of-sub">${o.affiliate ? "Partner link" : "Official site"} · legal online in ${esc(ev.state)}</span></span><span class="of-go" aria-hidden="true">↗</span></a>`).join("")}</div>
+          <span class="of-txt"><span class="of-nm">Bet on ${esc(o.name)}</span><span class="of-sub">${o.affiliate ? "Partner link" : "Official site"} · legal online in ${esc(ev.state)}</span>${AD}</span><span class="of-go" aria-hidden="true">↗</span></a>`).join("")}</div>
         ${RG(ev.stateName, ev.state)}${aff || DISC}</section>`;
     }
     const msg = ev.status === "notlegal" ? `Online sports betting isn't legal in ${esc(ev.stateName)}, so we don't show sportsbook offers there. Odds and stats are for reference only.`

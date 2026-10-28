@@ -673,7 +673,7 @@
     const pk = GEO() ? GEO().providerKey(o.provider) : null, pNa = pk && !bookAvail(pk);
     return `<div class="card${pNa ? " na-st-card" : ""}"><h3>Current line · ${esc(o.provider || "provider n/a")}${pk ? naTag(pk) : ""}</h3>
       <table class="books"><thead><tr><th>Market</th><th>${esc(g.away.abbr)}</th><th>${esc(g.home.abbr)}</th></tr></thead><tbody>${body}</tbody></table>
-      <div class="note">Source: ${esc(g.oddsSource || "ESPN")} — as reported by ${esc(o.provider || "the listed book")}. "open" = opening line (line movement).</div></div>`;
+      <div class="note">Source: ${esc(g.oddsSource || "ESPN")} — as reported by ${esc(o.provider || "the listed book")}. "open" = opening line (line movement).${pNa ? ` ${esc(BOOKNAME(pk))} isn't available in ${esc((GEO().current() || {}).stateName || "your state")}; shown for price comparison only.` : ""}</div></div>`;
   }
 
   function booksCard(g, kind, lg) {
@@ -720,7 +720,7 @@
     };
     const head = books.map(bk => `<th${bookAvail(bk.key) ? "" : ' class="na-col"'}>${esc(bk.name)}${naTag(bk.key)}<span class="src">${sub(bk)}</span></th>`).join("");
     const ev = GEO() ? GEO().current() : null, out = ev && ev.state ? books.map(b => b.key).filter(k => !bookAvail(k)) : [];   // only books with a column here (BetMGM has no odds data)
-    const outNote = out.length ? ` ${out.map(k => BOOKNAME(k)).join(" and ")} ${out.length > 1 ? "don't" : "doesn't"} run a legal online sportsbook in ${esc(ev.stateName)}; ${out.length > 1 ? "their" : "its"} lines are shown for reference only.` : "";
+    const outNote = out.length ? ` ${out.map(k => BOOKNAME(k)).join(" and ")} ${out.length > 1 ? "aren't" : "isn't"} available in ${esc(ev.stateName)}; ${out.length > 1 ? "their" : "its"} odds are shown for price comparison only.` : "";
     const nHave = books.filter(bk => B[bk.key]).length;
     const OA = META.oddsApi || {}, every = OA.gameInterval || (OA.cadence || {}).games || 30;
     const pace = OA.level === "stop" ? " Odds API pulls are paused for the rest of the billing month (credit budget reached); showing the last pull."

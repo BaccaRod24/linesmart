@@ -26,7 +26,7 @@
     if (note) {
       const names = out.map(k => (document.querySelector(`table.pv-books th[data-book="${k}"]`)?.firstChild?.textContent || k).trim());
       note.hidden = !out.length;
-      note.textContent = out.length ? `${names.join(" and ")} ${out.length > 1 ? "don't" : "doesn't"} run a legal online sportsbook in ${ev.stateName}; ${out.length > 1 ? "their" : "its"} lines are shown for reference only.` : "";
+      note.textContent = out.length ? `${names.join(" and ")} ${out.length > 1 ? "aren't" : "isn't"} available in ${ev.stateName}; ${out.length > 1 ? "their" : "its"} odds are shown for price comparison only.` : "";
     }
     const slot = document.getElementById("pvOffers"); if (slot) slot.innerHTML = geo.offersHTML("preview");
   }

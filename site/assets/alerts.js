@@ -15,6 +15,8 @@
   // ---------- bell markup (called by app.js and props.js)
   const tileBell = (lg, g) => (g && g.state === "pre" && g.books ? `<button type="button" class="al-bell al-tile" data-al="${esc(lg)}/${esc(g.id)}" aria-label="${esc(`Line alert: ${g.away.name} at ${g.home.name}`)}" title="Line alert"><span aria-hidden="true">🔔</span></button>` : "");
   const pageBell = (lg, g) => (g && g.state === "pre" ? `<button type="button" class="al-bell al-txt" data-al="${esc(lg)}/${esc(g.id)}"><span aria-hidden="true">🔔</span> Alert</button>` : "");
+  // compact "Get a line alert" entry under the odds table (game view; static pages get the same markup from scripts/seo_pages.py)
+  const pageCta = (lg, g) => (g && g.state === "pre" ? `<div class="al-cta"><button type="button" class="al-cta-btn" data-al="${esc(lg)}/${esc(g.id)}"><span aria-hidden="true">🔔</span> Get a line alert</button><span class="al-cta-note">Get an email when this line moves or hits your number. Free account, up to 5 alerts a day.</span></div>` : "");
   const propBell = (lg, gid, pid, mk, name, label) => `<button type="button" class="al-bell pp-al" data-al-prop="${esc([lg, gid, pid, mk].join("|"))}" data-name="${esc(name)}" data-label="${esc(label)}" aria-label="${esc(`Line alert: ${name} ${label}`)}"><span aria-hidden="true">🔔</span> Alert</button>`;
 
   // ---------- sheet
@@ -173,5 +175,5 @@
   }
   const reset = () => { LIST = null; LERR = ""; };
 
-  window.LSAlerts = { tileBell, pageBell, propBell, open, accountHtml, bindAccount, reset };
+  window.LSAlerts = { tileBell, pageBell, pageCta, propBell, open, accountHtml, bindAccount, reset };
 })();

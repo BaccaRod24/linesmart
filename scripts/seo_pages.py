@@ -899,6 +899,63 @@ def related_games(L: League, g, limit=10):
     return [x[1] for x in same_team[:limit]], [x[1] for x in same_day[:limit]]
 
 
+def next_games(L: League, g):
+    """Each side's next scheduled game after this one that has a page: [(side, gid, game)] (away first).
+    Only games already in the generated data (L.games / L.paths), never a made-up URL."""
+    gid, dt = str(g["id"]), parse_dt(g["date"])
+    out = []
+    for t in (g["away"], g["home"]):
+        tid = str((t or {}).get("id") or "")
+        best = None
+        for oid, o in L.games.items():
+            if oid == gid or oid not in L.paths or L.is_final(o) or tid not in {str(o["home"].get("id")), str(o["away"].get("id"))}:
+                continue
+            od = parse_dt(o["date"])
+            if od and dt and od > dt and (best is None or (od, oid) < best[0]):
+                best = ((od, oid), oid, o)
+        if tid and best:
+            out.append((t, best[1], best[2]))
+    return out
+
+
+def next_label(L: League, t, o):
+    """'Next for the Ravens: at Bills, Sun 11/1' (pro), college / UFC use the full name."""
+    tid = str(t.get("id"))
+    home = str(o["home"].get("id")) == tid
+    opp = o["away"] if home else o["home"]
+    if L.lg == "ufc":
+        vs, on = "vs.", tname(opp)
+    else:
+        vs, on = ("vs" if home or o.get("neutral") else "at"), (pv.side_name(opp) if L.lg not in ("ncaaf", "ncaab") else tname(opp))
+    return f"Next for {pv.ref_name(L.lg, t)}: {vs} {on}, {et(parse_dt(o['date'])).strftime('%a %-m/%-d')}"
+
+
+def next_links(L: League, g):
+    """<ul> of each side's next matchup (empty string when neither side has a later game in the data)."""
+    return link_list([(L.paths[oid], next_label(L, t, o), "") for t, oid, o in next_games(L, g)], "pv-list sx-next")
+
+
+AL_NOTE = "Get an email when this line moves or hits your number. Free account, up to 5 alerts a day."
+
+
+def alert_cta(L: League, g, gid):
+    """'Get a line alert' entry under the odds table: opens the line alert sheet (assets/alerts.js, [data-al]) for this game.
+    Upcoming games in the data window only (alerts end when the game starts; the sheet reads data/<lg>/index.json)."""
+    if g.get("state") != "pre" or gid not in L.current or L.is_final(g) or not pv.has_line(g):
+        return ""
+    return (f'<div class="al-cta"><a class="al-cta-btn" href="#/g/{esc(L.lg)}/{esc(gid)}" data-al="{esc(L.lg)}/{esc(gid)}" rel="nofollow">'
+            f'<span aria-hidden="true">🔔</span> Get a line alert</a><span class="al-cta-note">{esc(AL_NOTE)}</span></div>')
+
+
+def prop_alert_cta(L: League, g, gid, pid, mk, name, label):
+    """Same entry on a prop card: opens the sheet pre-filled for this player + market ([data-al-prop])."""
+    if not g or g.get("state") != "pre" or gid not in L.current or L.is_final(g):
+        return ""
+    return (f'<div class="al-cta al-cta-prop"><a class="al-cta-btn" href="#/p/{esc(L.lg)}/{esc(pid)}/log" rel="nofollow" data-al-prop="{esc("|".join([L.lg, str(gid), str(pid), str(mk)]))}" '
+            f'data-name="{esc(name)}" data-label="{esc(label)}" aria-label="{esc(f"Get a line alert: {name} {label}")}"><span aria-hidden="true">🔔</span> Get a line alert</a>'
+            f'<span class="al-cta-note">Email when this line moves. Free account, up to 5 alerts a day.</span></div>')
+
+
 def game_meta(L: League, g, gid):
     """Search-style <title> and meta description for a game / fight page.
     Upcoming / live: "Cardinals vs Cowboys Odds: Hard Rock, DraftKings, FanDuel | LineSmart" (away first; only books shown
@@ -974,6 +1031,8 @@ def game_page(L: League, sh: Shell, gid):
             ot = '<div class="noline">No lines were recorded for this game before it started.</div>'
     head = (f"{esc(mtch)}: final score &amp; closing odds" if final else f"{esc(mtch)}: live odds" if live else f"{esc(mtch)} odds &amp; preview")
     hub_label = NAMES[L.lg]
+    hydrates = cur and not final        # same rule as `route` below: the app view replaces #app
+    nxt_html = next_links(L, g)         # each side's next matchup (static pages: under the odds; hydrated: first under "More")
     # keep-last-good fallback (scripts/lastgood.py): ESPN didn't load on the latest refresh, this game is the last good copy
     st_t = parse_dt((g.get("stale") or {}).get("asOf")) if not final else None
     stale_html = (f'<div class="stale-note" role="status"><b>Delayed data.</b> The ESPN feed didn\'t load on the latest refresh, so this '
@@ -983,7 +1042,8 @@ def game_page(L: League, sh: Shell, gid):
 <h1 class="pv-h1">{head}</h1>
 {stale_html}{hero(L, g)}
 {result_card(L, g) if final else ''}
-{section("odds", odds_title, ot + ('' if final else '<div id="pvOffers" data-offers-slot="preview"></div>'))}
+{section("odds", odds_title, ot + alert_cta(L, g, gid) + ('' if final else '<div id="pvOffers" data-offers-slot="preview"></div>'))}
+{section("next", "Next games", nxt_html) if nxt_html and not hydrates else ''}
 {section("line-movement", "Line movement", mv_html)}
 {section("weather", "Game-day weather", weather_card(g)) if not final else ''}
 {section("props", "Player props", props_html)}
@@ -1001,6 +1061,7 @@ def game_page(L: League, sh: Shell, gid):
     # hydrated pages (current games) swap #app for the live app view, so in-page jumps would point at nothing
     jumps = [] if (cur and not final) else [(f"{path}#{x}-s", lab, "") for x, lab, ok in (("odds", odds_title, True), ("line-movement", "Line movement", bool(mv_html)), ("weather", "Weather", bool((g.get("weather") or {}).get("label")) and not final), ("props", "Player props", bool(props_html))) if ok]
     more = "\n".join(x for x in [
+        section("next", "Next games", nxt_html) if nxt_html and hydrates else "",
         section("preview", "Game preview", f'<div class="card pv-summary"><p>{esc(summ)}</p><p class="note">Written automatically from the numbers on this page: a description of the market, not a prediction or betting advice.</p></div>') if summ else "",
         section("onpage", "On this page", link_list(jumps, "sx-chips")) if jumps else "",
         section("players", "Player prop pages", link_list(props_links)),
@@ -1056,6 +1117,7 @@ def player_page(L: League, sh: Shell, pid):
   {strip_html(pl.get("log"), mk, ln)}
   <div class="pp-sum na">Last 5: {rt["o"]}/{rt["n"]} over{NB}· last 10: {r10["o"]}/{r10["n"]}{(f'{NB}· this season: {tally[0]}/{tally[3]}') if tally and tally[3] else ''}</div>
   {px}
+  {prop_alert_cta(L, g, gid, pid, mk, name, (L.markets.get(mk) or [mk])[0]) if not e.get("archived") and (priced or isnum(ln) or mk == "anytime_td") else ""}
 </div>""")
     mks = []
     for _, r in rows:
@@ -1308,12 +1370,30 @@ def hub_page(L: League, sh: Shell, Ls):
     }.get(L.lg, f"Compare spreads, totals and moneylines for {plural(n_up, 'upcoming ' + NAMES[L.lg] + ' game')} across DraftKings, Hard Rock Bet and FanDuel, with line movement"
                 + (", player props with last-5 hit rates" if L.players else "") + ", weather, injuries and final scores with closing lines.")
     evs = ""
+    # today's slate (or the next one) near the top, every game a real link to its page
+    words = "bouts" if L.lg == "ufc" else "games"
+    today = day_et(L.now)
+    on_day = lambda d: sorted([(gid, g) for gid, g in L.games.items() if day_et(parse_dt(g["date"])) == d], key=lambda kv: (kv[1]["date"], kv[0]))
+    t_games = on_day(today)
+    later = sorted({day_et(parse_dt(g["date"])) for _, g in up if day_et(parse_dt(g["date"])) > today})
+    if any(not L.is_final(g) for _, g in t_games) or (t_games and not later):
+        slate, slate_t = t_games, f"Today's {NAMES[L.lg]} {words}"
+    elif later:
+        slate = on_day(later[0])
+        d0 = et(parse_dt(slate[0][1]["date"]))
+        slate_t = f"Next {NAMES[L.lg]} {words}: " + ("tomorrow, " if later[0] == (et(L.now) + timedelta(days=1)).strftime("%Y-%m-%d") else "") + d0.strftime("%A, %B ") + str(d0.day)
+    else:
+        slate, slate_t = [], f"Today's {NAMES[L.lg]} {words}"
+    s_items = [(L.paths[gid], L.matchup(g), " · ".join(x for x in [(L.score_line(g) if L.is_final(g) else "LIVE" if g.get("state") == "in" else et(parse_dt(g["date"])).strftime("%-I:%M %p ET")),
+                                                                 "" if L.is_final(g) else L.lines_brief(g)] if x)) for gid, g in slate if gid in L.paths]
+    today_html = section("today", esc(slate_t), link_list(s_items, "pv-list sx-today") if s_items else f'<p class="na sx-none">No {words} today.</p>')
     if L.lg == "ufc":
         evs = section("events", "Fight cards", link_list(sorted([(e["path"], e["name"], short_day(parse_dt(e["date"]), False)) for e in L.ev.values()], key=lambda x: x[0])))
     main = f"""<article class="pv sx-hub">
 {crumbs((None, NAMES[L.lg]))}
 <h1 class="pv-h1">{esc(NAMES[L.lg])} odds today: {'fights, moneylines &amp; results' if L.lg == 'ufc' else 'spreads, totals &amp; player props' if L.players else 'spreads, totals &amp; moneylines'}</h1>
 <p class="pv-lead">{esc(lead)}</p>
+{today_html}
 {evs}
 {section("schedule", "Upcoming " + ("bouts" if L.lg == "ufc" else "games"), "".join(days) or '<div class="empty">No games in the next few days. Check back after the next data refresh.</div>')}
 <p class="note pv-upd">{stamp("Updated " + esc(fmt_et(L.generated)))}. For adults 21+; odds are for reference only.</p>

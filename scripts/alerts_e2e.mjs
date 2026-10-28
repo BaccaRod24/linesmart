@@ -106,6 +106,22 @@ const BANNED = /\block\b|guarantee|can't lose|can.t lose|free money|promo code/i
   await p.context().close();
 }
 
+// ---------- 1b. signed out, phone: "Get a line alert" under the game page odds opens the same sheet
+{
+  seed();
+  const p = await page({ signedIn: false });
+  await p.setViewportSize({ width: 390, height: 844 });
+  await p.goto(BASE + `#/g/nfl/${GID}`, { waitUntil: "networkidle" }); await p.waitForSelector(`#app .al-cta button[data-al="nfl/${GID}"]`);
+  const t = await text(p, "#app .al-cta");
+  check(/Get a line alert/.test(t) && /up to 5 alerts a day/.test(t) && !BANNED.test(t), `game page: alert entry under the odds (${t.replace(/\s+/g, " ")})`, "cta");
+  const w = await p.$eval("#app .al-cta-btn", e => e.getBoundingClientRect().right <= window.innerWidth);
+  check(w, "game page: alert entry fits a 390px screen", "cta");
+  await p.click(`#app .al-cta button[data-al="nfl/${GID}"]`);
+  await p.waitForSelector("#alDlg[open]");
+  check(/Sign in to get an email/.test(await text(p, "#alDlg")) && !calls.some(c => c.path.startsWith("/rest/")), "game page entry: signed out -> sign-in prompt, no database requests", "cta");
+  await p.context().close();
+}
+
 // ---------- 2. Florida, desktop: game page bell -> Hard Rock Bet only; target alert; insert body is clean
 {
   seed();

@@ -8,6 +8,7 @@ finished-games archive: closing lines captured before the start, the final fille
 the past-game page, and pruning after KEEP_DAYS.
 Usage: python3 scripts/seo_pages_test.py        (DATA_DIR=/path/to/data to test with fresher data)
 """
+import html
 import json
 import os
 import re
@@ -160,7 +161,8 @@ def main():
             check(d.links.get("canonical") == SP.BASE_URL + rel, f"{rel}: canonical is its own URL ({d.links.get('canonical')})")
             check(d.meta.get("og:url") == SP.BASE_URL + rel and d.meta.get("og:title") and d.meta.get("og:description"), f"{rel}: og tags")
             check(40 <= len(d.meta.get("description") or "") <= 170, f"{rel}: description length {len(d.meta.get('description') or '')}")
-            check(d.title and d.title.endswith("· LineSmart") and len(d.title) <= 90, f"{rel}: title ({d.title})")
+            check(d.title and d.title.endswith(SP.SUFFIX) and len(d.title) - len(SP.SUFFIX) <= SP.TITLE_MAX, f"{rel}: title <= {SP.TITLE_MAX} chars + brand ({d.title})")
+            check(d.meta.get("og:title") == d.title == d.meta.get("twitter:title"), f"{rel}: og:title / twitter:title match <title>")
             check("noindex" not in (d.meta.get("robots") or ""), f"{rel}: indexable")
             check(any(s.endswith("assets/app.js") for s in d.scripts), f"{rel}: loads the app JS")
             check(d.meta.get("_base") == "../" * rel.count("/"), f"{rel}: <base> points at the site root")
@@ -277,6 +279,39 @@ def main():
         check(sm2.count(SP.MAP_START) == 1 and same >= 0.9 * (len(lm2) - 1), f"rebuild keeps lastmod for unchanged pages ({same}/{len(lm2) - 1})")
         check(st_b["pages"] == st["pages"], "rebuild: same page count")
 
+        # ---- game / fight titles: "Away vs Home Odds: <books>", books named only if their column is on the page
+        for lg, gmap in man["g"].items():
+            ixg = {str(x["id"]): x for x in (json.loads((data / lg / "index.json").read_text()).get("games") or [])} if (data / lg / "index.json").exists() else {}
+            for gid, rel in gmap.items():
+                h = (site / rel / "index.html").read_text()
+                d = parse(h)
+                t, desc = d.title, d.meta.get("description") or ""
+                head = re.search(r'<table class="books pv-books"><thead><tr><th>Market</th>(.*?)</tr></thead>', h)
+                cols = set(html.unescape(x) for x in re.findall(r'<th data-book="[^"]*">([^<]*)<', head.group(1))) if head else set()
+                named = {full for short, full in (("Hard Rock", "Hard Rock Bet"), ("DraftKings", "DraftKings"), ("FanDuel", "FanDuel")) if short in t or short in desc}
+                check(named <= cols, f"{rel}: title/description name only books shown on the page ({sorted(named)} vs {sorted(cols)})")
+                check(" vs " in t and " at " not in t.split(" vs ")[0], f"{rel}: '<away> vs <home>' title ({t})")
+                if lg == "ufc":
+                    check(named <= {"DraftKings"}, f"{rel}: UFC names DraftKings only ({t})")
+                g = ixg.get(str(gid))
+                if g and lg != "ufc":
+                    a_, h_ = pv.side_name(g["away"]), pv.side_name(g["home"])
+                    check(t.startswith(f"{a_} vs {h_} ") or t.startswith(f"{g['away'].get('abbr')} vs {g['home'].get('abbr')} "), f"{rel}: away team first ({t})")
+                if g and g.get("state") == "pre":
+                    check(" Odds" in t, f"{rel}: upcoming title says Odds ({t})")
+                    bk = [SP.TITLE_BOOK[k] for k in SP.page_books(g, lg)]
+                    if bk and len(f"{a_ if lg != 'ufc' else g['away'].get('name')} vs ") + len(", ".join(bk)) < 30:
+                        check(t.split(" Odds", 1)[-1].startswith(": "), f"{rel}: books in the title when they fit ({t})")
+                if "/games/" in rel and 'class="card sx-result"' in h or (g and g.get("state") == "post"):
+                    check("Result" in t or "Final Score" in t, f"{rel}: finished game says Result ({t})")
+        nfl_t = [parse((site / r / "index.html").read_text()).title for r in man["g"].get("nfl", {}).values()]
+        check(any(re.search(r" vs .+ Odds: (Hard Rock, )?DraftKings(, FanDuel)? \| LineSmart$", x) for x in nfl_t), f"NFL titles carry the books ({nfl_t[:2]})")
+        check(SP.fit("x" * 70, "Short") == "Short" + SP.SUFFIX and SP.fit("x" * 70) == "x" * 70 + SP.SUFFIX, "fit(): first candidate that fits, else shortest")
+        check(SP.and_list(["Hard Rock", "DraftKings", "FanDuel"]) == "Hard Rock, DraftKings and FanDuel" and SP.and_list(["FanDuel"]) == "FanDuel", "and_list()")
+        g0 = {"odds": {"provider": "DraftKings", "homeML": -150, "awayML": 130}, "books": {}}
+        check(SP.page_books({"odds": {"provider": "ESPN BET", "homeML": -150, "awayML": 130}}, "nba") == [] and
+              SP.page_books(g0, "nba") in (["draftkings"], []), "page_books(): ESPN column counts only when it is one of our books")
+
         # ---- homepage cards
         ih = (site / "index.html").read_text()
         block = ih.split(SP.HOME_START, 1)[1].split(SP.HOME_END, 1)[0]
@@ -313,7 +348,8 @@ def main():
             check(man2["g"]["nfl"].get(g["id"]) == path, f"finished game keeps its URL ({man2['g']['nfl'].get(g['id'])})")
             ph = (site2 / path / "index.html").read_text()
             pd = parse(ph)
-            check("Final Score &amp; Closing Odds" in ph and "31" in pd.title and "17" in pd.title, f"past-game title has the final score ({pd.title})")
+            check("Result" in pd.title and " vs " in pd.title and "17-31" in pd.title and pd.title.startswith(pv.side_name(g["away"]) + " vs "), f"past-game title: away vs home, Result, final score ({pd.title})")
+            check(pd.meta.get("og:title") == pd.title == pd.meta.get("twitter:title") and "result" in (pd.meta.get("description") or ""), "past-game og/twitter titles + description follow")
             check("Closing lines" in ph and 'class="card sx-result"' in ph, "past-game page: result card + closing lines")
             check(re.search(r"covered the closing spread|closing spread was a push|No spread", ph) or "closing total" in ph, "past-game page grades the closing line")
             check(not pd.body.get("data-route"), "past-game page stays static (not hydrated)")

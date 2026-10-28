@@ -42,7 +42,7 @@ const man = JSON.parse(fs.readFileSync(path.join(site, "data/pages.json")));
 const lg = Object.keys(picked).find(k => man.g[k] && man.g[k][picked[k]]);
 const gid = lg && picked[lg], gpath = lg && man.g[lg][gid];
 const read = p => fs.readFileSync(path.join(site, p, "index.html"), "utf8");
-const past = (() => { for (const [l, gs] of Object.entries(man.g)) for (const [id, p] of Object.entries(gs)) { const h = read(p); if (/Final Score/.test(h) && /th data-book="draftkings"/.test(h)) return { lg: l, id, p }; } return null; })();
+const past = (() => { for (const [l, gs] of Object.entries(man.g)) for (const [id, p] of Object.entries(gs)) { const h = read(p); if (/<title>[^<]* (Result &amp; (Closing )?Odds|Final Score)/.test(h) && /th data-book="draftkings"/.test(h)) return { lg: l, id, p }; } return null; })();
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".xml": "application/xml", ".svg": "image/svg+xml", ".png": "image/png", ".webmanifest": "application/manifest+json" };
 const srv = http.createServer((req, res) => {
   let f = path.join(site, decodeURIComponent(new URL(req.url, "http://x").pathname));

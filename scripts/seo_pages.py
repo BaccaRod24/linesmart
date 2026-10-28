@@ -427,9 +427,12 @@ def stamp(s):
 
 
 def content_hash(html):
+    """Page content (main#app onward, minus build stamps) plus the <title> and meta description, so a new search
+    title / snippet also moves lastmod (and is sent to IndexNow)."""
     core = re.sub(r"<!--v-->.*?<!--/v-->", "", html, flags=re.S)
     m = re.search(r'<main class="wrap" id="app">.*', core, flags=re.S)
-    return hashlib.sha1((m.group(0) if m else core).encode()).hexdigest()[:16]
+    head = "".join(re.findall(r"<title>.*?</title>|<meta name=\"description\" content=\"[^\"]*\">", core[:m.start()] if m else "", flags=re.S))
+    return hashlib.sha1((head + (m.group(0) if m else core)).encode()).hexdigest()[:16]
 
 
 def section(sid, title, inner):

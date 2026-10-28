@@ -43,6 +43,28 @@ App-only sub-routes such as `#/l/nfl/all` stay hash routes.
   (`LSGeo`), exactly as before. The 21+ notice, 1-800-GAMBLER, the affiliate disclosure and the privacy footer are part
   of every page.
 
+## Titles and descriptions
+
+Titles use the phrases people search for and end in ` | LineSmart`. The part before the suffix is kept to 60 characters
+or less (`TITLE_MAX`): `fit()` takes the first candidate that fits, so long names fall back to shorter forms.
+
+- Upcoming game, away team first: `Cardinals vs Cowboys Odds: Hard Rock, DraftKings, FanDuel`, then
+  `X vs Y Odds & Props` (`Odds & Lines` without props, `Odds & Preview` before books post lines), then `X vs Y Odds`,
+  then abbreviations. Only books that have a column in the page's odds table are named (`page_books()`): Hard Rock,
+  DraftKings, FanDuel in that order, or the ESPN line's provider when it is one of them.
+- UFC fight: `Fighter vs Fighter Odds` (last names if the full names don't fit). DraftKings is the only book named.
+- Finished game: `X vs Y Result & Closing Odds (97-111)`, then `Result & Odds`. With no closing lines: `X vs Y Final Score: 97-111`.
+- Description: `Compare X vs Y odds for Sun, Nov 1 at Hard Rock, DraftKings and FanDuel: spread, moneyline, total and
+  player props.` Finished games: `X vs Y result, Tue, Oct 27: DET 97, NY 111. Closing odds from ..., line movement and
+  how the spread and total graded.` At most 160 characters.
+- Team, player, fighter and event pages: `<Team> Odds & Schedule (NFL)`, `<Player> Props & Last-5 Results (TEAM)`,
+  `<Fighter> UFC Odds, Record & Fight Results`.
+- `og:title` and `twitter:title` always equal `<title>`. If two game pages would share a title (a series), the date is
+  added: `Yankees vs Red Sox Odds & Lines, Oct 27`. The H1 and the visible content don't change with the title.
+
+`content_hash()` covers the title and meta description as well as `main#app`, so a new title or snippet moves the page's
+`lastmod` (and gets sent to IndexNow).
+
 ## Finished games (archive)
 
 Set `ARCHIVE_DIR` (or `--archive`) to keep finished games. In the workflow this is `_history/pages` on the
@@ -80,6 +102,33 @@ unknown `/preview/<lg>/...` URLs to the hub.
 - `index.html`: the homepage cards (top games, line moves, hot props with last-5 strips) are filled in between the
   `HOME` markers. The committed file keeps them empty.
 
+## IndexNow
+
+[IndexNow](https://www.indexnow.org/) tells Bing, Yandex, Seznam, Naver and others that a URL is new or changed, so they
+recrawl it without waiting for the sitemap. Google doesn't use IndexNow; it keeps using the sitemap.
+
+- **Key file:** `site/3ae969c61e5480137cf96b41a75edbfc.txt`, served at
+  `https://linesmart.app/3ae969c61e5480137cf96b41a75edbfc.txt`. It contains only the key. The key is public by design: it
+  only proves we control the host.
+- **When it runs:** the `indexnow` job in `refresh-and-deploy.yml`, after the `deploy` job succeeds, on `main` only
+  (push, the 30-minute schedule and manual runs). It sends at most one request per run.
+- **What it sends:** at the start of the build job, the live `sitemap.xml` is fetched (the version from before this
+  deploy). After the SEO build, the new sitemap is saved, and both are passed to the indexnow job as the short-lived
+  `indexnow` artifact. `scripts/indexnow_ping.py` compares only the generated pages block. A URL is sent if it is new, or
+  if its `lastmod` changed, which only happens when the page's content, title or description changed. Up to 10,000 URLs
+  go in one POST to `https://api.indexnow.org/indexnow` with `host`, `key`, `keyLocation` and `urlList`. Removed
+  (expired) pages are not sent; they return the 404 page.
+- **Skips:** nothing new or changed; the live sitemap couldn't be fetched (the job never resubmits everything blind);
+  the SEO build or the archive checkout failed (lastmods would not be stable); no key file.
+- **Failures never fail the deploy.** The deploy has already finished when the job starts. The script logs the
+  HTTP status (200 OK, 202 key pending, 400/403/422/429 errors) with a warning annotation, and always exits 0. The job
+  is `continue-on-error`. There is no retry: pages changed later are picked up by the next diff, and the sitemap still covers the rest.
+- **Rotate the key:** run `python3 -c "import secrets; print(secrets.token_hex(16))"`, save the output (with no other
+  text) as `site/<key>.txt`, and delete the old file in the same commit. The script picks up whichever single
+  `<32 hex>.txt` file is in `site/`.
+- **Dry run:** `python3 scripts/indexnow_ping.py --prev old-sitemap.xml --new site/sitemap.xml --dry-run` prints what
+  would be sent, and sends nothing.
+
 ## Running and testing locally
 
 ```sh
@@ -87,6 +136,7 @@ env -u ODDS_API_KEY python3 scripts/seo_pages.py --site /tmp/site-copy --now 202
 env -u ODDS_API_KEY python3 scripts/seo_pages_test.py     # static checks (titles, canonicals, links, sitemap, archive, redirects)
 env -u ODDS_API_KEY python3 scripts/series_results_test.py # same two teams on back-to-back dates: finals never cross games
 env -u ODDS_API_KEY node scripts/seo_pages_test.mjs       # browser checks (state offers, #/ -> real URL, tiles, 404, stubs)
+env -u ODDS_API_KEY python3 scripts/indexnow_ping_test.py  # IndexNow: sitemap diff, one batched POST, skips, errors (no network)
 ```
 
 Both tests build into a temp copy, so `site/` is never touched. Set `DATA_DIR=/path/to/data` to test with other data.

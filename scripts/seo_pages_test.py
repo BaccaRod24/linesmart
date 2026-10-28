@@ -138,6 +138,8 @@ def main():
         meta2 = json.loads((data / "meta.json").read_text())
         check(meta2.get("pages", {}).get("count") == st["pages"] and "previews" not in meta2, "meta.json: pages count, no previews block")
         check(not (site / ".seo.tmp").exists() and not list(site.glob(".*.old")), "temp dirs cleaned up")
+        keys = [f.name for f in (ROOT / "site").glob("*.txt") if re.fullmatch(r"[0-9a-f]{32}", f.stem)]
+        check(keys and all((site / k).exists() for k in keys), f"IndexNow key file survives the build ({keys})")
         for lg in SP.ORDER:
             if (data / lg / "index.json").exists():
                 check(man["l"].get(lg) == f"{lg}/" and (site / lg / "index.html").exists(), f"{lg}: hub page")

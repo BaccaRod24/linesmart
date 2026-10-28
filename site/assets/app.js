@@ -1277,6 +1277,7 @@
     if (h[0] === "account") return window.LSAccount ? window.LSAccount.view() : (app.innerHTML = `<div class="empty"><h3>Account didn't load</h3>Reload the page to try again.</div>`);
     if (isValue) return window.LSValue ? window.LSValue.view() : (app.innerHTML = `<div class="empty"><h3>Value finder didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "live") return viewLive();
+    if (h[0].split("?")[0] === "pro-preview") return window.LSProPreview ? window.LSProPreview.view() : (app.innerHTML = `<div class="empty"><h3>Pro preview didn't load</h3>Reload the page to try again.</div>`);
     if (h[0].split("?")[0] === "pro") return window.LSPro ? window.LSPro.view() : (app.innerHTML = `<div class="empty"><h3>LineSmart Pro didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "search") return viewSearch(decodeURIComponent(h.slice(1).join("/") || ""));
     if (h[0] === "t" && h[1] && h[2]) return viewTeam(h[1], h[2]);

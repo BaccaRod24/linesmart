@@ -956,6 +956,197 @@ def prop_alert_cta(L: League, g, gid, pid, mk, name, label):
             f'<span class="al-cta-note">Email when this line moves. Free account, up to 5 alerts a day.</span></div>')
 
 
+# ---------------------------------------------------------------- "What to watch" notes (upcoming game pages)
+# 2-4 plain-English facts read straight from the data this page already has: the biggest price gap between the books we
+# track (in dollars), line movement since the first line we recorded, players listed out, a hot player prop (last 5
+# vs the line) and the game-day forecast. A note whose data is missing is skipped; no notes = no section. Informational
+# only: no picks, no promo words (seo_pages_test.py checks every note against previews.FORBIDDEN + the promo list).
+WTW_MAX = 4
+WTW_MIN_GAP = 5        # dollars per $100: smaller price differences aren't worth a note
+WTW_LABEL = {"gap": "Price gap", "move": "Line move", "inj": "Injuries", "prop": "Player prop", "wx": "Weather"}
+WTW_TOTAL_UNIT = {"football": " points", "basketball": " points", "hockey": " goals", "soccer": " goals", "baseball": " runs", "mma": " rounds"}
+WTW_NOTE = "Facts from the data on this page at the last refresh. Odds change; this is not a prediction or betting advice."
+
+
+def wtw_name(L: League, t):
+    """'Cowboys' (pro), full name for college / UFC (nicknames repeat)."""
+    return tname(t) if L.lg in ("ncaaf", "ncaab", "ufc") else pv.side_name(t)
+
+
+def _profit(o):
+    """What a $100 bet wins at American odds o."""
+    return o if o > 0 else 10000 / -o
+
+
+def _usd(v):
+    return f"${int(round(v)):,}"
+
+
+def wtw_gap(L: League, g):
+    """Biggest same-line price gap between DraftKings, Hard Rock Bet and FanDuel, in dollars. None without 2+ live books."""
+    books = {k: b for k, b in pv.live_books(g).items() if k in pv.BOOK_NAME}
+    if len(books) < 2:
+        return None
+    a, h = g["away"], g["home"]
+    kind = L.kind
+    lab = "puck line" if kind == "hockey" else "run line" if kind == "baseball" else "spread"
+    groups = {}   # (label) -> {book: odds}
+
+    def put(label, k, o):
+        if isnum(o) and abs(o) >= 100:
+            groups.setdefault(label, {})[k] = o
+    for k, b in books.items():
+        for s, t in (("away", a), ("home", h)):
+            put(f"{wtw_name(L, t)} moneyline" if L.lg != "ufc" else f"{wtw_name(L, t)} to win", k, b.get(s + "ML"))
+            if kind != "mma" and isnum(b.get(s + "Spread")):
+                put(f"{wtw_name(L, t)} {line(b[s + 'Spread'])} {lab}", k, b.get(s + "SpreadOdds"))
+        if kind == "soccer":
+            put("Draw", k, b.get("drawML"))
+        if isnum(b.get("total")):
+            unit = WTW_TOTAL_UNIT.get(kind, "")
+            put(f"Over {num(b['total'])}{unit}", k, b.get("overOdds"))
+            put(f"Under {num(b['total'])}{unit}", k, b.get("underOdds"))
+    best = None
+    for label, by in groups.items():
+        if len(by) < 2:
+            continue
+        hi_k = max(by, key=lambda k: (_profit(by[k]), k == "hardrockbet"))
+        lo_k = min(by, key=lambda k: (_profit(by[k]), k != "hardrockbet"))
+        hi, lo = by[hi_k], by[lo_k]
+        if hi < 0 and lo < 0:     # favorites: what you risk to win $100
+            diff = -lo - -hi
+            text = f"{label}: risk {_usd(-hi)} to win $100 at {pv.BOOK_NAME[hi_k]} vs {_usd(-lo)} at {pv.BOOK_NAME[lo_k]}."
+        else:                     # underdogs (or one of each): what a $100 bet wins
+            diff = _profit(hi) - _profit(lo)
+            text = f"{label}: a $100 bet wins {_usd(_profit(hi))} at {pv.BOOK_NAME[hi_k]} vs {_usd(_profit(lo))} at {pv.BOOK_NAME[lo_k]}."
+        if round(diff) < WTW_MIN_GAP:
+            continue
+        score = _profit(hi) - _profit(lo)
+        if best is None or score > best[0]:
+            best = (score, text)
+    return best and best[1]
+
+
+def wtw_move(L: League, g):
+    """'Cowboys spread moved from +3 to -4.5 and the total from 48.5 to 43.5 since the opening line (DraftKings).'"""
+    m = g.get("move") or {}
+    if not m:
+        return None
+    a, h = g["away"], g["home"]
+    ok = lambda x: isinstance(x, dict) and isnum(x.get("open")) and isnum(x.get("cur")) and x["open"] != x["cur"]
+    bits = []
+    sp, tot = m.get("spread"), m.get("total")
+    if L.kind in ("football", "basketball") and ok(sp):
+        home = sp["cur"] < 0 or (sp["cur"] == 0 and sp["open"] <= 0)   # name the side that is favored now
+        t, f = (h, 1) if home else (a, -1)
+        bits.append(f"{wtw_name(L, t)} spread moved from {line(f * sp['open'])} to {line(f * sp['cur'])}")
+    elif L.kind not in ("football", "basketball"):
+        hm, am_ = m.get("homeML"), m.get("awayML")
+        flat = lambda o: o + 100 if o < 0 else o - 100   # -110 / +110 sit 20 apart, -101 / +101 only 2
+        cands = [(t, x) for t, x in ((h, hm), (a, am_)) if ok(x) and abs(flat(x["cur"]) - flat(x["open"])) >= 15]
+        if cands:
+            t, x = min(cands, key=lambda c: c[1]["cur"])   # current favorite first
+            bits.append(f"{wtw_name(L, t)} {'moneyline' if L.lg != 'ufc' else 'odds'} moved from {am(x['open'])} to {am(x['cur'])}")
+    if ok(tot) and abs(tot["cur"] - tot["open"]) >= 0.5:
+        unit = " rounds" if L.kind == "mma" else ""
+        bits.append(f"{'the total' if bits else 'The total'} {'from' if bits else 'moved from'} {num(tot['open'])} to {num(tot['cur'])}{unit}")
+    if not bits:
+        return None
+    src = pv.BOOK_NAME.get(m.get("book"))
+    return " and ".join(bits) + f" since the opening line{(' (' + src + ')') if src else ''}."
+
+
+def wtw_injuries(L: League, g, detail):
+    """Players listed out (or doubtful), at most two named per team."""
+    inj = (detail or {}).get("injuries") or {}
+    if L.lg == "ufc" or not inj:
+        return None
+    rank = {"out": 0, "doubtful": 1}
+    parts = []
+    for t in (g["away"], g["home"]):
+        ps = [p for p in inj.get(str(t.get("id")), []) if (p.get("status") or "").lower() in rank and p.get("player")]
+        if not ps:
+            continue
+        ps.sort(key=lambda p: rank[(p.get("status") or "").lower()])   # stable: keeps the injury report's own order
+        names = [f"{p['player']} ({', '.join(x for x in [p.get('pos'), 'doubtful' if (p.get('status') or '').lower() == 'doubtful' else ''] if x)})" if p.get("pos") or (p.get("status") or "").lower() == "doubtful" else p["player"] for p in ps[:2]]
+        more = f" and {len(ps) - 2} more" if len(ps) > 2 else ""
+        parts.append(f"{pv.ref_name(L.lg, t)}: {' and '.join(names) if not more else ', '.join(names)}{more}")
+    if not parts:
+        return None
+    return "Listed out for " + "; for ".join(parts) + "."
+
+
+def wtw_prop(L: League, gid):
+    """The player prop that went over its line most often in the last 5 games (at least 4 games, 4+ overs)."""
+    rows = ((L.props.get("games") or {}).get(gid) or {}).get("props") or []
+    P = L.props.get("players") or {}
+    best = None
+    for r in rows:
+        pl = P.get(str(r[0])) or {}
+        if not pl.get("n") or not isnum(r[2]):
+            continue
+        rt = rate(pl.get("log"), r[1], r[2], 5)
+        if rt["n"] < 4 or rt["o"] < rt["n"] - 1:
+            continue
+        nb = len(r[5]) if len(r) > 5 and isinstance(r[5], dict) else 0
+        key = (rt["o"] / rt["n"], rt["n"], r[1] != "anytime_td", nb)
+        if best is None or key > best[0]:
+            best = (key, pl, r, rt)
+    if not best:
+        return None
+    _, pl, r, rt = best
+    if r[1] == "anytime_td":
+        return f"{pl['n']} scored a touchdown in {rt['o']} of the last {rt['n']} games."
+    what = ((L.markets.get(r[1]) or [r[1]])[0] or r[1]).lower()
+    return f"{pl['n']} went over {num(r[2])} {what} in {rt['o']} of the last {rt['n']} games."
+
+
+def wtw_weather(g):
+    """(notable, text) from the game-day forecast (outdoor games only)."""
+    wx = g.get("weather") or {}
+    if wx.get("kind") != "forecast" or wx.get("roof") in ("dome", "closed", "indoor") or not isnum(wx.get("temp")):
+        return None
+    bits = [f"{num(wx['temp'])}°F"]
+    if isnum(wx.get("wind")):
+        bits.append(f"wind {num(wx['wind'])} mph" + (f" (gusts {num(wx['gust'])} mph)" if isnum(wx.get("gust")) and wx["gust"] > wx["wind"] else ""))
+    if isnum(wx.get("pop")) and wx["pop"] >= 10:
+        bits.append(f"{num(wx['pop'])}% chance of {wx.get('precipType') or 'rain'}")
+    lab = f"{wx['label']}, " if wx.get("label") and wx["label"] != "—" else ""
+    roof = " (retractable roof)" if wx.get("roof") == "retractable" else ""
+    return bool(wx.get("watch")), f"Forecast near the start{roof}: {lab}{', '.join(bits)}."
+
+
+def what_to_watch(L: League, g, gid, detail):
+    """[(kind, text)] for an upcoming game in the data window, best first, at most WTW_MAX. [] when nothing qualifies."""
+    if g.get("state") != "pre" or L.is_final(g) or gid not in L.current:
+        return []
+    out = []
+    add = lambda k, t: t and out.append((k, t))
+    add("gap", wtw_gap(L, g))
+    add("move", wtw_move(L, g))
+    add("inj", wtw_injuries(L, g, detail))
+    wx = wtw_weather(g)
+    if wx and wx[0]:
+        add("wx", wx[1])
+    add("prop", wtw_prop(L, gid) if L.lg != "ufc" else None)
+    if wx and not wx[0]:
+        add("wx", wx[1])
+    return out[:WTW_MAX]
+
+
+def wtw_html(notes):
+    if not notes:
+        return ""
+    li = "".join(f'<li class="wtw-{k}"><span class="wtw-k">{esc(WTW_LABEL[k])}</span><span class="wtw-t">{esc(t)}</span></li>' for k, t in notes)
+    return f'<div class="card wtw-card"><ul class="wtw-list">{li}</ul><p class="note">{esc(WTW_NOTE)}</p></div>'
+
+
+def wtw_section(notes):
+    """The block itself: static HTML (crawlable) and copied by assets/app.js into the live view under the match header."""
+    inner = wtw_html(notes)
+    return f'<section class="wtw" aria-labelledby="wtw" id="wtw-s"><h2 class="section-title" id="wtw">What to watch</h2>{inner}</section>' if inner else ""
+
+
 def game_meta(L: League, g, gid):
     """Search-style <title> and meta description for a game / fight page.
     Upcoming / live: "Cardinals vs Cowboys Odds: Hard Rock, DraftKings, FanDuel | LineSmart" (away first; only books shown
@@ -1041,6 +1232,7 @@ def game_page(L: League, sh: Shell, gid):
 {crumbs((L.hub, hub_label), (None, mshort if L.lg != "ufc" else mtch))}
 <h1 class="pv-h1">{head}</h1>
 {stale_html}{hero(L, g)}
+{wtw_section(what_to_watch(L, g, gid, detail))}
 {result_card(L, g) if final else ''}
 {section("odds", odds_title, ot + alert_cta(L, g, gid) + ('' if final else '<div id="pvOffers" data-offers-slot="preview"></div>'))}
 {section("next", "Next games", nxt_html) if nxt_html and not hydrates else ''}

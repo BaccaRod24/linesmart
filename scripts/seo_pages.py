@@ -175,15 +175,50 @@ def closing_of(g):
     return {"books": books, "odds": odds} if (books or (odds and any(isnum(odds.get(k)) for k in ("homeML", "homeSpread", "total")))) else None
 
 
+def recent_match(gid, dt, opp_abbr, home, rows):
+    """The team's recent result that IS this game: same ESPN event id when the row has one, else the same opponent,
+    same home/away side and the same ET calendar day. Never "closest game against that opponent": in a series (MLB/NHL/NBA
+    playoffs, back-to-back sets) the same two teams meet on consecutive days, and a +-36h window picked the wrong game."""
+    for r in rows or []:
+        if not isnum(r.get("pf")) or score_num(r.get("pa")) is None:
+            continue
+        rid = str(r.get("id") or "")
+        if rid:
+            if rid == str(gid):
+                return r
+            continue
+        rd = parse_dt(r.get("date"))
+        if rd and dt and day_et(rd) == day_et(dt) and r.get("opp") == opp_abbr and bool(r.get("home")) == home:
+            return r
+    return None
+
+
+def final_from_recent(rec, gid, teams, by_id_only=False):
+    """(home score, away score) for an archived game from either team's recent results, or None."""
+    dt = parse_dt(rec.get("date"))
+    h, a = rec.get("home") or {}, rec.get("away") or {}
+    for side, other, is_home in ((h, a, True), (a, h, False)):
+        rows = (teams.get(str(side.get("id"))) or {}).get("recent") or []
+        if by_id_only:
+            rows = [r for r in rows if r.get("id")]
+        r = recent_match(gid, dt, other.get("abbr"), is_home, rows)
+        if r:
+            pf, pa = score_num(r["pf"]), score_num(r["pa"])
+            return (pf, pa) if is_home else (pa, pf)
+    return None
+
+
 def merge_archive(arch: Archive, lg, games, teams, now):
     """Fold the current window into the archive; fill finals for games that left the window; prune old ones."""
     if not arch.dir:
         return
     A = arch.games.setdefault(lg, {})
+    in_window = set()
     for g in games:
         dt = parse_dt(g.get("date"))
         if not dt or not g.get("id") or not g.get("home") or not g.get("away"):
             continue
+        in_window.add(str(g["id"]))
         if g.get("state") == "pre" and dt > now + timedelta(hours=ARCHIVE_AHEAD_H):
             continue
         old = A.get(str(g["id"])) or {}
@@ -195,24 +230,28 @@ def merge_archive(arch: Archive, lg, games, teams, now):
         if g.get("state") != "pre" and old.get("move") and not g.get("move"):
             rec["move"] = old["move"]
         A[str(g["id"])] = rec
-    # finals for games that dropped out of the window before ESPN marked them final, from the teams' recent results
-    for gid, rec in A.items():
-        if rec.get("state") == "post" or lg == "ufc":
-            continue
-        dt = parse_dt(rec.get("date"))
-        if not dt or dt > now - timedelta(hours=3):
-            continue
-        h, a = rec.get("home") or {}, rec.get("away") or {}
-        for r in ((teams.get(str(h.get("id"))) or {}).get("recent") or []):
-            rd = parse_dt(r.get("date"))
-            if rd and abs((rd - dt).total_seconds()) < 36 * 3600 and r.get("opp") == a.get("abbr") and r.get("home") and isnum(r.get("pf")):
-                pf, pa = score_num(r["pf"]), score_num(r["pa"])
-                if pa is None:
-                    continue
-                h["score"], a["score"] = pf, pa
-                h["winner"], a["winner"] = pf > pa, pa > pf
-                rec.update(state="post", statusDetail="Final", completed=True)
-                break
+    # Finals for games that dropped out of the window before ESPN marked them final, from the teams' recent results
+    # (matched by ESPN event id, else same opponent + side + ET day; see recent_match). Games still in the window are
+    # left alone: ESPN's own live/final copy is the truth there. Archived finals are re-checked against recent rows that
+    # carry the event id, which also repairs finals an older build filled in from the wrong game of a series.
+    if lg != "ufc":
+        for gid, rec in A.items():
+            if gid in in_window:
+                continue
+            dt = parse_dt(rec.get("date"))
+            if not dt or dt > now - timedelta(hours=3):
+                continue
+            done = rec.get("state") == "post"
+            sc = final_from_recent(rec, gid, teams, by_id_only=done)
+            if not sc:
+                continue
+            hs, as_ = sc
+            h, a = rec.setdefault("home", {}), rec.setdefault("away", {})
+            if done and h.get("score") == hs and a.get("score") == as_:
+                continue
+            h["score"], a["score"] = hs, as_
+            h["winner"], a["winner"] = hs > as_, as_ > hs
+            rec.update(state="post", statusDetail="Final", completed=True)
     cut = now - timedelta(days=KEEP_DAYS)
     for gid in [k for k, v in A.items() if (parse_dt(v.get("date")) or now) < cut]:
         del A[gid]

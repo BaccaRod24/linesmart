@@ -269,7 +269,7 @@ def team_splits(lg, tid):
         if pf is None or pa is None: continue
         res = "W" if me.get("winner") else ("L" if op.get("winner") else ("T" if pf == pa else ("W" if pf > pa else "L")))
         if lg["kind"] == "soccer" and pf == pa: res = "D"
-        games.append(dict(date=e.get("date"), home=me.get("homeAway") == "home", pf=pf, pa=pa, res=res,
+        games.append(dict(id=str(e["id"]) if e.get("id") else None, date=e.get("date"), home=me.get("homeAway") == "home", pf=pf, pa=pa, res=res,
                           opp=(op.get("team") or {}).get("abbreviation")))
     games.sort(key=lambda x: x["date"])
     def agg(gs):
@@ -287,7 +287,7 @@ def team_splits(lg, tid):
     return dict(season=season.get("displayName") or season.get("year"), seasonType=season.get("name"),
                 recordSummary=(s.get("team") or {}).get("recordSummary"), standingSummary=(s.get("team") or {}).get("standingSummary"),
                 all=agg(games), homeSplit=agg([x for x in games if x["home"]]), awaySplit=agg([x for x in games if not x["home"]]),
-                last10=agg(games[-10:]), streak=streak, recent=[dict(date=x["date"], res=x["res"], pf=x["pf"], pa=x["pa"], home=x["home"], opp=x["opp"]) for x in games[-5:]][::-1])
+                last10=agg(games[-10:]), streak=streak, recent=[dict(id=x["id"], date=x["date"], res=x["res"], pf=x["pf"], pa=x["pa"], home=x["home"], opp=x["opp"]) for x in games[-5:]][::-1])
 
 # ---------------------------------------------------------------- The Odds API (optional)
 def norm_name(s):

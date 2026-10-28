@@ -49,7 +49,7 @@ Set `ARCHIVE_DIR` (or `--archive`) to keep finished games. In the workflow this 
 `data-history` branch, with a snapshot in `.linehist-snap/_pages` for the push-retry path. It holds:
 
 - `games-<lg>.json`: for each game, its URL, the last lines seen within `ARCHIVE_AHEAD_H` (6h) of the start (= the
-  closing lines), movement, and the final score. Missing finals are backfilled from the teams' `recent` results.
+  closing lines), movement, and the final score. Missing finals are backfilled from the teams' `recent` results, matched by ESPN event id (or, for rows with no id, same opponent, same home/away side and same ET date). Games still in ESPN's data window are never backfilled, and an archived final is re-checked against id-matched rows so a wrong score self-heals.
 - `players-<lg>.json`: player URLs and their recent props.
 - `state.json`: a content hash and lastmod for each page, so `lastmod` only changes when the content changes.
 
@@ -85,6 +85,7 @@ unknown `/preview/<lg>/...` URLs to the hub.
 ```sh
 env -u ODDS_API_KEY python3 scripts/seo_pages.py --site /tmp/site-copy --now 2026-10-27T12:00:00Z   # build into a copy
 env -u ODDS_API_KEY python3 scripts/seo_pages_test.py     # static checks (titles, canonicals, links, sitemap, archive, redirects)
+env -u ODDS_API_KEY python3 scripts/series_results_test.py # same two teams on back-to-back dates: finals never cross games
 env -u ODDS_API_KEY node scripts/seo_pages_test.mjs       # browser checks (state offers, #/ -> real URL, tiles, 404, stubs)
 ```
 

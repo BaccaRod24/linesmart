@@ -18,7 +18,7 @@ from pathlib import Path
 SITE = Path(__file__).resolve().parent.parent / "site"
 BASE_URL = "https://linesmart.app/"
 EFFECTIVE = "October 27, 2026"   # affiliate-compliance: affiliate links + licensed-books-only sections
-PRIVACY_UPDATED = "October 27, 2026"   # Pro waitlist section added
+PRIVACY_UPDATED = "October 28, 2026"   # visits-by-state count added (Pro waitlist section: Oct 27)
 CONTACT = "contact@linesmart.app"   # public contact address shown on the legal pages
 
 def ext(href, text):
@@ -63,6 +63,7 @@ FOOTER = f"""<footer class="footer" id="siteFooter">
     <div class="news-foot" data-news-signup="footer"></div>
     <p class="rg"><span class="age-pill">21+</span> <strong>21+ only.</strong> Gambling problem? Call or text {GAMBLER_TEL} · {GAMBLER_WEB}</p>
     <p class="rg fl" data-rg-local>Florida: call or text {PLAYWISE_TEL} ({PLAYWISE_WEB}), or the Florida Council on Compulsive Gambling helpline {ADMIT_TEL} ({ADMIT_WEB}).</p>
+    <noscript><p class="rg fl">New York: call <a href="tel:18778467369">1-877-8-HOPENY</a> or text <a href="sms:467369">HOPENY (467369)</a> (oasas.ny.gov).</p></noscript>
     <p><strong data-brand>LineSmart</strong> is an informational site and does not accept wagers. Odds are for reference and may change; confirm with the sportsbook.</p>
     <p class="biz">LineSmart · <a href="mailto:{CONTACT}">{CONTACT}</a></p>
     <p class="aff-disc" data-aff-disclosure hidden></p>
@@ -102,6 +103,9 @@ def page(file, title, desc, body, noindex=False, news_page=""):
 <script src="assets/theme.js"></script>
 <script src="assets/config.js"></script>
 <script src="assets/site.js" defer></script>
+<script src="assets/books-by-state.js" defer></script>
+<script src="assets/geo-core.js" defer></script>
+<script src="assets/geo.js" defer></script>
 <script src="assets/news-core.js" defer></script>
 <script src="assets/news.js" defer></script>
 </head>
@@ -205,6 +209,7 @@ PRIVACY = f"""  <p class="legal-date">Last updated: {PRIVACY_UPDATED}</p>
   <ul>
     <li>We never ask for your name. If you choose to create an optional account, we store your email address, your tracked bets and any line alerts with our provider Supabase (US) so your bets sync between devices and alerts can email you. We never sell or rent your data.</li>
     <li>We use Cloudflare Web Analytics, which is cookieless, to count page views in aggregate.</li>
+    <li>On linesmart.app we also keep a daily count of visits per US state (for example "Florida, October 28: 120 visits"). Only the two-letter state code is sent, at most once a day per browser. No IP address, ID or other detail about you is stored with it.</li>
     <li>Your browser asks a geolocation service for your approximate state, so we only show sportsbooks that are legal there. You can set your state by hand instead.</li>
     <li>If you sign up for the free weekly email, we store your email address with Supabase and send the email through Resend (US). Every email has a one-click unsubscribe link.</li>
     <li>Without an account, your bet tracker and preferences stay in your browser on your device.</li>
@@ -216,7 +221,7 @@ PRIVACY = f"""  <p class="legal-date">Last updated: {PRIVACY_UPDATED}</p>
 
   <h2 id="location">Approximate location (state-aware offers)</h2>
   <p>Sports betting is legal only in some states, and each sportsbook runs only in certain states. To show only sportsbooks that are legal where you are, your browser sends a request to {ext("https://ipdata.info/", "ipdata.info")}, a free IP geolocation service. ipdata.info sees your IP address and returns your approximate country and state. Under its {ext("https://ipdata.info/privacy", "privacy policy")}, it keeps IP addresses only briefly for rate limiting.</p>
-  <p>We keep only the country and state code, in your browser (localStorage, <code>ls-geo</code>), for up to 24 hours. It is never sent to us, except the two-letter state code if you join the <a href="#pro-waitlist">Pro waitlist</a>. If the lookup fails, we show no sportsbook offers until you pick a state. You can choose your state with the <b>Your state</b> picker (stored as <code>ls-state</code>); that choice replaces the lookup. IP location is approximate. Sportsbooks verify your location themselves before you can bet.</p>
+  <p>We keep only the country and state code, in your browser (localStorage, <code>ls-geo</code>), for up to 24 hours. It is never sent to us, except the two-letter state code once a day for the <a href="#state-counts">visits-by-state count</a>, and if you join the <a href="#pro-waitlist">Pro waitlist</a>. If the lookup fails, we show no sportsbook offers until you pick a state. You can choose your state with the <b>Your state</b> picker (stored as <code>ls-state</code>); that choice replaces the lookup. IP location is approximate. Sportsbooks verify your location themselves before you can bet.</p>
 
   <h2 id="accounts">Optional accounts (bet sync)</h2>
   <p>You can use LineSmart without an account. If you sign in on the <a href="./#/account">Account</a> tab, here is what happens:</p>
@@ -252,14 +257,18 @@ PRIVACY = f"""  <p class="legal-date">Last updated: {PRIVACY_UPDATED}</p>
     <li><b>Leaving the list</b>: email <a href="mailto:{CONTACT}?subject=Pro%20waitlist">{CONTACT}</a> from that address and we'll delete your entry and confirm.</li>
   </ul>
 
+  <h2 id="state-counts">Visits by state (aggregate count)</h2>
+  <p>Cloudflare Web Analytics reports visitors by country only, and we need to know roughly how many visitors come from each US state (for example, to show sportsbooks which states our audience is in). So on linesmart.app, once a day per browser, your browser sends the two-letter code of your state (from the lookup or the <b>Your state</b> picker above) to our database provider {ext("https://supabase.com/privacy", "Supabase")} (US), which adds one to that day's total for that state. That's all that is kept: a date, a state code and a running count. We don't store your IP address, a user ID, a cookie or any other information with it, and the count can't be linked back to you. Visitors outside the US, or whose state is unknown, aren't counted. Your browser remembers only the date it last sent a count (localStorage, <code>ls-sv</code>), so it doesn't send one twice in a day. Like any web request, the request reaches Supabase from your IP address; Supabase handles that under its privacy policy and we don't log it.</p>
+
   <h2>Hosting (GitHub Pages)</h2>
   <p>The site is hosted on GitHub Pages. Like most web hosts, GitHub may log technical data when your browser requests a page, such as your IP address, browser type and the page requested. It uses this data for security and to run the service. We don't receive these logs. See the {ext("https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement", "GitHub Privacy Statement")}.</p>
 
   <h2>Data stored on your device</h2>
-  <p>These items are saved in your browser so the site works. They stay on your device and are never sent to us, except your bets if you choose to sign in and sync (see <a href="#accounts">Optional accounts</a>):</p>
+  <p>These items are saved in your browser so the site works. They stay on your device and are never sent to us, except your bets if you choose to sign in and sync (see <a href="#accounts">Optional accounts</a>) and your state code for the once-a-day <a href="#state-counts">visits-by-state count</a>:</p>
   <ul>
     <li><b>Bet tracker</b> (localStorage, <code>ls-bets-v1</code> and <code>ls-bets-prefs</code>): bets you log in My Bets and your tracker settings. Without an account they aren't uploaded or synced anywhere. They're never linked to any sportsbook account. Use the tracker's export to keep a backup.</li>
     <li><b>Your state</b> (localStorage, <code>ls-state</code>, and the cached lookup <code>ls-geo</code>): see above.</li>
+    <li><b>Visits-by-state count</b> (localStorage, <code>ls-sv</code>): the date this browser was last counted, so it's counted at most once a day. See <a href="#state-counts">Visits by state</a>.</li>
     <li><b>Recently viewed</b> (localStorage, <code>ls-recent</code>): up to 8 teams or players you opened, shown on the search screen.</li>
     <li><b>Weekly email signup</b> (localStorage, <code>ls-news-v1</code>): see <a href="#newsletter">Weekly email</a>.</li>
     <li><b>Pro waitlist</b> (localStorage, <code>ls-pro-v1</code>): see <a href="#pro-waitlist">Pro waitlist</a>.</li>

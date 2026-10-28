@@ -57,7 +57,7 @@ BOOK_NAME = dict(BOOKS)
 SUMMARY_BOOK_ORDER = ["hardrockbet", "draftkings", "fanduel"]
 MAX_PROPS, MAX_INJ = 10, 6
 # Words a preview must never contain (tests enforce this on every generated page).
-FORBIDDEN = re.compile(r"\b(lock|locks|guarantee[ds]?|guaranteed|sure thing|can't lose|cannot lose|free money|best bet|pick of the|our pick|we pick|take the|hammer|smash|must bet|risk[- ]free)\b", re.I)
+FORBIDDEN = re.compile(r"\b(lock|locks|guarantee[ds]?|guaranteed|sure thing|can't lose|cannot lose|free money|best bet|pick of the|our pick|we pick|take the|hammer|smash|must bet|risk[- ]free|free bets?|bonus bets?|no[- ]risk|no[- ]sweat)\b", re.I)
 
 esc = lambda s: html.escape("" if s is None else str(s), quote=True)
 isnum = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)

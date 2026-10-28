@@ -124,6 +124,13 @@ check "pending expires started games" "$(ANON "select count(*) from public.line_
 check "anon can't call the email renderer" "$(ANON "select public.line_alert_email(null, 'x', 1, 1)" | grep -c 'permission denied' || true)" "1"
 check "anon can't call the helpline renderer" "$(ANON "select public.line_alert_helpline('FL', 'x')" | grep -c 'permission denied' || true)" "1"
 check "one line_alert_email function after re-runs" "$(P -c "select count(*) from pg_proc where proname = 'line_alert_email'")" "1"
+# 20261028_email_helpline_size.sql: the helpline line at full body size / normal contrast; text and numbers unchanged
+TXT_BEFORE=$(P -c "select string_agg(public.line_alert_helpline(s, 'https://x')->>'text', '|') from unnest(array['FL','NY','TX',null]) s")
+P -f supabase/migrations/20261028_email_helpline_size.sql >/dev/null; P -f supabase/migrations/20261028_email_helpline_size.sql >/dev/null
+check "helpline html is 15px, normal contrast (FL, NY, TX, unknown)" "$(P -c "select string_agg((public.line_alert_helpline(s, 'https://x')->>'html' like '<span style=\"font-size:15px;line-height:1.5;color:#e8eeff;font-weight:700\">21+ | Gambling problem?%</span>')::text, ',') from unnest(array['FL','NY','TX',null]) s")" "true,true,true,true"
+check "NY html still has HOPENY + GAMBLER" "$(P -c "select (public.line_alert_helpline('NY', 'x')->>'html') ~ '1-877-8-HOPENY.*1-800-GAMBLER'")" "t"
+check "helpline text versions unchanged" "$(P -c "select string_agg(public.line_alert_helpline(s, 'https://x')->>'text', '|') from unnest(array['FL','NY','TX',null]) s")" "$TXT_BEFORE"
+check "anon still can't call the helpline renderer" "$(ANON "select public.line_alert_helpline('FL', 'x')" | grep -c 'permission denied' || true)" "1"
 
 [ -n "${KEEP_DB:-}" ] || psql -qX -d postgres -c "drop database $DB" >/dev/null
 echo "$((fails)) failure(s)"; [ "$fails" -eq 0 ]

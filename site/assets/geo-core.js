@@ -65,14 +65,15 @@
   // State problem-gambling helplines, verified Oct 27, 2026 from official state sources (FL: flgaming.gov / playwise.org;
   // AZ: problemgambling.az.gov; IN: in.gov/igc; IA: yourlifeiowa.org / hhs.iowa.gov; NY: oasas.ny.gov/hopeline).
   // Michigan now promotes 1-800-GAMBLER (MGCB, Feb 2024), so it uses the national line. Any other state -> 1-800-GAMBLER.
-  // Only add a state here after checking an official source.
+  // Only add a state here after checking an official source. `sms`/`smsName`: a text line, shown in the footer (NY HOPEline:
+  // call 1-877-8-HOPENY or text HOPENY to 467369).
   const GAMBLER = { name: "1-800-GAMBLER", tel: "18004262537", url: "https://www.1800gambler.net", label: "1800gambler.net", local: false };
   const HELPLINES = {
     FL: { name: "1-833-PLAYWISE", tel: "18337529947", url: "https://playwise.org/", label: "playwise.org" },
     AZ: { name: "1-800-NEXT-STEP", tel: "18006398783", url: "https://problemgambling.az.gov/", label: "problemgambling.az.gov" },
     IN: { name: "1-800-9-WITH-IT", tel: "18009948448", url: "https://www.in.gov/igc/problemgamblinghelp/problem-gambling-hotline/", label: "in.gov" },
     IA: { name: "1-800-BETS-OFF", tel: "18002387633", url: "https://yourlifeiowa.org/learn/gambling", label: "yourlifeiowa.org" },
-    NY: { name: "1-877-8-HOPENY", tel: "18778467369", url: "https://oasas.ny.gov/hopeline", label: "oasas.ny.gov" },
+    NY: { name: "1-877-8-HOPENY", tel: "18778467369", url: "https://oasas.ny.gov/hopeline", label: "oasas.ny.gov", sms: "467369", smsName: "HOPENY (467369)" },
   };
   // helpline("FL") -> the state's own line ({ ..., local: true }); unknown/other states -> 1-800-GAMBLER (local: false)
   function helpline(code) {

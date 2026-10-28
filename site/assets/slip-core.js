@@ -474,7 +474,7 @@
       T.oddsManual = T.odds !== null && (prod === null || Math.abs(toDecimal(T.odds) / toDecimal(prod) - 1) > 0.02);
       if (T.sgp && T.oddsManual) warnings.push("Same-game parlay: the ticket's odds are used (books price correlated legs differently from multiplying them).");
     }
-    if (T.bonus) warnings.push("Bonus / free bet: the tracker counts the stake as money risked. Edit the stake if you'd rather log it as $0.");
+    if (T.bonus) warnings.push("Paid with sportsbook site credit: the tracker counts the stake as money risked. Edit the stake if you'd rather log it as $0.");
     if (T.boost) warnings.push("Boosted odds: saved at the odds on your ticket.");
     if (T.stake === null) warnings.push("No stake found on the slip. Enter it below.");
     if (!isNum(T.odds)) warnings.push("No odds found on the slip. Enter them below.");
@@ -640,7 +640,7 @@
     const legs = T.legs.map(l => legDraft(l, opts));
     const parlay = T.parlay && legs.length > 1;
     const type = parlay ? "parlay" : legs.length ? legs[0].mk : "ml";
-    const notes = [T.ref ? `Bet ID ${T.ref}` : "", T.boost ? "Boosted odds" : "", T.bonus ? "Bonus bet" : "", T.sgp ? "Same-game parlay" : "", T.teaser ? "Teaser" : ""].filter(Boolean).join(" · ");
+    const notes = [T.ref ? `Bet ID ${T.ref}` : "", T.boost ? "Boosted odds" : "", T.bonus ? "Site credit" : "", T.sgp ? "Same-game parlay" : "", T.teaser ? "Teaser" : ""].filter(Boolean).join(" · ");
     const odds = isNum(T.odds) ? T.odds : "";
     const F = {
       book: T.book || opts.defaultBook || "other", bookOther: T.book === "other" ? T.bookName || "" : "", bookFromSlip: !!T.book,

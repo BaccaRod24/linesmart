@@ -13,7 +13,8 @@ const isNum = v => typeof v === "number" && isFinite(v);
 
 // Words the email must never use (hype / guarantees / promos). Checked on the template copy in tests and before every send.
 export const BANNED = [/\blocks?\b/i, /\blocked\b/i, /\bguarantee[ds]?\b/i, /\bcan[’']?t lose\b/i, /\bcannot lose\b/i, /\bfree money\b/i,
-  /\bpromo(tion)?s?\b/i, /\bbonus\b/i, /\bcoupon/i, /\brisk[- ]free\b/i, /\bsure thing\b/i, /\bsure bet\b/i];
+  /\bpromo(tion)?s?\b/i, /\bbonus\b/i, /\bcoupon/i, /\brisk[- ]free\b/i, /\bsure thing\b/i, /\bsure bet\b/i,
+  /\bfree bets?\b/i, /\bno[- ]risk\b/i, /\bno[- ]sweat\b/i, /\bfree plays?\b/i, /\bsite credit\b/i];
 export function bannedIn(text) { const t = String(text).replace(/<[^>]+>/g, " "); return BANNED.filter(r => r.test(t)).map(r => (t.match(r) || [])[0]); }
 
 // ---------------------------------------------------------------- odds helpers
@@ -308,7 +309,7 @@ export function renderEmail(d, cfg, opts = {}) {
   const rg = helplineLine(opts.state, { site, link: C.cyan }), showsFL = rg.text.includes("1-833-PLAYWISE");
   const addrHTML = addr ? v(addr) : `<span style="color:${C.warn};font-weight:700">[MAILING ADDRESS NOT SET: sending to subscribers is blocked]</span>`;
   const footer = `<tr><td style="padding:26px 4px 8px;border-top:1px solid ${C.line};font-size:12px;line-height:1.65;color:${C.dim}">
-    <p style="margin:0 0 8px;color:${C.mute};font-weight:700">${rg.html}</p>
+    <p style="margin:0 0 10px;font-size:15px;line-height:1.5;color:${C.txt};font-weight:700">${rg.html}</p>
     <p style="margin:0 0 8px">Florida: Hard Rock Bet is the only legal online sportsbook in Florida. DraftKings and FanDuel prices are shown for comparison where they're legal.${showsFL ? "" : " In Florida you can also call or text 1-833-PLAYWISE."}</p>
     <p style="margin:0 0 8px">LineSmart is an informational site and doesn't take bets. Odds change often; confirm with the sportsbook. Nothing here is betting advice. This email has no affiliate links.</p>
     <p style="margin:0 0 8px">You're getting this because you signed up at linesmart.app and confirmed your email. <a href="${escHTML(unsub)}" style="color:${C.cyan};font-weight:700">Unsubscribe</a> (one click) · <a href="${site}/privacy.html#newsletter" style="color:${C.cyan}">Privacy</a> · <a href="mailto:${escHTML(cfg.contact || "contact@linesmart.app")}" style="color:${C.cyan}">${escHTML(cfg.contact || "contact@linesmart.app")}</a></p>

@@ -84,7 +84,7 @@
     const alt = doc.altAt ? ` (last pull ${A().fullET(doc.altAt)})` : "";
     const dkFb = "; when The Odds API has no DraftKings line, DraftKings falls back to ESPN's free feed (line only, no prices), which also gives DraftKings' opening line";
     const ev = G() ? G().current() : null, out = ev && ev.state ? C.BOOK_ORDER.filter(k => !avail(k)) : [];
-    const outNote = out.length ? ` ${out.map(k => BK[k]).join(" and ")} ${out.length > 1 ? "don't" : "doesn't"} run a legal online sportsbook in ${esc(ev.stateName)}; ${out.length > 1 ? "their" : "its"} lines are shown dimmed, for reference only.` : "";
+    const outNote = out.length ? ` ${out.map(k => BK[k]).join(" and ")} ${out.length > 1 ? "aren't" : "isn't"} available in ${esc(ev.stateName)}; ${out.length > 1 ? "their" : "its"} odds are shown dimmed, for price comparison only.` : "";
     return `<div class="note pp-note">Lines: Hard Rock Bet, FanDuel and DraftKings via The Odds API with prices, refreshed about every 2 h for games in the next 36 h${alt}${dkFb}. Each prop is graded against the first book you can bet in your state that posted it (labelled next to the market); best over/under price on that line is green.${outNote}${when} Past games are graded against the current line, so hit rates describe history, not a prediction.${hist}</div>`;
   }
   /** Section subtitle: the books in this file, legal-in-state first, others tagged "Not available in XX". */

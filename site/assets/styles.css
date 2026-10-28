@@ -2130,3 +2130,13 @@ td.num,td .num,.num{font-variant-numeric:tabular-nums}
 .lmlog{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
 .lmlog summary{position:sticky;left:0}
 @media (prefers-reduced-motion:reduce){.hc-card,.search-btn,.back,.chip,.tab{transition:none}}
+
+/* ---- Responsible-gambling text at full body size (affiliate prep, Oct 2026). The 21+ notice and every helpline line use
+   the body font size (1rem = 15px, 14.5px on phones) and the normal text colour: never fine print. Applies to the footer,
+   the home intro, the sportsbook card, Value, Pro, line alerts, My Bets, the 21+ notice and the weekly-email signup. */
+.footer .rg,.footer .fl,.intro .intro-rg,.of-rg,.vf-how .of-rg,.al-rg,.bt-rg,.age-sheet .age-help,.age-sheet .age-fine,.news-fine,.news-age{font-size:1rem;line-height:1.5;color:var(--txt)}
+.footer .rg strong,.footer .fl strong{color:var(--txt)}
+.age-pill,.of-21{font-size:12.5px}
+.age-pill{height:22px}
+/* compact "Ad" label on outbound sportsbook links (offers card) */
+.of-ad{display:block;margin-top:3px;font-size:12px;font-weight:600;color:var(--mute);letter-spacing:.01em}

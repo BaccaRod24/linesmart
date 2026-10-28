@@ -89,7 +89,7 @@ def page_dirs(site):
 
 def resolve(site, page_rel, base, href):
     """File a relative href points to (or None for anchors / external / app routes)."""
-    if not href or href.startswith(("#", "http:", "https:", "mailto:", "tel:", "javascript:", "//")):
+    if not href or href.startswith(("#", "http:", "https:", "mailto:", "tel:", "sms:", "javascript:", "//")):
         return None
     href = href.split("#", 1)[0].split("?", 1)[0]
     root = Path(os.path.normpath(str(Path("/") / page_rel / base))) if base is not None else Path("/") / page_rel

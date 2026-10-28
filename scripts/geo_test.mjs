@@ -3,6 +3,8 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const G = require("../site/assets/geo-core.js");
 const DOC = require("../site/assets/books-by-state.js");
+const fs = require("fs");
+const RAW = JSON.parse(fs.readFileSync(new URL("../data/books-by-state.json", import.meta.url), "utf8"));
 globalThis.window = {}; require("../site/assets/config.js");
 const OFFERS = window.SITE_CONFIG.offers;
 let pass = 0, fail = 0;
@@ -10,6 +12,9 @@ const check = (ok, msg) => { if (ok) pass++; else { fail++; console.log("✗ " +
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const ev = (override, lookup) => G.evaluate(DOC, OFFERS, G.resolve(override, lookup));
 const keys = e => e.offers.map(o => o.key);
+check(JSON.stringify(DOC) === JSON.stringify(RAW), "books-by-state.js matches data/books-by-state.json");
+check(G.helpline("FL").name === RAW.helplines.FL.name && G.helpline("NY").tel === RAW.helplines.NY.tel, "geo-core helplines come from the JSON");
+check(Object.keys(G.HELPLINES).sort().join() === Object.keys(RAW.helplines).sort().join(), "HELPLINES is the JSON table");
 
 // Florida: Hard Rock only, first and default; DraftKings/FanDuel/BetMGM hidden and labeled
 const fl = ev(null, { country: "US", region: "FL" });

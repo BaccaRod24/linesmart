@@ -1,5 +1,6 @@
 /* LineSmart state-aware offers: pure logic (no DOM, no network). Loaded in the browser as window.GeoCore and in
- * Node tests via require(). Data: assets/books-by-state.js (window.BOOKS_BY_STATE) ({ books, states: { FL: { name, onlineLegal, books } } }).
+ * Node tests via require(). Data: data/books-by-state.json (browser: window.BOOKS_BY_STATE from assets/books-by-state.js,
+ * generated from that JSON). Shape: { books, urls, helplines, gambler, states: { FL: { name, slug, onlineLegal, books } } }.
  *
  * evaluate(doc, offersCfg, loc) -> {
  *   status: "unknown" (no lookup / failed) | "nonus" (outside the US) | "notlegal" (no legal online sports betting)
@@ -15,6 +16,14 @@
   "use strict";
   const OUTSIDE = "XX";   // picker value for "Outside the US"
   const BOOK_KEYS = ["hardrockbet", "draftkings", "fanduel", "betmgm"];
+
+  // One file for the page build and the browser. Node reads the JSON; the browser uses the generated script.
+  function loadBooksDoc() {
+    if (typeof module === "object" && module.exports && typeof require === "function") return require("../../data/books-by-state.json");
+    const g = typeof self !== "undefined" ? self : typeof globalThis !== "undefined" ? globalThis : {};
+    return g.BOOKS_BY_STATE || null;
+  }
+  const BOOKS_DOC = loadBooksDoc() || {};
 
   // A saved override wins over the geo-IP lookup. Returns { country, region, source } or null.
   function resolve(override, lookup) {
@@ -67,14 +76,10 @@
   // Michigan now promotes 1-800-GAMBLER (MGCB, Feb 2024), so it uses the national line. Any other state -> 1-800-GAMBLER.
   // Only add a state here after checking an official source. `sms`/`smsName`: a text line, shown in the footer (NY HOPEline:
   // call 1-877-8-HOPENY or text HOPENY to 467369).
-  const GAMBLER = { name: "1-800-GAMBLER", tel: "18004262537", url: "https://www.1800gambler.net", label: "1800gambler.net", local: false };
-  const HELPLINES = {
-    FL: { name: "1-833-PLAYWISE", tel: "18337529947", url: "https://playwise.org/", label: "playwise.org" },
-    AZ: { name: "1-800-NEXT-STEP", tel: "18006398783", url: "https://problemgambling.az.gov/", label: "problemgambling.az.gov" },
-    IN: { name: "1-800-9-WITH-IT", tel: "18009948448", url: "https://www.in.gov/igc/problemgamblinghelp/problem-gambling-hotline/", label: "in.gov" },
-    IA: { name: "1-800-BETS-OFF", tel: "18002387633", url: "https://yourlifeiowa.org/learn/gambling", label: "yourlifeiowa.org" },
-    NY: { name: "1-877-8-HOPENY", tel: "18778467369", url: "https://oasas.ny.gov/hopeline", label: "oasas.ny.gov", sms: "467369", smsName: "HOPENY (467369)" },
-  };
+  // Helplines live in data/books-by-state.json (verified Oct 27, 2026). A state line is added only after an official
+  // source is checked. Michigan uses 1-800-GAMBLER (MGCB, Feb 2024). Any other state falls back to gambler.
+  const GAMBLER = Object.assign({ local: false }, BOOKS_DOC.gambler || { name: "1-800-GAMBLER", tel: "18004262537", url: "https://www.1800gambler.net", label: "1800gambler.net" });
+  const HELPLINES = BOOKS_DOC.helplines || {};
   // helpline("FL") -> the state's own line ({ ..., local: true }); unknown/other states -> 1-800-GAMBLER (local: false)
   function helpline(code) {
     const h = code && HELPLINES[String(code).toUpperCase()];

@@ -135,12 +135,15 @@
     const states = Object.entries((DOC && DOC.states) || {}).sort((a, b) => a[1].name.localeCompare(b[1].name));
     const ov = ls.get(K_STATE) || "", c = cachedLookup();
     const det = c && !c.failed ? (c.country === "US" && DOC && DOC.states[c.region] ? DOC.states[c.region].name : c.country === "US" ? "the US (state unknown)" : "outside the US") : null;
+    // Crawlable links to the state pages. The select above is unchanged: it still picks the visitor's state.
+    const pageLinks = states.filter(([, s]) => s.onlineLegal && s.slug).map(([, s]) => `<a href="${esc(s.slug)}/">${esc(s.name)}</a>`).join("");
     dlg.innerHTML = `<form method="dialog" class="st-form"><h3 id="stTitle">Your state</h3>
       <p class="st-why">We only show sportsbooks that are legal online where you are. Sportsbooks check your location again when you sign up.</p>
       <label class="st-lbl" for="stSel">State</label>
       <select id="stSel" name="st"><option value="">Automatic${det ? ` (detected: ${esc(det)})` : lookupAllowed() ? "" : " (not detected)"}</option>
         ${states.map(([k, s]) => `<option value="${k}"${ov === k ? " selected" : ""}>${esc(s.name)}</option>`).join("")}
         <option value="${G.OUTSIDE}"${ov === G.OUTSIDE ? " selected" : ""}>Outside the US</option></select>
+      ${pageLinks ? `<nav class="st-pages" aria-label="State pages">${pageLinks}<a href="states/">All states</a></nav>` : ""}
       <div class="st-act"><button value="cancel" class="st-cancel" formnovalidate>Cancel</button><button value="save" class="st-save" id="stSave">Save</button></div>
       <p class="st-fine">Saved only in this browser. Location lookup: <a href="privacy.html#location">privacy</a>.</p></form>`;
     dlg.setAttribute("aria-labelledby", "stTitle");

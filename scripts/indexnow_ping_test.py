@@ -95,6 +95,38 @@ with tempfile.TemporaryDirectory() as td:
     check(ch == [f"{B}/nfl/games/a-at-b-2026-11-01/", f"{B}/nfl/games/c-at-d-2026-11-02/"], f"new + re-dated URLs on our host only, removed ones not sent ({ch})")
     check(IN.entries("not xml") is None and IN.entries("") is None and IN.entries(None) is None, "garbage / empty baseline is no baseline")
     check(IN.entries('<urlset><url><loc>https://linesmart.app/a/</loc><lastmod>1</lastmod></url></urlset>') == {"https://linesmart.app/a/": "1"}, "sitemap without markers: all entries")
+    check(IN.entries('<sitemapindex><sitemap><loc>https://linesmart.app/sitemap-core.xml</loc></sitemap></sitemapindex>') is None, "entries() does not treat an index as a urlset")
+
+    # sitemap index: child files beside the index, generated block only, missing child is no baseline
+    idx = td / "idx"
+    prev_d, new_d = idx / "prev", idx / "new"
+    prev_d.mkdir(parents=True)
+    new_d.mkdir()
+    def urlset(rows, static=""):
+        body = "".join(f"<url><loc>{u}</loc><lastmod>{lm}</lastmod></url>\n" for u, lm in rows.items())
+        return ('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                f"{static}<!-- pages:start -->\n{body}<!-- pages:end -->\n</urlset>\n")
+    (prev_d / "sitemap-core.xml").write_text(urlset({f"{B}/nfl/": "2026-10-27T10:00:00+00:00"}, f"<url><loc>{B}/</loc><lastmod>2026-10-01</lastmod></url>\n"))
+    (prev_d / "sitemap-live.xml").write_text(urlset({f"{B}/nfl/games/a-at-b-2026-11-01/": "2026-10-27T10:00:00+00:00"}))
+    (new_d / "sitemap-core.xml").write_text(urlset({f"{B}/nfl/": "2026-10-27T10:00:00+00:00"}, f"<url><loc>{B}/</loc><lastmod>2026-10-28</lastmod></url>\n"))
+    (new_d / "sitemap-live.xml").write_text(urlset({f"{B}/nfl/games/a-at-b-2026-11-01/": "2026-10-28T12:00:00+00:00", f"{B}/nfl/games/c-at-d-2026-11-02/": "2026-10-28T12:00:00+00:00"}))
+    index_xml = ('<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                 f"<sitemap><loc>{B}/sitemap-core.xml</loc></sitemap>\n<sitemap><loc>{B}/sitemap-live.xml</loc></sitemap>\n</sitemapindex>\n")
+    (prev_d / "sitemap.xml").write_text(index_xml)
+    (new_d / "sitemap.xml").write_text(index_xml)
+    loaded = IN.load_entries(new_d / "sitemap.xml")
+    check(loaded and f"{B}/" not in loaded and f"{B}/nfl/games/c-at-d-2026-11-02/" in loaded, f"index reads child urlsets and skips static URLs ({loaded and sorted(loaded)})")
+    ch2 = IN.changed(IN.load_entries(prev_d / "sitemap.xml"), loaded)
+    check(ch2 == [f"{B}/nfl/games/a-at-b-2026-11-01/", f"{B}/nfl/games/c-at-d-2026-11-02/"], f"index diff is new or re-dated pages only ({ch2})")
+    calls.clear(); fake(200)
+    r = IN.run(prev_d / "sitemap.xml", new_d / "sitemap.xml", site)
+    check(r["sent"] == 2 and calls and calls[-1]["body"]["urlList"] == ch2, f"ping submits only the index diff ({r})")
+    (prev_d / "sitemap-live.xml").unlink()
+    check(IN.load_entries(prev_d / "sitemap.xml") is None, "index with a missing child is not a baseline")
+    calls.clear()
+    r = IN.run(prev_d / "sitemap.xml", new_d / "sitemap.xml", site)
+    check(not calls and r["skipped"] == "no baseline", "missing child -> skip, no blind resubmit")
+    (prev_d / "sitemap-live.xml").write_text(urlset({f"{B}/nfl/games/a-at-b-2026-11-01/": "2026-10-27T10:00:00+00:00"}))
     check(len(IN.changed({}, {f"{B}/p{i}/": "1" for i in range(12000)})) == IN.MAX_URLS == 10000, "capped at 10,000 URLs")
     check(IN.find_key(site) == key, "finds the key file")
 

@@ -5,7 +5,7 @@ Checks every generated page (unique titles + canonicals, og/description, app JS,
 'Florida-based', no hard-coded sportsbook offers, no pick language), that every internal link resolves to a file, the
 sitemap (valid XML, unique, only real pages, lastmod), robots.txt, /preview/ redirects, the homepage cards, and the
 finished-games archive: closing lines captured before the start, the final filled in after the game left the window,
-the past-game page, and pruning after KEEP_DAYS.
+the past-game page, and that a finished game is never pruned.
 Usage: python3 scripts/seo_pages_test.py        (DATA_DIR=/path/to/data to test with fresher data)
 """
 import html
@@ -106,6 +106,7 @@ def node_types(nodes):
 
 
 GAME_HREF = re.compile(r"(?:^|/)(?:games|fights)/")
+RESULT_HREF = re.compile(r"(?:^|/)(?:games|fights|events)/")
 LD_TYPES = {
     "hub": {"CollectionPage", "BreadcrumbList"},
     "team": {"SportsTeam", "CollectionPage", "BreadcrumbList"},
@@ -113,17 +114,18 @@ LD_TYPES = {
     "game": {"SportsEvent", "BreadcrumbList"},
     "player": {"ProfilePage", "Person", "BreadcrumbList"},
     "event": {"SportsEvent", "BreadcrumbList"},
+    "results": {"CollectionPage", "ItemList", "BreadcrumbList"},
 }
 
 
-def visible_game_paths(hrefs):
-    """Game and fight URLs in document order, first time each path appears."""
+def _listed_paths(hrefs, pat):
+    """Matching URLs in document order, first time each path appears."""
     out, seen = [], set()
     for href in hrefs:
         if not href or href.startswith(("#", "http:", "https:", "mailto:", "tel:", "sms:", "javascript:", "//")):
             continue
         path = href.split("#", 1)[0].split("?", 1)[0]
-        if not GAME_HREF.search(path):
+        if not pat.search(path):
             continue
         if not path.endswith("/"):
             path += "/"
@@ -131,6 +133,11 @@ def visible_game_paths(hrefs):
             seen.add(path)
             out.append(path)
     return out
+
+
+def visible_game_paths(hrefs):
+    """Game and fight URLs in document order, first time each path appears."""
+    return _listed_paths(hrefs, GAME_HREF)
 
 
 def check_item_list(rel, il):
@@ -174,8 +181,19 @@ def check_page_ld(rel, h, hrefs, kind):
             ents = [n for n in nodes if n.get("@type") == want]
             about = (pages[0].get("about") or {}).get("@id") if pages else ""
             check(ents and ents[0].get("@id") and ents[0].get("@id") == about, f"{rel}: page about the {want}")
+    elif kind == "results":
+        pages = [n for n in nodes if n.get("@type") == "CollectionPage"]
+        check(pages and any(n.get("@type") == "CollectionPage" for n in tops), f"{rel}: CollectionPage is top-level")
+        check(pages and (pages[0].get("mainEntity") or {}).get("@type") == "ItemList", f"{rel}: ItemList is the CollectionPage mainEntity")
+        want = _listed_paths(hrefs, RESULT_HREF)
+        check(len(lists) == 1, f"{rel}: one ItemList ({len(lists)})")
+        if lists and want:
+            paths = check_item_list(rel, lists[0])
+            check(paths == want, f"{rel}: ItemList matches result links ({len(paths)} vs {len(want)})")
+        elif lists:
+            check(lists[0].get("numberOfItems") == 0, f"{rel}: empty results page has an empty ItemList")
     else:
-        check(not lists, f"{rel}: ItemList only on hubs and team pages")
+        check(not lists, f"{rel}: ItemList only on hubs, team and results pages")
 
 
 def title_limit_tests():
@@ -384,6 +402,104 @@ def wtw_tests():
     check(SP.wtw_move(wtw_league("nhl", "hockey", [gn]), gn) is None, "wtw: +101 -> -101 is not a move")
 
 
+def edge_cases(tmp):
+    """Postponed stays a live page, canceled has no score, a renamed team leaves a stub, thin finals stay up."""
+    site = build_copy(tmp, "siteE")
+    data = site / "data"
+    now = pv.parse_dt(json.loads((data / "meta.json").read_text())["generated"])
+    ix = json.loads((data / "nfl" / "index.json").read_text())
+
+    def side(tid, name, abbr, score=None, winner=False):
+        row = {"id": str(tid), "abbr": abbr, "name": name, "short": name.split()[-1], "record": "1-0"}
+        if score is not None:
+            row["score"] = score
+        if winner:
+            row["winner"] = True
+        return row
+
+    def game(gid, when, away, home, state, detail, books=None):
+        return {"id": gid, "date": SP.iso(when), "state": state, "statusDetail": detail, "completed": state == "post" and "postpon" not in detail.lower() and "cancel" not in detail.lower(),
+                "venue": "Test Field", "city": "Miami", "venueState": "FL", "venueCountry": "US",
+                "home": home, "away": away, "books": books or {}, "odds": None}
+
+    books = {"draftkings": {"homeSpread": -3.5, "awaySpread": 3.5, "homeSpreadOdds": -110, "awaySpreadOdds": -110,
+                            "homeML": -160, "awayML": 140, "total": 44.5, "overOdds": -110, "underOdds": -110, "asOf": SP.iso(now - timedelta(hours=5))},
+             "hardrockbet": {"homeSpread": -3, "awaySpread": 3, "homeML": -150, "awayML": 130, "total": 45, "overOdds": -110, "underOdds": -110}}
+    A, B, C, D = side("91001", "Alpha Test", "ALP"), side("91002", "Beta Test", "BET"), side("91003", "Gamma Test", "GAM"), side("91004", "Delta Test", "DEL")
+    thin = game("pp-thin", now - timedelta(days=80), side("91001", "Alpha Test", "ALP", 10), side("91002", "Beta Test", "BET", 20, True), "post", "Final")
+    lined = game("pp-lined", now - timedelta(days=40), side("91003", "Gamma Test", "GAM", 14), side("91004", "Delta Test", "DEL", 21, True), "post", "Final", books)
+    post = game("pp-post", now - timedelta(days=2), side("91001", "Alpha Test", "ALP"), side("91003", "Gamma Test", "GAM"), "post", "Postponed", books)
+    can = game("pp-can", now - timedelta(days=3), side("91003", "Gamma Test", "GAM", 0), side("91004", "Delta Test", "DEL", 0), "post", "Canceled")
+    pre = game("pp-pre", now + timedelta(days=3), side("91001", "Alpha Test", "ALP"), side("91004", "Delta Test", "DEL"), "pre", "Sun", books)
+    ix["games"].extend([thin, lined, post, can, pre])
+    (data / "nfl" / "index.json").write_text(json.dumps(ix))
+    arch = tmp / "archE"
+    SP.build(site, data, now, archive_dir=arch)
+    man = json.loads((data / "pages.json").read_text())
+    gman = man["g"]["nfl"]
+
+    def page(gid):
+        rel = gman[gid]
+        return rel, (site / rel / "index.html").read_text()
+
+    rel, h = page("pp-thin")
+    check("Closing lines not recorded" in h and "Final score" in h, "final with no closing line says so, and still has the score")
+    rel, h = page("pp-lined")
+    check("Closing lines" in h and "Closed at" in h and 'class="card sx-result"' in h, "final with lines shows the closing table and the closed-at time")
+    ev = event_ld_ok(rel, h, "nfl", "game")
+    check(ev and ev.get("eventStatus") == "https://schema.org/EventScheduled", "lined final keeps EventScheduled")
+    rel, h = page("pp-post")
+    check("Postponed" in h and "Final score" not in h and 'class="sx-score' not in h, "postponed page stays up and is not a final")
+    ev = event_ld_ok(rel, h, "nfl", "game")
+    check(ev and ev.get("eventStatus") == "https://schema.org/EventPostponed", "postponed JSON-LD is EventPostponed")
+    check(f'href="{rel}"' not in (site / "nfl" / "results" / "index.html").read_text().split('id="recent-s"', 1)[-1].split('id="by-team"', 1)[0], "postponed game is not listed as a result")
+    rel, h = page("pp-can")
+    check("Canceled" in h and "No score" in h and 'class="sx-score' not in h, "canceled page stays up and shows no score")
+    ev = event_ld_ok(rel, h, "nfl", "game")
+    check(ev and ev.get("eventStatus") == "https://schema.org/EventCancelled", "canceled JSON-LD is EventCancelled")
+    check((site / "nfl" / "results" / "index.html").exists() and "CollectionPage" in (site / "nfl" / "results" / "index.html").read_text(), "results index has CollectionPage")
+    # reschedule: old slug becomes a stub
+    old_pre = gman["pp-pre"]
+    ix = json.loads((data / "nfl" / "index.json").read_text())
+    for g in ix["games"]:
+        if g["id"] == "pp-pre":
+            g["date"] = SP.iso(now + timedelta(days=10))
+    (data / "nfl" / "index.json").write_text(json.dumps(ix))
+    SP.build(site, data, now + timedelta(hours=1), archive_dir=arch)
+    man = json.loads((data / "pages.json").read_text())
+    new_pre = man["g"]["nfl"]["pp-pre"]
+    check(new_pre != old_pre and (site / old_pre / "index.html").exists(), f"reschedule keeps the old path as a stub ({old_pre} -> {new_pre})")
+    stub = (site / old_pre / "index.html").read_text()
+    check(f'rel="canonical" href="{SP.BASE_URL + new_pre}"' in stub or f'href="{SP.BASE_URL + new_pre}"' in stub, "reschedule stub canonical points at the new page")
+    check("http-equiv" in stub and "refresh" in stub, "reschedule stub meta-refreshes")
+    # team rename
+    old_team = man["t"]["nfl"]["91002"]
+    ix = json.loads((data / "nfl" / "index.json").read_text())
+    for g in ix["games"]:
+        for s in ("home", "away"):
+            if str((g.get(s) or {}).get("id")) == "91002":
+                g[s]["name"] = "Beta Renamed"
+    (data / "nfl" / "index.json").write_text(json.dumps(ix))
+    SP.build(site, data, now + timedelta(hours=2), archive_dir=arch)
+    man = json.loads((data / "pages.json").read_text())
+    new_team = man["t"]["nfl"]["91002"]
+    check(new_team != old_team and "beta-renamed" in new_team, f"rename moves the team URL ({old_team} -> {new_team})")
+    th = (site / old_team / "index.html").read_text()
+    check(f'href="{SP.BASE_URL + new_team}"' in th and "refresh" in th, "old team slug is a canonical + meta-refresh stub")
+    stored = json.loads((arch / "state.json").read_text())["team_paths"]["nfl"]["91002"]
+    check(stored[0] == new_team and old_team in stored, f"team_paths remembers the old slug ({stored})")
+    # drop them out of the data window: pages stay
+    ix = json.loads((data / "nfl" / "index.json").read_text())
+    ix["games"] = [g for g in ix["games"] if not str(g["id"]).startswith("pp-")]
+    (data / "nfl" / "index.json").write_text(json.dumps(ix))
+    SP.build(site, data, now + timedelta(days=70), archive_dir=arch)
+    man = json.loads((data / "pages.json").read_text())["g"]["nfl"]
+    for gid in ("pp-thin", "pp-lined", "pp-post", "pp-can"):
+        check(gid in man and (site / man[gid] / "index.html").exists(), f"{gid} still published 70 days later")
+    check("Postponed" in (site / man["pp-post"] / "index.html").read_text(), "postponed game is still labeled Postponed after it leaves the window")
+    check("Closing lines not recorded" in (site / man["pp-thin"] / "index.html").read_text(), "thin final still says closing lines were not recorded")
+
+
 def main():
     title_limit_tests()
     wtw_tests()
@@ -496,11 +612,41 @@ def main():
             return (site / p / "index.html").read_text()
         for lg, hub in man["l"].items():
             hh = html_of(hub)
+            check(f'href="{lg}/results/"' in hh and (site / lg / "results" / "index.html").exists(), f"{lg} hub links /{lg}/results/")
             for kind in ("g", "t", "p"):
                 for pid, p in (man[kind].get(lg) or {}).items():
+                    if kind == "g":
+                        # finals older than the hub's 14-day list live on the results archive, which the hub links
+                        continue
                     if f'href="{p}"' not in hh:
                         check(False, f"{lg} hub links {p}")
-        check(True, "hubs link every page of their league")
+            res_html = ""
+            rdir = site / lg / "results"
+            if rdir.is_dir():
+                res_html = "\n".join(p.read_text() for p in rdir.rglob("index.html"))
+            for p in (man["g"].get(lg) or {}).values():
+                if f'href="{p}"' not in hh and f'href="{p}"' not in res_html:
+                    check(False, f"{lg} hub or results archive links {p}")
+        check(True, "hubs link teams, players, the results archive, and (with the archive) their games")
+        # every result row on a sample of team pages is a link; the archive, not ESPN's last-5 text, is the source
+        sample = []
+        for lg, tm in list(man["t"].items()):
+            sample.extend(list(tm.values())[:4])
+        sample = sample[:20]
+        unlinked = 0
+        linked_rows = 0
+        for rel in sample:
+            h = html_of(rel)
+            block = re.search(r'id="results-s".*?</section>', h, re.S)
+            if not block:
+                continue
+            for li in re.findall(r"<li\b.*?</li>", block.group(0), re.S):
+                linked_rows += 1
+                if "<a href=" not in li:
+                    unlinked += 1
+            if "sx-results" in block.group(0):
+                check('>Full results</a>' in block.group(0), f"{rel}: Full results link")
+        check(len(sample) >= 8 and linked_rows > 0 and unlinked == 0, f"sample of {len(sample)} team pages: {linked_rows} result rows, {unlinked} without a link")
         props = man["p"].get("nfl") or man["p"].get("nba") or {}
         lgp = "nfl" if man["p"].get("nfl") else "nba"
         if props:
@@ -610,32 +756,53 @@ def main():
             check((site / old / "index.html").exists() and parse(html_of(old)).links.get("canonical") == SP.BASE_URL + man["g"]["nfl"][cur[0]["id"]],
                   f"old preview URL {old} redirects to the game page")
 
-        # ---- sitemap + robots
+        # ---- sitemap index + robots
         sm = (site / "sitemap.xml").read_text()
-        root = ET.fromstring(sm.encode())
         ns = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
-        locs = [(u.find(ns + "loc").text, (u.find(ns + "lastmod").text if u.find(ns + "lastmod") is not None else None)) for u in root.findall(ns + "url")]
+        root = ET.fromstring(sm.encode())
+        check(root.tag == ns + "sitemapindex", "sitemap.xml is a sitemap index")
+        child_locs = [s.find(ns + "loc").text for s in root.findall(ns + "sitemap")]
+        check(child_locs and len(child_locs) == len(set(child_locs)), f"index lists each child once ({len(child_locs)})")
+        check(all(u.startswith(SP.BASE_URL + "sitemap-") and u.endswith(".xml") for u in child_locs), f"index children are sitemap-*.xml ({child_locs[:4]})")
+        check(SP.MAP_START not in sm and "<urlset" not in sm and "<changefreq>" not in sm, "index has no page urls and no old markers")
+        files = {u[len(SP.BASE_URL):]: site / u[len(SP.BASE_URL):] for u in child_locs}
+        check(all(p.is_file() for p in files.values()), "every index child exists on disk")
+        locs = []
+        for name, p in files.items():
+            croot = ET.fromstring(p.read_text().encode())
+            check(croot.tag == ns + "urlset", f"{name} is a urlset")
+            check(p.read_text().count(SP.MAP_START) == 1, f"{name}: one generated block")
+            rows = [(u.find(ns + "loc").text, (u.find(ns + "lastmod").text if u.find(ns + "lastmod") is not None else None)) for u in croot.findall(ns + "url")]
+            check(len(rows) < 50000, f"{name}: under 50k URLs ({len(rows)})")
+            locs.extend(rows)
         urls = [u for u, _ in locs]
-        check(len(urls) == len(set(urls)), "sitemap: no duplicate URLs")
+        check(len(urls) == len(set(urls)), "sitemap: no duplicate URLs across children")
         check(all(lm and re.match(r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2}))?$", lm) for _, lm in locs), "sitemap: every URL has a W3C lastmod")
         check(set(SP.BASE_URL + p for p in real) <= set(urls), "sitemap lists every page")
         check(not any(u[len(SP.BASE_URL):] in {r for r, _, _ in stubs} for u in urls), "sitemap: no redirect stubs")
+        check(any(u.endswith("/results/") for u in urls), "sitemap-results (or a child) lists results pages")
         for u in urls:
             p = u[len(SP.BASE_URL):]
+            if p.startswith("sitemap-"):
+                continue
             f = site / p / "index.html" if (p == "" or p.endswith("/")) else site / p
             if not f.exists():
                 check(False, f"sitemap URL exists: {u}")
-        check(sm.count(SP.MAP_START) == 1 and "previews:start" not in sm and "<changefreq>" not in sm, "sitemap: one generated block, no old markers")
         robots = (site / "robots.txt").read_text()
         check("Sitemap: https://linesmart.app/sitemap.xml" in robots, "robots.txt points at the sitemap")
-        # rebuild with nothing changed: same lastmods (content-hash driven), no duplicated block
+        # rebuild with nothing changed: same lastmods (content-hash driven)
         st_b = SP.build(site, data, now + timedelta(minutes=30), archive_dir=tmp / "arch")
-        sm2 = (site / "sitemap.xml").read_text()
         lm1 = dict(locs)
-        lm2 = {u.find(ns + "loc").text: u.find(ns + "lastmod").text for u in ET.fromstring(sm2.encode()).findall(ns + "url")}
+        lm2 = {}
+        for p in sorted((site).glob("sitemap-*.xml")):
+            for u in ET.fromstring(p.read_text().encode()).findall(ns + "url"):
+                lm2[u.find(ns + "loc").text] = u.find(ns + "lastmod").text
         same = sum(lm1.get(u) == v for u, v in lm2.items() if u != SP.BASE_URL)
-        check(sm2.count(SP.MAP_START) == 1 and same >= 0.9 * (len(lm2) - 1), f"rebuild keeps lastmod for unchanged pages ({same}/{len(lm2) - 1})")
+        check(same >= 0.9 * (len(lm2) - 1), f"rebuild keeps lastmod for unchanged pages ({same}/{len(lm2) - 1})")
         check(st_b["pages"] == st["pages"], "rebuild: same page count")
+        parts = SP.chunk_sitemap("sitemap-games-nba-2026-10", [(f"https://linesmart.app/p{i}/", "2026-10-28T00:00:00Z") for i in range(5)], limit=2)
+        check([n for n, _ in parts] == ["sitemap-games-nba-2026-10.xml", "sitemap-games-nba-2026-10-2.xml", "sitemap-games-nba-2026-10-3.xml"]
+              and all(len(rows) <= 2 for _, rows in parts) and sum(len(rows) for _, rows in parts) == 5, f"sitemap split stays under the cap ({[n for n, _ in parts]})")
 
         # ---- game / fight titles: "Away vs Home Odds: <books>", books named only if their column is on the page
         for lg, gmap in man["g"].items():
@@ -724,19 +891,41 @@ def main():
             check("Closing lines" in ph and 'class="card sx-result"' in ph, "past-game page: result card + closing lines")
             check(re.search(r"covered the closing spread|closing spread was a push|No spread", ph) or "closing total" in ph, "past-game page grades the closing line")
             check(not pd.body.get("data-route"), "past-game page stays static (not hydrated)")
-            check(pd.links.get("canonical") == SP.BASE_URL + path and SP.BASE_URL + path in (site2 / "sitemap.xml").read_text(), "past-game page canonical + in sitemap")
+            check(pd.links.get("canonical") == SP.BASE_URL + path and SP.BASE_URL + path in SP.read_sitemaps(site2), "past-game page canonical + in sitemap")
+            check("Closed at" in ph, "past-game page shows when the lines closed")
             check(f'href="{path}"' in (site2 / "nfl" / "index.html").read_text(), "hub links the past game")
             a = json.loads((arch / "games-nfl.json").read_text())[g["id"]]
             check(a["state"] == "post" and a["home"]["score"] == 31 and a["away"]["score"] == 17, f"archive final normalized ({a['home'].get('score')!r}-{a['away'].get('score')!r})")
-            # 61 days later: pruned from the archive, the page, the manifest and the sitemap
-            SP.build(site2, d2, start + timedelta(days=SP.KEEP_DAYS + 1), archive_dir=arch)
+            # 61 days later: still in the archive, still a page, still in the sitemap
+            lm_before = None
+            for pth in (site2).glob("sitemap-*.xml"):
+                for u in ET.fromstring(pth.read_text().encode()).findall("{http://www.sitemaps.org/schemas/sitemap/0.9}url"):
+                    if u.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc").text == SP.BASE_URL + path:
+                        lm_before = u.find("{http://www.sitemaps.org/schemas/sitemap/0.9}lastmod").text
+            # a record change that is not the score or the closing line must not move lastmod
+            saved = json.loads((arch / "games-nfl.json").read_text())
+            saved[g["id"]]["home"]["record"] = "9-9"
+            (arch / "games-nfl.json").write_text(json.dumps(saved))
+            SP.build(site2, d2, start + timedelta(days=61), archive_dir=arch)
             man3 = json.loads((d2 / "pages.json").read_text())
-            check(g["id"] not in (man3["g"].get("nfl") or {}) and not (site2 / path).exists(), "game page pruned after KEEP_DAYS")
-            check(g["id"] not in json.loads((arch / "games-nfl.json").read_text()), "archive pruned after KEEP_DAYS")
-            check(SP.BASE_URL + path not in (site2 / "sitemap.xml").read_text(), "pruned page leaves the sitemap")
+            check(man3["g"]["nfl"].get(g["id"]) == path and (site2 / path / "index.html").exists(), "game page never pruned")
+            check(g["id"] in json.loads((arch / "games-nfl.json").read_text()), "archive never pruned")
+            check(SP.BASE_URL + path in SP.read_sitemaps(site2), "old final stays in the sitemap")
+            lm_after = None
+            for pth in (site2).glob("sitemap-*.xml"):
+                for u in ET.fromstring(pth.read_text().encode()).findall("{http://www.sitemaps.org/schemas/sitemap/0.9}url"):
+                    if u.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc").text == SP.BASE_URL + path:
+                        lm_after = u.find("{http://www.sitemaps.org/schemas/sitemap/0.9}lastmod").text
+            check(lm_before and lm_before == lm_after, f"finished lastmod frozen when the score and closing line do not change ({lm_before} -> {lm_after})")
+            home_rel = man3["t"]["nfl"][str(g["home"]["id"])]
+            th = (site2 / home_rel / "index.html").read_text()
+            check(f'href="{path}"' in th and ">Full results</a>" in th, "team page links the old final and the full results archive")
             # 404 page handles the expired URL
             nf = (site2 / "404.html").read_text()
             check("expired" in nf and "noindex" in nf and "1-800-GAMBLER" in nf, "404 page explains expired pages")
+
+        # ---- postponed, canceled, team-rename stub, results schema (tiny archive build)
+        edge_cases(tmp)
 
         # ---- UFC fight + event pages: SportsEvent JSON-LD (the committed snapshot has no UFC data)
         site4 = build_copy(tmp, "site4")

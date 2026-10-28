@@ -6,10 +6,13 @@ Runs as the `indexnow` job in .github/workflows/refresh-and-deploy.yml, after a 
     python scripts/indexnow_ping.py --prev _indexnow/prev-sitemap.xml --new _indexnow/new-sitemap.xml
 
 - `--prev` is the live https://linesmart.app/sitemap.xml fetched at the start of the run (before this deploy);
-  `--new` is the sitemap this run deployed.
-- Only the generated pages block (`<!-- pages:start ... -->` ... `<!-- pages:end -->`, written by seo_pages.py) is
-  compared: a URL is sent when it is new or its <lastmod> changed. lastmod only moves when a page's content changes
-  (seo_pages.py keeps a content hash per page), so unchanged pages are never re-sent. Removed URLs are not sent.
+  `--new` is the sitemap this run deployed. Either file may be a sitemap index: child sitemaps are read from the
+  same directory (the build job downloads the live children next to the previous index, and copies the new ones
+  next to the new index).
+- Only the generated pages block (`<!-- pages:start ... -->` ... `<!-- pages:end -->`, written by seo_pages.py) of
+  each urlset is compared: a URL is sent when it is new or its <lastmod> changed. lastmod only moves when a page's
+  content changes (seo_pages.py keeps a content hash per page; a finished game's lastmod is frozen), so unchanged
+  pages are never re-sent. Removed URLs are not sent. A sitemap index whose child file is missing is not a baseline.
 - At most one POST per run (up to 10,000 URLs) to https://api.indexnow.org/indexnow with host, key and keyLocation.
   The key file is site/<key>.txt, served at https://linesmart.app/<key>.txt.
 - Nothing new, no baseline (the live fetch failed) or no key: logs why and skips. Any error is logged and the script
@@ -51,7 +54,8 @@ def log(msg):
 
 
 def entries(xml: str | None) -> dict | None:
-    """{loc: lastmod} from the generated pages block (whole file if it has no markers). None if not a sitemap."""
+    """{loc: lastmod} from the generated pages block of one urlset (whole file if it has no markers).
+    None if this is not a urlset. A sitemap index is not parsed here; use load_entries."""
     if not xml or "<urlset" not in xml:
         return None
     s, e = START.search(xml), END.search(xml)
@@ -62,6 +66,31 @@ def entries(xml: str | None) -> dict | None:
         lm = re.search(r"<lastmod>\s*(.*?)\s*</lastmod>", u, re.S)
         if loc:
             out[loc.group(1).replace("&amp;", "&")] = lm.group(1) if lm else ""
+    return out
+
+
+def load_entries(path) -> dict | None:
+    """{loc: lastmod} for a urlset file, or for a sitemap index plus the child files sitting next to it.
+    None when the file is missing, not a sitemap, or an index whose children are not all on disk."""
+    xml = read(path)
+    if not xml:
+        return None
+    if "<sitemapindex" not in xml:
+        return entries(xml)
+    locs = re.findall(r"<loc>\s*(.*?)\s*</loc>", xml, re.S)
+    if not locs:
+        return None
+    base = Path(path).resolve().parent
+    out = {}
+    for loc in locs:
+        name = urlsplit(loc.strip()).path.rstrip("/").rsplit("/", 1)[-1]
+        if not name.endswith(".xml"):
+            return None
+        part = entries(read(base / name))
+        if part is None:
+            return None
+        for k, v in part.items():
+            out.setdefault(k, v)
     return out
 
 
@@ -107,11 +136,11 @@ def read(p):
 def run(prev_path, new_path, site=SITE, endpoint=ENDPOINT, dry_run=False, host=HOST, limit=MAX_URLS) -> dict:
     """Returns {"sent": n, "status": code|None, "skipped": reason|None}. Never raises."""
     try:
-        new = entries(read(new_path))
+        new = load_entries(new_path)
         if not new:
             log(f"skip: no deployed sitemap at {new_path}")
             return {"sent": 0, "status": None, "skipped": "no new sitemap"}
-        prev = entries(read(prev_path))
+        prev = load_entries(prev_path)
         if prev is None:
             log(f"skip: no live sitemap from before the deploy ({prev_path}); not resubmitting everything blind")
             return {"sent": 0, "status": None, "skipped": "no baseline"}

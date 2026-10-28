@@ -219,7 +219,7 @@ def main():
         shutil.copy(ROOT / "site" / "index.html", site / "index.html")
         SP.build(site, out, NOW, archive_dir=tmp / "pages-archive")
         man = load(out / "pages.json")
-        sm = (site / "sitemap.xml").read_text()
+        sm = SP.read_sitemaps(site)
         for lg in ("nhl", "mlb", "ufc"):
             check(len(man["g"].get(lg, {})) >= 2, f"seo pages: {lg} kept its last good games ({len(man['g'].get(lg, {}))})")
             check(all(("https://linesmart.app/" + p) in sm for p in man["g"].get(lg, {}).values()), f"sitemap lists the {lg} game pages")

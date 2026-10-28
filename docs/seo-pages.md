@@ -41,6 +41,19 @@ App-only sub-routes such as `#/l/nfl/all` stay hash routes.
   - player ↔ game and their other props;
   - the hubs link to everything;
   - the footer links the hubs.
+- Plain-HTML internal links near the top (crawlable without JS; only pages that exist in this build):
+  - **Hub: today's slate** (`#today-s`, `ul.sx-today`) right under the lead: today's games (ET) with time / LIVE / score,
+    or, when today is done or empty, the next day that has games ("Next NFL games: Thursday, October 29"). With no
+    upcoming games at all it says "No games today." For JS users the hub hydrates into the app's own slate, which already
+    links every game.
+  - **Game: next matchups** (`#next-s`, `ul.sx-next`): each team's next scheduled game page after this one
+    (`next_games()`), e.g. "Next for the Ravens: at Bills, Sun 11/1". Finished games get it too. On static pages it sits
+    right under the odds; on hydrated (current) games it is the first block in `section.seo-more`, so it stays visible.
+    Teams and the league hub stay linked from `seo-more`.
+- **Line alert entry** (`.al-cta`, "Get a line alert") under the odds on upcoming games in the data window that have
+  lines, and on each prop card (`.al-cta-prop`, pre-filled with player + market) for upcoming games. It opens the
+  existing alert sheet in `assets/alerts.js` (`[data-al]` / `[data-al-prop]`); nothing new on the backend. Live,
+  finished and archived games and archived props get none (alerts end at kickoff). See `docs/line_alerts.md`.
 - The normal app shell and JS. Hubs that have data, and current games that aren't final, hydrate into the live app view.
   Past games stay static.
 - **No offers in the HTML.** State-aware offers (Florida: Hard Rock Bet only; Nevada: no BetMGM) are still filled in by JS

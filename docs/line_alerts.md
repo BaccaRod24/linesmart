@@ -15,6 +15,11 @@ Signed-in users can ask for one email when a game's line moves or reaches a numb
 
 - Books: Hard Rock Bet, DraftKings or FanDuel, one or more ("any of"). The sheet only offers books that are legal in the user's state (LSGeo), so Florida users get Hard Rock Bet only.
 - Each alert sends **one** email, then turns off. It expires at game start. Users can have up to 10 active alerts.
+- Entry points: the 🔔 bell in game cards and the "Betting lines" title, the 🔔 Alert button on prop rows, and a
+  "Get a line alert" button with a one-line note under the odds ("Get an email when this line moves or hits your number.
+  Free account, up to 5 alerts a day.") on the in-app game view (`LSAlerts.pageCta`) and on the static game and prop
+  pages (`alert_cta` / `prop_alert_cta` in `scripts/seo_pages.py`). All of them open the same sheet; signed-out users get
+  the sign-in prompt. "5 a day" is the per-user email cap below.
 - Users manage and delete alerts in **Account → Line alerts**. "Delete your data" also removes them.
 - Each email carries the line, the book, a link to the game, "Lines change often…", a manage/stop link, and a 21+ helpline line built by `public.line_alert_helpline` from the same numbers as `site/assets/geo-core.js`: for a recipient in a state with its own line, "21+ | Gambling problem? Call 1-833-PLAYWISE (Florida) or 1-800-GAMBLER." (1-800-GAMBLER alone for other known states); when the state is unknown, a compact list ("Florida: 1-833-PLAYWISE · New York: 1-877-8-HOPENY · … · Elsewhere: 1-800-GAMBLER") plus a link to /responsible-gambling.html. No state is stored for alerts today, so sent alerts use the list. Storing it would need a `state` column on `line_alerts` (or a value in auth user metadata) set by the site, a privacy-policy note, and passing it as the 5th argument of `line_alert_email` in `line_alerts_fire`.
 

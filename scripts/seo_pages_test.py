@@ -79,6 +79,7 @@ def parse(html):
 
 
 OFFER = re.compile(r'class="of-book|Bet on (DraftKings|FanDuel|Hard Rock|BetMGM|Caesars|Fanatics)|href="https?://[^"]*(draftkings|fanduel|hardrock|betmgm|caesars|fanatics)[^"]*"', re.I)
+PROMO_RE = re.compile(r"\b(free bets?|risk[- ]free|no[- ]risk|guaranteed|bonus bets?|no[- ]sweat|free plays?)\b", re.I)   # same list as compliance_test.mjs
 BAD_NAME = re.compile(r"\bRod\b|Rodney", re.I)
 
 
@@ -301,6 +302,73 @@ def main():
             gh = html_of(some_g)
             check(any(f'href="{p}"' in gh for p in man["t"]["nfl"].values()), "game page links its teams")
             check('href="nfl/"' in gh, "game page links the hub")
+
+        # ---- hub -> today's (or the next) slate, game -> each team's next matchup, line alert entry
+        def ul(h, cls):
+            m = re.search(r'<ul class="pv-list ' + cls + r'">(.*?)</ul>', h, re.S)
+            return re.findall(r'href="([^"]+)"[^>]*>([^<]*)<', m.group(1)) if m else None
+        hubs_today = 0
+        for lg, hub in man["l"].items():
+            hh = html_of(hub)
+            main_h = hh.split('id="app">', 1)[1].split("</main>", 1)[0]
+            items = ul(main_h, "sx-today")
+            gp = set((man["g"].get(lg) or {}).values())
+            if items is None:
+                check('class="na sx-none"' in main_h or not gp, f"{lg} hub: no slate -> 'No games today' (or no games at all)")
+                continue
+            hubs_today += 1
+            check(items and all(h in gp for h, _ in items), f"{lg} hub: today/next slate links only real {lg} game pages ({items[:2]})")
+            check('id="schedule"' not in main_h or main_h.index("sx-today") < main_h.index('id="schedule"'), f"{lg} hub: slate sits above the schedule")
+            check(re.search(r"<h2[^>]*>(Today&#x27;s|Today's|Next) ", main_h[:main_h.index("sx-today")]) is not None, f"{lg} hub: slate heading says Today's / Next")
+        check(hubs_today >= 2, f"at least two hubs show a today/next slate ({hubs_today})")
+        n_next = n_cta = n_pcta = 0
+        for lg, gm in man["g"].items():
+            ixp = data / lg / "index.json"
+            if not ixp.exists():
+                continue
+            games = {str(g["id"]): g for g in json.loads(ixp.read_text())["games"] if g.get("home") and g.get("away")}
+            for gid, rel in gm.items():
+                h = html_of(rel)
+                g = games.get(gid)
+                if g is None:      # archived (finished, out of the data window): never offers an alert
+                    check("al-cta" not in h, f"{rel}: archived game has no alert entry")
+                    continue
+                final = g.get("state") == "post" or g.get("completed")
+                dt = pv.parse_dt(g["date"])
+                want = []
+                for t in (g["away"], g["home"]):
+                    cands = sorted((pv.parse_dt(o["date"]), oid) for oid, o in games.items() if oid != gid and oid in gm and not (o.get("state") == "post" or o.get("completed"))
+                                   and str(t.get("id")) in {str(o["home"].get("id")), str(o["away"].get("id"))} and pv.parse_dt(o["date"]) > dt)
+                    if cands:
+                        want.append(gm[cands[0][1]])
+                got = ul(h, "sx-next") or []
+                check([x for x, _ in got] == want, f"{rel}: next-matchup links = each team's next game page ({got} vs {want})")
+                check(all(lab.startswith("Next for ") and (" vs" in lab or " at " in lab) for _, lab in got), f"{rel}: next-matchup labels read 'Next for X: vs/at Y, Day M/D'")
+                n_next += bool(got)
+                cta = f'data-al="{lg}/{gid}"' in h
+                if g.get("state") == "pre" and not final and pv.has_line(g):
+                    check(cta and "Get a line alert" in h, f"{rel}: upcoming game with lines has the line alert entry")
+                    n_cta += cta
+                else:
+                    check(not cta, f"{rel}: {'final' if final else g.get('state')} game has no line alert entry")
+        check(n_next and n_cta, f"next-matchup links on {n_next} game pages, alert entry on {n_cta}")
+        if (man["g"].get("nfl") or {}).get("401873012"):     # committed snapshot: Bengals at Ravens (final, 10/25)
+            got = ul(html_of(man["g"]["nfl"]["401873012"]), "sx-next") or []
+            check([lab for _, lab in got] == ["Next for the Bengals: vs Titans, Sun 11/1", "Next for the Ravens: at Bills, Sun 11/1"], f"finished game still links each team's next game ({got})")
+        for lg, pm in man["p"].items():
+            states = {str(x["id"]): x.get("state") for x in json.loads((data / lg / "index.json").read_text())["games"]}
+            for pid, rel in pm.items():
+                h = html_of(rel)
+                for m in re.finditer(r'data-al-prop="([^"]+)"', h):
+                    plg, pgid, ppid, mk = m.group(1).split("|")
+                    check(plg == lg and ppid == pid and mk and states.get(pgid) == "pre", f"{rel}: prop alert entry pre-filled for an upcoming game ({m.group(1)})")
+                    n_pcta += 1
+        check(not man["p"] or n_pcta, f"prop pages carry prop alert entries ({n_pcta})")
+        for rel in real:
+            h = html_of(rel)
+            if "al-cta" in h:
+                m = PROMO_RE.search(re.sub(r"<[^>]+>", " ", h))
+                check(not m and "Free account, up to 5 alerts a day." in h, f"{rel}: alert entry copy has no promo wording, states the 5-a-day limit ({m and m.group(0)})")
 
         # ---- redirects (/preview/ folded into the new pages)
         check(stubs, "redirect stubs written")

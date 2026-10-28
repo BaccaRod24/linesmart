@@ -1504,6 +1504,15 @@ body:has(.news-bets) .footer .news-foot{display:none}
 .al-txt{min-height:30px;padding:0 12px;text-transform:none;letter-spacing:0}
 .section-title .st-act{margin-left:auto}
 .pp-al{margin-top:4px;padding:3px 9px;font-size:11.5px}
+/* "Get a line alert" entry under an odds table (game pages, prop cards; in-app game view) */
+.al-cta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:10px 0 2px}
+.al-cta-btn{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 13px;border-radius:999px;border:1px solid var(--accent-line);background:var(--surface);color:var(--bestTxt);font:700 12.5px var(--font);white-space:nowrap;cursor:pointer;text-decoration:none}
+.al-cta-btn:hover{background:var(--accent-soft)}
+.al-cta-btn:focus-visible{outline:2px solid var(--accent-line);outline-offset:2px}
+.al-cta-note{flex:1 1 220px;min-width:0;font-size:12px;line-height:1.4;color:var(--dim)}
+.al-cta-prop{margin:2px 0 0}
+.al-cta-prop .al-cta-btn{min-height:28px;padding:0 11px;font-size:12px}
+.sx-next li,.sx-today li{line-height:1.45}
 .al-dlg{width:min(480px,calc(100vw - 24px));max-height:calc(100vh - 24px)}
 .al-dl{gap:4px}
 .al-dl .ac-p{margin:4px 0 8px;font-size:14px;line-height:1.5}

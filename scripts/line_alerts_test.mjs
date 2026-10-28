@@ -104,7 +104,24 @@ for (const f of ["site/assets/alerts.js", "site/assets/alerts-core.js", "supabas
   const t = fs.readFileSync(f, "utf8").replace(/advisory_xact_lock|pg_advisory|row-lock|lock(ed|s)? the|for update/gi, "");
   ok(!BANNED.test(t.replace(/--.*$/gm, "")), `no banned words in ${f}`);
 }
-ok(/1-800-GAMBLER/.test(fs.readFileSync("site/assets/alerts.js", "utf8")), "sheet shows 1-800-GAMBLER");
+// The sheet no longer hardcodes the number (commit 1f73147): it renders LSGeo.rgSpan(), i.e. GeoCore.rgCallHTML for the
+// visitor's state, which always includes 1-800-GAMBLER (state line first where there is one).
+const GC = require("../site/assets/geo-core.js");
+ok(/21\+ \| Gambling problem\? \$\{window\.LSGeo\.rgSpan\(\)\}/.test(fs.readFileSync("site/assets/alerts.js", "utf8")), "sheet shows 21+ and the state helpline span");
+ok([null, "FL", "NY", "NJ"].every(st => /tel:18004262537">1-800-GAMBLER/.test(GC.rgCallHTML(st ? { status: "ok", state: st, stateName: st } : null))), "sheet shows 1-800-GAMBLER (any state)");
+
+// ---------- alert email helplines (SQL template) match the site's mapping in geo-core.js
+{
+  const sql = fs.readFileSync("supabase/migrations/20261027_line_alerts.sql", "utf8");
+  const fn = (sql.match(/function public\.line_alert_helpline[\s\S]*?end \$\$;/) || [""])[0];
+  const arr = name => ((fn.match(new RegExp(`${name} constant text\\[\\] := array\\[([^\\]]*)\\]`)) || [])[1] || "").split(",").map(x => x.trim().replace(/^'|'$/g, ""));
+  const st = arr("st"), ph = arr("ph"), tl = arr("tl");
+  eq([...st].sort(), Object.keys(GC.HELPLINES).sort(), "alert email covers the site's state helplines");
+  ok(st.length > 0 && st.every((c, i) => GC.HELPLINES[c].name === ph[i] && GC.HELPLINES[c].tel === tl[i]), "alert email helpline numbers match geo-core.js");
+  ok(fn.includes(`tel:${GC.GAMBLER.tel}`) && fn.includes(GC.GAMBLER.name) && fn.includes("/responsible-gambling.html"), "alert email: 1-800-GAMBLER fallback + helplines link");
+  ok(/%12\$s<br>LineSmart is a free odds and stats site/.test(sql) && /\(rg ->> 'text'\) \|\| chr\(10\)/.test(sql), "alert email footer uses the helpline line (HTML and text)");
+  ok(!/Call 1-800-GAMBLER\. Florida: 1-833-PLAYWISE/.test(sql), "alert email: old fixed helpline sentence gone");
+}
 
 // ---------- checker on fixture data, database mocked
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "la-"));

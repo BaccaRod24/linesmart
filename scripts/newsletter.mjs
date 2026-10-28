@@ -5,6 +5,10 @@
 //   node scripts/newsletter.mjs --data-dir site/data    # use local data files instead of https://linesmart.app/data/
 //   node scripts/newsletter.mjs --mode test --test-to you@example.com    # one copy to one address (needs RESEND_API_KEY)
 //   NEWSLETTER_ENABLED=1 node scripts/newsletter.mjs --mode send        # all confirmed subscribers
+//   node scripts/newsletter.mjs --state FL              # preview / test copy with a Florida recipient's helpline line
+//
+// Helplines: each email shows the recipient's state helpline when the state is known (a "state" field on the
+// newsletter_recipients row; the table doesn't store one today), otherwise the compact multi-state line.
 //
 // Env: RESEND_API_KEY (test/send), NEWSLETTER_EXPORT_KEY (send: reads the confirmed list through the
 // newsletter_recipients RPC), NEWSLETTER_MAILING_ADDRESS (overrides config), NEWSLETTER_ENABLED=1 (send).
@@ -20,7 +24,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const NC = require(join(ROOT, "site/assets/news-core.js"));
 
 function args(argv) {
-  const a = { mode: "dry-run", out: "newsletter-out/preview.html", dataUrl: "https://linesmart.app/data/", dataDir: "", testTo: "", now: "", config: join(ROOT, "scripts/newsletter.config.json") };
+  const a = { mode: "dry-run", out: "newsletter-out/preview.html", dataUrl: "https://linesmart.app/data/", dataDir: "", testTo: "", now: "", state: "", config: join(ROOT, "scripts/newsletter.config.json") };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i], val = () => argv[++i];
     if (k === "--mode") a.mode = val();
@@ -29,6 +33,7 @@ function args(argv) {
     else if (k === "--data-dir") a.dataDir = val();
     else if (k === "--test-to") a.testTo = val();
     else if (k === "--now") a.now = val();
+    else if (k === "--state") a.state = val();
     else if (k === "--config") a.config = val();
     else if (k === "-h" || k === "--help") { console.log("see header of scripts/newsletter.mjs"); process.exit(0); }
     else throw new Error(`unknown option ${k}`);
@@ -78,7 +83,7 @@ async function main() {
   const lintHits = bannedIn(renderEmail(issue, cfg, { lint: true }).html + renderEmail(issue, cfg, { lint: true }).text);
   if (lintHits.length) throw new Error(`banned wording in template: ${lintHits.join(", ")}`);
 
-  const preview = renderEmail(issue, cfg, { unsubUrl: `${cfg.siteUrl}/unsubscribe.html?t=PREVIEW` });
+  const preview = renderEmail(issue, cfg, { unsubUrl: `${cfg.siteUrl}/unsubscribe.html?t=PREVIEW`, state: a.state || null });
   await mkdir(dirname(resolve(a.out)), { recursive: true });
   await writeFile(a.out, preview.html);
   await writeFile(a.out.replace(/\.html?$/, "") + ".txt", `Subject: ${preview.subject}\nPreheader: ${preview.preheader}\n\n${preview.text}\n`);
@@ -97,7 +102,7 @@ async function main() {
     const block = sendBlockers({ cfg, mode: "test", issue });
     if (block.length) throw new Error(`not sending: ${block.join("; ")}`);
     const u = unsubFor(cfg, "TEST");
-    const m = renderEmail(issue, cfg, { unsubUrl: u.url });
+    const m = renderEmail(issue, cfg, { unsubUrl: u.url, state: a.state || null });
     const r = await resend("/emails", { from: cfg.from, to: [to], reply_to: cfg.replyTo, subject: `[TEST] ${m.subject}`, html: m.html, text: m.text,
       headers: u.headers, tags: [{ name: "campaign", value: `${tag}-test` }] });
     console.log(`test email sent (id ${r.id})`);
@@ -115,7 +120,7 @@ async function main() {
   let sent = 0;
   for (let i = 0; i < list.length; i += 100) {
     const chunk = list.slice(i, i + 100).map(rcp => {
-      const u = unsubFor(cfg, rcp.unsub_token), m = renderEmail(issue, cfg, { unsubUrl: u.url });
+      const u = unsubFor(cfg, rcp.unsub_token), m = renderEmail(issue, cfg, { unsubUrl: u.url, state: rcp.state || null });
       return { from: cfg.from, to: [rcp.email], reply_to: cfg.replyTo, subject: m.subject, html: m.html, text: m.text, headers: u.headers, tags: [{ name: "campaign", value: tag }] };
     });
     try { await resend("/emails/batch", chunk, key, `linesmart-${tag}-${i / 100}`); sent += chunk.length; }

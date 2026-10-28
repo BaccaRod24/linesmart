@@ -89,7 +89,17 @@ check "subject" "$SUBJ" "Line alert: PHI spread is -2.5 at Hard Rock Bet (DAL @ 
 H() { P -c "select (body->>'html' like '%$1%')::text from net.calls limit 1"; }
 check "email has game link" "$(H 'https://linesmart.app/#/g/nfl/401')" "true"
 check "email has manage/stop link" "$(H 'https://linesmart.app/#/account')" "true"
-check "email has 21+ and 1-800-GAMBLER" "$(H '21+ | Gambling problem? Call 1-800-GAMBLER')" "true"
+# helplines: no state is stored, so a sent alert carries the compact multi-state line + the helplines link
+FALL='Florida: 1-833-PLAYWISE · New York: 1-877-8-HOPENY · Arizona: 1-800-NEXT-STEP · Indiana: 1-800-9-WITH-IT · Iowa: 1-800-BETS-OFF · Elsewhere: 1-800-GAMBLER'
+check "sent email (state unknown): 21+ and multi-state helpline line (text)" "$(P -c "select (body->>'text' like '%21+ | Gambling problem? $FALL. All state helplines: https://linesmart.app/responsible-gambling.html%')::text from net.calls limit 1")" "true"
+check "sent email (state unknown): helplines in HTML with tel: links + link" "$(P -c "select (regexp_replace(body->>'html', '<[^>]+>', '', 'g') like '%21+ | Gambling problem? ' || replace('$FALL', ' · ', ' &middot; ') || '. All state helplines%' and body->>'html' like '%href=\"tel:18337529947\"%' and body->>'html' like '%href=\"https://linesmart.app/responsible-gambling.html\"%')::text from net.calls limit 1")" "true"
+EM() { P -c "select public.line_alert_email(l, 'hardrockbet', -2.5, -110, $1) ->> '$2' from public.line_alerts l where l.id = '$ID1'"; }
+check "Florida recipient (text): 1-833-PLAYWISE first, then 1-800-GAMBLER" "$(EM "'FL'" text | grep -c '^21+ | Gambling problem? Call 1-833-PLAYWISE (Florida) or 1-800-GAMBLER.$' || true)" "1"
+check "Florida recipient (HTML): PLAYWISE tel first, no multi-state list" "$(EM "'FL'" html | grep -c 'Gambling problem? Call <a href="tel:18337529947"[^>]*>1-833-PLAYWISE</a> (Florida) or <a href="tel:18004262537"' || true)|$(EM "'FL'" html | grep -c 'HOPENY' || true)" "1|0"
+check "New York recipient: 1-877-8-HOPENY first, then 1-800-GAMBLER" "$(EM "'ny'" text | grep -c '^21+ | Gambling problem? Call 1-877-8-HOPENY (New York) or 1-800-GAMBLER.$' || true)|$(EM "'NY'" html | grep -c 'tel:18778467369.*tel:18004262537' || true)" "1|1"
+check "other known state (NJ): 1-800-GAMBLER only" "$(EM "'NJ'" text | grep -c '^21+ | Gambling problem? Call 1-800-GAMBLER.$' || true)" "1"
+check "unknown state (null) and junk -> multi-state line" "$(EM null text | grep -c "^21+ | Gambling problem? $FALL" || true)|$(EM "'<b>'" text | grep -c "^21+ | Gambling problem? $FALL" || true)" "1|1"
+check "alert email keeps the rest of the footer" "$(EM "'FL'" text | grep -c -e '^Manage or stop line alerts: ' -e "^LineSmart is a free odds and stats site. We don't take bets." || true)" "2"
 check "email shows price and setting-time line" "$(H 'Price -110')|$(H '-3.5')" "true|true"
 check "Resend key not in body" "$(P -c "select (body::text like '%re_test_key%')::text from net.calls limit 1")" "false"
 check "idempotency key per alert" "$(P -c "select headers->>'Idempotency-Key' from net.calls limit 1")" "ls-alert-$ID1"
@@ -112,6 +122,8 @@ check "too many hits in one call refused" "$(ANON "select public.line_alerts_fir
 P -c "update public.line_alerts set starts_at = now() - interval '1 minute' where game_id = '403'"
 check "pending expires started games" "$(ANON "select count(*) from public.line_alerts_pending('$KEY')")|$(P -c "select status from public.line_alerts where game_id = '403'")" "8|expired"
 check "anon can't call the email renderer" "$(ANON "select public.line_alert_email(null, 'x', 1, 1)" | grep -c 'permission denied' || true)" "1"
+check "anon can't call the helpline renderer" "$(ANON "select public.line_alert_helpline('FL', 'x')" | grep -c 'permission denied' || true)" "1"
+check "one line_alert_email function after re-runs" "$(P -c "select count(*) from pg_proc where proname = 'line_alert_email'")" "1"
 
 [ -n "${KEEP_DB:-}" ] || psql -qX -d postgres -c "drop database $DB" >/dev/null
 echo "$((fails)) failure(s)"; [ "$fails" -eq 0 ]

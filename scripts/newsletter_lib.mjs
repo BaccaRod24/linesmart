@@ -4,6 +4,7 @@
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const P = require("../site/assets/props-core.js");
+const G = require("../site/assets/geo-core.js");
 
 export const BOOKS = [["hardrockbet", "Hard Rock Bet"], ["draftkings", "DraftKings"], ["fanduel", "FanDuel"]];
 export const BOOK_NAME = Object.fromEntries(BOOKS);
@@ -189,6 +190,36 @@ export function buildIssue({ meta, indexes, props, now, cfg }) {
 }
 export const isEmptyIssue = d => !d.prices.length && !d.numbers.length && !d.props.length && !d.moves.length;
 
+// ---------------------------------------------------------------- responsible-gambling line (state helplines)
+// Numbers come from GeoCore.HELPLINES / GAMBLER (site/assets/geo-core.js), the same mapping the site uses. The SQL copy
+// in supabase/migrations/20261027_line_alerts.sql (line_alert_helpline) is checked against it by line_alerts_test.mjs.
+export const HELPLINE_STATES = [["FL", "Florida"], ["NY", "New York"], ["AZ", "Arizona"], ["IN", "Indiana"], ["IA", "Iowa"]];
+const STATE_NAME = Object.fromEntries(HELPLINE_STATES);
+/** The recipient's state code (e.g. "FL") or null when it isn't known. Anything that isn't two letters counts as unknown. */
+export const normState = s => (typeof s === "string" && /^[A-Za-z]{2}$/.test(s.trim()) ? s.trim().toUpperCase() : null);
+/**
+ * 21+ helpline line for an email. Known state with its own line: "Call 1-833-PLAYWISE (Florida) or 1-800-GAMBLER."
+ * (same order as the site's GeoCore.rgCallHTML). Known state without one: "Call 1-800-GAMBLER." Unknown: one compact line
+ * with every state line the site lists, then "Elsewhere: 1-800-GAMBLER", plus a link to the site's helplines page.
+ * Returns { html, text, local } where local is the state helpline object (or null).
+ */
+export function helplineLine(state, { site = "https://linesmart.app", link = "#22e1ff" } = {}) {
+  const code = normState(state), rg = `${site.replace(/\/$/, "")}/responsible-gambling.html`;
+  const tel = h => `<a href="tel:${h.tel}" style="color:inherit;text-decoration:underline">${escHTML(h.name)}</a>`;
+  const gam = G.GAMBLER;
+  if (code) {
+    const h = G.helpline(code);
+    if (h.local) return { local: h,
+      html: `21+ | Gambling problem? Call ${tel(h)} (${escHTML(STATE_NAME[code] || code)}) or ${tel(gam)}.`,
+      text: `21+ | Gambling problem? Call ${h.name} (${STATE_NAME[code] || code}) or ${gam.name}.` };
+    return { local: null, html: `21+ | Gambling problem? Call ${tel(gam)}.`, text: `21+ | Gambling problem? Call ${gam.name}.` };
+  }
+  const list = HELPLINE_STATES.map(([c, n]) => [n, G.HELPLINES[c]]).concat([["Elsewhere", gam]]);
+  return { local: null,
+    html: `21+ | Gambling problem? ${list.map(([n, h]) => `${n}: <span style="white-space:nowrap">${tel(h)}</span>`).join(" · ")}. <a href="${rg}" style="color:${link}">All state helplines</a>`,
+    text: `21+ | Gambling problem? ${list.map(([n, h]) => `${n}: ${h.name}`).join(" · ")}. All state helplines: ${rg}` };
+}
+
 // ---------------------------------------------------------------- rendering
 const C = { bg: "#050b1c", card: "#0c1630", card2: "#111d3c", line: "#1d2b52", txt: "#e8eeff", mute: "#a3b3d9", dim: "#7f90ba", blue: "#3d9bff", cyan: "#22e1ff", bestBg: "#0b2c42", bestLine: "#1f7a96", pos: "#34d399", warn: "#fbbf24" };
 const FONT = "Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -196,7 +227,7 @@ const LGN = { nfl: "NFL", ncaaf: "College football", nba: "NBA", nhl: "NHL", nca
 const escHTML = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 /**
- * Render the email. opts.unsubUrl: this recipient's one-click link. opts.lint: replace every data value with "X" so the
+ * Render the email. opts.unsubUrl: this recipient's one-click link. opts.state: the recipient's state ("FL"), if known. opts.lint: replace every data value with "X" so the
  * banned-word check sees only our own copy (player names like "Drew Lock" are data, not copy).
  * Returns {subject, preheader, html, text}.
  */
@@ -273,11 +304,12 @@ export function renderEmail(d, cfg, opts = {}) {
     <a href="${site}/#/bets" style="display:inline-block;background:${C.blue};color:#00132e;font-weight:800;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:10px">Open My Bets</a>
   </td></tr></table></td></tr>`;
 
-  // ---- footer (CAN-SPAM + responsible gambling)
+  // ---- footer (CAN-SPAM + responsible gambling). opts.state: the recipient's state code when known (null = unknown).
+  const rg = helplineLine(opts.state, { site, link: C.cyan }), showsFL = rg.text.includes("1-833-PLAYWISE");
   const addrHTML = addr ? v(addr) : `<span style="color:${C.warn};font-weight:700">[MAILING ADDRESS NOT SET: sending to subscribers is blocked]</span>`;
   const footer = `<tr><td style="padding:26px 4px 8px;border-top:1px solid ${C.line};font-size:12px;line-height:1.65;color:${C.dim}">
-    <p style="margin:0 0 8px;color:${C.mute};font-weight:700">21+ | Gambling problem? Call 1-800-GAMBLER</p>
-    <p style="margin:0 0 8px">Florida: Hard Rock Bet is the only legal online sportsbook in Florida. DraftKings and FanDuel prices are shown for comparison where they're legal. In Florida you can also call or text 1-833-PLAYWISE.</p>
+    <p style="margin:0 0 8px;color:${C.mute};font-weight:700">${rg.html}</p>
+    <p style="margin:0 0 8px">Florida: Hard Rock Bet is the only legal online sportsbook in Florida. DraftKings and FanDuel prices are shown for comparison where they're legal.${showsFL ? "" : " In Florida you can also call or text 1-833-PLAYWISE."}</p>
     <p style="margin:0 0 8px">LineSmart is an informational site and doesn't take bets. Odds change often; confirm with the sportsbook. Nothing here is betting advice. This email has no affiliate links.</p>
     <p style="margin:0 0 8px">You're getting this because you signed up at linesmart.app and confirmed your email. <a href="${escHTML(unsub)}" style="color:${C.cyan};font-weight:700">Unsubscribe</a> (one click) · <a href="${site}/privacy.html#newsletter" style="color:${C.cyan}">Privacy</a> · <a href="mailto:${escHTML(cfg.contact || "contact@linesmart.app")}" style="color:${C.cyan}">${escHTML(cfg.contact || "contact@linesmart.app")}</a></p>
     <p style="margin:0">LineSmart · ${addrHTML}</p>
@@ -311,8 +343,8 @@ ${pricesBlock}${propsBlock}${movesBlock}${plug}${footer}
   T.push("", "NOTABLE LINE MOVES (opening line to now)");
   for (const r of d.moves) T.push(`- ${r.g.shortName}: ` + [r.spread && `spread ${r.g.home.abbr} ${fmtSpread(r.spread.open)} -> ${fmtSpread(r.spread.cur)}`, r.total && `total ${fmtNum(r.total.open)} -> ${fmtNum(r.total.cur)}`].filter(Boolean).join(", ") + (r.notable.length ? ` (${r.notable.join("; ")})` : ""));
   if (!d.moves.length) T.push("- No big moves yet.");
-  T.push("", `TRACK YOUR BETS FREE: ${site}/#/bets`, "", "21+ | Gambling problem? Call 1-800-GAMBLER",
-    "Florida: Hard Rock Bet is the only legal online sportsbook in Florida. DraftKings and FanDuel are shown for comparison where legal.",
+  T.push("", `TRACK YOUR BETS FREE: ${site}/#/bets`, "", rg.text,
+    "Florida: Hard Rock Bet is the only legal online sportsbook in Florida. DraftKings and FanDuel are shown for comparison where legal." + (showsFL ? "" : " In Florida you can also call or text 1-833-PLAYWISE."),
     "LineSmart is informational and doesn't take bets. No affiliate links.", `Unsubscribe (one click): ${unsub}`,
     `LineSmart · ${addr || "[MAILING ADDRESS NOT SET]"}`);
   const text = lint ? T.join("\n").replace(/[^\n]+/g, l => (/^- /.test(l) ? "- X" : l)) : T.join("\n");

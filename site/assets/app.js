@@ -166,9 +166,13 @@
     : `<span class="oc"><b>${main}${extra}</b>${sub ? `<small>${sub}</small>` : ""}</span>`);
   const spreadLabelOf = kind => (kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread");
 
+  // final-score labels ("Final/OT", "Final/12"...): assets/live-core.js
+  const FINAL_LBL = g => (window.LiveCore && window.LiveCore.finalLabel ? window.LiveCore.finalLabel(g) : g.statusDetail || "Final");
+  const FINAL_SFX = lbl => (window.LiveCore && window.LiveCore.finalSuffix ? window.LiveCore.finalSuffix(lbl) : "");
+  const finTag = lbl => { const x = FINAL_SFX(lbl); return x ? ` <small class="fin-x">${esc(x)}</small>` : ""; };
   function statusHtml(g) {
     if (g.state === "in") return `<span class="status live">LIVE · ${esc(g.statusDetail || "")}</span>`;
-    if (g.state === "post") return `<span class="status final">${esc(g.statusDetail || "Final")}</span>`;
+    if (g.state === "post") return `<span class="status final">${esc(FINAL_LBL(g))}</span>`;
     return `<span class="status">${timeET(g.date)}</span>`;
   }
 
@@ -744,7 +748,7 @@
       const sc = r => { if (r.homeScore == null || r.awayScore == null) return r.score || ""; const mine = r.homeTeamId === t.id ? r.homeScore : r.awayScore, opp = r.homeTeamId === t.id ? r.awayScore : r.homeScore; return `${mine}-${opp}`; };
       body = [...rows].sort((a, b) => String(b.date).localeCompare(String(a.date))).map(r => `<tr><td>${r.date ? fmt(r.date, { month: "short", day: "numeric", year: "2-digit" }) : ""}</td><td>${esc(r.atVs || "")} ${esc(r.opp || "")}</td><td class="res ${esc(r.result)}">${esc(r.result || "")}</td><td class="num">${esc(sc(r))}</td></tr>`).join("");
     } else if ((ts.recent || []).length) {
-      body = ts.recent.map(r => `<tr><td>${fmt(r.date, { month: "short", day: "numeric", year: "2-digit" })}</td><td>${r.home ? "vs" : "@"} ${esc(r.opp)}</td><td class="res ${r.res}">${r.res}</td><td class="num">${r.pf}-${r.pa}</td></tr>`).join("");
+      body = ts.recent.map(r => `<tr><td>${fmt(r.date, { month: "short", day: "numeric", year: "2-digit" })}</td><td>${r.home ? "vs" : "@"} ${esc(r.opp)}</td><td class="res ${r.res}">${r.res}</td><td class="num">${r.pf}-${r.pa}${finTag(r.fin)}</td></tr>`).join("");
     } else body = `<tr><td colspan="4">${NA} — no completed games found</td></tr>`;
     return `<div class="card l5"><h3>${logo(t)}${esc(t.name)}</h3><table><thead><tr><th>Date</th><th>Opp</th><th>Res</th><th>Score (team-opp)</th></tr></thead><tbody>${body}</tbody></table></div>`;
   }
@@ -925,7 +929,7 @@
   function gameRow(g, lg, inIdx, upcoming) {
     const opp = `<span class="gr-o">${g.home ? "vs" : "@"} ${crest(g.opp.logo, g.opp.abbr || g.opp.name, "xs")}<span class="nm-l">${esc(g.opp.name)}</span><span class="nm-s">${esc(g.opp.abbr || g.opp.name)}</span></span>`;
     const right = upcoming ? `<span class="gr-r">${g.state === "in" ? `<b class="live">LIVE</b>` : esc(timeET(g.date))}${inIdx ? ` <span class="gr-go">Lines ›</span>` : ""}</span>`
-                           : `<span class="gr-r"><span class="res ${esc(g.res || "")}">${esc(g.res || "")}</span> <span class="num">${esc(g.ms ?? "")}-${esc(g.os ?? "")}</span></span>`;
+                           : `<span class="gr-r"><span class="res ${esc(g.res || "")}">${esc(g.res || "")}</span> <span class="num">${esc(g.ms ?? "")}-${esc(g.os ?? "")}</span>${g.done ? finTag(g.detail) : ""}</span>`;
     const inner = `<span class="gr-d">${fmt(g.date, { month: "short", day: "numeric" })}</span>${opp}${right}`;
     return inIdx ? `<a class="grow" href="#/g/${lg}/${g.id}">${inner}</a>` : `<div class="grow">${inner}</div>`;
   }
@@ -1141,7 +1145,7 @@
     const tm = (t, side, lead, trail) => `<div class="lt-tm${lead ? " w" : trail && g.state === "post" ? " l" : ""}">${logo(t, "lt-logo")}<span class="lt-n">${t.rank ? `<i class="lt-rk">${esc(t.rank)}</i>` : ""}${esc(name(t))}</span>${possSide === side ? '<i class="lt-poss" title="Possession" aria-label="has the ball"></i>' : ""}${mma && g.state === "post" && t.winner ? '<i class="lt-win">W</i>' : ""}<b class="lt-sc">${sc ? esc(t.score) : ""}</b></div>`;
     const st = g.state === "in" ? `<span class="lt-clk"><span class="live-dot"></span>${esc(LTC().clockText(lg, g, kind))}</span>`
       : g.state === "pre" ? `<span>${esc(timeET(g.date))}</span><small>${esc(x.starting ? "starting" : inMin(x.at - now))}</small>`
-      : `<span>${esc(g.statusDetail || "Final")}</span>${x.at ? `<small>${esc(Math.max(1, Math.round((now - x.at) / 60e3)))} min ago</small>` : ""}`;
+      : `<span>${esc(FINAL_LBL(g))}</span>${x.at ? `<small>${esc(Math.max(1, Math.round((now - x.at) / 60e3)))} min ago</small>` : ""}`;
     const sit = g.state === "in" && ov && ov.situation && ov.situation.text ? `<div class="lt-sit${ov.situation.redZone ? " rz" : ""}">${esc(ov.situation.text)}</div>` : "";
     const fight = mma ? `<div class="lt-sub">${esc([g.weightClass || g.note, g.event && g.event.short].filter(Boolean).join(" · "))}</div>` : "";
     const bet = bets.has(k) ? `<span class="lt-bet" title="You have a pending bet on this game in My Bets">${ICON("ticket", "ic")}You have a bet</span>` : "";

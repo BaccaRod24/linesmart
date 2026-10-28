@@ -36,6 +36,7 @@ import odds_props as OP
 import adv as ADV
 import linevalue as LV
 import lastgood as LG
+import final_label as FL
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.environ.get("DATA_OUT") or os.path.join(ROOT, "site", "data")   # DATA_OUT: build elsewhere (local testing)
@@ -167,7 +168,7 @@ def fetch_scoreboards(lg, days):
             err.append(f"{d}: {ex}")
     return list(events.values()), ok_days, err
 
-def game_from_event(e):
+def game_from_event(e, lg=None):
     c = e["competitions"][0]
     comps = {x["homeAway"]: x for x in c["competitors"]}
     st = e.get("status") or c.get("status") or {}
@@ -178,6 +179,7 @@ def game_from_event(e):
     return dict(
         id=e["id"], date=e["date"], name=e.get("name"), shortName=e.get("shortName"),
         state=stype.get("state"), statusDetail=stype.get("shortDetail") or stype.get("detail"), completed=stype.get("completed"),
+        finalLabel=FL.label((lg or {}).get("kind"), stype, st.get("period"), (lg or {}).get("key")),   # "Final/OT", "Final/12"... (None until final)
         venue=(c.get("venue") or {}).get("fullName"), city=((c.get("venue") or {}).get("address") or {}).get("city"),
         venueId=(c.get("venue") or {}).get("id"), venueState=((c.get("venue") or {}).get("address") or {}).get("state"),
         venueCountry=((c.get("venue") or {}).get("address") or {}).get("country"), indoor=(c.get("venue") or {}).get("indoor"),
@@ -257,7 +259,8 @@ def team_splits(lg, tid):
     games = []
     for e in s.get("events", []) or []:
         c = (e.get("competitions") or [{}])[0]
-        if not ((c.get("status") or {}).get("type") or {}).get("completed"): continue
+        cst = c.get("status") or {}
+        if not (cst.get("type") or {}).get("completed"): continue
         me = next((x for x in c.get("competitors", []) if str(x.get("id") or x.get("team", {}).get("id")) == str(tid)), None)
         op = next((x for x in c.get("competitors", []) if x is not me), None)
         if not me or not op: continue
@@ -270,7 +273,7 @@ def team_splits(lg, tid):
         res = "W" if me.get("winner") else ("L" if op.get("winner") else ("T" if pf == pa else ("W" if pf > pa else "L")))
         if lg["kind"] == "soccer" and pf == pa: res = "D"
         games.append(dict(id=str(e["id"]) if e.get("id") else None, date=e.get("date"), home=me.get("homeAway") == "home", pf=pf, pa=pa, res=res,
-                          opp=(op.get("team") or {}).get("abbreviation")))
+                          opp=(op.get("team") or {}).get("abbreviation"), fin=FL.label(lg["kind"], cst.get("type"), cst.get("period"), lg.get("key"))))
     games.sort(key=lambda x: x["date"])
     def agg(gs):
         if not gs: return None
@@ -287,7 +290,7 @@ def team_splits(lg, tid):
     return dict(season=season.get("displayName") or season.get("year"), seasonType=season.get("name"),
                 recordSummary=(s.get("team") or {}).get("recordSummary"), standingSummary=(s.get("team") or {}).get("standingSummary"),
                 all=agg(games), homeSplit=agg([x for x in games if x["home"]]), awaySplit=agg([x for x in games if not x["home"]]),
-                last10=agg(games[-10:]), streak=streak, recent=[dict(id=x["id"], date=x["date"], res=x["res"], pf=x["pf"], pa=x["pa"], home=x["home"], opp=x["opp"]) for x in games[-5:]][::-1])
+                last10=agg(games[-10:]), streak=streak, recent=[dict(id=x["id"], date=x["date"], res=x["res"], pf=x["pf"], pa=x["pa"], home=x["home"], opp=x["opp"], fin=x["fin"]) for x in games[-5:]][::-1])
 
 # ---------------------------------------------------------------- The Odds API (optional)
 def norm_name(s):
@@ -610,7 +613,7 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
     report = dict(league=lg["key"], endpoints={})
     events, ok_days, errs = fetch_scoreboards(lg, days)
     report["endpoints"]["scoreboard"] = f"ok {ok_days}/{days} days" + (f"; errors: {errs[:2]}" if errs else "")
-    games = sorted((game_from_event(e) for e in events), key=lambda g: g["date"])
+    games = sorted((game_from_event(e, lg) for e in events), key=lambda g: g["date"])
     # ESPN failed (or came back suspiciously empty): carry over the last good games (marked stale) instead of showing none
     restored, fb, idx0 = lastgood_games(lg, games, ok_days, errs, days, lgsrc, dt.datetime.now(dt.timezone.utc))
     if fb: report["fallback"] = fb

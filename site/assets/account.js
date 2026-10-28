@@ -102,6 +102,7 @@
     UI.step = "in"; UI.err = ""; UI.info = "";
     await session();
     draw();
+    window.dispatchEvent(new Event("ls-auth"));
     await syncNow();        // first sign-in on this device: uploads the bets already here, pulls the rest
   }
 
@@ -150,6 +151,7 @@
     UI.busy = false; UI.step = "email"; UI.sync = "idle"; UI.err = "";
     UI.info = "Signed out. Your bets are still saved on this device; sign in again any time to sync them.";
     draw();
+    window.dispatchEvent(new Event("ls-auth"));
   }
   async function deleteCloud() {
     if (!confirm("Delete your LineSmart account data?\n\nThis permanently deletes every bet and line alert saved to your account in the cloud and signs you out. The bets on this device stay here.\n\nTo also delete your email address (the sign-in itself), email contact@linesmart.app.")) return;
@@ -165,6 +167,7 @@
       ls.del(AC.TOMB_KEY); ls.del(AC.SYNC_KEY); ls.del("ls-acct-email"); UI.email = "";
       await SB.auth.signOut({ scope: "local" }).catch(() => {});
       ls.del(AC.AUTH_KEY); SESSION = null;
+      window.dispatchEvent(new Event("ls-auth"));
       UI.step = "email"; UI.sync = "idle";
       UI.info = "Deleted: your bets and line alerts are no longer stored in your account, and you're signed out. The copy on this device stays. To delete your sign-in email too, email contact@linesmart.app (we'll confirm when it's done).";
     } catch (e) { UI.err = "Couldn't delete right now: " + AC.syncError(e); }

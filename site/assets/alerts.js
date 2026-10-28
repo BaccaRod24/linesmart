@@ -8,6 +8,7 @@
   const ACC = () => window.LSAccount;
   const G = () => window.LSGeo || null;
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const alertCap = () => (window.LSProApp && window.LSProApp.alertCap) || C.MAX_ACTIVE;
   const allowed = () => C.allowedBooks(G() ? k => G().isAvailable(k) : null);
   const kick = d => (A() && A().fullET ? A().fullET(d) : new Date(d).toLocaleString());
   const fmtV = (kind, v) => (kind === "ml_target" ? C.fmtOdds(v) : /total/.test(kind) || kind === "prop_move" ? C.fmtTotal(v) : C.fmtLine(v));
@@ -116,7 +117,12 @@
         <p class="ac-p">We'll email ${email ? `<b>${esc(email)}</b>` : "you"} once if it happens before the game starts. We check after each odds update (about every 30 minutes), so a quick move and move back can be missed.</p>
         <div class="bt-dl-foot"><a class="lnk" href="#/account" data-x>Manage alerts</a><span style="flex:1"></span><button type="button" class="bt-add" data-x>Done</button></div></div>`;
       dialog().querySelectorAll("[data-x]").forEach(b => b.addEventListener("click", close));
-    } catch (e) { render(C.insertError(e)); }
+    } catch (e) {
+      const msg = window.LSProApp && /alert_limit/.test(String((e && (e.message || e.hint)) || e || ""))
+        ? `You already have ${alertCap()} active alerts. Delete one in Account to add another.`
+        : C.insertError(e);
+      render(msg);
+    }
   }
 
   document.addEventListener("click", e => {
@@ -147,11 +153,11 @@
       return `<li class="al-row al-k-${st.key}"><div class="al-main"><b>${esc(C.describe(a))}</b><span class="na">${esc(a.game_label)} · ${esc(kick(a.starts_at))}</span>
         ${st.key === "fired" && a.fired_value != null ? `<span class="al-fired">Sent ${esc(kick(a.fired_at))}: ${esc(C.BOOK_NAME[a.fired_book] || "")} ${esc(fmtV(a.kind, +a.fired_value))}</span>` : ""}</div>
         <span class="al-st al-st-${st.key}">${esc(st.text)}</span><button type="button" class="chip al-del" data-al-del="${esc(a.id)}" aria-label="${esc(`Delete alert: ${C.describe(a)}`)}">Delete</button></li>`; };
-    return `<div class="section-title">Line alerts <span class="st-sub">${act} of ${C.MAX_ACTIVE} active</span></div>
+    return `<div class="section-title">Line alerts <span class="st-sub">${act} of ${alertCap()} active</span></div>
       <div class="card ac-card al-acct">${LERR ? `<div class="ac-msg ac-err" role="alert">${esc(LERR)}</div>` : ""}${LIST === null ? `<div class="na">Loading your alerts…</div>`
         : LERR && !rows.length ? ""
         : rows.length ? `<ul class="al-list">${rows.map(row).join("")}</ul>` : `<p class="ac-p">No alerts yet. Tap <b>🔔 Alert</b> on a game or player prop to get one email when the line moves or hits your number.</p>`}
-        <div class="note">Each alert emails you once, then turns off, and ends when the game starts. Up to ${C.MAX_ACTIVE} active alerts. Checked after each odds update, about every 30 minutes. Every alert email has a link back here to stop alerts.</div>
+        <div class="note">Each alert emails you once, then turns off, and ends when the game starts. Up to ${alertCap()} active alerts. Checked after each odds update, about every 30 minutes. Every alert email has a link back here to stop alerts.</div>
         ${rows.length ? `<div class="ac-btns"><button type="button" class="chip bt-del" data-al-delall>Delete all alerts</button></div>` : ""}</div>
       ${window.LSPro ? window.LSPro.teaser("alerts") : ""}`;
   }

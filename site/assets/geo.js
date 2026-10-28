@@ -75,14 +75,34 @@
   })();
 
   // ---------- visits-by-state count (privacy.html#state-counts). Cloudflare Web Analytics reports country only, so on the
-  // live site (analytics.hosts) each browser sends just its two-letter state code once a day (ET) to state_visit_bump()
-  // (supabase/migrations/20261028_state_visits.sql), which adds 1 to (day, state). No IP, ID or cookie is stored;
-  // localStorage ls-sv keeps only the date last counted. Unknown or non-US visitors aren't counted.
+  // live site (analytics.hosts) a real, visible browser sends just its two-letter state code once a day (ET) to
+  // state_visit_bump() (supabase/migrations/20261028_state_visits.sql). GeoCore.visitDecision skips crawlers, monitors,
+  // headless/automation, prefetch and non-visible loads; a background tab or prerender is counted only if it becomes
+  // visible. No IP, ID, cookie or user agent is stored; localStorage ls-sv keeps only the date last counted.
+  // Unknown or non-US visitors aren't counted. The database repeats the bot check (20261028_state_visits_bot_filter.sql)
+  // without storing the user agent.
   const AN = CFG.analytics || {}, SVC = AN.stateCounts || {}, K_SV = "ls-sv";
   const etDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const visitEnv = () => ({
+    userAgent: navigator.userAgent || "",
+    webdriver: navigator.webdriver,
+    prerendering: document.prerendering === true,
+    visibilityState: document.visibilityState || "visible",
+  });
+  let visArmed = false;
+  function armVisible() {
+    if (visArmed) return;
+    visArmed = true;
+    const go = () => { visArmed = false; countState(); };
+    if (document.prerendering) document.addEventListener("prerenderingchange", go, { once: true });
+    else document.addEventListener("visibilitychange", go, { once: true });
+  }
   function countState() {
     if (!SVC.rpc || !SVC.key || !(AN.hosts || []).includes(location.hostname)) return;
     if (!EV || EV.status === "nonus" || !/^[A-Z]{2}$/.test(EV.state || "")) return;
+    const decision = G.visitDecision(visitEnv());
+    if (decision === "skip") return;
+    if (decision === "wait") { armVisible(); return; }
     const day = etDay();
     if (ls.get(K_SV) === day) return;
     ls.set(K_SV, day);

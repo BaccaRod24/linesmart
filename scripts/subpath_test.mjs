@@ -492,6 +492,9 @@ for (const lg of ["nfl", "nba"]) {
     const seen = [];
     await ctx.route(/ipdata\.info/, r => { seen.push(r.request().url()); return geo === "fail" ? r.abort() : r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(geo) }); });
     await ctx.route(/cloudflareinsights\.com/, r => { seen.push(r.request().url()); return r.fulfill({ status: 200, contentType: "text/javascript", body: "" }); });
+    // This context can spoof the linesmart.app host (analytics beacon check). Never let that reach the
+    // visits-by-state RPC, even if the bot filter is bypassed. Playwright is also webdriver, which geo.js skips.
+    await ctx.route(/supabase\.co/, r => r.abort());
     await ctx.addInitScript(() => { localStorage.setItem("ls-age-ok", "1"); localStorage.setItem("ls-geo-force", "1"); });
     const p = await ctx.newPage();
     p.on("pageerror", e => errors.push("geo: " + e.message));

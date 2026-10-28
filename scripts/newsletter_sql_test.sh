@@ -23,6 +23,8 @@ SQL
 # pg_net isn't installed locally; the stub above stands in for it.
 grep -v '^create extension if not exists pg_net' supabase/migrations/20261026_newsletter.sql | P >/dev/null
 grep -v '^create extension if not exists pg_net' supabase/migrations/20261026_newsletter.sql | P >/dev/null   # re-runnable
+P < supabase/migrations/20261028_signup_email_helpline_size.sql >/dev/null   # confirm email: full-size helpline line
+P < supabase/migrations/20261028_signup_email_helpline_size.sql >/dev/null   # re-runnable
 
 fails=0
 check() { if [ "$2" == "$3" ]; then echo "PASS sql: $1"; else echo "FAIL sql: $1 (got '$2', want '$3')"; fails=$((fails+1)); fi; }
@@ -38,6 +40,9 @@ check "stored lower-cased, pending" "$(P -c "select email||'|'||status||'|'||sou
 check "honeypot row not stored" "$(P -c "select count(*) from public.newsletter_subscribers where email like 'bot%'")" "0"
 check "one confirmation email queued to Resend" "$(P -c "select count(*)||' '||min(url)||' '||min(body->>'to') from net.calls")" '1 https://api.resend.com/emails ["fan@example.com"]'
 check "confirm link in email" "$(P -c "select (min(body->>'html') like '%/subscribed.html?t=' || (select confirm_token from public.newsletter_subscribers) || '%')::text from net.calls")" "true"
+check "confirm email: 21+/helpline line at 15px, normal color" "$(P -c "select (min(body->>'html') like '%<span style=\"font-size:15px;line-height:1.5;color:#e8eeff;font-weight:700\">21+ | Gambling problem? Call <span style=\"white-space:nowrap\">1-800-GAMBLER</span></span>%')::text from net.calls")" "true"
+check "confirm email: plain text helpline unchanged" "$(P -c "select (min(body->>'text') like '%21+ | Gambling problem? Call 1-800-GAMBLER' || chr(10) || 'Questions: %')::text from net.calls")" "true"
+check "internal sender still security definer, anon not granted" "$(P -c "select p.prosecdef::text || ' ' || has_function_privilege('anon', p.oid, 'execute')::text || ' ' || array_to_string(p.proconfig, ',') from pg_proc p where p.oid = 'public.newsletter_send_confirmation(bigint)'::regprocedure")" "true false search_path=\"\""
 check "key not in email body" "$(P -c "select (min(body::text) like '%re_test_key%')::text from net.calls")" "false"
 check "repeat signup within 10 min: same answer, no 2nd email" "$(IP=5.5.5.6 A "select public.newsletter_subscribe('fan@example.com', true)")|$(P -c "select count(*) from net.calls")" "ok|1"
 check "anon can't read subscribers" "$(A "select count(*) from public.newsletter_subscribers" 2>&1 | grep -c 'permission denied' || true)" "1"

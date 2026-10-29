@@ -699,14 +699,14 @@
   function spark(points, labelFmt) {
     const nums = (points || []).filter(v => typeof v === "number" && isFinite(v));
     if (!nums.length) return "";
-    const w = 320, h = 88, pad = 10;
+    const w = 320, h = 96, pad = 8;
     let lo = Math.min(...nums), hi = Math.max(...nums);
     if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
     const X = i => pad + (nums.length === 1 ? (w - pad * 2) / 2 : (i / (nums.length - 1)) * (w - pad * 2));
     const Y = v => pad + (1 - (v - lo) / (hi - lo)) * (h - pad * 2);
     const d = nums.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join("");
-    const dots = nums.map((v, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3.5"/>`).join("");
-    return `<svg class="ppv-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Line history"><path d="${d}" fill="none"/>${dots}</svg><p class="na">${esc(labelFmt(nums[0]))} open → ${esc(labelFmt(nums[nums.length - 1]))} now</p>`;
+    const dots = nums.map((v, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="2.2"/>`).join("");
+    return `<svg class="ppv-chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Line history"><path d="${d}" fill="none"/>${dots}</svg><p class="na">${esc(labelFmt(nums[0]))} open → ${esc(labelFmt(nums[nums.length - 1]))} now</p>`;
   }
   function impliedPts(points) {
     return (points || []).map(v => {
@@ -752,7 +752,7 @@
           return `<div class="ppv-mk"><h4>${esc(label)}</h4>${shown}${ends}</div>`;
         }).filter(Boolean).join("");
         if (!body) return "";
-        return `<h4 class="ppv-book">${esc(F().BOOK_NAME[m.book] || m.book)}</h4>${body}`;
+        return `<h4 class="ppv-book">${esc(F().BOOK_NAME[m.book] || m.book)}</h4><div class="ppv-mks">${body}</div>`;
       }).filter(Boolean).join("");
       if (charts) charts += `<p class="note">Each chart is the opening number in the file, then the recorded snapshots. Moneyline is drawn as implied win percent so a move across even money stays on one scale. The prices under it are the American odds.</p>`;
     }

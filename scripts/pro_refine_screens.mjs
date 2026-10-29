@@ -100,19 +100,21 @@ async function shot(page, url, file, sel) {
   console.log("saved", file);
 }
 
-const pages = [
-  ["slate", "#/", "[data-pro-badge]"],
-  ["game", "#/g/nfl/401873023", ".pro-insights"],
-  ["props", "props-fixture/", "#pro-props-panel"],
-  ["bets", "#/bets", "#pro-bets-panel"],
-  ["hub", "#/pro", "#proMoves"],
-];
+const pages = (process.env.SHOTS === "game"
+  ? [["game", "#/g/nfl/401873023", ".pro-insights"]]
+  : [
+    ["slate", "#/", "[data-pro-badge]"],
+    ["game", "#/g/nfl/401873023", ".pro-insights"],
+    ["props", "props-fixture/", "#pro-props-panel"],
+    ["bets", "#/bets", "#pro-bets-panel"],
+    ["hub", "#/pro", "#proMoves"],
+  ]);
 for (const [width, height, tag] of [[1280, 900, "desktop"], [375, 812, "mobile"]]) {
   const { ctx, page } = await make(width, height);
   for (const [name, url, sel] of pages) await shot(page, url, `${name}-${tag}.png`, sel);
   await ctx.close();
 }
-{
+if (process.env.SHOTS !== "game") {
   const { ctx, page } = await make(1280, 900);
   await shot(page, "?theme=daylight#/pro", "hub-daylight-desktop.png", "#proMoves");
   await shot(page, "?theme=daylight#/g/nfl/401873023", "game-daylight-desktop.png", ".pro-insights");

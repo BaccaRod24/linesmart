@@ -97,6 +97,27 @@ def main():
     stats2 = BF.backfill(out, repo, ["nba"], ["2026-10-26"], fetch=fake_fetch, pause=0)
     saved2 = json.loads((out / "games-nba.json").read_text())
     check(saved2["401"]["closing"]["books"]["draftkings"]["homeSpread"] == -6.5 and stats2["nba"]["kept"] >= 1, "second run keeps the closing line")
+    # ESPN's bare ?dates=20261026 (and 20261027) is a 0-byte 200. limit=100 returns the games. An off day is not retried.
+    calls = []
+
+    def empty_bare(url):
+        if "the-odds-api" in url or "api.the-odds-api" in url:
+            raise AssertionError("backfill tried to call The Odds API")
+        calls.append(url)
+        if "dates=20261026" in url and "limit=" not in url:
+            raise json.JSONDecodeError("Expecting value", "", 0)
+        if "dates=20261026" in url and "limit=100" in url:
+            return {"events": [SB["events"][0]]}
+        if "dates=20261021" in url:
+            return {"events": []}
+        raise AssertionError("unexpected URL " + url)
+
+    out2 = tmp / "pages-empty"
+    stats3 = BF.backfill(out2, None, ["nba"], ["2026-10-21", "2026-10-26"], fetch=empty_bare, pause=0)
+    saved3 = json.loads((out2 / "games-nba.json").read_text())
+    check(saved3.get("401", {}).get("away", {}).get("abbr") == "BOS" and saved3["401"]["home"]["score"] == 121, "empty bare scoreboard is retried with limit=100")
+    check(sum(1 for u in calls if "20261021" in u) == 1, "a JSON scoreboard with no events is not retried")
+    check(any("dates=20261026" in u and "limit=100" in u for u in calls) and stats3["nba"]["added"] == 1, f"retry requested limit=100 ({stats3['nba']})")
     print(f"{'PASS' if not failed else 'FAIL'} backfill_results: {passed}/{passed + failed}")
     return 1 if failed else 0
 

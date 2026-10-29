@@ -89,6 +89,34 @@ def get(url, tries=3):
 def getj(url):
     return get(url)[0]
 
+def fetch_scoreboard(lg, ymd, fetch=None):
+    """One date's public ESPN scoreboard.
+
+    A bare ``?dates=YYYYMMDD`` has come back as HTTP 200 with a 0-byte body (NBA
+    2026-10-26 and 2026-10-27, checked 2026-10-29). The same date with ``&limit=100``
+    returns the games. That is not a timezone shift: those events are on that ET
+    date once a body is returned. Retry once with ``limit=100`` when the bare URL
+    is not JSON. A real off day is JSON with no events and is not retried.
+    ``fetch`` is ``getj`` or a test double ``(url) -> dict``.
+    """
+    fetch = fetch or getj
+    url = f"{SITE}{lg['path']}/scoreboard?dates={ymd}{lg.get('params') or ''}"
+    try:
+        sb = fetch(url)
+    except Exception as ex:
+        if "limit=" in url:
+            raise
+        alt = url + "&limit=100"
+        try:
+            sb = fetch(alt)
+        except Exception:
+            raise ex
+        log(f"{lg.get('key')} {ymd}: bare scoreboard was empty; used limit=100")
+        return sb
+    if not isinstance(sb, dict):
+        raise ValueError(f"{lg.get('key')} scoreboard {ymd} was not a JSON object")
+    return sb
+
 # ---------------------------------------------------------------- helpers
 def num(v):
     if v is None: return None
@@ -160,10 +188,9 @@ def fetch_scoreboards(lg, days):
     events, ok_days, err = {}, 0, []
     for i in range(days):
         d = (today + dt.timedelta(days=i)).strftime("%Y%m%d")
-        url = f"{SITE}{lg['path']}/scoreboard?dates={d}{lg['params']}"
         try:
-            sb = getj(url); ok_days += 1
-            for e in sb.get("events", []): events[e["id"]] = e
+            sb = fetch_scoreboard(lg, d); ok_days += 1
+            for e in sb.get("events", []) or []: events[e["id"]] = e
         except Exception as ex:
             err.append(f"{d}: {ex}")
     return list(events.values()), ok_days, err

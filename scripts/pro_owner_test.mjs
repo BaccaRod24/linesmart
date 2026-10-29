@@ -53,6 +53,12 @@ const MEMBER_TOKEN = "test-member-token";
   check(G.tokenOf(null) === "" && G.tokenOf("not-json") === "" && G.tokenOf("{}") === "", "a missing session has no token");
   check(G.tokenOf(JSON.stringify({ access_token: OWNER_TOKEN })) === OWNER_TOKEN, "session JSON yields the access token");
   check(G.isOwnerHash("#/owner") && G.isOwnerHash("#/owner/hot?lg=nfl") && !G.isOwnerHash("#/") && !G.isOwnerHash("#/pro"), "owner hash is #/owner only");
+  const bust = new URL(G.bundleUrl("https://example.supabase.co", "abc123-20261029010000", 1700000000000));
+  check(bust.pathname === "/storage/v1/object/pro-private/pro-app.js" && bust.searchParams.get("cacheNonce") === "abc123-20261029010000-1700000000000", "bundle url cache-busts with cacheNonce, the site stamp, and a timestamp");
+  const bare = new URL(G.bundleUrl("https://example.supabase.co/", "", 1700000000000));
+  check(bare.searchParams.get("cacheNonce") === "1700000000000", "bundle url falls back to a timestamp when the stamp is missing");
+  check(G.bundleUrl("https://example.supabase.co", "dev", 1) !== G.bundleUrl("https://example.supabase.co", "dev", 2), "a new timestamp is a new bundle url");
+  check(G.SITE_BUILD === "dev", "site build stamp defaults to dev until deploy");
   check(!G.IGNORED_FLAGS.some(k => G.allow(k) || G.allow(true) === k), "flag names are not an allow() input");
   const gate = read("site/assets/pro-gate.js");
   check(/\.allow\(/.test(gate) && !/localStorage\.getItem\(\s*[\"']ls-pro/.test(gate) && !/localStorage\.getItem\(\s*[\"']isPro/.test(gate), "the loader asks allow() and does not read a pro flag");
@@ -146,15 +152,24 @@ const MEMBER_TOKEN = "test-member-token";
   const gateJs = read("site/assets/pro-gate.js");
   check(/shouldHide/.test(gateJs) && /\.allow\(/.test(gateJs) && /LSProApp\.enhance/.test(gateJs), "the loader asks allow(), hides only through shouldHide, and enhances after yes");
   check(/refreshOnce/.test(gateJs) && /LSAccount/.test(gateJs) && /status === 401/.test(gateJs), "an expired token or a 401 refreshes the session once and retries");
+  check(/bundleUrl\(AC\.SB_URL, G\.SITE_BUILD\)/.test(gateJs) && /cache:\s*"no-store"/.test(gateJs) && /LineSmart Pro build /.test(gateJs), "the bundle fetch sends cacheNonce and logs the embedded build id");
   const acct = read("site/assets/account.js");
   check(/TOKEN_REFRESHED/.test(acct) && /SIGNED_IN/.test(acct) && /ls-auth/.test(acct), "account dispatches ls-auth when the access token is refreshed or sign-in finishes");
   check(!/INITIAL_SESSION/.test(acct), "the initial session event is not a second sign-in");
   const sw = read("site/sw.js");
   check(/networkFirstAsset/.test(sw) && /assets\/pro-gate\.js/.test(sw) && /assets\/account\.js/.test(sw) && /cacheFirst/.test(sw), "pro-gate and account are fetched fresh online and the rest of the shell stays cached");
-  check(/controllerchange/.test(read("site/assets/site.js")) && /had/.test(read("site/assets/site.js")), "an updated service worker reloads a page that was already controlled");
+  check(/controllerchange/.test(read("site/assets/site.js")) && /had/.test(read("site/assets/site.js")) && /updateViaCache:\s*"none"/.test(read("site/assets/site.js")), "an updated service worker reloads a page that was already controlled, and sw.js is not served from the HTTP cache");
+  check(/skipWaiting/.test(sw) && /clients\.claim/.test(sw), "a new service worker activates and takes control immediately");
   const shellFn = read("scripts/seo_pages.py");
   const shell = shellFn.slice(shellFn.indexOf("class Shell"), shellFn.indexOf("def crumbs("));
   check(shell.includes("preview.js") && !shell.includes("pro-ui.js") && !shell.includes("hot-props"), "generated pages keep index scripts and do not inline Pro");
+  check(/intro-states\[\^"\]\*" id="homeStates"/.test(shell), "generated pages drop the home-only states row");
+  const homeHtml = read("site/index.html");
+  const h1At = homeHtml.indexOf('id="introTitle"');
+  const statesAt = homeHtml.indexOf('id="homeStates"');
+  const footerAt = homeHtml.indexOf('id="siteFooter"');
+  const copyAt = homeHtml.indexOf("<p>LineSmart compares");
+  check(h1At > 0 && copyAt > h1At && statesAt > copyAt && footerAt > statesAt && homeHtml.includes('href="florida/"') && homeHtml.includes('href="states/"'), "Popular states sits above the footer, not under the home heading");
   check(/data-gid/.test(shell) && /data-pid/.test(shell) && /route = f"g\/\{L\.lg\}\/\{gid\}" if cur and not final/.test(read("scripts/seo_pages.py")), "finished games carry data-gid and still do not hydrate");
   check(!/data-pro-owner|pro-app\.js/.test(read("site/sitemap-core.xml") + read("site/robots.txt")), "core sitemap and robots stay clear of Pro");
 }
@@ -236,7 +251,7 @@ async function open(seed) {
     if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
     const auth = req.headers()["authorization"] || "";
     const owner = auth === "Bearer " + OWNER_TOKEN;
-    calls.push(u.pathname + " " + (owner ? "owner" : "other"));
+    calls.push(u.pathname + u.search + " " + (owner ? "owner" : "other"));
     if (u.pathname.endsWith("/rpc/is_pro")) {
       if (gate.mode === "err") return json(503, { message: "unavailable" });
       if (gate.mode === "no") return json(200, false);
@@ -324,13 +339,18 @@ async function quiet(page) {
 
 {
   const { ctx, page, calls, errors } = await open({ session: session(OWNER_TOKEN, OWNER_EMAIL, "rt-owner") });
+  const logs = [];
+  page.on("console", msg => logs.push(msg.text()));
   await page.goto(BASE + "#/owner", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("[data-pro-owner] .of-21", { timeout: 15000 });
   const ui = await quiet(page);
   check(ui.pro && ui.nav && ui.bundle, "owner: Pro UI and nav appear");
   check(calls.some(c => c.includes("pro-app") && c.endsWith("owner")), "owner: bundle fetched with the owner token");
+  check(calls.some(c => /\/storage\/v1\/object\/pro-private\/pro-app\.js\?cacheNonce=dev-\d+ owner$/.test(c)), "owner bundle request carries cacheNonce");
   const text = await page.locator("[data-pro-owner]").innerText();
   check(/21\+/.test(text) && /Hard Rock Bet is the only legal online sportsbook/.test(text), "owner home: 21+ and Florida line");
+  check(/Pro build /.test(text) && /site dev/.test(text), "owner hub shows the build stamp");
+  check(logs.some(l => /^LineSmart Pro build \S+$/.test(l) && !l.endsWith("no-build-id")), "gate logs the embedded bundle build id");
   await page.goto(BASE + "#/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector(".game, .page-head", { timeout: 15000 });
   const home = await quiet(page);

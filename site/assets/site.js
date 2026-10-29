@@ -112,7 +112,7 @@
         once = true;
         location.reload();
       });
-      navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(e => console.warn("SW registration failed", e));
+      navigator.serviceWorker.register("sw.js", { scope: "./", updateViaCache: "none" }).catch(e => console.warn("SW registration failed", e));
     });
   }
 })();

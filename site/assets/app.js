@@ -41,6 +41,7 @@
 
   if (!PAGE && !document.title.startsWith(CFG.name)) document.title = CFG.name;   // keep the descriptive static <title> (SEO)
   const intro = document.getElementById("intro");
+  const homeStates = document.getElementById("homeStates");
   if (intro) intro.classList.add("js");
   document.querySelectorAll("[data-brand]").forEach(e => (e.textContent = CFG.name));
   document.querySelectorAll("[data-brand-alt]").forEach(e => (e.alt = CFG.name));
@@ -1278,6 +1279,7 @@
     const navOn = h[0] === "search" || h[0] === "bets" || h[0] === "account" || h[0] === "live" ? h[0] : isValue ? "value" : !h[0] ? "home" : "";
     setLiveBadge(liveCount());
     if (intro) intro.hidden = navOn !== "home";   // static SEO intro: home only
+    if (homeStates) homeStates.hidden = navOn !== "home";
     document.querySelectorAll("#bnav [data-nav]").forEach(a => { const on = a.dataset.nav === navOn; a.classList.toggle("on", on); if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     if (h[0] === "bets") return window.LSBets ? window.LSBets.view() : (app.innerHTML = `<div class="empty"><h3>My Bets didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "account") return window.LSAccount ? window.LSAccount.view() : (app.innerHTML = `<div class="empty"><h3>Account didn't load</h3>Reload the page to try again.</div>`);

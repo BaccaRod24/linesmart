@@ -29,6 +29,10 @@ node scripts/pack_pro_bundle.mjs
 
 Upload `pro/dist/pro-app.js` to bucket `pro-private`, object name `pro-app.js`
 (Storage, not the SQL editor; the service role or the dashboard). No client can upload it.
+Set the object's cache control to `0` when the dashboard asks. The site also requests the file
+with `cacheNonce` set to the deploy stamp plus the current time, which is the query Storage's
+CDN treats as a new object. The `#/owner` hub shows `Pro build … · site …`, and the console
+logs the same build id.
 
 ## 4. Open Pro
 

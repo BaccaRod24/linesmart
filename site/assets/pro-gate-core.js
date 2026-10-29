@@ -10,6 +10,8 @@
   const BUCKET = "pro-private";
   const OBJECT = "pro-app.js";
   const RPC = "is_pro";
+  // Same string the deploy writes into sw.js VERSION. "dev" until that stamp runs.
+  const SITE_BUILD = "dev";
   // Names a visitor might set. None of them are read by allow().
   const IGNORED_FLAGS = ["ls-pro", "ls-pro-on", "isPro", "pro", "linesmart-pro", "ls-pro-access"];
 
@@ -130,7 +132,16 @@
     return h === ROUTE;
   }
   const rpcUrl = base => String(base || "").replace(/\/$/, "") + "/rest/v1/rpc/" + RPC;
-  const bundleUrl = base => String(base || "").replace(/\/$/, "") + "/storage/v1/object/" + BUCKET + "/" + OBJECT;
+  // Storage's CDN keeps the uploaded file for its cacheControl (the dashboard default is 3600s) and
+  // ignores an ordinary query string. cacheNonce is the parameter it treats as a different object.
+  // The value is the site stamp plus a timestamp, so a later upload is fetched even when the stamp
+  // has not changed. With no stamp, the timestamp alone is still a new URL.
+  function bundleUrl(base, version, nowMs) {
+    const stamp = version == null || version === "" ? "" : String(version);
+    const t = String(nowMs == null ? Date.now() : nowMs);
+    const nonce = stamp ? stamp + "-" + t : t;
+    return String(base || "").replace(/\/$/, "") + "/storage/v1/object/" + BUCKET + "/" + OBJECT + "?cacheNonce=" + encodeURIComponent(nonce);
+  }
 
-  return { ROUTE, BUCKET, OBJECT, RPC, IGNORED_FLAGS, allow, verdict, shouldHide, tokenOf, hasRefresh, expirySec, accessStale, pageContext, idFromPages, isOwnerHash, rpcUrl, bundleUrl };
+  return { ROUTE, BUCKET, OBJECT, RPC, SITE_BUILD, IGNORED_FLAGS, allow, verdict, shouldHide, tokenOf, hasRefresh, expirySec, accessStale, pageContext, idFromPages, isOwnerHash, rpcUrl, bundleUrl };
 });

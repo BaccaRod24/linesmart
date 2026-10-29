@@ -100,12 +100,17 @@
   }
   const shell = (screen, title, sub, body) => `<div class="ppv ppv-ready" data-pro-owner data-screen="${esc(screen)}">${banner()}${head(screen, title, sub)}${crumbs(screen)}${body}${fine()}</div>`;
 
+  function buildLine() {
+    const build = window.__PRO_BUILD || "unknown";
+    const site = (window.ProGateCore && window.ProGateCore.SITE_BUILD) || "unknown";
+    return `<p class="ppv-build">Pro build ${esc(build)} · site ${esc(site)}</p>`;
+  }
   function home() {
     const cards = ((window.ProCore && window.ProCore.FEATURES) || []).map(([k, label]) => `<a class="ppv-card" href="${href(SCREEN[k])}"><span class="pro-pill">Pro</span><b>${esc(label)}</b><span>${esc(HINT[k] || "")}</span><span class="ppv-go">Open</span></a>`).join("")
       + `<a class="ppv-card" href="${href("hot")}"><span class="pro-pill">Pro</span><b>Hot props</b><span>Same-line price gaps, prop line moves, and hot streaks, only from props files the site has. Saved filters stay in this browser.</span><span class="ppv-go">Open</span></a>`;
     const offers = G() && G().offersHTML ? G().offersHTML("pro") : "";
     return shell("", "LineSmart Pro", "Tools on top of the lines already on the site. The public waitlist is unchanged.",
-      `${flNote()}<div class="ppv-grid">${cards}</div>
+      `${buildLine()}${flNote()}<div class="ppv-grid">${cards}</div>
       <section class="card"><h3>What is on, and what isn't</h3>
         <p>Sharp-move flags, line charts, game lines, My Bets stats, and hot props use the data files. Email above the free daily limit, extra sportsbooks, a faster odds pull, prop history, game logs, and closing-line value show a coming-soon note when the file doesn't have them. No payment and no new email from this page.</p>
         <p>The public site still has the waitlist at <a href="#/pro">#/pro</a>.</p></section>
@@ -501,6 +506,8 @@
     api.renderTabs(null);
     const intro = document.getElementById("intro");
     if (intro) intro.hidden = true;
+    const homeStates = document.getElementById("homeStates");
+    if (homeStates) homeStates.hidden = true;
     const y = keepScroll ? window.scrollY : 0;
     keepScroll = false;
     if (!y) window.scrollTo(0, 0);

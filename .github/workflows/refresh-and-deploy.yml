@@ -249,7 +249,8 @@ jobs:
           H=$(cat site/*.html site/manifest.webmanifest site/assets/*.css site/assets/*.js | sha256sum | cut -c1-10)
           V="$H-$(date -u +%Y%m%d%H%M%S)"
           sed -i "s/^const VERSION = \".*\";/const VERSION = \"$V\";/" site/sw.js
-          grep -q "const VERSION = \"$V\";" site/sw.js && echo "sw.js VERSION=$V"
+          sed -i "s/^  const SITE_BUILD = \".*\";/  const SITE_BUILD = \"$V\";/" site/assets/pro-gate-core.js
+          grep -q "const VERSION = \"$V\";" site/sw.js && grep -q "const SITE_BUILD = \"$V\";" site/assets/pro-gate-core.js && echo "sw.js VERSION=$V"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

@@ -93,7 +93,7 @@
     return refreshP;
   }
   async function bundle(tok) {
-    const res = await fetch(G.bundleUrl(AC.SB_URL), {
+    const res = await fetch(G.bundleUrl(AC.SB_URL, G.SITE_BUILD), {
       headers: { apikey: AC.SB_KEY, Authorization: "Bearer " + tok },
       cache: "no-store",
     });
@@ -105,6 +105,7 @@
     s.dataset.proBundle = "1";
     s.text = code;
     document.body.appendChild(s);
+    console.info("LineSmart Pro build " + (window.__PRO_BUILD || "no-build-id"));
   }
   function missing() {
     if (!G.isOwnerHash(location.hash) || window.LSProApp) return;

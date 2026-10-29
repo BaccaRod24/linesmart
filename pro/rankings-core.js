@@ -47,6 +47,14 @@
     WR: SKILL_MODES,
     TE: SKILL_MODES,
   };
+  /** Same four per-game columns for every NBA position. 3PM is omitted when the cache has no threes. */
+  const NBA_COLS = [["pts", "PPG"], ["reb", "RPG"], ["ast", "APG"], ["tpm", "3PM"]];
+  const NBA_MODES = [
+    { id: "pts", label: "Points", sort: "pts", note: "Points per game" },
+    { id: "reb", label: "Rebounds", sort: "reb", note: "Rebounds per game" },
+    { id: "ast", label: "Assists", sort: "ast", note: "Assists per game" },
+    { id: "3pm", label: "3PM", sort: "tpm", note: "Threes made per game" },
+  ];
   const isNum = v => typeof v === "number" && isFinite(v);
   const num = v => (isNum(v) ? v : 0);
   const clean = n => {
@@ -104,28 +112,54 @@
     return gp ? raw / gp : 0;
   }
 
-  /** Yards / TDs / Receptions for an NFL position. Empty for every other league. */
-  function statModes(lg, pos) {
-    if (lg !== "nfl") return [];
-    const list = NFL_MODES[pos];
-    return list ? list.map(m => ({ id: m.id, label: m.label, sort: m.sort, note: m.note, cols: m.cols.map(c => c.slice()) })) : [];
+  /** True when the player rows actually carry threes made. A missing field is not treated as zero. */
+  function nbaThrees(players) {
+    return (players || []).some(p => p && typeof p.tpm === "number");
   }
-  /** The requested mode, or Yards when that stat does not apply (quarterback receptions). */
-  function resolveStat(lg, pos, statId) {
-    const modes = statModes(lg, pos);
+  function copyMode(m, cols) {
+    return { id: m.id, label: m.label, sort: m.sort, note: m.note, cols: cols.map(c => c.slice()) };
+  }
+  /** NFL: yards / TDs / receptions. NBA: points, rebounds, assists, and 3PM when the cache has threes. */
+  function statModes(lg, pos, players) {
+    if (lg === "nfl") {
+      const list = NFL_MODES[pos];
+      return list ? list.map(m => copyMode(m, m.cols)) : [];
+    }
+    if (lg === "nba" && (pos === "G" || pos === "F" || pos === "C")) {
+      const hide3 = Array.isArray(players) && !nbaThrees(players);
+      const cols = hide3 ? NBA_COLS.filter(c => c[0] !== "tpm") : NBA_COLS;
+      return NBA_MODES.filter(m => !(hide3 && m.id === "3pm")).map(m => copyMode(m, cols));
+    }
+    return [];
+  }
+  /** The requested mode, or the position's first stat when that choice does not apply. */
+  function resolveStat(lg, pos, statId, players) {
+    const modes = statModes(lg, pos, players);
     if (!modes.length) return null;
     return modes.find(m => m.id === statId) || modes[0];
   }
+  /** Per-game lists need a real sample: at least 3 games, and at least half of the busiest player at this position. */
+  function minGamesFor(players, pos) {
+    let max = 0;
+    for (const p of players || []) if (p && p.pos === pos && num(p.gp) > max) max = num(p.gp);
+    if (max < 1) return 1;
+    const half = Math.ceil(max / 2);
+    return Math.min(max, Math.max(3, half));
+  }
 
-  /** Top 10 by the position's key stat. NFL can switch the sort with statId. NBA stays per game. */
+  /** Top 10 by the chosen stat. NFL totals, or NBA per game with a games minimum. */
   function seasonBoard(players, spec, limit, statId) {
     const lim = limit || TOP_N;
-    if (!spec) return { rows: [], total: 0, stat: "", statNote: "", cols: [] };
-    const mode = resolveStat("nfl", spec.id, statId);
+    if (!spec) return { rows: [], total: 0, stat: "", statNote: "", cols: [], minGp: 1, maxGp: 0 };
+    const league = spec.perGame ? "nba" : "nfl";
+    const mode = resolveStat(league, spec.id, statId, players);
     const sortKey = mode ? mode.sort : spec.key;
     const cols = mode ? mode.cols : spec.cols;
     const perGame = !!spec.perGame;
-    const all = (players || []).filter(p => p && p.pos === spec.id && num(p.gp) >= 1 && statValue(p, sortKey, perGame) > 0);
+    let maxGp = 0;
+    for (const p of players || []) if (p && p.pos === spec.id && num(p.gp) > maxGp) maxGp = num(p.gp);
+    const minGp = perGame ? minGamesFor(players, spec.id) : 1;
+    const all = (players || []).filter(p => p && p.pos === spec.id && num(p.gp) >= minGp && statValue(p, sortKey, perGame) > 0);
     all.sort((a, b) => {
       const d = statValue(b, sortKey, perGame) - statValue(a, sortKey, perGame);
       if (Math.abs(d) > 1e-9) return d;
@@ -145,7 +179,7 @@
       gp: num(p.gp),
       cells: cols.map(([k, label]) => cell(p, k, label)),
     }));
-    return { rows, total: all.length, stat: mode ? mode.id : "", statNote: mode ? mode.note : (spec.cols[0] ? spec.cols[0][1] : ""), cols: cols.map(([k, label]) => ({ key: k, label, on: k === sortKey })) };
+    return { rows, total: all.length, stat: mode ? mode.id : "", statNote: mode ? mode.note : (spec.cols[0] ? spec.cols[0][1] : ""), cols: cols.map(([k, label]) => ({ key: k, label, on: k === sortKey })), minGp, maxGp };
   }
 
   /**
@@ -162,7 +196,7 @@
       if (!row) {
         row = { id: String(pid), n: name, rosterPos: bucket(lg, r.pos), posCounts: {}, t: String(tid || r.t || ""), latest: "", gp: 0 };
         for (const k of NFL_KEYS) row[k] = 0;
-        row.pts = 0; row.reb = 0; row.ast = 0;
+        row.pts = 0; row.reb = 0; row.ast = 0; row.tpm = 0; row.hasTpm = false;
         acc.set(pid, row);
       }
       if (!row.latest || String(date || "") >= row.latest) {
@@ -194,6 +228,7 @@
             if (!row) continue;
             row.gp += 1;
             row.pts += num(r[2]); row.reb += num(r[3]); row.ast += num(r[4]);
+            if (r.length > 5 && (isNum(r[5]) || r[5] === 0)) { row.hasTpm = true; row.tpm += num(r[5]); }
           }
         }
       }
@@ -213,7 +248,10 @@
         id: row.id, n: row.n, pos, t: row.t, ta: (abbr && abbr[row.t]) || "", gp: row.gp,
       };
       if (lg === "nfl") for (const k of NFL_KEYS) out[k] = clean(row[k]);
-      else { out.pts = clean(row.pts); out.reb = clean(row.reb); out.ast = clean(row.ast); }
+      else {
+        out.pts = clean(row.pts); out.reb = clean(row.reb); out.ast = clean(row.ast);
+        if (row.hasTpm) out.tpm = clean(row.tpm);
+      }
       players.push(out);
     }
     players.sort((a, b) => a.id.localeCompare(b.id));
@@ -457,7 +495,7 @@
 
   return {
     TOP_N, HIT_MIN, BOOK_ORDER, LEAGUES, SPECS, specsFor, specById, bucket, playerHash, normPlayer,
-    seasonBoard, statModes, resolveStat, aggregateSeason, gradeCount, sampleText, basisLabel, pickLine,
+    seasonBoard, statModes, resolveStat, nbaThrees, minGamesFor, aggregateSeason, gradeCount, sampleText, basisLabel, pickLine,
     fromProps, fromPack, rankHits, propRowsFromOdds, statSample, matchPid,
   };
 });

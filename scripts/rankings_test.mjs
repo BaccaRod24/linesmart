@@ -50,7 +50,24 @@ check(R.basisLabel("season") === "This season vs the current line", "a season ta
   ];
   const wrec = R.seasonBoard(wrs, R.specById("nfl", "WR"), 10, "rec");
   check(wrec.rows[0].name === "Slot" && wrec.stat === "rec" && wrec.rows[0].cells.find(c => c.on).key === "rec", "wide receivers can be ranked by receptions");
-  check(R.statModes("nba", "G").length === 0, "the stat picker is NFL only");
+  check(R.statModes("nba", "G", [{ id: "1", pos: "G", gp: 4, pts: 10 }]).map(m => m.id).join() === "pts,reb,ast", "3PM stays hidden until the rows actually include threes");
+  const withThrees = [{ id: "1", n: "A", pos: "G", gp: 4, pts: 40, reb: 8, ast: 20, tpm: 8 }];
+  check(R.statModes("nba", "G", withThrees).map(m => m.id).join() === "pts,reb,ast,3pm", "3PM is offered when the cache stored threes made");
+  check(R.resolveStat("nba", "F", "3pm", [{ id: "1", pos: "F", gp: 4, pts: 10 }]).id === "pts", "a 3PM choice falls back to points when threes were not stored");
+  const nbaRows = [
+    { id: "hot", n: "One Game", pos: "G", gp: 1, pts: 50, reb: 2, ast: 2, tpm: 1 },
+    { id: "ast", n: "Passer", pos: "G", gp: 4, pts: 40, reb: 8, ast: 40, tpm: 4 },
+    { id: "pts", n: "Scorer", pos: "G", gp: 4, pts: 120, reb: 12, ast: 8, tpm: 8 },
+  ];
+  const byAst = R.seasonBoard(nbaRows, R.specById("nba", "G"), 10, "ast");
+  check(byAst.minGp === 3 && byAst.rows.length === 2 && byAst.rows[0].name === "Passer" && byAst.rows[0].cells.find(c => c.on).key === "ast", "assists per game skips a one-game outlier and highlights assists");
+  const by3 = R.seasonBoard(nbaRows, R.specById("nba", "G"), 10, "3pm");
+  check(by3.rows[0].name === "Scorer" && by3.rows[0].cells.find(c => c.key === "tpm" && c.on).text === "2.0", "3PM is threes per game from the stored total");
+  const no3 = R.seasonBoard(nbaRows.map(p => { const q = { ...p }; delete q.tpm; return q; }), R.specById("nba", "G"), 10, "3pm");
+  check(no3.stat === "pts" && !no3.cols.some(c => c.key === "tpm"), "without threes the board does not invent a 3PM column");
+  const box = { g1: { d: "2026-10-22T00:00Z", h: "1", a: "2", b: { "1": { p: [["9", "SG", 20, 4, 6, 3, 30, 10, 2, 1]], t: [8, 20, 4, 2, 3] } } } };
+  const agg = R.aggregateSeason("nba", box, { "9": { n: "Shooter", pos: "SG", t: "1" } }, { "1": "BOS" });
+  check(agg[0] && agg[0].pos === "G" && agg[0].tpm === 3 && agg[0].pts === 20, "NBA aggregation keeps threes made from the box row");
 }
 
 {
@@ -135,6 +152,7 @@ check(R.basisLabel("season") === "This season vs the current line", "a season ta
     }
   }
   check(!D.leagues.nhl && !D.leagues.mlb && !D.leagues.ncaaf && !D.leagues.ncaab, "the snapshot does not invent other leagues");
+  check(D.leagues.nba.players.some(p => typeof p.tpm === "number" && p.tpm > 0), "the NBA snapshot includes threes made from the box scores");
 }
 
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall passed");

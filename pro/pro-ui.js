@@ -64,7 +64,7 @@
     const n = { ...cur, ...patch };
     const specs = Rk ? Rk.specsFor(n.lg) : [];
     if (!specs.some(s => s.id === n.pos)) n.pos = (specs[0] && specs[0].id) || "";
-    const mode = Rk && n.lg === "nfl" ? Rk.resolveStat(n.lg, n.pos, n.stat) : null;
+    const mode = Rk ? Rk.resolveStat(n.lg, n.pos, n.stat) : null;
     n.stat = mode ? mode.id : "";
     const p = new URLSearchParams();
     p.set("lg", n.lg || "nfl");
@@ -603,14 +603,14 @@
     const spec = specs.find(s => s.id === st.pos) || specs[0] || null;
     const pos = spec ? spec.id : "";
     const view = st.view === "hit" ? "hit" : "season";
-    const statMode = Rk.resolveStat(lg, pos, st.stat);
-    const statId = statMode ? statMode.id : "";
     const label = (Rk.LEAGUES.find(([id]) => id === lg) || [, lg.toUpperCase()])[1];
     const pack = (window.RankingsData && window.RankingsData.leagues && window.RankingsData.leagues[lg]) || null;
+    const statMode = Rk.resolveStat(lg, pos, st.stat, pack && pack.players);
+    const statId = statMode ? statMode.id : "";
     const chips = `<div class="chips" role="group" aria-label="League">${Rk.LEAGUES.map(([id, name]) => `<a class="chip${id === lg ? " on" : ""}" href="${rankHash({ lg: id })}"${id === lg ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;
     const posChips = specs.length ? `<div class="chips rk-pos" role="group" aria-label="Position">${specs.map(s => `<a class="chip${s.id === pos ? " on" : ""}" href="${rankHash({ lg, pos: s.id, view })}"${s.id === pos ? ' aria-current="true"' : ""}>${esc(s.label)}</a>`).join("")}</div>` : "";
     const viewChips = `<div class="chips rk-view" role="group" aria-label="Ranking">${[["season", "Season stats"], ["hit", "Prop hit rate"]].map(([id, name]) => `<a class="chip${view === id ? " on" : ""}" href="${rankHash({ lg, pos, view: id, stat: statId })}"${view === id ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;
-    const statModes = view === "season" ? Rk.statModes(lg, pos) : [];
+    const statModes = view === "season" ? Rk.statModes(lg, pos, pack && pack.players) : [];
     const statChips = statModes.length ? `<div class="chips rk-stat" role="group" aria-label="Rank by">${statModes.map(m => `<a class="chip${m.id === statId ? " on" : ""}" href="${rankHash({ lg, pos, view, stat: m.id })}"${m.id === statId ? ' aria-current="true"' : ""}>${esc(m.label)}</a>`).join("")}</div>` : "";
     const filters = `<section class="card ppv-filters" aria-label="Rankings filters">${chips}${posChips}<div class="ppv-frow">${viewChips}${statChips}</div></section>`;
     let body = "";
@@ -625,7 +625,9 @@
         const lead = board.total ? `Top ${board.rows.length} of ${board.total} by ${esc(statName).toLowerCase()}.` : `No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.`;
         const headCells = (board.cols || []).map(c => `<th class="${c.on ? "rk-on" : ""}">${esc(c.label)}</th>`).join("");
         const table = board.rows.length ? `<div class="tbl-wrap"><table class="books rk-table"><thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>GP</th>${headCells}</tr></thead><tbody>${board.rows.map(r => `<tr><td class="num">${r.rank}</td><td><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a></td><td>${esc(r.team || "—")}</td><td class="num">${r.gp}</td>${r.cells.map(c => `<td class="num${c.on ? " rk-on" : ""}">${esc(c.text)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="pro-empty">No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.</p>`;
-        body = `<p class="rk-meta">${lead} ${pack.boxGames} regular-season games in the cache${through}. ${kind} Games played is how many of those games he appeared in. Postseason games are not in the cache.</p>${table}<p class="note">Counting stats from the cached ESPN box scores. The highlighted column is the one this list is ranked by. A roster name is required. Completed games only.</p>`;
+        const sampleFloor = spec.perGame && board.minGp > 1 ? ` Players with fewer than ${board.minGp} games are left off. The most games anyone at this position played is ${board.maxGp}.` : "";
+        const noThrees = lg === "nba" && !Rk.nbaThrees(pack.players) ? `<p class="note">3-pointers made are not in this box-score cache, so that rank is hidden.</p>` : "";
+        body = `<p class="rk-meta">${lead} ${pack.boxGames} regular-season games in the cache${through}. ${kind}${sampleFloor} Games played is how many of those games he appeared in. Postseason games are not in the cache.</p>${table}<p class="note">Counting stats from the cached ESPN box scores. The highlighted column is the one this list is ranked by. A roster name is required. Completed games only.</p>${noThrees}`;
       }
     } else {
       const live = await loadPropsDoc(lg);

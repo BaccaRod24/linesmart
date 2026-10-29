@@ -92,7 +92,8 @@
       <div class="uf-l5">${stripHtml(hist)}<span class="pp-sum">${rows.length ? `${t.W}-${t.L}${t.D ? "-" + t.D : ""} last ${rows.length}` : ""}</span></div>
       ${rows.length ? `<table class="uf-hist"><tbody>${rows.map(h => `<tr><td class="uf-r uf-${esc(h.res)}">${esc(h.res)}</td><td>${h.oppId ? `<a class="tlink" href="#/p/ufc/${esc(h.oppId)}">${esc(h.opp || "")}</a>` : esc(h.opp || "")}<div class="note">${esc([h.method, h.detail && h.detail !== h.method ? h.detail : "", rnd(h.round, h.clock)].filter(Boolean).join(" · "))}</div></td><td class="num">${h.date ? esc(A().fmt(h.date, { month: "short", day: "numeric", year: "2-digit" })) : ""}</td></tr>`).join("")}</tbody></table>` : ""}</div>`;
   }
-  async function fight(d, idx, key) {
+  async function fight(d, idx, key, focus) {
+    focus = focus === "props" || focus === "stats" ? focus : "";
     const L = A(), g = d.game, H = g.home, W = g.away, r = g.result || {};
     let F = {};
     try { F = (await L.getJSON(`data/${key}/fighters.json`)).fighters || {}; } catch (e) {}
@@ -103,7 +104,10 @@
     const mid = g.state === "pre" ? `<div class="vs">VS</div><div class="when">${esc(L.fullET(g.date))}</div>`
       : g.state === "in" ? `<div class="vs live">LIVE</div><div class="when">${esc(g.statusDetail || "")}</div>`
       : `<div class="vs">${r.outcome === "draw" ? "DRAW" : r.outcome === "nc" ? "NC" : "FINAL"}</div><div class="when">${esc(resultLine(g))}</div>`;
-    let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>${L.previewLink ? L.previewLink(key, g, "back pv-back") : ""}
+    const jump = L.gameJump ? L.gameJump(key, g.id, focus) : "";
+    let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>${L.previewLink ? L.previewLink(key, g, "back pv-back") : ""}${jump}
+      ${focus === "props" ? L.notAvail("Player props", "UFC has no player-props file. Method and round props aren't in the free feeds.") : ""}
+      ${focus === "stats" ? `<div class="section-title" id="stats">Fighter stats</div><div class="cols">${lastFights(W, (F[W.id] || {}).hist)}${lastFights(H, (F[H.id] || {}).hist)}</div>` : ""}
       <div class="match uf-match" style="--ca:#b91c1c;--ch:#1d4ed8">${side(W, "away")}
         <div class="mmid">${mid}<div class="where">${esc([g.weightClass, g.rounds ? g.rounds + " rounds" : "", g.segmentName].filter(Boolean).join(" · "))}</div>
         <div class="where">${esc((g.event || {}).name || "")}</div><div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}</div>${(g.broadcasts || []).length ? `<div class="where">${esc(g.broadcasts.join(", "))}</div>` : ""}</div>
@@ -116,9 +120,9 @@
     if (window.LSBets) html += window.LSBets.trackCard(key, g, "mma");
     const lm = L.lineMoveSection(d, g, "mma");
     html += lm.html;
-    html += `<div class="section-title">Fight props</div>${L.notAvail("Fight props", "Method of victory, round betting and other fight props aren't in ESPN's free feeds.")}`;
+    if (focus !== "props") html += `<div class="section-title">Fight props</div>${L.notAvail("Fight props", "Method of victory, round betting and other fight props aren't in ESPN's free feeds.")}`;
     html += `<div class="section-title">Tale of the tape</div><div id="ufTape" class="card"><div class="note">Loading fighter bios from ESPN…</div></div>`;
-    html += `<div class="section-title">Last 5 fights</div><div class="cols">${lastFights(W, (F[W.id] || {}).hist)}${lastFights(H, (F[H.id] || {}).hist)}</div>`;
+    if (focus !== "stats") html += `<div class="section-title">Last 5 fights</div><div class="cols">${lastFights(W, (F[W.id] || {}).hist)}${lastFights(H, (F[H.id] || {}).hist)}</div>`;
     const ev = (idx.events || []).find(e => e.id === (g.event || {}).id);
     if (ev) {
       const byId = Object.fromEntries(idx.games.map(x => [x.id, x]));

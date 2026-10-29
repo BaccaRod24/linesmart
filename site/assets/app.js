@@ -206,8 +206,8 @@
     const s = g.live && g.state === "in" && g.live.situation;
     return s && s.text ? `<div class="${cls}${s.redZone ? " rz" : ""}">${esc(s.text)}</div>` : "";
   }
-  function gameTile(g, key, kind) {
-    TILES[`${key}/${g.id}`] = { g, kind }; g = liveG(key, g);
+  function gameTile(g, key, kind, home = false) {
+    TILES[`${key}/${g.id}`] = { g, kind, home: !!home }; g = liveG(key, g);
     const o = g.odds, soccer = kind === "soccer";
     const cols = !o ? [] : soccer ? ["1X2", "Total"] : [spreadLabelOf(kind), "Money", "Total"];
     const head = cols.length ? `<div class="gt-head"><span></span><span></span><span></span>${cols.map(c => `<span>${esc(c)}</span>`).join("")}</div>` : "";
@@ -224,10 +224,11 @@
     const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}">${tags}${sparks(g)}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
                    : `<div class="noline">Lines not posted yet</div>${wx ? `<div class="tfoot has-wx wx-only">${wx}</div>` : ""}`;
     const net = esc([g.note, (g.broadcasts || []).slice(0, 2).join(", ")].filter(Boolean).join(" · "));
-    const bell = window.LSAlerts && o ? window.LSAlerts.tileBell(key, g) : "", pv = previewLink(key, g), wrap = bell || pv;
-    return `${wrap ? `<div class="gwrap${pv ? " has-pv" : ""}${bell ? " has-bell" : ""}">` : ""}<a class="game c${cols.length}${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
+    const links = home ? tileLinks(key, g.id) : "";
+    const bell = window.LSAlerts && o ? window.LSAlerts.tileBell(key, g) : "", pv = previewLink(key, g), wrap = bell || pv || links;
+    return `${wrap ? `<div class="gwrap${pv ? " has-pv" : ""}${bell ? " has-bell" : ""}${links ? " has-ps" : ""}">` : ""}<a class="game c${cols.length}${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
       <div class="game-top">${statusHtml(g)}${g.state === "pre" ? notableBadge(g) : ""}<span class="net">${net}</span></div>
-      ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${sitLine(g)}${foot}${o ? pkTile(g, kind) : ""}</a>${wrap ? `${bell}${pv}</div>` : ""}`;
+      ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${sitLine(g)}${foot}${o ? pkTile(g, kind) : ""}</a>${wrap ? `${links}${bell}${pv}</div>` : ""}`;
   }
 
   // ---------- live scores: hero, box score, poller wiring
@@ -264,7 +265,7 @@
       if (!alive()) return;
       for (const k of keys) {
         const [lg] = k.split("/"), T = TILES[k];
-        if (T) app.querySelectorAll(`a.game[href="#/g/${k}"], a.game[data-h="#/g/${k}"]`).forEach(el => { const w = el.parentElement && el.parentElement.classList.contains("gwrap") ? el.parentElement : el; w.outerHTML = gameTile(T.g, lg, T.kind); });   // a pre-game tile wrapped with its alert bell is replaced whole
+        if (T) app.querySelectorAll(`a.game[href="#/g/${k}"], a.game[data-h="#/g/${k}"]`).forEach(el => { const w = el.parentElement && el.parentElement.classList.contains("gwrap") ? el.parentElement : el; w.outerHTML = gameTile(T.g, lg, T.kind, T.home); });   // a pre-game tile wrapped with its alert bell (and home props/stats links) is replaced whole
         const t = TICKS[k];
         if (t && tickerOne) document.querySelectorAll(`a.tk[data-lk="${k}"]`).forEach(el => (el.outerHTML = tickerOne(t, !!el.closest('[aria-hidden="true"]'))));
         if (sum && k === `${sum.lg}/${sum.id}`) { const m = app.querySelector(".match .lv-mid"); if (m) m.outerHTML = heroMid(liveG(sum.lg, sum.g)); }
@@ -367,6 +368,7 @@
 
   // ---------- league view
   async function viewLeague(key, home = false) {
+    rememberLg(key);
     renderTabs(home ? HOME : key);
     const L = META.leagues[key];
     if (!cache[`data/${key}/index.json`]) showSkel(skelLeague());
@@ -399,7 +401,7 @@
     } else {
       for (const k of Object.keys(days)) {
         html += `<div class="day">${dayLabel(days[k][0].date)}<span class="dn">${days[k].length} game${days[k].length > 1 ? "s" : ""}</span></div><div class="grid">` +
-          days[k].map(g => gameTile(g, key, kind)).join("") + `</div>`;
+          days[k].map(g => gameTile(g, key, kind, home)).join("") + `</div>`;
       }
     }
     html += teamTable(data, kind);
@@ -445,7 +447,9 @@
   }
 
   // ---------- game detail
-  async function viewGame(key, id) {
+  async function viewGame(key, id, focus) {
+    focus = focus === "props" || focus === "stats" ? focus : "";
+    rememberLg(key);
     renderTabs(key);
     if (!cache[`data/${key}/games/${id}.json`]) { showSkel(skelGame()); window.scrollTo(0, 0); }
     let d, idx;
@@ -453,7 +457,7 @@
     catch (e) { return (app.innerHTML = `<a class="back" href="#/l/${key}">← Back</a><div class="empty"><h3>Game not found</h3>It may have dropped out of the data window. Refresh the data.</div>`); }
     if (idx.league.kind === "mma" && window.LSUfc) {
       const at = location.hash;
-      await window.LSUfc.fight(d, idx, key);
+      await window.LSUfc.fight(d, idx, key, focus);
       if (location.hash === at) addStale(d.game.stale, "fight details");
       return;
     }
@@ -464,6 +468,7 @@
       ? `<div class="vs">${g.neutral ? "VS" : "AT"}</div><div class="when">${fullET(g.date)}</div>`
       : heroMid(g);
     let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>${previewLink(key, g, "back pv-back")}
+      ${gameJump(key, id, focus)}${focus === "props" ? propsPane(key, g) : ""}${focus === "stats" ? gameStatsHtml(key, g, d) : ""}
       <div class="match" style="--ca:${teamColor(A, "#334155")};--ch:${teamColor(H, "#475569")}">
         <div class="mteam">${logo(A)}<div><div class="nm">${A.rank ? `<span class="rk" style="color:var(--warn)">#${A.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${A.id}">${esc(A.name)}</a></div><div class="rec">${esc(A.record || "—")} · Away ${esc(A.awayRecord || "—")}${formDots(A.form)}</div></div></div>
         <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}${g.neutral ? " (neutral)" : ""}</div><div class="where">${esc(g.broadcasts.join(", "))}</div>${g.note ? `<div class="where">${esc(g.note)}</div>` : ""}${window.LSWeather && g.state !== "post" && g.weather ? `<div class="where wx-where">${window.LSWeather.chip(g)}</div>` : ""}</div>
@@ -477,7 +482,7 @@
     if (window.LSBets) html += window.LSBets.trackCard(key, g, kind);
     const lm = lineMoveSection(d, g, kind);
     html += lm.html;
-    if (window.LSProps) html += window.LSProps.gameSlot(key, g);
+    if (window.LSProps && focus !== "props") html += window.LSProps.gameSlot(key, g);
     if (window.LSWeather) html += window.LSWeather.section(g, kind);
 
     // side-by-side
@@ -525,9 +530,11 @@
 
     // leaders
     if ((det.leaders || []).length) {
-      const by = t => det.leaders.filter(x => x.teamId === t.id);
-      const lc = t => `<div class="card"><h3>${logo(t)}${esc(t.name)}</h3><table><tbody>${by(t).map(x => `<tr><td>${esc(x.cat)}</td><td style="text-align:left">${esc(x.player)}</td><td class="num">${esc(x.value)}</td></tr>`).join("") || `<tr><td>${NA}</td></tr>`}</tbody></table></div>`;
-      html += `<div class="section-title">Season leaders</div><div class="cols">${lc(A)}${lc(H)}</div>`;
+      if (focus !== "stats") {
+        const by = t => det.leaders.filter(x => x.teamId === t.id);
+        const lc = t => `<div class="card"><h3>${logo(t)}${esc(t.name)}</h3><table><tbody>${by(t).map(x => `<tr><td>${esc(x.cat)}</td><td style="text-align:left">${esc(x.player)}</td><td class="num">${esc(x.value)}</td></tr>`).join("") || `<tr><td>${NA}</td></tr>`}</tbody></table></div>`;
+        html += `<div class="section-title">Season leaders</div><div class="cols">${lc(A)}${lc(H)}</div>`;
+      }
       if (window.LSMatchup && window.LSMatchup.SUPPORTED.has(key)) html += `<div id="keyMu"></div>`;
     }
     if ((det.seasonSeries || []).length) {
@@ -535,6 +542,7 @@
     }
     if (!d.hasSummary) html += `<div class="note">Detailed matchup data (ESPN game summary) wasn't fetched for this game.</div>`;
     app.innerHTML = html;
+    if (focus === "stats") linkLeaders(key, NAV);
     lm.wire();
     window.scrollTo(0, 0);
     const km = document.getElementById("keyMu");
@@ -1242,6 +1250,142 @@
     }, 30e3);
   }
 
+  // ---------- props / stats access (today's games + player search; no new odds calls)
+  const LG_KEY = "ls-lg";
+  function rememberLg(k) {
+    if (!k || !META || !META.leagues || !META.leagues[k]) return;
+    try { sessionStorage.setItem(LG_KEY, k); } catch (e) {}
+  }
+  function currentLg() {
+    let k = "";
+    try { k = sessionStorage.getItem(LG_KEY) || ""; } catch (e) {}
+    if (k && META.leagues[k]) return k;
+    return (META.leagues[CFG.defaultLeague] && META.leagues[CFG.defaultLeague].upcoming ? CFG.defaultLeague : (META.order || []).find(x => META.leagues[x] && META.leagues[x].upcoming)) || (META.order || [])[0] || "";
+  }
+  function propsLeague(lg) {
+    return !!(window.LSProps && window.LSProps.SUPPORTED && window.LSProps.SUPPORTED.has(lg));
+  }
+  function tileLinks(lg, id) {
+    const props = propsLeague(lg)
+      ? `<a class="ps-link" href="#/g/${esc(lg)}/${esc(id)}/props">Props</a>`
+      : `<span class="ps-link off" aria-disabled="true" title="No player props for ${esc(lgName(lg))}">Props</span>`;
+    return `<div class="ps-links">${props}<a class="ps-link" href="#/g/${esc(lg)}/${esc(id)}/stats">Stats</a></div>`;
+  }
+  function gameJump(lg, id, focus) {
+    focus = focus === "props" || focus === "stats" ? focus : "";
+    const base = `#/g/${esc(lg)}/${esc(id)}`;
+    const item = (href, label, on, off, title) => off
+      ? `<span class="${on ? "on " : ""}off" aria-disabled="true" title="${esc(title || "")}">${label}</span>`
+      : `<a href="${href}" class="${on ? "on" : ""}"${on ? ' aria-current="page"' : ""}>${label}</a>`;
+    return `<nav class="gjump" aria-label="Props and stats">${item(base, "Lines", !focus, false)}${item(base + "/props", "Props", focus === "props", !propsLeague(lg), "No player props for " + lgName(lg))}${item(base + "/stats", "Stats", focus === "stats", false)}</nav>`;
+  }
+  function propsPane(key, g) {
+    if (!propsLeague(key)) return notAvail("Player props", lgName(key) + " has no player-props file. Props are posted for the NFL and NBA.");
+    const slot = window.LSProps.gameSlot(key, g);
+    if (slot) return slot;
+    return notAvail("Player props", g.state === "pre" ? "Player props aren't available for this game." : "Player props are posted before a game starts. Season leaders are on Stats.");
+  }
+  function gameStatsHtml(key, g, d) {
+    const leaders = ((d.detail || {}).leaders) || [];
+    const H = g.home, A = g.away;
+    const rows = t => {
+      const xs = leaders.filter(x => String(x.teamId) === String(t.id));
+      if (!xs.length) return `<tr><td colspan="3">${NA}</td></tr>`;
+      return xs.map(x => `<tr><td>${esc(x.cat)}</td><td><span data-leader="${esc(x.player)}">${esc(x.player)}</span></td><td class="num">${esc(x.value)}</td></tr>`).join("");
+    };
+    const card = t => `<div class="card"><h3>${logo(t)}${esc(t.name)}</h3><table><tbody>${rows(t)}</tbody></table></div>`;
+    const body = leaders.length ? `<div class="cols">${card(A)}${card(H)}</div>` : notAvail("Season leaders", "This game file has no season leaders.");
+    return `<div class="section-title" id="stats">Player stats</div>${body}<div class="note">Season leaders from this game's data file. Search a player by name on Stats for a full line.</div>`;
+  }
+  async function linkLeaders(lg, tok) {
+    let idx;
+    try { idx = await sidx(lg); } catch (e) { return; }
+    if (tok !== NAV) return;
+    const by = new Map();
+    for (const p of idx.players || []) by.set(norm(p.name), p);
+    document.querySelectorAll("#app [data-leader]").forEach(el => {
+      const p = by.get(norm(el.getAttribute("data-leader")));
+      if (!p || tok !== NAV) return;
+      const a = document.createElement("a");
+      a.className = "tlink"; a.href = `#/p/${lg}/${p.id}`; a.textContent = p.name;
+      el.replaceWith(a);
+    });
+  }
+  async function viewAccess(kind, lgReq) {
+    const order = META.order || [];
+    const AC = window.AccessCore;
+    const lg = AC ? AC.pickLeague(order, lgReq, currentLg()) : (order.includes(lgReq) ? lgReq : currentLg());
+    rememberLg(lg);
+    renderTabs(null);
+    const propsMode = kind === "props";
+    const tok = NAV;
+    if (!cache[`data/${lg}/index.json`]) showSkel(skelLeague());
+    let data = null;
+    try { data = await getJSON(`data/${lg}/index.json`); } catch (e) {}
+    if (tok !== NAV) return;
+    let hasFile = false;
+    if (propsLeague(lg)) {
+      try { const doc = await getJSON(`data/props/${lg}.json`); hasFile = !!(doc && (doc.games || doc.players)); } catch (e) { hasFile = false; }
+    }
+    if (tok !== NAV) return;
+    const games = (data && data.games) || [];
+    const today = dayKey(new Date().toISOString());
+    const tagged = games.map(g => ({ day: dayKey(g.date), g }));
+    let shown = AC ? AC.gamesOnDay(tagged, today) : tagged.filter(x => x.day === today);
+    let head = "Today";
+    if (!shown.length) {
+      const next = tagged.filter(x => x.g.state !== "post").sort((a, b) => String(a.g.date).localeCompare(String(b.g.date)))[0];
+      if (next) {
+        shown = AC ? AC.gamesOnDay(tagged, next.day) : tagged.filter(x => x.day === next.day);
+        head = dayLabel(next.g.date);
+      }
+    }
+    const chip = k => {
+      const on = k === lg, off = propsMode && !propsLeague(k);
+      if (off) return `<span class="chip${on ? " on" : ""} off" aria-disabled="true" title="No player props for ${esc(lgName(k))}">${esc(lgName(k))}</span>`;
+      return `<a class="chip${on ? " on" : ""}" href="#/${kind}/${k}"${on ? ' aria-current="page"' : ""}>${esc(lgName(k))}</a>`;
+    };
+    const propBtn = g => (propsLeague(lg) && hasFile)
+      ? `<a class="ps-link" href="#/g/${esc(lg)}/${esc(g.id)}/props">Props</a>`
+      : `<span class="ps-link off" aria-disabled="true" title="No player props for ${esc(lgName(lg))}">Props</span>`;
+    const row = ({ g }) => {
+      const when = g.state === "in" ? (g.statusDetail || "Live") : g.state === "post" ? "Final" : timeET(g.date);
+      const nm = `${g.away.short || g.away.abbr || g.away.name} @ ${g.home.short || g.home.abbr || g.home.name}`;
+      return `<div class="ps-row"><a class="ps-main" href="#/g/${esc(lg)}/${esc(g.id)}"><span class="ps-when">${esc(when)}</span><span class="ps-nm">${esc(nm)}</span></a><span class="ps-go">${propBtn(g)}<a class="ps-link" href="#/g/${esc(lg)}/${esc(g.id)}/stats">Stats</a></span></div>`;
+    };
+    let note = "";
+    if (!data) note = `No schedule file for the ${lgName(lg)}.`;
+    else if (propsMode && !propsLeague(lg)) note = `${lgName(lg)} has no player-props file, so Props is turned off. NFL and NBA are the leagues with props. Stats for these games still open.`;
+    else if (propsMode && !hasFile) note = `Player props aren't in this data update for the ${lgName(lg)}. Games are still listed. Stats still open.`;
+    const list = shown.length
+      ? `<div class="ps-games" id="psGames">${shown.map(row).join("")}</div>`
+      : `<div class="empty" id="psGames"><h3>No ${esc(lgName(lg))} games on this slate</h3>Try another league.</div>`;
+    app.innerHTML = `<div class="ps-page"><div class="page-head"><div><h1>${propsMode ? "Player props" : "Player stats"}</h1><div class="sub">${esc(head)} · ${esc(lgName(lg))} · search any player by name</div></div></div>
+      <div class="sbox"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="psq" type="search" placeholder="Player name, any league" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Search players by name"></div>
+      <div id="psres"></div>
+      ${note ? `<div class="note ps-note">${esc(note)}</div>` : ""}
+      <nav class="ps-lgs" aria-label="League">${order.map(chip).join("")}</nav>
+      <div class="section-title">${esc(head)}</div>${list}
+      <div class="note">Times in ${TZL}. Player search reads the on-site player index.</div></div>`;
+    window.scrollTo(0, 0);
+    const inp = document.getElementById("psq"), box = document.getElementById("psres");
+    const draw = () => {
+      const q = (inp.value || "").trim();
+      if (!q) { box.innerHTML = ""; return; }
+      if (!ENTRIES || !ENTRIES.list.length) {
+        box.innerHTML = `<div class="card note">Player search needs the player index (data/search). It isn't in this copy yet. The games below still open.</div>`;
+        return;
+      }
+      const hits = AC ? AC.searchPlayers(ENTRIES.list, q) : [];
+      box.innerHTML = hits.length
+        ? `<div class="srl">${hits.map(resultRow).join("")}</div>`
+        : `<div class="empty"><h3>No players match “${esc(q)}”</h3>Try a last name.</div>`;
+    };
+    inp.addEventListener("input", draw);
+    searchEntries().then(() => { if (tok === NAV) draw(); }).catch(() => {});
+  }
+
   // ---------- router
   async function routeBody() {
     if (GEO()) await GEO().ready;
@@ -1271,12 +1415,15 @@
     const isValue = h[0].split("?")[0] === "value";   // #/value?lg=&mk=&min=&h=
     NAV++;
     if (LV()) LV().stop();   // each view starts its own live watch for the games it shows
+    const focusG = h[0] === "g" && (h[3] === "props" || h[3] === "stats") ? h[3] : "";
     const sb = document.getElementById("searchBtn"); if (sb) sb.classList.toggle("on", h[0] === "search");
     const bb = document.getElementById("betsBtn"); if (bb) bb.classList.toggle("on", h[0] === "bets");
     const vb = document.getElementById("valueBtn"); if (vb) vb.classList.toggle("on", isValue);
     const ab = document.getElementById("acctBtn"); if (ab) ab.classList.toggle("on", h[0] === "account");
     const lb = document.getElementById("liveBtn"); if (lb) lb.classList.toggle("on", h[0] === "live");
-    const navOn = h[0] === "search" || h[0] === "bets" || h[0] === "account" || h[0] === "live" ? h[0] : isValue ? "value" : !h[0] ? "home" : "";
+    const prb = document.getElementById("propsBtn"); if (prb) prb.classList.toggle("on", h[0] === "props" || focusG === "props");
+    const stb = document.getElementById("statsBtn"); if (stb) stb.classList.toggle("on", h[0] === "stats" || focusG === "stats");
+    const navOn = h[0] === "props" || focusG === "props" ? "props" : h[0] === "stats" || focusG === "stats" ? "stats" : h[0] === "search" || h[0] === "bets" || h[0] === "account" || h[0] === "live" ? h[0] : isValue ? "value" : !h[0] ? "home" : "";
     setLiveBadge(liveCount());
     if (intro) intro.hidden = navOn !== "home";   // static SEO intro: home only
     if (homeStates) homeStates.hidden = navOn !== "home";
@@ -1293,9 +1440,10 @@
       return window.LSPro ? window.LSPro.view() : (app.innerHTML = `<div class="empty"><h3>LineSmart Pro didn't load</h3>Reload the page to try again.</div>`);
     }
     if (h[0] === "search") return viewSearch(decodeURIComponent(h.slice(1).join("/") || ""));
+    if (h[0] === "props" || h[0] === "stats") return viewAccess(h[0], h[1] || "");
     if (h[0] === "t" && h[1] && h[2]) return viewTeam(h[1], h[2]);
     if (h[0] === "p" && h[1] && h[2]) return viewPlayer(h[1], h[2], h[3]);
-    if (h[0] === "g" && h[1] && h[2]) return viewGame(h[1], h[2]);
+    if (h[0] === "g" && h[1] && h[2]) return viewGame(h[1], h[2], h[3]);
     if (h[0] === "l" && h[1]) return viewLeague(h[1]);
     if (h[0].split("?")[0] === "owner") {
       if (window.LSProGate && window.LSProGate.ready) await window.LSProGate.ready;
@@ -1338,7 +1486,7 @@
     Promise.resolve(route()).then(() => window.scrollTo(0, y));
   });
   // helpers shared with the My Bets tracker (assets/bets.js)
-  window.LSApp = { previewHref, previewLink, esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, pages: () => PAGES, nav: () => NAV, espn, crest, notAvail, sidx, linesCard, booksCard, lineMoveSection };
+  window.LSApp = { previewHref, previewLink, esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, pages: () => PAGES, nav: () => NAV, espn, crest, notAvail, sidx, linesCard, booksCard, lineMoveSection, gameJump };
   // "/" opens search from anywhere (unless typing in a field)
   document.addEventListener("keydown", e => {
     if (e.key === "/" && !e.metaKey && !e.ctrlKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "")) {

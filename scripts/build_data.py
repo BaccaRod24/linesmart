@@ -19,7 +19,7 @@ Usage:
 
 Only uses the Python standard library.
 """
-import argparse, concurrent.futures as cf, datetime as dt, gzip, json, os, re, sys, time, unicodedata
+import argparse, concurrent.futures as cf, datetime as dt, gzip, json, os, re, shutil, subprocess, sys, time, unicodedata
 import urllib.parse, urllib.request, urllib.error
 from zoneinfo import ZoneInfo
 
@@ -762,6 +762,25 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
     log(f"[{lg['key']}] games={len(games)}{fbs} upcoming={upcoming} withOdds={with_odds} providers={providers} {report['endpoints']} oddsApi={report['oddsApi']} history={report['history']}{wxs} ({report['seconds']}s)")
     return report
 
+def _refresh_rankings(a, log=print):
+    """Rewrite pro/rankings-data.js from the box-score and props caches already on disk. No odds request."""
+    node = shutil.which("node")
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "build_rankings.mjs")
+    if not node or not os.path.exists(script) or not a.matchup_cache_dir or not a.roster_cache_dir:
+        return
+    cmd = [node, script, "--site", OUT, "--matchups", a.matchup_cache_dir, "--rosters", a.roster_cache_dir]
+    if a.odds_cache_dir:
+        cmd += ["--odds", a.odds_cache_dir]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    except Exception as ex:
+        log(f"[rankings] refresh skipped: {ex}")
+        return
+    if r.stdout:
+        log(r.stdout.strip())
+    if r.returncode:
+        log(f"[rankings] refresh failed: {(r.stderr or '')[:200]}")
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--leagues", default=",".join(l["key"] for l in LEAGUES))
@@ -975,6 +994,7 @@ def main():
     try:   # "Value spots": prices that beat the 3-book no-vig consensus (reuses this run's odds; no extra API calls)
         if isinstance(meta.get("slate"), dict): meta["slate"]["value"] = LV.value_spots(OUT, meta["order"])
     except Exception as ex: log(f"[value spots] FAILED: {ex}")
+    _refresh_rankings(a, log)
     with open(meta_path, "w") as fh: json.dump(meta, fh, indent=1)
     log("done ->", OUT)
 

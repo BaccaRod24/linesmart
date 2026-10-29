@@ -192,6 +192,7 @@ const MEMBER_TOKEN = "test-member-token";
   const appJs = read("site/assets/app.js");
   check(/\[data-pro-owner\]/.test(appJs) && appJs.includes("#/owner/history/") && appJs.includes('a.dataset.proGoto === "game"'), "a public game link tapped inside Pro is sent to line history, except a hub link into the game");
   check(/LSProApp\.view/.test(appJs) && /verified\(\)/.test(appJs), "a verified owner opening #/pro gets the Pro hub");
+  check(!/Prop hit rate|id="proRankings"/.test(appJs + read("site/index.html") + read("site/assets/pro.js")), "the free shell has no rankings screen");
   const gateJs = read("site/assets/pro-gate.js");
   check(/shouldHide/.test(gateJs) && /\.allow\(/.test(gateJs) && /LSProApp\.enhance/.test(gateJs), "the loader asks allow(), hides only through shouldHide, and enhances after yes");
   check(/refreshOnce/.test(gateJs) && /LSAccount/.test(gateJs) && /status === 401/.test(gateJs), "an expired token or a 401 refreshes the session once and retries");
@@ -220,7 +221,7 @@ const MEMBER_TOKEN = "test-member-token";
 const packed = spawnSync(process.execPath, ["scripts/pack_pro_bundle.mjs"], { encoding: "utf8" });
 check(packed.status === 0 && fs.existsSync("pro/dist/pro-app.js"), "bundle packs");
 const bundle = read("pro/dist/pro-app.js");
-check(bundle.includes("window.LSProApp") && bundle.includes("window.HotProps"), "bundle contains the screens and hot props");
+check(bundle.includes("window.LSProApp") && bundle.includes("window.HotProps") && bundle.includes("root.Rankings"), "bundle contains the screens, hot props, and rankings");
 
 function session(token, email, refresh) {
   return {
@@ -356,6 +357,9 @@ async function quiet(page) {
   await page.waitForTimeout(800);
   ui = await quiet(page);
   check(!ui.pro && !ui.hot && (ui.hash === "#/" || ui.hash === ""), `signed-out #/owner falls back to the free site (${ui.hash})`);
+  await page.goto(BASE + "#/pro/rankings?lg=nfl&view=hit", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("#proForm, .pro-head", { timeout: 15000 });
+  check(await page.locator("#proRankings").count() === 0 && !/Prop hit rate/.test(await page.locator("#app").innerText()), "signed-out #/pro/rankings stays the waitlist");
   check(!errors.length, `signed out: no page errors ${errors.join(" | ")}`);
   await ctx.close();
 }
@@ -394,6 +398,22 @@ async function quiet(page) {
   check(/21\+/.test(text) && /Hard Rock Bet is the only legal online sportsbook/.test(text), "owner home: 21+ and Florida line");
   check(/Pro build /.test(text) && /site dev/.test(text), "owner hub shows the build stamp");
   check(logs.some(l => /^LineSmart Pro build \S+$/.test(l) && !l.endsWith("no-build-id")), "gate logs the embedded bundle build id");
+  await page.goto(BASE + "#/pro/rankings?lg=nfl&pos=QB&view=season", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("#proRankings[data-rk-view='season'] a.rk-player", { timeout: 15000 });
+  const season = await page.locator("#proRankings").innerText();
+  const playerHref = await page.locator("#proRankings a.rk-player").first().getAttribute("href");
+  check(/Season stats/.test(season) && /Pass yds/.test(season) && /GP/.test(season), "rankings season view lists quarterbacks");
+  check(/^#\/p\/nfl\//.test(playerHref || ""), `a ranked player opens the player page (${playerHref})`);
+  const seasonPage = await page.locator("[data-pro-owner]").innerText();
+  check(/21\+/.test(seasonPage) && /Hard Rock Bet is the only legal online sportsbook/.test(seasonPage), "rankings keeps 21+ and the Florida line");
+  await page.goto(BASE + "#/pro/rankings?lg=nba&pos=G&view=hit", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("#proRankings[data-rk-view='hit']", { timeout: 15000 });
+  const hit = await page.locator("#proRankings").innerText();
+  check(/Prop hit rate/.test(hit) && /This season vs the current line/.test(hit) && /\d+\/\d+/.test(hit), "rankings hit rate shows the real sample");
+  await page.goto(BASE + "#/pro/rankings?lg=nhl&view=hit", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("#proRankings", { timeout: 15000 });
+  const nhl = await page.locator("#proRankings").innerText();
+  check(/No props data for NHL/.test(nhl) && !/\d+\/\d+/.test(nhl), "a league with no props file stays empty");
   await page.goto(BASE + "#/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector(".game, .page-head", { timeout: 15000 });
   const home = await quiet(page);

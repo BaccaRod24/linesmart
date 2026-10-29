@@ -125,16 +125,129 @@
     return out;
   }
 
+  /** Eastern calendar day (YYYY-MM-DD) for a timestamp or ISO string. */
+  function etDay(v) {
+    const t = typeof v === "number" ? v : Date.parse(v || "");
+    if (!isFinite(t)) return "";
+    try {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(t));
+    } catch (e) { return ""; }
+  }
+
+  /** Spread and total moves already stored on the slate. One row per market that moved.
+      Today's games when any of them moved; otherwise upcoming games in the file. Moneyline
+      swings stay out so a cent move is not ranked against a point move. */
+  function lineMoveBoard(byLg, now) {
+    const today = etDay(now);
+    const rows = [];
+    for (const [lg, games] of Object.entries(byLg || {})) {
+      for (const g of games || []) {
+        const mv = g && g.move;
+        if (!mv) continue;
+        const markets = [];
+        if (mv.spread && isNum(mv.spread.delta) && Math.abs(mv.spread.delta) > 1e-9) markets.push(["spread", mv.spread]);
+        if (mv.total && isNum(mv.total.delta) && Math.abs(mv.total.delta) > 1e-9) markets.push(["total", mv.total]);
+        if (!markets.length) continue;
+        const day = etDay(g.date);
+        for (const [market, m] of markets) {
+          rows.push({
+            lg, id: String(g.id),
+            away: (g.away && g.away.abbr) || "",
+            home: (g.home && g.home.abbr) || "",
+            market, open: isNum(m.open) ? m.open : null, cur: isNum(m.cur) ? m.cur : null,
+            delta: m.delta, size: Math.abs(m.delta),
+            book: mv.book || "",
+            sharp: !!(mv.notable && mv.notable.length),
+            state: g.state || "",
+            today: !!today && day === today,
+          });
+        }
+      }
+    }
+    rows.sort((a, b) => b.size - a.size || a.lg.localeCompare(b.lg) || a.id.localeCompare(b.id) || a.market.localeCompare(b.market));
+    const todays = rows.filter(r => r.today);
+    if (todays.length) return { scope: "today", rows: todays };
+    const upcoming = rows.filter(r => r.state === "pre");
+    return { scope: "file", rows: upcoming.length ? upcoming : rows };
+  }
+
+  /** Higher score is the more favorable number for that side. Same rule as the public books table. */
+  function quoteScore(kind, line, price) {
+    const px = isNum(price) ? price : -110;
+    if (kind === "ml") return line;
+    if (kind === "over") return -line * 1000 + px;
+    return line * 1000 + px;
+  }
+
+  /** Best posted number on each market. Hidden by the caller when fewer than two books priced it. */
+  function bestPrices(g) {
+    const cols = bookColumns(g);
+    if (!g || cols.length < 2) return { available: false, rows: [] };
+    const away = (g.away && g.away.abbr) || "Away";
+    const home = (g.home && g.home.abbr) || "Home";
+    const specs = [
+      ["awaySpread", away + " spread", "spread", o => (isNum(o.awaySpread) ? [o.awaySpread, o.awaySpreadOdds] : null)],
+      ["homeSpread", home + " spread", "spread", o => (isNum(o.homeSpread) ? [o.homeSpread, o.homeSpreadOdds] : null)],
+      ["awayML", away + " ML", "ml", o => (isNum(o.awayML) ? [o.awayML, o.awayML] : null)],
+      ["homeML", home + " ML", "ml", o => (isNum(o.homeML) ? [o.homeML, o.homeML] : null)],
+      ["over", "Over", "over", o => (isNum(o.total) ? [o.total, o.overOdds] : null)],
+      ["under", "Under", "under", o => (isNum(o.total) ? [o.total, o.underOdds] : null)],
+    ];
+    const rows = [];
+    for (const [id, label, kind, read] of specs) {
+      const quotes = [];
+      for (const book of cols) {
+        const got = read((g.books && g.books[book]) || {});
+        if (!got) continue;
+        const [line, price] = got;
+        quotes.push({ book, line, price: isNum(price) ? price : null, score: quoteScore(kind, line, price) });
+      }
+      if (quotes.length < 2) continue;
+      const bestScore = Math.max(...quotes.map(q => q.score));
+      rows.push({ id, label, kind, quotes, best: quotes.filter(q => Math.abs(q.score - bestScore) < 1e-9).map(q => q.book) });
+    }
+    return { available: rows.length > 0, rows };
+  }
+
+  function betSide(bet) {
+    const direct = bet && (bet.side || (bet.sel && bet.sel.side));
+    if (direct) return String(direct);
+    const s = String((bet && bet.selection) || "");
+    if (/\bover\b/i.test(s)) return "over";
+    if (/\bunder\b/i.test(s)) return "under";
+    return "";
+  }
+
+  /** True when the bet's number is better than the close. Null when that can't be told. */
+  function beatsClose(bet) {
+    const c = clvPoints(bet, bet && bet.closeLine);
+    if (!c.available) return null;
+    const side = betSide(bet);
+    if (bet.type === "total") {
+      if (side === "over") return bet.line < bet.closeLine - 1e-9;
+      if (side === "under") return bet.line > bet.closeLine + 1e-9;
+      return null;
+    }
+    if (bet.type === "spread") return bet.line > bet.closeLine + 1e-9;
+    return null;
+  }
+
   /** Closing-line rows for bets that actually have a close. No number is invented. */
   function clvSummary(bets) {
     const rows = [];
     for (const b of bets || []) {
       const c = clvPoints(b, b && b.closeLine);
-      if (c.available) rows.push({ id: String(b.id || ""), delta: c.delta });
+      if (!c.available) continue;
+      rows.push({ id: String(b.id || ""), delta: c.delta, beat: beatsClose(b) });
     }
-    if (!rows.length) return { available: false, n: 0, mean: null, rows: [] };
+    if (!rows.length) return { available: false, n: 0, mean: null, beats: 0, judged: 0, beatRate: null, rows: [] };
     const mean = rows.reduce((s, r) => s + r.delta, 0) / rows.length;
-    return { available: true, n: rows.length, mean, rows };
+    const judgedRows = rows.filter(r => r.beat === true || r.beat === false);
+    const beats = judgedRows.filter(r => r.beat).length;
+    return {
+      available: true, n: rows.length, mean, beats, judged: judgedRows.length,
+      beatRate: judgedRows.length ? beats / judgedRows.length : null, rows,
+    };
   }
 
   /** Bets grouped by tag. A bet with no tag is "untagged". */
@@ -151,6 +264,7 @@
 
   return {
     ACTIVE_FREE, ACTIVE_PRO, EMAIL_FREE, BOOK_KEYS, BOOK_NAME, COMING_BOOKS, TAG_KEY,
-    sharpMoves, filterBoard, bookColumns, refreshInfo, clvPoints, clvSummary, tagGroups, historyMarkets, readTags, setTag,
+    sharpMoves, filterBoard, bookColumns, refreshInfo, clvPoints, clvSummary, beatsClose, tagGroups, historyMarkets, readTags, setTag,
+    etDay, lineMoveBoard, bestPrices,
   };
 });

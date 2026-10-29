@@ -39,6 +39,8 @@ logs the same build id.
 Sign in with the LineSmart account from the statement above, then open `/owner.html`
 (it is not linked, and it is `noindex`). The hash `#/owner` is the Pro hub. It loads
 only after `is_pro()` returns true. A flag in the browser does not turn it on.
+The same hub opens at `#/pro` for that signed-in owner; everyone else still sees the waitlist there.
+The hub lists today's biggest spread and total moves, sharp-flagged games, and a My Bets summary when this device has bets. The build stamp stays at the bottom.
 
 The same check runs on the rest of the site, but only when this browser already has a
 session. An access token that has expired is refreshed once, then `is_pro()` is tried

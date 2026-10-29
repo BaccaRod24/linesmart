@@ -127,6 +127,44 @@ const MEMBER_TOKEN = "test-member-token";
   const clv = F.clvSummary([{ id: "b1", type: "spread", line: -3, closeLine: -1.5 }, { id: "b2", type: "spread", line: 7 }]);
   check(clv.available === true && clv.n === 1 && clv.mean === 1.5, "CLV averages only bets that have a closing number");
   check(F.clvSummary([{ id: "b2", type: "spread", line: 7 }]).available === false, "no closing number means CLV stays unavailable");
+  const clvBeat = F.clvSummary([
+    { id: "s", type: "spread", line: -3, closeLine: -4.5 },
+    { id: "t", type: "total", line: 47.5, closeLine: 45, selection: "Over 47.5" },
+    { id: "u", type: "total", line: 48, closeLine: 46, side: "under" },
+    { id: "v", type: "spread", line: 7 },
+  ]);
+  check(clvBeat.available && clvBeat.n === 3 && clvBeat.beats === 2 && clvBeat.judged === 3 && Math.abs(clvBeat.beatRate - 2 / 3) < 1e-9, "beat-the-close counts a better spread, a worse over, and a better under");
+  check(F.beatsClose({ type: "total", line: 40, closeLine: 42 }) === null, "a total with no side is not called a beat");
+  const todayNow = Date.parse("2026-10-29T16:00:00Z");
+  const moved = (id, date, state, spread, total) => ({
+    id, state, date, away: { abbr: "A" + id }, home: { abbr: "H" + id },
+    move: { book: "draftkings", spread, total, notable: spread && Math.abs(spread.delta) >= 2 ? ["Spread moved"] : [] },
+  });
+  const moveBoard = F.lineMoveBoard({
+    nfl: [
+      moved("a", "2026-10-29T23:00:00Z", "pre", { open: -3, cur: -6, delta: -3 }, { open: 45, cur: 47, delta: 2 }),
+      moved("b", "2026-11-02T00:00:00Z", "pre", { open: 1, cur: 9, delta: 8 }, null),
+    ],
+    nba: [moved("c", "2026-10-29T20:00:00Z", "post", { open: -1, cur: -6, delta: -5 }, { open: 200, cur: 200, delta: 0 })],
+  }, todayNow);
+  check(moveBoard.scope === "today" && moveBoard.rows.every(r => r.today) && !moveBoard.rows.some(r => r.id === "b"), "today's board keeps today's moves and leaves later games out");
+  check(moveBoard.rows[0].id === "c" && moveBoard.rows[0].size === 5 && moveBoard.rows[1].market === "spread" && moveBoard.rows[1].size === 3, "the board sorts by the size of the move");
+  const later = F.lineMoveBoard({ nfl: [moved("b", "2026-11-02T00:00:00Z", "pre", { open: 1, cur: 9, delta: 8 }, null)] }, todayNow);
+  check(later.scope === "file" && later.rows.length === 1 && later.rows[0].id === "b", "with nothing today, the board uses upcoming moves in the file");
+  check(F.lineMoveBoard({ nfl: [moved("z", "2026-10-29T23:00:00Z", "pre", { open: -3, cur: -3, delta: 0 }, null)] }, todayNow).rows.length === 0, "a line that did not move is left off the board");
+  const priced = {
+    away: { abbr: "CAR" }, home: { abbr: "GB" },
+    books: {
+      draftkings: { awaySpread: 3, awaySpreadOdds: -110, homeSpread: -3, homeSpreadOdds: -110, awayML: 140, homeML: -160, total: 47, overOdds: -110, underOdds: -110 },
+      hardrockbet: { awaySpread: 3.5, awaySpreadOdds: -110, homeSpread: -3.5, homeSpreadOdds: -110, awayML: 150, homeML: -170, total: 47, overOdds: -105, underOdds: -115 },
+    },
+  };
+  const best = F.bestPrices(priced);
+  check(best.available && best.rows.find(r => r.id === "awaySpread").best[0] === "hardrockbet", "the higher spread is the best away number");
+  check(best.rows.find(r => r.id === "awayML").best[0] === "hardrockbet", "the higher American price is the best moneyline");
+  check(best.rows.find(r => r.id === "over").best[0] === "hardrockbet", "the same total with the better over price wins");
+  check(best.rows.find(r => r.id === "under").best[0] === "draftkings", "the better under price wins when the total is the same");
+  check(F.bestPrices({ away: { abbr: "A" }, home: { abbr: "H" }, books: { draftkings: { awayML: 140 } } }).available === false, "one book is not a best-price comparison");
   const groups = F.tagGroups([{ id: "b1" }, { id: "b2" }], { b1: ["prime"] });
   check(groups.find(g => g.tag === "prime").bets.length === 1 && groups.find(g => g.tag === "untagged").bets[0].id === "b2", "tag splits keep untagged bets in their own group");
 }
@@ -146,9 +184,14 @@ const MEMBER_TOKEN = "test-member-token";
   const idx = read("site/index.html");
   check(idx.includes("assets/pro-gate.js") && idx.includes("assets/pro-gate-core.js") && !idx.includes("pro/pro-ui.js") && !idx.includes("hot-props-core.js"), "the public page loads only the tiny gate");
   const ui = read("pro/pro-ui.js");
-  check(!/href="#\/g\//.test(ui) && /gameHref/.test(ui), "Pro rows stay on the owner line-history screen");
+  check(/gameHref = \(lg, id\) => `\$\{href\("history"\)\}/.test(ui), "tool rows stay on the owner line-history screen");
+  check(/data-pro-goto="game"/.test(ui) && ui.includes("#/g/"), "the hub links into each game");
+  check(/pro-insights/.test(ui) && /class="pro-pill"/.test(ui) && /pro-frame/.test(ui) && /pro-empty/.test(ui), "Pro panels, pills and the empty line share one treatment");
+  check(!/No sharp-move flag|No line history stored|No book in this file posted|Coming soon|ppv-soon/.test(ui), "empty panels and coming-soon boxes are not rendered");
+  check(/Biggest line moves today/.test(ui) && /Best price/.test(ui) && /Beat the close/.test(ui), "hub moves, best price, and CLV summary are in the bundle source");
   const appJs = read("site/assets/app.js");
-  check(/\[data-pro-owner\]/.test(appJs) && appJs.includes("#/owner/history/"), "a public game link tapped inside Pro is sent to line history");
+  check(/\[data-pro-owner\]/.test(appJs) && appJs.includes("#/owner/history/") && appJs.includes('a.dataset.proGoto === "game"'), "a public game link tapped inside Pro is sent to line history, except a hub link into the game");
+  check(/LSProApp\.view/.test(appJs) && /verified\(\)/.test(appJs), "a verified owner opening #/pro gets the Pro hub");
   const gateJs = read("site/assets/pro-gate.js");
   check(/shouldHide/.test(gateJs) && /\.allow\(/.test(gateJs) && /LSProApp\.enhance/.test(gateJs), "the loader asks allow(), hides only through shouldHide, and enhances after yes");
   check(/refreshOnce/.test(gateJs) && /LSAccount/.test(gateJs) && /status === 401/.test(gateJs), "an expired token or a 401 refreshes the session once and retries");

@@ -1,5 +1,5 @@
 /* LineSmart Pro screens. Loaded only after is_pro() is true, from the private bundle.
-   Numbers come from the files the site already has. Missing data is a coming-soon note. */
+   Numbers come from the files the site already has. A panel with no numbers is left out. */
 (function () {
   "use strict";
   const css = window.__PRO_CSS || "";
@@ -22,14 +22,16 @@
   const pct = v => (v == null || !isFinite(v) ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v * 100).toFixed(1) + "%");
   const ePct = e => (isNum(e) ? (e > 0 ? "+" : e < 0 ? "−" : "") + Math.abs(100 * e).toFixed(1) + "%" : "—");
   const cls = v => (v > 0.004 ? "pos" : v < -0.004 ? "neg" : "");
-  const SOON = `<span class="ppv-soon">Coming soon</span>`;
+  const PILL = `<span class="pro-pill">PRO</span>`;
+  const EMPTY = `<p class="pro-empty">Pro data appears here once lines start moving</p>`;
+  const publicGame = (lg, id) => `#/g/${esc(lg)}/${esc(id)}`;
   const PROP_LEAGUES = ["nfl", "nba", "nhl", "mlb", "ncaaf", "ncaab", "ufc", "epl", "mls", "ucl"];
   const SCREEN = { props_ev: "value", alerts_25: "alerts", tracker_pro: "tracker", books_10: "books", line_history: "history", fast_refresh: "refresh" };
   const HINT = {
     props_ev: "Consensus edges and filters on the lines in the file. Prop edges appear only when the file can support them.",
     alerts_25: "Sharp-move flags from saved line movement. A higher daily email limit is not on yet.",
     tracker_pro: "Stats from My Bets on this device, plus tags kept in this browser. Closing-line value needs a closing price.",
-    books_10: "Every book that posted a number in the file. Books with no feed are listed as coming soon.",
+    books_10: "Every book that posted a number in the file.",
     line_history: "The same line chart as a game page, and the sharp-move flags already on the slate.",
     fast_refresh: "How old this file is. A faster pull is not running.",
   };
@@ -105,16 +107,85 @@
     const site = (window.ProGateCore && window.ProGateCore.SITE_BUILD) || "unknown";
     return `<p class="ppv-build">Pro build ${esc(build)} · site ${esc(site)}</p>`;
   }
-  function home() {
-    const cards = ((window.ProCore && window.ProCore.FEATURES) || []).map(([k, label]) => `<a class="ppv-card" href="${href(SCREEN[k])}"><span class="pro-pill">Pro</span><b>${esc(label)}</b><span>${esc(HINT[k] || "")}</span><span class="ppv-go">Open</span></a>`).join("")
-      + `<a class="ppv-card" href="${href("hot")}"><span class="pro-pill">Pro</span><b>Hot props</b><span>Same-line price gaps, prop line moves, and hot streaks, only from props files the site has. Saved filters stay in this browser.</span><span class="ppv-go">Open</span></a>`;
+  function signedPts(v) {
+    if (!isNum(v)) return "—";
+    const n = Math.round(v * 10) / 10;
+    return (n > 0 ? "+" : "") + String(n);
+  }
+  function moveLabel(market, v) {
+    if (!isNum(v)) return "—";
+    return market === "spread" ? sgn(v) : String(v);
+  }
+  function clvBlock(clv) {
+    if (!clv || !clv.available) return "";
+    const mean = (clv.mean > 0 ? "+" : "") + clv.mean.toFixed(2);
+    const rate = clv.beatRate == null ? "" : ` Beat the close: <b>${Math.round(clv.beatRate * 100)}%</b> (${clv.beats} of ${clv.judged}).`;
+    return `<p><b>${clv.n}</b> bet${clv.n === 1 ? "" : "s"} with a closing line. Average CLV <b class="num ${cls(clv.mean)}">${esc(mean)}</b> points (close minus the bet line).${rate}</p><p class="note">A bet beats the close when its number is better than the closing number: a higher spread, a lower over, or a higher under. It is not a pick.</p>`;
+  }
+  function hubBets() {
+    const bets = loadBets();
+    if (!bets.length) return "";
+    const C = window.BetCore;
+    const stats = C ? C.stats(bets) : null;
+    const clv = F().clvSummary(bets);
+    const rec = stats ? `${stats.won}-${stats.lost}-${stats.push}` : "—";
+    const net = stats ? money(stats.net, true) : "—";
+    return panel("My Bets", `<div class="statgrid"><div class="stat"><span class="sl">Bets</span><b class="num">${bets.length}</b></div><div class="stat"><span class="sl">Record</span><b class="num">${esc(rec)}</b></div><div class="stat"><span class="sl">Net</span><b class="num ${cls(stats ? stats.net : 0)}">${esc(net)}</b></div></div>${clvBlock(clv)}<p><a href="#/bets">Open My Bets</a></p>`);
+  }
+  function boardTable(rows) {
+    const body = rows.map(r => `<tr data-size="${esc(String(r.size))}" data-lg="${esc(r.lg)}"><td><a href="${publicGame(r.lg, r.id)}" data-pro-goto="game">${esc(r.away)} @ ${esc(r.home)}</a></td><td>${esc(A().lgName(r.lg))}</td><td>${esc(r.market === "total" ? "Total" : "Spread")}</td><td class="num">${esc(moveLabel(r.market, r.open))}</td><td class="num">${esc(moveLabel(r.market, r.cur))}</td><td class="num"><b>${esc(signedPts(r.delta))}</b></td></tr>`).join("");
+    return `<div class="pro-sort" role="group" aria-label="Sort line moves"><button type="button" class="chip on" data-pro-sort="size" data-dir="desc" aria-pressed="true">Size</button><button type="button" class="chip" data-pro-sort="league" aria-pressed="false">League</button></div><div class="tbl-wrap"><table class="books pro-moves" id="proMoves"><thead><tr><th>Game</th><th>League</th><th>Market</th><th>Open</th><th>Now</th><th>Move</th></tr></thead><tbody>${body}</tbody></table></div><p class="note">Size is how far the spread or total moved, in points. Open and current are the numbers stored in the file.</p>`;
+  }
+  function sortMoves(btn) {
+    const table = document.getElementById("proMoves");
+    if (!table) return;
+    const mode = btn.dataset.proSort || "size";
+    const dir = btn.classList.contains("on") ? (btn.dataset.dir === "desc" ? "asc" : "desc") : (mode === "league" ? "asc" : "desc");
+    btn.dataset.dir = dir;
+    const bar = btn.parentElement;
+    if (bar) bar.querySelectorAll("[data-pro-sort]").forEach(b => { const on = b === btn; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false"); });
+    const tb = table.querySelector("tbody");
+    const rows = [...tb.querySelectorAll("tr")];
+    rows.sort((a, b) => {
+      const sizeDesc = Number(b.dataset.size) - Number(a.dataset.size);
+      const lgAsc = (a.dataset.lg || "").localeCompare(b.dataset.lg || "") || (Number(a.dataset.size) - Number(b.dataset.size));
+      if (mode === "league") return dir === "asc" ? lgAsc : -lgAsc;
+      return dir === "desc" ? sizeDesc : -sizeDesc;
+    });
+    rows.forEach(r => tb.appendChild(r));
+  }
+  async function home() {
+    const now = Date.now(), { by } = await indexes();
+    const map = {};
+    for (const [lg, idx] of Object.entries(by)) map[lg] = gamesOf(idx);
+    const board = F().lineMoveBoard(map, now);
+    const shown = board.rows.slice(0, 20);
+    const flags = notable(by, now);
+    const todayKey = F().etDay(now);
+    const todayFlags = flags.filter(x => F().etDay(x.g && x.g.date) === todayKey);
+    const sharpList = (todayFlags.length ? todayFlags : flags).slice(0, 8);
+    let dash = "";
+    if (shown.length) {
+      const title = board.scope === "today" ? "Biggest line moves today" : "Biggest line moves in the file";
+      const sub = board.scope === "today"
+        ? `${shown.length} market${shown.length === 1 ? "" : "s"} across the files`
+        : "No game in the file starts today. These are the upcoming moves already stored.";
+      const more = board.rows.length > shown.length ? `<p class="note">Showing the ${shown.length} largest of ${board.rows.length}.</p>` : "";
+      dash += panel(title, `<p class="na">${esc(sub)}</p>${boardTable(shown)}${more}`);
+    }
+    if (sharpList.length) {
+      const rows = sharpList.map(item => `<a class="ppv-line" href="${publicGame(item.lg, item.id)}" data-pro-goto="game"><span><span class="vs-lg">${esc(A().lgName(item.lg))}</span> <b>${esc(item.g.away.abbr)} @ ${esc(item.g.home.abbr)}</b><small>${item.notes.map(esc).join(" · ")}</small></span><span class="mvbadge">Sharp move</span></a>`).join("");
+      dash += panel(todayFlags.length ? "Sharp-flagged games today" : "Sharp-flagged games", `<div class="ppv-list">${rows}</div><p class="note">Same flags as the slate: a large spread move, a key number crossed, or a total that moved past the sport's bar. A description of the saved line, not a pick.</p><p><a href="${href("alerts")}">All sharp flags</a></p>`);
+    }
+    dash += hubBets();
+    if (!dash) dash = EMPTY;
+    const cards = ((window.ProCore && window.ProCore.FEATURES) || []).map(([k, label]) => `<a class="ppv-card pro-frame" href="${href(SCREEN[k])}">${PILL}<b>${esc(label)}</b><span>${esc(HINT[k] || "")}</span><span class="ppv-go">Open</span></a>`).join("")
+      + `<a class="ppv-card pro-frame" href="${href("hot")}">${PILL}<b>Hot props</b><span>Same-line price gaps, prop line moves, and hot streaks, only from props files the site has. Saved filters stay in this browser.</span><span class="ppv-go">Open</span></a>`;
     const offers = G() && G().offersHTML ? G().offersHTML("pro") : "";
-    return shell("", "LineSmart Pro", "Tools on top of the lines already on the site. The public waitlist is unchanged.",
-      `${buildLine()}${flNote()}<div class="ppv-grid">${cards}</div>
-      <section class="card"><h3>What is on, and what isn't</h3>
-        <p>Sharp-move flags, line charts, game lines, My Bets stats, and hot props use the data files. Email above the free daily limit, extra sportsbooks, a faster odds pull, prop history, game logs, and closing-line value show a coming-soon note when the file doesn't have them. No payment and no new email from this page.</p>
-        <p>The public site still has the waitlist at <a href="#/pro">#/pro</a>.</p></section>
-      ${offers}`);
+    return shell("", "LineSmart Pro", "Today's line moves, sharp flags, and My Bets, from the files already on the site.",
+      `${flNote()}${dash}<h2 class="ppv-h">${PILL} Tools</h2><div class="ppv-grid">${cards}</div>
+      <p class="note">Sharp-move flags, line charts, game lines, My Bets, and hot props use the data files. Nothing here calls the odds provider, takes a payment, or sends email. The public waitlist stays at <a href="#/pro">#/pro</a> for everyone else.</p>
+      ${offers}${buildLine()}`);
   }
 
   function lineRows(lg, g) {
@@ -208,20 +279,14 @@
     const mks = [["all", "All"], ["ml", "Moneyline"], ["spread", "Spread"], ["total", "Total"], ["prop", "Player props"]];
     const seg = `<nav class="seg" aria-label="Market">${mks.map(([k, t]) => `<a href="${esc(vHref({ mk: k }))}" class="${f.mk === k ? "on" : ""}">${esc(t)}</a>`).join("")}</nav>`;
     const mins = [[-2, "−2%"], [0, "0%"], [1, "+1%"], [2, "+2%"], [3, "+3%"]];
-    const edgeHtml = shownE.length ? `<div class="ppv-list">${shownE.slice(0, 12).map(r => `<a class="ppv-line" href="${gameHref(r.lg, r.gid)}"><span><span class="vs-lg">${esc(A().lgName(r.lg))}</span> <b>${esc(r.label)}</b><small>${esc(r.matchup)}</small></span><span class="num ${cls(r.top.edge)}"><b>${esc(ePct(r.top.edge))}</b><small>${bookName(r.top.book)}</small></span></a>`).join("")}</div>`
-      : `<p class="na">No consensus edge in this file for these filters. That math needs three books on the same line.</p>`;
-    const lineHtml = f.mk === "prop" ? "" : `<h3 class="ppv-h">Game lines in the file <span class="st-sub">${lines.length} match</span></h3>
-      ${lines.length ? `<div class="ppv-list">${lines.slice(0, 12).map(r => `<a class="ppv-line" href="${gameHref(r.lg, r.gid)}"><span><span class="vs-lg">${esc(A().lgName(r.lg))}</span> <b>${esc(r.label)}</b><small>${esc(r.matchup)}</small></span><span class="num"><b class="px">${esc(am(r.price))}</b><small>${bookName(r.book)}</small></span></a>`).join("")}</div>` : `<p class="na">No line in the file matches these filters.</p>`}
-      <p class="note">Prices are the ones stored in the data file${meta.generated ? ` (as of ${esc(A().fullET(meta.generated))})` : ""}. A single book is not a consensus, so these rows are the line, not an edge.</p>`;
-    const propHtml = props.available
-      ? `<h3 class="ppv-h">Props edges <span class="st-sub">${propRows.length} match</span></h3>${propRows.length ? `<div class="ppv-list">${propRows.slice(0, 12).map(r => `<div class="ppv-line"><span><span class="vs-lg">${esc(A().lgName(r.lg))}</span> <b>${esc(r.label)}</b><small>${esc(r.matchup)}</small></span><span class="num ${cls(r.top.edge)}"><b>${esc(ePct(r.top.edge))}</b><small>${bookName(r.top.book)}</small></span></div>`).join("")}</div>` : `<p class="na">No prop edge clears this filter.</p>`}<p class="note">An edge compares prices in the file. It is not a suggestion to bet.</p>`
-      : `<h3 class="ppv-h">Props edges ${SOON}</h3><p>This copy doesn't have three books on the same prop line, so there is no prop edge to show.</p>`;
+    const edgeHtml = shownE.length ? `<section class="card pro-frame"><h3 class="ppv-h">${PILL} Consensus edges <span class="st-sub">Value finder math</span></h3><div class="ppv-list">${shownE.slice(0, 12).map(r => `<a class="ppv-line" href="${gameHref(r.lg, r.gid)}"><span><span class="vs-lg">${esc(A().lgName(r.lg))}</span> <b>${esc(r.label)}</b><small>${esc(r.matchup)}</small></span><span class="num ${cls(r.top.edge)}"><b>${esc(ePct(r.top.edge))}</b><small>${bookName(r.top.book)}</small></span></a>`).join("")}</div></section>` : "";
+    const lineHtml = f.mk === "prop" || !lines.length ? "" : `<section class="card pro-frame"><h3 class="ppv-h">${PILL} Game lines in the file <span class="st-sub">${lines.length} match</span></h3><div class="ppv-list">${lines.slice(0, 12).map(r => `<a class="ppv-line" href="${gameHref(r.lg, r.gid)}"><span><span class="vs-lg">${esc(A().lgName(r.lg))}</span> <b>${esc(r.label)}</b><small>${esc(r.matchup)}</small></span><span class="num"><b class="px">${esc(am(r.price))}</b><small>${bookName(r.book)}</small></span></a>`).join("")}</div><p class="note">Prices are the ones stored in the data file${meta.generated ? ` (as of ${esc(A().fullET(meta.generated))})` : ""}. A single book is not a consensus, so these rows are the line, not an edge.</p></section>`;
+    const propHtml = props.available && propRows.length ? `<section class="card pro-frame"><h3 class="ppv-h">${PILL} Props edges <span class="st-sub">${propRows.length} match</span></h3><div class="ppv-list">${propRows.slice(0, 12).map(r => `<div class="ppv-line"><span><span class="vs-lg">${esc(A().lgName(r.lg))}</span> <b>${esc(r.label)}</b><small>${esc(r.matchup)}</small></span><span class="num ${cls(r.top.edge)}"><b>${esc(ePct(r.top.edge))}</b><small>${bookName(r.top.book)}</small></span></div>`).join("")}</div><p class="note">An edge compares prices in the file. It is not a suggestion to bet.</p></section>` : "";
+    const results = `${edgeHtml}${lineHtml}${propHtml}` || EMPTY;
     return shell("value", "Value finder extras", labelOf("props_ev"),
-      `${flNote()}<section class="card vf-filters" aria-label="Custom filters">${chips}<div class="ppv-frow">${seg}<form class="ppv-q" id="ppvQ"><label>Search <input name="q" value="${esc(f.q)}" maxlength="40" aria-label="Search lines"></label><button type="submit" class="chip">Filter</button></form>
+      `${flNote()}<section class="card pro-frame vf-filters" aria-label="Custom filters">${chips}<div class="ppv-frow">${seg}<form class="ppv-q" id="ppvQ"><label>Search <input name="q" value="${esc(f.q)}" maxlength="40" aria-label="Search lines"></label><button type="submit" class="chip">Filter</button></form>
         <label class="vf-sel"><span>Min edge</span><select id="ppvMin" aria-label="Minimum edge">${mins.map(([v, t]) => `<option value="${v}"${v === f.min ? " selected" : ""}>${t}</option>`).join("")}</select></label></div></section>
-      <section class="card"><h3 class="ppv-h">Consensus edges <span class="st-sub">Value finder math</span></h3>${edgeHtml}</section>
-      ${f.mk === "prop" ? "" : `<section class="card">${lineHtml}</section>`}
-      <section class="card">${propHtml}</section>`);
+      ${results}`);
   }
 
   function notable(by, now) {
@@ -255,16 +320,13 @@
     const active = mine.filter(a => C.status(a, now).key === "active").length;
     const cap = F().ACTIVE_PRO;
     const rows = flags.slice(0, 12).map(item => `<a class="ppv-line" href="${gameHref(item.lg, item.id)}"><span><span class="vs-lg">${esc(A().lgName(item.lg))}</span> <b>${esc(item.g.away.abbr)} @ ${esc(item.g.home.abbr)}</b><small>${item.notes.map(esc).join(" · ")}</small></span><span class="mvbadge">Sharp move</span></a>`).join("");
-    const list = mine.length ? `<ul class="ppv-ul">${mine.slice(0, 25).map(a => `<li><b>${esc(C.describe(a))}</b><span>${esc(a.game_label || "")} · ${esc(C.status(a, now).text)}</span></li>`).join("")}</ul>` : `<p class="na">No line alerts on this account yet. The bell on a game still saves one, up to the cap.</p>`;
+    const sharp = rows ? `<section class="card pro-frame"><h3 class="ppv-h">${PILL} Sharp-move flags <span class="st-sub">${flags.length} upcoming</span></h3><div class="ppv-list">${rows}</div><p class="note">A flag is the rule the site already uses on the slate: a large spread move, a key number crossed, or a total that moved past the sport's bar. It describes the saved line. It is not a pick.</p></section>` : "";
+    const list = mine.length ? `<section class="card pro-frame"><h3 class="ppv-h">${PILL} Your alerts</h3><ul class="ppv-ul">${mine.slice(0, 25).map(a => `<li><b>${esc(C.describe(a))}</b><span>${esc(a.game_label || "")} · ${esc(C.status(a, now).text)}</span></li>`).join("")}</ul></section>` : "";
     return shell("alerts", "Line alerts", labelOf("alerts_25"),
-      `${flNote()}<section class="card ppv-cap"><div class="ppv-cap-row"><b>${active} of ${cap}</b><span>active alerts for this account · free accounts stay at ${F().ACTIVE_FREE}</span></div>
+      `${flNote()}<section class="card pro-frame ppv-cap"><div class="ppv-cap-row"><b>${active} of ${cap}</b><span>active alerts for this account · free accounts stay at ${F().ACTIVE_FREE}</span></div>
         <div class="ppv-meter" aria-hidden="true"><i style="width:${Math.min(100, active / cap * 100)}%"></i></div>
         <p class="note">The server allows ${cap} active alerts on an owner account after the migration. Emails still stop at ${F().EMAIL_FREE} a day. This page does not send email.</p></section>
-      <section class="card"><h3 class="ppv-h">Sharp-move flags <span class="st-sub">${flags.length} upcoming</span></h3>${rows || `<p class="na">No sharp-move flag on an upcoming game in this file.</p>`}
-        <p class="note">A flag is the rule the site already uses on the slate: a large spread move, a key number crossed, or a total that moved past the sport's bar. It describes the saved line. It is not a pick.</p></section>
-      <section class="card"><h3 class="ppv-h">Your alerts</h3>${list}</section>
-      <section class="card"><h3 class="ppv-h">Email above ${F().EMAIL_FREE} a day ${SOON}</h3>
-        <p>The free line-alert email still sends, up to ${F().EMAIL_FREE} a day, from alerts you save with the bell. A higher daily email limit is not turned on. Nothing on this page sends a message.</p></section>`);
+      ${sharp}${list}`);
   }
 
   function loadBets() {
@@ -287,39 +349,41 @@
     const names = [...new Set(Object.values(tags).flat())].sort();
     const shown = bets.filter(b => tag === "all" || (tags[b.id] || []).includes(tag));
     const stats = window.BetCore.stats(shown);
-    const anyClose = shown.some(b => F().clvPoints(b, b.closeLine).available);
+    const clvAll = F().clvSummary(shown);
     const chips = ["all", ...names].map(t => `<a class="chip${tag === t ? " on" : ""}" href="${href("tracker")}${t === "all" ? "" : "?tag=" + encodeURIComponent(t)}">${esc(t === "all" ? "All tags" : t)}</a>`).join("");
+    if (!shown.length) return shell("tracker", "My Bets extras", labelOf("tracker_pro"), `${chips ? `<div class="chips ppv-tags" role="group" aria-label="Tags">${chips}</div>` : ""}${EMPTY}`);
     const box = (k, v, sub, c) => `<div class="stat"><span class="sl">${esc(k)}</span><b class="num ${c || ""}">${v}</b>${sub ? `<span class="ss">${sub}</span>` : ""}</div>`;
     const rec = `${stats.won}-${stats.lost}-${stats.push}`;
-    const table = shown.length ? `<div class="tbl-wrap"><table class="books ppv-bets"><thead><tr><th>Bet</th><th>Status</th><th>Stake</th><th>Net</th><th>CLV</th><th>Tags</th></tr></thead><tbody>${shown.slice(0, 20).map(b => {
+    const clvHead = clvAll.available ? `<th>CLV</th>` : "";
+    const table = `<div class="tbl-wrap"><table class="books ppv-bets"><thead><tr><th>Bet</th><th>Status</th><th>Stake</th><th>Net</th>${clvHead}<th>Tags</th></tr></thead><tbody>${shown.slice(0, 20).map(b => {
       const net = window.BetCore.netResult(b);
       const clv = F().clvPoints(b, b.closeLine);
       const mine = tags[b.id] || [];
-      return `<tr><td>${esc(betLabel(b))}<small class="na"> ${esc(b.date || "")}</small></td><td>${esc(b.status || "pending")}</td><td class="num">${esc(money(Number(b.stake) || 0))}</td><td class="num ${cls(net)}">${esc(money(net, true))}</td><td class="num">${clv.available ? esc((clv.delta > 0 ? "+" : "") + clv.delta) : "—"}</td><td>${mine.map(t => `<span class="chip">${esc(t)}</span>`).join(" ")}${store ? `<form class="ppv-form" data-ppv-tag="${esc(b.id)}"><input name="tag" maxlength="24" aria-label="Tag" placeholder="Tag"><button type="submit" class="chip">Add</button></form>` : ""}</td></tr>`;
-    }).join("")}</tbody></table></div>` : `<p class="na">${bets.length ? "No bet has that tag." : "No bets saved on this device. Stats use My Bets. Add a bet there and it shows up here."}</p>`;
-    const clvNote = anyClose ? "" : `<section class="card"><h3 class="ppv-h">Closing-line value ${SOON}</h3><p>Finished games in this copy don't include a closing price matched to a bet, so CLV isn't shown. No number is filled in for it.</p></section>`;
+      const clvCell = clvAll.available ? `<td class="num">${clv.available ? esc((clv.delta > 0 ? "+" : "") + clv.delta) : "—"}</td>` : "";
+      return `<tr><td>${esc(betLabel(b))}<small class="na"> ${esc(b.date || "")}</small></td><td>${esc(b.status || "pending")}</td><td class="num">${esc(money(Number(b.stake) || 0))}</td><td class="num ${cls(net)}">${esc(money(net, true))}</td>${clvCell}<td>${mine.map(t => `<span class="chip">${esc(t)}</span>`).join(" ")}${store ? `<form class="ppv-form" data-ppv-tag="${esc(b.id)}"><input name="tag" maxlength="24" aria-label="Tag" placeholder="Tag"><button type="submit" class="chip">Add</button></form>` : ""}</td></tr>`;
+    }).join("")}</tbody></table></div>`;
     return shell("tracker", "My Bets extras", labelOf("tracker_pro"),
       `<div class="statgrid bt-stats">${box("Net", money(stats.net, true), "from My Bets", cls(stats.net))}${box("ROI", pct(stats.roi), "", cls(stats.roi || 0))}${box("Record", rec, `${stats.n} bets`)}${box("Win rate", stats.winRate == null ? "—" : (stats.winRate * 100).toFixed(0) + "%", "pushes excluded")}</div>
-      <div class="chips ppv-tags" role="group" aria-label="Tags">${chips || `<span class="na">No tags yet.</span>`}</div>
-      <section class="card">${table}<p class="note">Tags stay in this browser. They are not sent to an account, and they don't turn Pro on.</p></section>
-      ${clvNote}`);
+      ${clvBlock(clvAll)}
+      <div class="chips ppv-tags" role="group" aria-label="Tags">${chips}</div>
+      <section class="card pro-frame">${table}<p class="note">Tags stay in this browser. They are not sent to an account, and they don't turn Pro on.</p></section>`);
   }
 
   function cell(g, key, label, line, price) {
     const o = g.books && g.books[key];
-    if (!o) return `<span class="na">No line in this file</span>`;
+    if (!o) return "";
     if (label.endsWith("ML")) {
       const n = label.startsWith(g.away.abbr) ? o.awayML : o.homeML;
-      return isNum(n) ? `<b>${esc(am(n))}</b>` : `<span class="na">No line in this file</span>`;
+      return isNum(n) ? `<b>${esc(am(n))}</b>` : "";
     }
     if (label === "Over" || label === "Under") {
-      if (!isNum(o.total)) return `<span class="na">No line in this file</span>`;
+      if (!isNum(o.total)) return "";
       const px = label === "Over" ? o.overOdds : o.underOdds;
       return `<b>${esc(o.total)}</b> <span class="na">${esc(am(px))}</span>`;
     }
     const side = label.startsWith(g.home.abbr) ? "home" : "away";
     const ln = o[side + "Spread"], px = o[side + "SpreadOdds"];
-    if (!isNum(ln)) return `<span class="na">No line in this file</span>`;
+    if (!isNum(ln)) return "";
     return `<b>${esc(sgn(ln))}</b> <span class="na">${esc(am(px))}</span>`;
   }
   async function viewBooks() {
@@ -328,7 +392,7 @@
     for (const lg of order) for (const g of future(by[lg], now)) if (F().bookColumns(g).length) games.push({ lg, g });
     const pa = parts();
     const cur = games.find(x => x.lg === pa.a && String(x.g.id) === String(pa.b)) || games[0];
-    if (!cur) return shell("books", "More sportsbooks", labelOf("books_10"), `<div class="empty"><h3>No upcoming line in this file</h3></div>`);
+    if (!cur) return shell("books", "More sportsbooks", labelOf("books_10"), EMPTY);
     const g = cur.g;
     const cols = G() && G().sortBooks ? G().sortBooks(F().BOOK_KEYS.slice()) : F().BOOK_KEYS.slice();
     const headR = cols.map(k => {
@@ -343,16 +407,17 @@
       ["Over"],
       ["Under"],
     ];
-    const body = markets.map(([label]) => `<tr><td>${esc(label)}</td>${cols.map(k => `<td class="num">${cell(g, k, label)}</td>`).join("")}</tr>`).join("");
+    const body = markets.map(([label]) => {
+      const cells = cols.map(k => cell(g, k, label));
+      if (!cells.some(Boolean)) return "";
+      return `<tr><td>${esc(label)}</td>${cells.map(c => `<td class="num">${c || "—"}</td>`).join("")}</tr>`;
+    }).join("");
     const sel = `<label class="vf-sel"><span>Game</span><select id="ppvGame" aria-label="Game">${games.slice(0, 40).map(x => `<option value="${esc(x.lg)}/${esc(x.g.id)}"${x.lg === cur.lg && String(x.g.id) === String(g.id) ? " selected" : ""}>${esc(A().lgName(x.lg))} · ${esc(x.g.away.abbr)} @ ${esc(x.g.home.abbr)}</option>`).join("")}</select></label>`;
-    const soon = F().COMING_BOOKS.map(esc).join(", ");
     const offers = G() && G().offersHTML ? G().offersHTML("pro") : "";
+    const table = body ? `<div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${headR}</tr></thead><tbody>${body}</tbody></table></div><p class="note">Only books with a number in the file get a column. An empty cell means that book didn't post this market. No price is filled in. Pinnacle isn't listed.</p>` : EMPTY;
     return shell("books", "More sportsbooks", labelOf("books_10"),
-      `${flNote()}<section class="card ppv-books"><div class="ppv-frow">${sel}<span class="na">${esc(g.away.name)} at ${esc(g.home.name)}</span></div>
-        <div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${headR}</tr></thead><tbody>${body}</tbody></table></div>
-        <p class="note">Only books with a number in the file get a column. An empty cell means that book didn't post this game. No price is filled in.</p>
-        <h3 class="ppv-h">Other books ${SOON}</h3>
-        <p>${soon}. The waitlist names these. This file doesn't include them, so they aren't shown as prices. Pinnacle isn't listed: LineSmart only compares state-licensed US books.</p></section>
+      `${flNote()}<section class="card pro-frame ppv-books"><div class="ppv-frow">${sel}<span class="na">${esc(g.away.name)} at ${esc(g.home.name)}</span></div>
+        ${table}</section>
       ${offers}`);
   }
 
@@ -361,22 +426,23 @@
     const lg = parts().a || (flags[0] && flags[0].lg);
     const id = parts().b || (flags[0] && flags[0].id);
     const item = flags.find(x => x.lg === lg && String(x.id) === String(id)) || flags[0];
-    let chart = `<p class="na">No line history for this game.</p>`;
+    let chart = "";
     if (item) {
       try {
         const d = await A().getJSON(`data/${item.lg}/games/${item.g.id}.json`);
         const sec = A().lineMoveSection(d, d.game, item.kind);
-        chart = sec.html || `<p class="na">No line history stored for this game.</p>`;
+        chart = sec.html || "";
         afterPaint = sec.wire || (() => {});
-      } catch (e) { chart = `<p class="na">Couldn't read this game's history file.</p>`; }
+      } catch (e) { chart = ""; }
     }
     const list = flags.slice(0, 12).map(x => {
       const on = item && x.lg === item.lg && String(x.id) === String(item.id);
       return `<a class="ppv-line${on ? " on" : ""}" href="${href("history")}/${esc(x.lg)}/${esc(x.id)}"><span><span class="vs-lg">${esc(A().lgName(x.lg))}</span> <b>${esc(x.g.away.abbr)} @ ${esc(x.g.home.abbr)}</b><small>${x.notes.map(esc).join(" · ")} · ${bookName(x.book || "draftkings")}</small></span><span class="mvbadge">Sharp move</span></a>`;
     }).join("");
-    return shell("history", "Line history", labelOf("line_history"),
-      `${flNote()}<section class="card"><h3 class="ppv-h">Sharp-move flags <span class="st-sub">${flags.length} upcoming</span></h3>${list || `<p class="na">No sharp-move flag in this file.</p>`}<p class="note">Same flags as the slate. A description of the saved line, not a pick.</p></section>
-      <section class="card">${chart}</section>`);
+    const sharp = list ? `<section class="card pro-frame"><h3 class="ppv-h">${PILL} Sharp-move flags <span class="st-sub">${flags.length} upcoming</span></h3><div class="ppv-list">${list}</div><p class="note">Same flags as the slate. A description of the saved line, not a pick.</p></section>` : "";
+    const chartBlock = chart ? `<section class="card pro-frame">${chart}</section>` : "";
+    const histBody = sharp || chartBlock ? `${flNote()}${sharp}${chartBlock}` : `${flNote()}${EMPTY}`;
+    return shell("history", "Line history", labelOf("line_history"), histBody);
   }
 
   async function viewRefresh() {
@@ -388,14 +454,13 @@
       const age = t ? ((Date.now() - Date.parse(t)) / 36e5) : null;
       return `<tr><td>${esc(L.name || A().lgName(lg))}</td><td class="num">${t ? esc(A().fullET(t)) : "—"}</td><td class="num">${age == null ? "—" : esc(age.toFixed(1))}</td></tr>`;
     }).join("");
-    return shell("refresh", "Faster refresh", labelOf("fast_refresh"),
-      `<section class="card"><div class="statgrid">${[
-        ["File age", info.ageHours == null ? "—" : info.ageHours.toFixed(1) + " h", "since the data file"],
+    const ageCard = info.ageHours == null ? "" : `<section class="card pro-frame"><div class="statgrid">${[
+        ["File age", info.ageHours.toFixed(1) + " h", "since the data file"],
         ["Cadence today", "about " + info.cadenceMin + " min", "how the site refreshes"],
       ].map(([k, v, s]) => `<div class="stat"><span class="sl">${esc(k)}</span><b class="num">${esc(v)}</b><span class="ss">${esc(s)}</span></div>`).join("")}</div>
-        <p class="note">This page does not fetch new odds and does not call the odds provider.</p></section>
-      <section class="card"><h3 class="ppv-h">When each league file was written</h3><div class="tbl-wrap"><table class="books"><thead><tr><th>League</th><th>Updated</th><th>Hours ago</th></tr></thead><tbody>${rows}</tbody></table></div></section>
-      <section class="card"><h3 class="ppv-h">Faster refresh ${SOON}</h3><p>A shorter pull is not running. There is no newer price than the file above, and none is invented here.</p></section>`);
+        <p class="note">This page does not fetch new odds and does not call the odds provider.</p></section>`;
+    return shell("refresh", "Faster refresh", labelOf("fast_refresh"),
+      `${ageCard}<section class="card pro-frame"><h3 class="ppv-h">${PILL} When each league file was written</h3><div class="tbl-wrap"><table class="books"><thead><tr><th>League</th><th>Updated</th><th>Hours ago</th></tr></thead><tbody>${rows}</tbody></table></div></section>`);
   }
 
   function preferBooks() {
@@ -444,37 +509,30 @@
     const mkSel = sel("ppvHotMk", "Prop type", `<option value="all"${f.mk === "all" ? " selected" : ""}>All props</option>${mks.map(p => `<option value="${esc(p.mk)}"${p.mk === f.mk ? " selected" : ""}>${esc(p.label)}</option>`).join("")}`);
     const store = localStore();
     const saved = store ? H.readSaved(store) : [];
-    const savedHtml = saved.length ? `<div class="chips ppv-saved" aria-label="Saved filters">${saved.map(s => `<span class="chip ppv-saved-chip"><a href="${esc(hotHash({ lg: s.lg, team: s.team, player: s.player, mk: s.mk || "all" }))}">${esc(s.name)}</a><button type="button" class="ppv-x" data-ppv-hot-del="${esc(s.id)}" aria-label="${esc("Delete saved filter " + s.name)}">×</button></span>`).join("")}</div>` : `<p class="na">No saved filters in this browser.</p>`;
+    const savedHtml = saved.length ? `<div class="chips ppv-saved" aria-label="Saved filters">${saved.map(s => `<span class="chip ppv-saved-chip"><a href="${esc(hotHash({ lg: s.lg, team: s.team, player: s.player, mk: s.mk || "all" }))}">${esc(s.name)}</a><button type="button" class="ppv-x" data-ppv-hot-del="${esc(s.id)}" aria-label="${esc("Delete saved filter " + s.name)}">×</button></span>`).join("")}</div>` : "";
     const file = docs[f.lg];
     let lists;
     if (!file) {
-      lists = `<section class="card"><h3 class="ppv-h">No props file</h3><p>This snapshot has no props file for ${esc(labels[f.lg] || f.lg.toUpperCase())}. Price gaps, prop history, and hot streaks aren't filled in.</p></section>`;
+      lists = EMPTY;
     } else {
       lists = "";
       if (H.hasPrices(sportAll)) {
         const gaps = H.priceGaps(filtered);
         const shownG = gaps.slice(0, 12);
-        const gapHtml = shownG.length ? `<div class="ppv-list">${shownG.map(g => `<div class="ppv-line"><span><span class="vs-lg">${esc(labels[g.lg] || g.lg.toUpperCase())}</span> <b>${esc(g.name)} · ${esc(g.label)}</b><small>${esc(g.team)} · O/U ${esc(Pnum(g.line))} · ${g.side === "under" ? "Under" : "Over"}</small><small>${esc(quoteLine(g))}</small></span><span class="num"><b>${esc((g.gap * 100).toFixed(1))} pts</b><small>implied gap</small></span></div>`).join("")}</div>` : `<p class="na">No prop in this filter has two different prices on the same line.</p>`;
-        lists += `<section class="card" id="ppvGaps"><h3 class="ppv-h">Price gaps on the same line <span class="st-sub">${gaps.length} in this filter</span></h3>${gapHtml}<p class="note">The gap is the difference in implied probability between books that posted this exact number. A different number is not included. It is not a suggestion to bet either price.</p></section>`;
+        if (shownG.length) lists += `<section class="card pro-frame" id="ppvGaps"><h3 class="ppv-h">${PILL} Price gaps on the same line <span class="st-sub">${gaps.length} in this filter</span></h3><div class="ppv-list">${shownG.map(g => `<div class="ppv-line"><span><span class="vs-lg">${esc(labels[g.lg] || g.lg.toUpperCase())}</span> <b>${esc(g.name)} · ${esc(g.label)}</b><small>${esc(g.team)} · O/U ${esc(Pnum(g.line))} · ${g.side === "under" ? "Under" : "Over"}</small><small>${esc(quoteLine(g))}</small></span><span class="num"><b>${esc((g.gap * 100).toFixed(1))} pts</b><small>implied gap</small></span></div>`).join("")}</div><p class="note">The gap is the difference in implied probability between books that posted this exact number. A different number is not included. It is not a suggestion to bet either price.</p></section>`;
       }
       if (H.hasOpen(sportAll)) {
         const moves = H.lineMoves(filtered);
         const shownM = moves.slice(0, 12);
-        const moveHtml = shownM.length ? `<div class="ppv-list">${shownM.map(m => `<div class="ppv-line"><span><span class="vs-lg">${esc(m.team)}</span> <b>${esc(m.name)} · ${esc(m.label)}</b><small>O/U ${esc(Pnum(m.line))} · ${esc(m.text)}</small></span><span class="num"><b>${m.delta > 0 ? "+" : ""}${esc(String(Math.round(m.delta * 10) / 10))}</b><small>from the open</small></span></div>`).join("")}</div>` : `<p class="na">No opening line in this filter has moved.</p>`;
-        lists += `<section class="card" id="ppvMoves"><h3 class="ppv-h">Prop line moves <span class="st-sub">${moves.length} in this filter</span></h3>${moveHtml}<p class="note">The opening number is the one stored on the prop row. It describes that file. It is not a prediction.</p></section>`;
+        if (shownM.length) lists += `<section class="card pro-frame" id="ppvMoves"><h3 class="ppv-h">${PILL} Prop line moves <span class="st-sub">${moves.length} in this filter</span></h3><div class="ppv-list">${shownM.map(m => `<div class="ppv-line"><span><span class="vs-lg">${esc(m.team)}</span> <b>${esc(m.name)} · ${esc(m.label)}</b><small>O/U ${esc(Pnum(m.line))} · ${esc(m.text)}</small></span><span class="num"><b>${m.delta > 0 ? "+" : ""}${esc(String(Math.round(m.delta * 10) / 10))}</b><small>from the open</small></span></div>`).join("")}</div><p class="note">The opening number is the one stored on the prop row. It describes that file. It is not a prediction.</p></section>`;
       }
       const prefer = preferBooks();
       if (H.hotStreaks(sportAll, prefer).available) {
         const hot = H.hotStreaks(filtered, prefer).rows;
         const shownH = hot.slice(0, 12);
-        const hotHtml = shownH.length ? `<div class="ppv-list">${shownH.map(h => `<div class="ppv-line"><span><span class="vs-lg">${esc(h.team)}</span> <b>${esc(h.name)} · ${esc(h.label)}</b><small>O/U ${esc(Pnum(h.gradedLine))} · ${esc(h.text)} in the last games played</small><small>Past results only.</small></span></div>`).join("")}</div>` : `<p class="na">No player in this filter went over in at least 4 of the last 5 games played.</p>`;
-        lists += `<section class="card" id="ppvHotStreaks"><h3 class="ppv-h">Hot streaks <span class="st-sub">${hot.length} in this filter</span></h3>${hotHtml}<p class="note">Same rule as the props page: over in at least 4 of the last 5 games played, or the same share when fewer games are in the log. This is a count of past games, not a pick.</p></section>`;
+        if (shownH.length) lists += `<section class="card pro-frame" id="ppvHotStreaks"><h3 class="ppv-h">${PILL} Hot streaks <span class="st-sub">${hot.length} in this filter</span></h3><div class="ppv-list">${shownH.map(h => `<div class="ppv-line"><span><span class="vs-lg">${esc(h.team)}</span> <b>${esc(h.name)} · ${esc(h.label)}</b><small>O/U ${esc(Pnum(h.gradedLine))} · ${esc(h.text)} in the last games played</small><small>Past results only.</small></span></div>`).join("")}</div><p class="note">Same rule as the props page: over in at least 4 of the last 5 games played, or the same share when fewer games are in the log. This is a count of past games, not a pick.</p></section>`;
       }
-      const omitted = [];
-      if (!H.hasPrices(sportAll)) omitted.push("Price gaps are left out: no book in this file posted a price.");
-      if (!H.hasOpen(sportAll)) omitted.push("Prop history is coming soon. This file has no opening line.");
-      if (!H.hotStreaks(sportAll, prefer).available) omitted.push("Hot streaks are coming soon. This file has no player game log.");
-      if (omitted.length) lists += `<section class="card"><h3 class="ppv-h">Not in this file</h3><p>${omitted.map(esc).join(" ")}</p></section>`;
+      if (!lists) lists = EMPTY;
     }
     const offers = G() && G().offersHTML ? G().offersHTML("pro") : "";
     const src = Object.entries(docs).map(([k, d]) => `${labels[k] || k.toUpperCase()}`).join(", ");
@@ -483,7 +541,7 @@
       <section class="card ppv-filters" aria-label="Hot props filters"><div class="chips" role="group" aria-label="Sport">${chips}</div><div class="ppv-frow">${teamSel}${playerSel}${mkSel}</div>
         <form id="ppvHotSave" class="ppv-form"><label class="vf-sel"><span>Save this filter</span><input name="name" maxlength="40" placeholder="Name" aria-label="Saved filter name"></label><button type="submit" class="chip">Save in this browser</button></form>
         <p class="ppv-out" id="ppvHotErr" role="alert"></p>
-        <h3 class="ppv-h">Saved filters</h3>${store ? savedHtml : `<p class="na">This browser isn't storing filters.</p>`}</section>
+        ${savedHtml ? `<h3 class="ppv-h">Saved filters</h3>${savedHtml}` : ""}</section>
       ${lists}
       ${offers}`);
   }
@@ -557,6 +615,8 @@
       if (t.id === "ppvHotMk") location.hash = hotHash({ mk: t.value });
     });
     app.addEventListener("click", e => {
+      const sort = e.target.closest && e.target.closest("[data-pro-sort]");
+      if (sort) { e.preventDefault(); sortMoves(sort); return; }
       if (e.target.closest && e.target.closest("[data-pro-enhance]")) return;
       const del = e.target.closest && e.target.closest("[data-ppv-hot-del]");
       if (del) {
@@ -609,10 +669,15 @@
     if (window.ProGateCore && window.ProGateCore.isOwnerHash(location.hash)) location.hash = "#/";
   }
 
-  const PILL = `<span class="pro-pill">Pro</span>`;
   let paint = 0, embedHot = null, embedBound = false, slateWatch = false;
   function panel(title, body) {
-    return `<section class="card ppv-panel"><h3 class="ppv-h">${PILL} ${title}</h3>${body}</section>`;
+    if (!body) return "";
+    return `<section class="card pro-frame ppv-panel"><h3 class="ppv-h">${PILL} ${title}</h3>${body}</section>`;
+  }
+  function insights(parts) {
+    const inner = parts.filter(Boolean).join("");
+    if (!inner) return EMPTY;
+    return `<details class="pro-insights pro-frame" open><summary class="pro-insights-sum">${PILL} <span>Pro insights</span></summary><div class="pro-insights-body">${inner}</div></details>`;
   }
   function place(id, kind, html, anchorSel) {
     let host = document.getElementById(id);
@@ -633,15 +698,15 @@
   }
   function spark(points, labelFmt) {
     const nums = (points || []).filter(v => typeof v === "number" && isFinite(v));
-    if (!nums.length) return `<p class="na">No line in this file.</p>`;
-    const w = 320, h = 88, pad = 10;
+    if (!nums.length) return "";
+    const w = 320, h = 96, pad = 8;
     let lo = Math.min(...nums), hi = Math.max(...nums);
     if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
     const X = i => pad + (nums.length === 1 ? (w - pad * 2) / 2 : (i / (nums.length - 1)) * (w - pad * 2));
     const Y = v => pad + (1 - (v - lo) / (hi - lo)) * (h - pad * 2);
     const d = nums.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join("");
-    const dots = nums.map((v, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3.5"/>`).join("");
-    return `<svg class="ppv-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Line history"><path d="${d}" fill="none"/>${dots}</svg><p class="na">${esc(labelFmt(nums[0]))} open → ${esc(labelFmt(nums[nums.length - 1]))} now</p>`;
+    const dots = nums.map((v, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="2.2"/>`).join("");
+    return `<svg class="ppv-chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Line history"><path d="${d}" fill="none"/>${dots}</svg><p class="na">${esc(labelFmt(nums[0]))} open → ${esc(labelFmt(nums[nums.length - 1]))} now</p>`;
   }
   function impliedPts(points) {
     return (points || []).map(v => {
@@ -654,8 +719,9 @@
     if (!api || !ctx.lg || !ctx.id) return;
     let d = null;
     try { d = await api.getJSON(`data/${ctx.lg}/games/${ctx.id}.json`); } catch (e) { d = null; }
+    const anchor = [".lm", "#line-movement-s", "#odds-s", ".pv-h1", "article.sx-game", ".cols"];
     if (!d || !d.game) {
-      place("pro-game-panel", "game", panel("LineSmart Pro", `<p class="na">Couldn't read this game's file.</p>`), ".match, .pv-h1, h1");
+      place("pro-game-panel", "game", `${flNote()}${EMPTY}`, anchor);
       return;
     }
     const g = d.game;
@@ -664,13 +730,12 @@
     const meta = api.meta ? api.meta() : null;
     const notes = (g.move && g.move.notable) || [];
     const sharp = notes.length
-      ? `<ul class="ppv-ul">${notes.map(n => `<li><span class="mvbadge">Sharp move</span> <span>${esc(n)}</span></li>`).join("")}</ul><p class="note">Same rule as the slate: a large spread move, a key number crossed, or a total that moved past the sport's bar. A description of the saved line, not a pick.</p>`
-      : `<p class="na">No sharp-move flag on this game in the file.</p>`;
+      ? panel("Sharp move", `<ul class="ppv-ul">${notes.map(n => `<li><span class="mvbadge">Sharp move</span> <span>${esc(n)}</span></li>`).join("")}</ul><p class="note">Same rule as the slate: a large spread move, a key number crossed, or a total that moved past the sport's bar. A description of the saved line, not a pick.</p>`)
+      : "";
     const markets = F().historyMarkets(d.history);
     const spreadName = kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread";
     let charts = "";
-    if (!markets.length) charts = `<p class="na">No line history stored for this game.</p>`;
-    else {
+    if (markets.length) {
       charts = markets.map(m => {
         const blocks = [
           [spreadName, m.spread, v => sgn(v)],
@@ -679,27 +744,54 @@
           [`${g.home.abbr} ML`, m.homeML, v => am(v), true],
         ];
         const body = blocks.map(([label, ser, fmt, ml]) => {
-          if (!ser) return `<div class="ppv-mk"><h4>${esc(label)}</h4><p class="na">No line in this file.</p></div>`;
+          if (!ser) return "";
           const pts = ml ? impliedPts(ser.points) : ser.points;
-          const shown = pts.length ? spark(pts, ml ? (v => Math.round(v * 100) + "% implied") : fmt) : `<p class="na">No line in this file.</p>`;
+          const shown = spark(pts, ml ? (v => Math.round(v * 100) + "% implied") : fmt);
+          if (!shown) return "";
           const ends = ml ? `<p class="na">${esc(fmt(ser.open))} open → ${esc(fmt(ser.current))} now</p>` : "";
-          return `<div class="ppv-mk"><h4>${esc(label)}</h4>${shown}${ml ? ends : ""}</div>`;
-        }).join("");
-        return `<h4 class="ppv-h">${esc(F().BOOK_NAME[m.book] || m.book)}</h4>${body}`;
-      }).join("");
-      charts += `<p class="note">Each chart is the opening number in the file, then the recorded snapshots. Moneyline is drawn as implied win percent so a move across even money stays on one scale. The prices under it are the American odds.</p>`;
+          return `<div class="ppv-mk"><h4>${esc(label)}</h4>${shown}${ends}</div>`;
+        }).filter(Boolean).join("");
+        if (!body) return "";
+        return `<h4 class="ppv-book">${esc(F().BOOK_NAME[m.book] || m.book)}</h4><div class="ppv-mks">${body}</div>`;
+      }).filter(Boolean).join("");
+      if (charts) charts += `<p class="note">Each chart is the opening number in the file, then the recorded snapshots. Moneyline is drawn as implied win percent so a move across even money stays on one scale. The prices under it are the American odds.</p>`;
     }
     const cols = F().bookColumns(g);
-    const bookHead = cols.map(k => `<th>${esc(F().BOOK_NAME[k] || k)}</th>`).join("");
+    const bookHead = cols.map(k => `<th>${bookName(k)}</th>`).join("");
     const labels = [`${g.away.abbr} spread`, `${g.home.abbr} spread`, `${g.away.abbr} ML`, `${g.home.abbr} ML`, "Over", "Under"];
-    const bookBody = cols.length ? labels.map(label => `<tr><td>${esc(label)}</td>${cols.map(k => `<td class="num">${cell(g, k, label)}</td>`).join("")}</tr>`).join("") : "";
-    const books = cols.length
-      ? `<div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${bookHead}</tr></thead><tbody>${bookBody}</tbody></table></div><p class="note">Only books with a number in the file get a column. ${esc(F().COMING_BOOKS.join(", "))}: not in this file, so no price is shown. Pinnacle isn't listed.</p>`
-      : `<p class="na">No book in this file posted a number for this game.</p>`;
+    const bookBody = cols.length ? labels.map(label => {
+      const cells = cols.map(k => cell(g, k, label));
+      if (!cells.some(Boolean)) return "";
+      return `<tr><td>${esc(label)}</td>${cells.map(c => `<td class="num">${c || "—"}</td>`).join("")}</tr>`;
+    }).join("") : "";
+    const books = bookBody
+      ? `<div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${bookHead}</tr></thead><tbody>${bookBody}</tbody></table></div><p class="note">Only books with a number in the file get a column. Pinnacle isn't listed.</p>`
+      : "";
+    const best = bestTable(g);
     const info = F().refreshInfo((meta && meta.generated) || (idx && idx.generated) || "", Date.now());
-    const fresh = `<div class="statgrid"><div class="stat"><span class="sl">File age</span><b class="num">${info.ageHours == null ? "—" : esc(info.ageHours.toFixed(1) + " h")}</b><span class="ss">since the data file</span></div><div class="stat"><span class="sl">Cadence today</span><b class="num">about ${esc(String(info.cadenceMin))} min</b><span class="ss">how the site refreshes</span></div></div><p class="note">A faster pull is not running. This panel does not fetch new odds.</p>`;
-    const html = `${flNote()}${panel("Sharp move", sharp)}${panel("Line history", charts)}${panel("All books", books)}${panel("File freshness", fresh)}<p class="note"><span class="of-21">21+</span> Pro reads the lines already in the file. It isn't a pick. Confirm the price at the sportsbook.</p>`;
-    place("pro-game-panel", "game", html, [".lm", "#line-movement-s", "#odds-s", ".pv-h1", "article.sx-game", ".cols"]);
+    const fresh = info.ageHours == null ? "" : `<div class="statgrid"><div class="stat"><span class="sl">File age</span><b class="num">${esc(info.ageHours.toFixed(1) + " h")}</b><span class="ss">since the data file</span></div><div class="stat"><span class="sl">Cadence today</span><b class="num">about ${esc(String(info.cadenceMin))} min</b><span class="ss">how the site refreshes</span></div></div><p class="note">This panel does not fetch new odds.</p>`;
+    const html = `${flNote()}${insights([sharp, panel("Line history", charts), panel("All books", books), panel("Best price", best), panel("File freshness", fresh)])}<p class="note"><span class="of-21">21+</span> Pro reads the lines already in the file. It isn't a pick. Confirm the price at the sportsbook.</p>`;
+    place("pro-game-panel", "game", html, anchor);
+  }
+  function bestTable(g) {
+    const bp = F().bestPrices(g);
+    if (!bp.available) return "";
+    const cols = [];
+    for (const r of bp.rows) for (const q of r.quotes) if (!cols.includes(q.book)) cols.push(q.book);
+    const head = cols.map(k => `<th>${bookName(k)}</th>`).join("");
+    const body = bp.rows.map(r => {
+      const by = Object.fromEntries(r.quotes.map(q => [q.book, q]));
+      const cells = cols.map(k => {
+        const q = by[k];
+        if (!q) return `<td class="num">—</td>`;
+        const on = r.best.includes(k);
+        const text = r.kind === "ml" ? am(q.line) : r.kind === "spread" ? sgn(q.line) : String(q.line);
+        const price = q.price == null || r.kind === "ml" ? "" : ` <span class="na">${esc(am(q.price))}</span>`;
+        return `<td class="num${on ? " pro-best" : ""}"><b>${esc(text)}</b>${price}${on ? ` <span class="pro-best-tag">Best</span>` : ""}</td>`;
+      }).join("");
+      return `<tr><td>${esc(r.label)}</td>${cells}</tr>`;
+    }).join("");
+    return `<div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${head}</tr></thead><tbody>${body}</tbody></table></div><p class="note">Highlighted when at least two books posted that market. The best number is the most favorable one in the file for that side: a higher spread or moneyline, a lower over, or a higher under. The price breaks a tie. It is not a suggestion to bet. Confirm the price at the sportsbook.</p>`;
   }
   function hotFilter(ctx) {
     const key = (ctx.lg || "") + "/" + (ctx.id || "");
@@ -731,61 +823,62 @@
     const mkSel = `<label class="vf-sel"><span>Prop type</span><select id="proHotMk" aria-label="Prop type">${opt("all", "All props", f.mk === "all")}${mks.map(p => opt(p.mk, esc(p.label), p.mk === f.mk)).join("")}</select></label>`;
     const store = localStore();
     const saved = store ? H.readSaved(store) : [];
-    const savedHtml = saved.length ? `<div class="chips ppv-saved" aria-label="Saved filters">${saved.map(s => `<span class="chip ppv-saved-chip"><button type="button" class="ppv-apply" data-pro-hot-apply="${esc(s.id)}">${esc(s.name)}</button><button type="button" class="ppv-x" data-pro-hot-del="${esc(s.id)}" aria-label="${esc("Delete saved filter " + s.name)}">×</button></span>`).join("")}</div>` : `<p class="na">No saved filters in this browser.</p>`;
+    const savedHtml = saved.length ? `<div class="chips ppv-saved" aria-label="Saved filters">${saved.map(s => `<span class="chip ppv-saved-chip"><button type="button" class="ppv-apply" data-pro-hot-apply="${esc(s.id)}">${esc(s.name)}</button><button type="button" class="ppv-x" data-pro-hot-del="${esc(s.id)}" aria-label="${esc("Delete saved filter " + s.name)}">×</button></span>`).join("")}</div>` : "";
     const file = docs[f.lg];
-    let lists;
-    if (!file) {
-      lists = `<h3 class="ppv-h">No props file</h3><p>This snapshot has no props file for ${esc(labels[f.lg] || String(f.lg || "").toUpperCase())}. Price gaps, prop history, and hot streaks aren't filled in.</p>`;
-    } else {
-      lists = "";
+    let lists = "";
+    if (file) {
       if (H.hasPrices(sportAll)) {
         const gaps = H.priceGaps(filtered).slice(0, 8);
-        lists += `<h3 class="ppv-h">Price gaps on the same line</h3>${gaps.length ? `<div class="ppv-list">${gaps.map(g => `<div class="ppv-line"><span><b>${esc(g.name)} · ${esc(g.label)}</b><small>${esc(g.team)} · ${esc(quoteLine(g))}</small></span><span class="num"><b>${esc((g.gap * 100).toFixed(1))} pts</b></span></div>`).join("")}</div>` : `<p class="na">No prop in this filter has two different prices on the same line.</p>`}`;
-      } else lists += `<p>Price gaps are left out: no book in this file posted a price.</p>`;
+        if (gaps.length) lists += `<h3 class="ppv-h">Price gaps on the same line</h3><div class="ppv-list">${gaps.map(g => `<div class="ppv-line"><span><b>${esc(g.name)} · ${esc(g.label)}</b><small>${esc(g.team)} · ${esc(quoteLine(g))}</small></span><span class="num"><b>${esc((g.gap * 100).toFixed(1))} pts</b></span></div>`).join("")}</div>`;
+      }
       if (H.hasOpen(sportAll)) {
         const moves = H.lineMoves(filtered).slice(0, 8);
-        lists += `<h3 class="ppv-h">Prop line moves</h3>${moves.length ? `<div class="ppv-list">${moves.map(m => `<div class="ppv-line"><span><b>${esc(m.name)} · ${esc(m.label)}</b><small>${esc(m.text)}</small></span><span class="num"><b>${m.delta > 0 ? "+" : ""}${esc(String(Math.round(m.delta * 10) / 10))}</b></span></div>`).join("")}</div>` : `<p class="na">No opening line in this filter has moved.</p>`}`;
-      } else lists += `<p>Prop history is coming soon. This file has no opening line.</p>`;
+        if (moves.length) lists += `<h3 class="ppv-h">Prop line moves</h3><div class="ppv-list">${moves.map(m => `<div class="ppv-line"><span><b>${esc(m.name)} · ${esc(m.label)}</b><small>${esc(m.text)}</small></span><span class="num"><b>${m.delta > 0 ? "+" : ""}${esc(String(Math.round(m.delta * 10) / 10))}</b></span></div>`).join("")}</div>`;
+      }
       const prefer = preferBooks();
       if (H.hotStreaks(sportAll, prefer).available) {
         const hot = H.hotStreaks(filtered, prefer).rows.slice(0, 8);
-        lists += `<h3 class="ppv-h">Hot streaks</h3>${hot.length ? `<div class="ppv-list">${hot.map(h => `<div class="ppv-line"><span><b>${esc(h.name)} · ${esc(h.label)}</b><small>${esc(h.text)} in the last games played</small></span></div>`).join("")}</div>` : `<p class="na">No player in this filter went over in at least 4 of the last 5 games played.</p>`}<p class="note">Past results only, not a pick.</p>`;
-      } else lists += `<p>Hot streaks are coming soon. This file has no player game log.</p>`;
+        if (hot.length) lists += `<h3 class="ppv-h">Hot streaks</h3><div class="ppv-list">${hot.map(h => `<div class="ppv-line"><span><b>${esc(h.name)} · ${esc(h.label)}</b><small>${esc(h.text)} in the last games played</small></span></div>`).join("")}</div><p class="note">Past results only, not a pick.</p>`;
+      }
     }
     const html = `${flNote()}<p class="note">Built from the props file already on the site. Nothing here calls the odds provider. Saved filters stay in this browser.</p>
       <div class="ppv-frow" data-pro-hot>${teamSel}${playerSel}${mkSel}</div>
       <form id="proHotSave" class="ppv-form"><label class="vf-sel"><span>Save this filter</span><input name="name" maxlength="40" placeholder="Name" aria-label="Saved filter name"></label><button type="submit" class="chip">Save in this browser</button></form>
       <p class="ppv-out" id="proHotErr" role="alert"></p>
-      <h3 class="ppv-h">Saved filters</h3>${store ? savedHtml : `<p class="na">This browser isn't storing filters.</p>`}
-      ${lists}
+      ${savedHtml ? `<h3 class="ppv-h">Saved filters</h3>${savedHtml}` : `<h3 class="ppv-h">Saved filters</h3>`}
+      ${lists || EMPTY}
       <p class="note"><span class="of-21">21+</span> A price gap is not a suggestion to bet either number.</p>`;
     place("pro-props-panel", "props", panel("Hot props", html), ["#lines-s", "#ppPlayer", ".sx-player", ".phero", "h1"]);
   }
   function enhanceBets() {
     const bets = loadBets();
+    const anchor = [".bt-stats", ".bt-empty", ".page-head"];
+    if (!bets.length) {
+      place("pro-bets-panel", "bets", EMPTY, anchor);
+      return;
+    }
     const store = localStore();
     const tags = store ? F().readTags(store) : {};
     const C = window.BetCore;
     const clv = F().clvSummary(bets);
-    const clvHtml = clv.available
-      ? `<p><b>${clv.n}</b> bet${clv.n === 1 ? "" : "s"} with a closing line. Mean close minus bet line: <b class="num">${esc((clv.mean > 0 ? "+" : "") + clv.mean.toFixed(2))}</b></p>`
-      : `<p>Closing-line value ${SOON}. None of these bets has a closing price, so CLV isn't filled in.</p>`;
     const groups = F().tagGroups(bets, tags);
     const one = (label, list) => {
       const s = C ? C.stats(list) : { n: list.length, net: 0 };
       return `<div class="ppv-line"><span><b>${esc(label)}</b><small>${s.n} bet${s.n === 1 ? "" : "s"}</small></span><span class="num ${cls(s.net || 0)}"><b>${esc(money(s.net || 0, true))}</b></span></div>`;
     };
     const byType = C ? C.groupBy(bets, b => (C.TYPES && C.TYPES[b.type]) || b.type || "Bet") : [];
-    const typeHtml = byType.length ? `<div class="ppv-list">${byType.map(r => one(r.key, bets.filter(b => ((C.TYPES && C.TYPES[b.type]) || b.type) === r.key))).join("")}</div>` : `<p class="na">No bets on this device yet.</p>`;
-    const tagHtml = groups.length ? `<div class="ppv-list">${groups.map(g => one(g.tag === "untagged" ? "No tag" : g.tag, g.bets)).join("")}</div>` : "";
+    const typeHtml = byType.length ? `<h3 class="ppv-h">Splits by type</h3><div class="ppv-list">${byType.map(r => one(r.key, bets.filter(b => ((C.TYPES && C.TYPES[b.type]) || b.type) === r.key))).join("")}</div>` : "";
+    const tagHtml = groups.length ? `<h3 class="ppv-h">Splits by tag</h3><div class="ppv-list">${groups.map(g => one(g.tag === "untagged" ? "No tag" : g.tag, g.bets)).join("")}</div>` : "";
     const rows = bets.slice(0, 12).map(b => {
       const c = F().clvPoints(b, b.closeLine);
       const mine = tags[b.id] || [];
-      return `<tr><td>${esc(betLabel(b))}</td><td class="num">${c.available ? esc((c.delta > 0 ? "+" : "") + c.delta) : "—"}</td><td>${mine.map(t => `<span class="chip">${esc(t)}</span>`).join(" ")}${store ? `<form class="ppv-form" data-pro-tag="${esc(b.id)}"><input name="tag" maxlength="24" aria-label="Tag" placeholder="Tag"><button type="submit" class="chip">Add</button></form>` : ""}</td></tr>`;
+      const clvCell = clv.available ? `<td class="num">${c.available ? esc((c.delta > 0 ? "+" : "") + c.delta) : "—"}</td>` : "";
+      return `<tr><td>${esc(betLabel(b))}</td>${clvCell}<td>${mine.map(t => `<span class="chip">${esc(t)}</span>`).join(" ")}${store ? `<form class="ppv-form" data-pro-tag="${esc(b.id)}"><input name="tag" maxlength="24" aria-label="Tag" placeholder="Tag"><button type="submit" class="chip">Add</button></form>` : ""}</td></tr>`;
     }).join("");
-    const table = bets.length ? `<div class="tbl-wrap"><table class="books ppv-bets"><thead><tr><th>Bet</th><th>CLV</th><th>Tags</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="na">No bets saved on this device. Add one in My Bets and the split shows up here.</p>`;
-    const html = `${clvHtml}<h3 class="ppv-h">Splits by type</h3>${typeHtml}<h3 class="ppv-h">Splits by tag</h3>${tagHtml}${table}<p class="note">Tags stay in this browser. They don't turn Pro on. <span class="of-21">21+</span></p>`;
-    place("pro-bets-panel", "bets", panel("My Bets extras", html), [".bt-stats", ".bt-empty", ".page-head"]);
+    const clvHead = clv.available ? `<th>CLV</th>` : "";
+    const table = `<div class="tbl-wrap"><table class="books ppv-bets"><thead><tr><th>Bet</th>${clvHead}<th>Tags</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const html = `${clvBlock(clv)}${typeHtml}${tagHtml}${table}<p class="note">Tags stay in this browser. They don't turn Pro on. <span class="of-21">21+</span></p>`;
+    place("pro-bets-panel", "bets", panel("My Bets extras", html), anchor);
   }
   function enhanceSlate() {
     document.querySelectorAll("a.game").forEach(a => {
@@ -794,10 +887,10 @@
       const pub = top.querySelector(".mvbadge");
       if (!pub) return;
       const s = document.createElement("span");
-      s.className = "pro-pill";
+      s.className = "pro-sharp pro-frame";
       s.dataset.proBadge = "1";
-      s.textContent = "Sharp";
       s.title = "Pro · sharp move";
+      s.innerHTML = `<span class="pro-pill">PRO</span><span class="pro-sharp-txt">Sharp</span>`;
       top.appendChild(s);
     });
   }

@@ -17,6 +17,18 @@
   function allow(body) {
     return body === true;
   }
+  /** is_pro() outcome. Only boolean true/false are definite. HTTP errors and any other body are unknown. */
+  function verdict(body, httpOk) {
+    if (httpOk !== true) return "unknown";
+    if (body === true) return "yes";
+    if (body === false) return "no";
+    return "unknown";
+  }
+  /** Tear Pro down only on sign-out (no token) or a definite false. A blip must not hide a session that already verified. */
+  function shouldHide(hasToken, result) {
+    if (!hasToken) return true;
+    return result === "no";
+  }
   function tokenOf(raw) {
     if (raw == null || raw === "") return "";
     let j = raw;
@@ -34,5 +46,5 @@
   const rpcUrl = base => String(base || "").replace(/\/$/, "") + "/rest/v1/rpc/" + RPC;
   const bundleUrl = base => String(base || "").replace(/\/$/, "") + "/storage/v1/object/" + BUCKET + "/" + OBJECT;
 
-  return { ROUTE, BUCKET, OBJECT, RPC, IGNORED_FLAGS, allow, tokenOf, isOwnerHash, rpcUrl, bundleUrl };
+  return { ROUTE, BUCKET, OBJECT, RPC, IGNORED_FLAGS, allow, verdict, shouldHide, tokenOf, isOwnerHash, rpcUrl, bundleUrl };
 });

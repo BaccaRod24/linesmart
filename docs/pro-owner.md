@@ -33,7 +33,14 @@ Upload `pro/dist/pro-app.js` to bucket `pro-private`, object name `pro-app.js`
 ## 4. Open Pro
 
 Sign in with the LineSmart account from the statement above, then open `/owner.html`
-(it is not linked, and it is `noindex`). The hash `#/owner` loads only after `is_pro()`
-returns true. A flag in the browser does not turn it on.
+(it is not linked, and it is `noindex`). The hash `#/owner` is the Pro hub. It loads
+only after `is_pro()` returns true. A flag in the browser does not turn it on.
+
+The same check runs on the rest of the site, but only when this browser already has a
+session token. When `is_pro()` is true, the private bundle adds Pro panels on game pages,
+hot-prop filters on player props pages, a stats panel on My Bets, and a sharp-move badge
+on the slate. Visitors and free accounts do not get those panels, and they do not download
+the bundle. A failed or timed-out `is_pro()` call does not remove Pro for a session that
+already verified. Signing out, or a definite `false`, does.
 
 Signing out, or any other account, leaves the normal free site.

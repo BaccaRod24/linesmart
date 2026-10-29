@@ -23,7 +23,13 @@
   };
   const realizeLinks = root => {   // rewrite app links to their real URLs (kept in data-h for code that looks tiles up by route)
     if (!PAGES.generated) return;
-    (root || document).querySelectorAll('a[href^="#/"]').forEach(a => { const h = a.getAttribute("href"), p = realPath(h); if (p) { a.dataset.h = h; a.setAttribute("href", p); } });
+    (root || document).querySelectorAll('a[href^="#/"]').forEach(a => {
+      if (a.closest && a.closest("[data-pro-owner], [data-pro-enhance]")) return;   // Pro stays inside its own screens
+      const h = a.getAttribute("href");
+      if (!h || h.startsWith("#/owner")) return;
+      const p = realPath(h);
+      if (p) { a.dataset.h = h; a.setAttribute("href", p); }
+    });
   };
   const previewHref = (lg, id) => realPath(`#/g/${lg}/${id}`);
   const previewLink = () => "";   // the old "Preview" chip: every game tile now opens its real page
@@ -1236,7 +1242,7 @@
   }
 
   // ---------- router
-  async function route() {
+  async function routeBody() {
     if (GEO()) await GEO().ready;
     if (!META) {
       try { META = await getJSON("data/meta.json"); const pg = META.pages; if (!pg) PAGES = {}; else if (PAGES.generated !== pg.generated) PAGES = await getJSON("data/pages.json").catch(() => ({})); }
@@ -1285,6 +1291,8 @@
     if (h[0] === "l" && h[1]) return viewLeague(h[1]);
     if (h[0].split("?")[0] === "owner") {
       if (window.LSProGate && window.LSProGate.ready) await window.LSProGate.ready;
+      const now = location.hash.replace(/^#\/?/, "").split("/")[0].split("?")[0];
+      if (now !== "owner") return;   // a tap during the wait already left this route
       if (window.LSProApp && window.LSProApp.view) return window.LSProApp.view();
       location.replace(location.pathname + location.search + "#/");
       return;
@@ -1292,7 +1300,24 @@
     const def = (META.leagues[CFG.defaultLeague]?.upcoming ? CFG.defaultLeague : META.order.find(k => META.leagues[k]?.upcoming)) || META.order[0];
     return viewLeague(def, true);
   }
+  async function route() {
+    await routeBody();
+    const P = window.LSProApp, Gt = window.LSProGate;
+    if (!P || !P.enhance || !Gt || !Gt.context) return;
+    try { await P.enhance(Gt.context()); } catch (e) { console.warn(e); }
+  }
   window.addEventListener("hashchange", route);
+  // A game row inside Pro used to follow the public game URL and drop the owner out of Pro.
+  // Keep that tap on the Pro line-history screen. Visitors never have this container.
+  document.addEventListener("click", e => {
+    const a = e.target && e.target.closest && e.target.closest("a[href]");
+    if (!a || !a.closest("[data-pro-owner]")) return;
+    const raw = a.dataset.h || a.getAttribute("href") || "";
+    const m = /^#\/g\/([a-z0-9]+)\/([^/?#]+)/.exec(raw);
+    if (!m) return;
+    e.preventDefault();
+    location.hash = "#/owner/history/" + m[1] + "/" + m[2];
+  }, true);
   // keep app links pointing at real pages as views render
   new MutationObserver(ms => { if (PAGES.generated) for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches && n.matches('a[href^="#/"]')) realizeLinks(n.parentNode); else realizeLinks(n); } })
     .observe(document.body, { childList: true, subtree: true });

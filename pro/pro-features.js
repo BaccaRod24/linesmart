@@ -98,8 +98,59 @@
     return { ok: true, tags: all[id] || [] };
   }
 
+  /** Open and recorded points for each book in a game history file. Missing markets stay null. */
+  function historyMarkets(history) {
+    const books = history && history.books;
+    if (!books || typeof books !== "object") return [];
+    const openAll = history.open && typeof history.open === "object" ? history.open : {};
+    const out = [];
+    for (const book of Object.keys(books)) {
+      const pts = Array.isArray(books[book]) ? books[book] : [];
+      const keyed = openAll[book];
+      const op = keyed && typeof keyed === "object" && (isNum(keyed.hs) || isNum(keyed.tot) || isNum(keyed.hml) || isNum(keyed.aml))
+        ? keyed
+        : (isNum(openAll.hs) || isNum(openAll.tot) || isNum(openAll.hml) ? openAll : {});
+      const series = key => {
+        const vals = [];
+        for (const p of pts) if (p && p[1] && isNum(p[1][key])) vals.push(p[1][key]);
+        const open = isNum(op[key]) ? op[key] : null;
+        if (open == null && !vals.length) return null;
+        const points = [];
+        if (open != null) points.push(open);
+        for (const v of vals) points.push(v);
+        return { open: open != null ? open : vals[0], current: vals.length ? vals[vals.length - 1] : open, points };
+      };
+      out.push({ book, spread: series("hs"), total: series("tot"), awayML: series("aml"), homeML: series("hml") });
+    }
+    return out;
+  }
+
+  /** Closing-line rows for bets that actually have a close. No number is invented. */
+  function clvSummary(bets) {
+    const rows = [];
+    for (const b of bets || []) {
+      const c = clvPoints(b, b && b.closeLine);
+      if (c.available) rows.push({ id: String(b.id || ""), delta: c.delta });
+    }
+    if (!rows.length) return { available: false, n: 0, mean: null, rows: [] };
+    const mean = rows.reduce((s, r) => s + r.delta, 0) / rows.length;
+    return { available: true, n: rows.length, mean, rows };
+  }
+
+  /** Bets grouped by tag. A bet with no tag is "untagged". */
+  function tagGroups(bets, tags) {
+    const g = new Map();
+    const add = (k, b) => { if (!g.has(k)) g.set(k, []); g.get(k).push(b); };
+    for (const b of bets || []) {
+      const mine = b && tags && tags[b.id];
+      if (mine && mine.length) for (const t of mine) add(t, b);
+      else add("untagged", b);
+    }
+    return [...g.entries()].map(([tag, list]) => ({ tag, bets: list }));
+  }
+
   return {
     ACTIVE_FREE, ACTIVE_PRO, EMAIL_FREE, BOOK_KEYS, BOOK_NAME, COMING_BOOKS, TAG_KEY,
-    sharpMoves, filterBoard, bookColumns, refreshInfo, clvPoints, readTags, setTag,
+    sharpMoves, filterBoard, bookColumns, refreshInfo, clvPoints, clvSummary, tagGroups, historyMarkets, readTags, setTag,
   };
 });

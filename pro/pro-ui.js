@@ -43,6 +43,7 @@
     return { screen: segs[1] || "", a: segs[2] || "", b: segs[3] || "", q: new URLSearchParams(qs || "") };
   };
   const href = (screen, extra) => "#/owner" + (screen ? "/" + screen : "") + (extra || "");
+  const gameHref = (lg, id) => `${href("history")}/${esc(lg)}/${esc(id)}`;
   function hotState() {
     const q = parts().q;
     return { lg: q.get("lg") || "nfl", team: q.get("team") || "", player: q.get("player") || "", mk: q.get("mk") || "all" };
@@ -202,10 +203,10 @@
     const mks = [["all", "All"], ["ml", "Moneyline"], ["spread", "Spread"], ["total", "Total"], ["prop", "Player props"]];
     const seg = `<nav class="seg" aria-label="Market">${mks.map(([k, t]) => `<a href="${esc(vHref({ mk: k }))}" class="${f.mk === k ? "on" : ""}">${esc(t)}</a>`).join("")}</nav>`;
     const mins = [[-2, "−2%"], [0, "0%"], [1, "+1%"], [2, "+2%"], [3, "+3%"]];
-    const edgeHtml = shownE.length ? `<div class="ppv-list">${shownE.slice(0, 12).map(r => `<a class="ppv-line" href="#/g/${esc(r.lg)}/${esc(r.gid)}"><span><span class="vs-lg">${esc(A().lgName(r.lg))}</span> <b>${esc(r.label)}</b><small>${esc(r.matchup)}</small></span><span class="num ${cls(r.top.edge)}"><b>${esc(ePct(r.top.edge))}</b><small>${bookName(r.top.book)}</small></span></a>`).join("")}</div>`
+    const edgeHtml = shownE.length ? `<div class="ppv-list">${shownE.slice(0, 12).map(r => `<a class="ppv-line" href="${gameHref(r.lg, r.gid)}"><span><span class="vs-lg">${esc(A().lgName(r.lg))}</span> <b>${esc(r.label)}</b><small>${esc(r.matchup)}</small></span><span class="num ${cls(r.top.edge)}"><b>${esc(ePct(r.top.edge))}</b><small>${bookName(r.top.book)}</small></span></a>`).join("")}</div>`
       : `<p class="na">No consensus edge in this file for these filters. That math needs three books on the same line.</p>`;
     const lineHtml = f.mk === "prop" ? "" : `<h3 class="ppv-h">Game lines in the file <span class="st-sub">${lines.length} match</span></h3>
-      ${lines.length ? `<div class="ppv-list">${lines.slice(0, 12).map(r => `<a class="ppv-line" href="#/g/${esc(r.lg)}/${esc(r.gid)}"><span><span class="vs-lg">${esc(A().lgName(r.lg))}</span> <b>${esc(r.label)}</b><small>${esc(r.matchup)}</small></span><span class="num"><b class="px">${esc(am(r.price))}</b><small>${bookName(r.book)}</small></span></a>`).join("")}</div>` : `<p class="na">No line in the file matches these filters.</p>`}
+      ${lines.length ? `<div class="ppv-list">${lines.slice(0, 12).map(r => `<a class="ppv-line" href="${gameHref(r.lg, r.gid)}"><span><span class="vs-lg">${esc(A().lgName(r.lg))}</span> <b>${esc(r.label)}</b><small>${esc(r.matchup)}</small></span><span class="num"><b class="px">${esc(am(r.price))}</b><small>${bookName(r.book)}</small></span></a>`).join("")}</div>` : `<p class="na">No line in the file matches these filters.</p>`}
       <p class="note">Prices are the ones stored in the data file${meta.generated ? ` (as of ${esc(A().fullET(meta.generated))})` : ""}. A single book is not a consensus, so these rows are the line, not an edge.</p>`;
     const propHtml = props.available
       ? `<h3 class="ppv-h">Props edges <span class="st-sub">${propRows.length} match</span></h3>${propRows.length ? `<div class="ppv-list">${propRows.slice(0, 12).map(r => `<div class="ppv-line"><span><span class="vs-lg">${esc(A().lgName(r.lg))}</span> <b>${esc(r.label)}</b><small>${esc(r.matchup)}</small></span><span class="num ${cls(r.top.edge)}"><b>${esc(ePct(r.top.edge))}</b><small>${bookName(r.top.book)}</small></span></div>`).join("")}</div>` : `<p class="na">No prop edge clears this filter.</p>`}<p class="note">An edge compares prices in the file. It is not a suggestion to bet.</p>`
@@ -248,7 +249,7 @@
     const C = window.AlertsCore;
     const active = mine.filter(a => C.status(a, now).key === "active").length;
     const cap = F().ACTIVE_PRO;
-    const rows = flags.slice(0, 12).map(item => `<a class="ppv-line" href="#/g/${esc(item.lg)}/${esc(item.id)}"><span><span class="vs-lg">${esc(A().lgName(item.lg))}</span> <b>${esc(item.g.away.abbr)} @ ${esc(item.g.home.abbr)}</b><small>${item.notes.map(esc).join(" · ")}</small></span><span class="mvbadge">Sharp move</span></a>`).join("");
+    const rows = flags.slice(0, 12).map(item => `<a class="ppv-line" href="${gameHref(item.lg, item.id)}"><span><span class="vs-lg">${esc(A().lgName(item.lg))}</span> <b>${esc(item.g.away.abbr)} @ ${esc(item.g.home.abbr)}</b><small>${item.notes.map(esc).join(" · ")}</small></span><span class="mvbadge">Sharp move</span></a>`).join("");
     const list = mine.length ? `<ul class="ppv-ul">${mine.slice(0, 25).map(a => `<li><b>${esc(C.describe(a))}</b><span>${esc(a.game_label || "")} · ${esc(C.status(a, now).text)}</span></li>`).join("")}</ul>` : `<p class="na">No line alerts on this account yet. The bell on a game still saves one, up to the cap.</p>`;
     return shell("alerts", "Line alerts", labelOf("alerts_25"),
       `${flNote()}<section class="card ppv-cap"><div class="ppv-cap-row"><b>${active} of ${cap}</b><span>active alerts for this account · free accounts stay at ${F().ACTIVE_FREE}</span></div>
@@ -521,6 +522,7 @@
     if (app.dataset.proBound) return;
     app.dataset.proBound = "1";
     app.addEventListener("submit", e => {
+      if (e.target.closest && e.target.closest("[data-pro-enhance]")) return;
       const q = e.target.closest && e.target.closest("#ppvQ");
       const hot = e.target.closest && e.target.closest("#ppvHotSave");
       const tag = e.target.closest && e.target.closest("[data-ppv-tag]");
@@ -540,6 +542,7 @@
     });
     app.addEventListener("change", e => {
       const t = e.target;
+      if (t.closest && t.closest("[data-pro-enhance]")) return;
       if (t.id === "ppvMin") location.hash = vHref({ min: Number(t.value) });
       if (t.id === "ppvGame") location.hash = href("books") + "/" + t.value;
       if (t.id === "ppvHotTeam") location.hash = hotHash({ team: t.value, player: "", mk: "all" });
@@ -547,6 +550,7 @@
       if (t.id === "ppvHotMk") location.hash = hotHash({ mk: t.value });
     });
     app.addEventListener("click", e => {
+      if (e.target.closest && e.target.closest("[data-pro-enhance]")) return;
       const del = e.target.closest && e.target.closest("[data-ppv-hot-del]");
       if (del) {
         e.preventDefault();
@@ -584,13 +588,300 @@
   function boot() {
     addNav();
     window.LSProApp.alertCap = F().ACTIVE_PRO;
+    watchSlate();
+    bindEmbed();
   }
   function hide() {
     const a = document.querySelector("[data-pro-owner-nav]");
     if (a) a.remove();
+    document.querySelectorAll("[data-pro-enhance], [data-pro-badge]").forEach(el => el.remove());
     if (window.LSProApp) delete window.LSProApp.alertCap;
     IX = null; PROPS = null; ALERTS = null;
+    embedHot = null;
     if (window.ProGateCore && window.ProGateCore.isOwnerHash(location.hash)) location.hash = "#/";
   }
-  window.LSProApp = { view, boot, hide, alertCap: window.ProFeatures.ACTIVE_PRO };
+
+  const PILL = `<span class="pro-pill">Pro</span>`;
+  let paint = 0, embedHot = null, embedBound = false, slateWatch = false;
+  function panel(title, body) {
+    return `<section class="card ppv-panel"><h3 class="ppv-h">${PILL} ${title}</h3>${body}</section>`;
+  }
+  function place(id, kind, html, anchorSel) {
+    let host = document.getElementById(id);
+    if (!host) {
+      host = document.createElement("div");
+      host.id = id;
+      const list = Array.isArray(anchorSel) ? anchorSel : [anchorSel];
+      const anchor = list.map(s => s && document.querySelector(s)).find(Boolean);
+      const app = document.getElementById("app");
+      if (anchor && anchor.parentNode) anchor.insertAdjacentElement("afterend", host);
+      else if (app) app.insertBefore(host, app.firstChild);
+      else return null;
+    }
+    host.className = "ppv-inject";
+    host.dataset.proEnhance = kind;
+    host.innerHTML = html;
+    return host;
+  }
+  function spark(points, labelFmt) {
+    const nums = (points || []).filter(v => typeof v === "number" && isFinite(v));
+    if (!nums.length) return `<p class="na">No line in this file.</p>`;
+    const w = 320, h = 88, pad = 10;
+    let lo = Math.min(...nums), hi = Math.max(...nums);
+    if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+    const X = i => pad + (nums.length === 1 ? (w - pad * 2) / 2 : (i / (nums.length - 1)) * (w - pad * 2));
+    const Y = v => pad + (1 - (v - lo) / (hi - lo)) * (h - pad * 2);
+    const d = nums.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join("");
+    const dots = nums.map((v, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3.5"/>`).join("");
+    return `<svg class="ppv-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Line history"><path d="${d}" fill="none"/>${dots}</svg><p class="na">${esc(labelFmt(nums[0]))} open → ${esc(labelFmt(nums[nums.length - 1]))} now</p>`;
+  }
+  function impliedPts(points) {
+    return (points || []).map(v => {
+      if (typeof v !== "number" || Math.abs(v) < 100) return null;
+      return v > 0 ? 100 / (v + 100) : -v / (-v + 100);
+    }).filter(v => v != null);
+  }
+  async function enhanceGame(ctx) {
+    const api = A();
+    if (!api || !ctx.lg || !ctx.id) return;
+    let d = null;
+    try { d = await api.getJSON(`data/${ctx.lg}/games/${ctx.id}.json`); } catch (e) { d = null; }
+    if (!d || !d.game) {
+      place("pro-game-panel", "game", panel("LineSmart Pro", `<p class="na">Couldn't read this game's file.</p>`), ".match, .pv-h1, h1");
+      return;
+    }
+    const g = d.game;
+    const idx = await api.getJSON(`data/${ctx.lg}/index.json`).catch(() => null);
+    const kind = (idx && idx.league && idx.league.kind) || "";
+    const meta = api.meta ? api.meta() : null;
+    const notes = (g.move && g.move.notable) || [];
+    const sharp = notes.length
+      ? `<ul class="ppv-ul">${notes.map(n => `<li><span class="mvbadge">Sharp move</span> <span>${esc(n)}</span></li>`).join("")}</ul><p class="note">Same rule as the slate: a large spread move, a key number crossed, or a total that moved past the sport's bar. A description of the saved line, not a pick.</p>`
+      : `<p class="na">No sharp-move flag on this game in the file.</p>`;
+    const markets = F().historyMarkets(d.history);
+    const spreadName = kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread";
+    let charts = "";
+    if (!markets.length) charts = `<p class="na">No line history stored for this game.</p>`;
+    else {
+      charts = markets.map(m => {
+        const blocks = [
+          [spreadName, m.spread, v => sgn(v)],
+          [kind === "mma" ? "Total rounds" : "Total", m.total, v => String(v)],
+          [`${g.away.abbr} ML`, m.awayML, v => am(v), true],
+          [`${g.home.abbr} ML`, m.homeML, v => am(v), true],
+        ];
+        const body = blocks.map(([label, ser, fmt, ml]) => {
+          if (!ser) return `<div class="ppv-mk"><h4>${esc(label)}</h4><p class="na">No line in this file.</p></div>`;
+          const pts = ml ? impliedPts(ser.points) : ser.points;
+          const shown = pts.length ? spark(pts, ml ? (v => Math.round(v * 100) + "% implied") : fmt) : `<p class="na">No line in this file.</p>`;
+          const ends = ml ? `<p class="na">${esc(fmt(ser.open))} open → ${esc(fmt(ser.current))} now</p>` : "";
+          return `<div class="ppv-mk"><h4>${esc(label)}</h4>${shown}${ml ? ends : ""}</div>`;
+        }).join("");
+        return `<h4 class="ppv-h">${esc(F().BOOK_NAME[m.book] || m.book)}</h4>${body}`;
+      }).join("");
+      charts += `<p class="note">Each chart is the opening number in the file, then the recorded snapshots. Moneyline is drawn as implied win percent so a move across even money stays on one scale. The prices under it are the American odds.</p>`;
+    }
+    const cols = F().bookColumns(g);
+    const bookHead = cols.map(k => `<th>${esc(F().BOOK_NAME[k] || k)}</th>`).join("");
+    const labels = [`${g.away.abbr} spread`, `${g.home.abbr} spread`, `${g.away.abbr} ML`, `${g.home.abbr} ML`, "Over", "Under"];
+    const bookBody = cols.length ? labels.map(label => `<tr><td>${esc(label)}</td>${cols.map(k => `<td class="num">${cell(g, k, label)}</td>`).join("")}</tr>`).join("") : "";
+    const books = cols.length
+      ? `<div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${bookHead}</tr></thead><tbody>${bookBody}</tbody></table></div><p class="note">Only books with a number in the file get a column. ${esc(F().COMING_BOOKS.join(", "))}: not in this file, so no price is shown. Pinnacle isn't listed.</p>`
+      : `<p class="na">No book in this file posted a number for this game.</p>`;
+    const info = F().refreshInfo((meta && meta.generated) || (idx && idx.generated) || "", Date.now());
+    const fresh = `<div class="statgrid"><div class="stat"><span class="sl">File age</span><b class="num">${info.ageHours == null ? "—" : esc(info.ageHours.toFixed(1) + " h")}</b><span class="ss">since the data file</span></div><div class="stat"><span class="sl">Cadence today</span><b class="num">about ${esc(String(info.cadenceMin))} min</b><span class="ss">how the site refreshes</span></div></div><p class="note">A faster pull is not running. This panel does not fetch new odds.</p>`;
+    const html = `${flNote()}${panel("Sharp move", sharp)}${panel("Line history", charts)}${panel("All books", books)}${panel("File freshness", fresh)}<p class="note"><span class="of-21">21+</span> Pro reads the lines already in the file. It isn't a pick. Confirm the price at the sportsbook.</p>`;
+    place("pro-game-panel", "game", html, [".lm", "#line-movement-s", ".cols"]);
+  }
+  function hotFilter(ctx) {
+    const key = (ctx.lg || "") + "/" + (ctx.id || "");
+    if (!embedHot || embedHot.key !== key) embedHot = { key, f: { lg: ctx.lg || "nfl", team: "", player: ctx.id || "", mk: "all" } };
+    return embedHot.f;
+  }
+  async function enhanceProps(ctx) {
+    const H = Hp();
+    if (!H) return;
+    const docs = await propsDocs();
+    const f = hotFilter(ctx);
+    const labels = H.SPORT_LABEL;
+    const all = H.collect(docs);
+    const sportAll = all.filter(r => r.lg === f.lg);
+    const filtered = H.applyFilters(all, f);
+    const teams = [...new Set(sportAll.map(r => r.team).filter(Boolean))].sort();
+    const teamRows = f.team ? sportAll.filter(r => r.team === f.team || r.teamId === f.team) : sportAll;
+    const players = [];
+    const seenP = new Set();
+    for (const r of teamRows) if (!seenP.has(r.pid)) { seenP.add(r.pid); players.push(r); }
+    players.sort((a, b) => a.name.localeCompare(b.name));
+    const playerRows = f.player ? teamRows.filter(r => r.pid === f.player || r.name.toLowerCase().includes(String(f.player).toLowerCase())) : teamRows;
+    const mks = [];
+    const seenM = new Set();
+    for (const r of playerRows) if (!seenM.has(r.mk)) { seenM.add(r.mk); mks.push({ mk: r.mk, label: r.label }); }
+    const opt = (val, text, on) => `<option value="${esc(val)}"${on ? " selected" : ""}>${text}</option>`;
+    const teamSel = `<label class="vf-sel"><span>Team</span><select id="proHotTeam" aria-label="Team">${opt("", "All teams", !f.team)}${teams.map(t => opt(t, esc(t), t === f.team)).join("")}</select></label>`;
+    const playerSel = `<label class="vf-sel"><span>Player</span><select id="proHotPlayer" aria-label="Player">${opt("", "All players", !f.player)}${players.map(p => opt(p.pid, `${esc(p.name)}${p.team ? ` (${esc(p.team)})` : ""}`, p.pid === f.player)).join("")}</select></label>`;
+    const mkSel = `<label class="vf-sel"><span>Prop type</span><select id="proHotMk" aria-label="Prop type">${opt("all", "All props", f.mk === "all")}${mks.map(p => opt(p.mk, esc(p.label), p.mk === f.mk)).join("")}</select></label>`;
+    const store = localStore();
+    const saved = store ? H.readSaved(store) : [];
+    const savedHtml = saved.length ? `<div class="chips ppv-saved" aria-label="Saved filters">${saved.map(s => `<span class="chip ppv-saved-chip"><button type="button" class="ppv-apply" data-pro-hot-apply="${esc(s.id)}">${esc(s.name)}</button><button type="button" class="ppv-x" data-pro-hot-del="${esc(s.id)}" aria-label="${esc("Delete saved filter " + s.name)}">×</button></span>`).join("")}</div>` : `<p class="na">No saved filters in this browser.</p>`;
+    const file = docs[f.lg];
+    let lists;
+    if (!file) {
+      lists = `<h3 class="ppv-h">No props file</h3><p>This snapshot has no props file for ${esc(labels[f.lg] || String(f.lg || "").toUpperCase())}. Price gaps, prop history, and hot streaks aren't filled in.</p>`;
+    } else {
+      lists = "";
+      if (H.hasPrices(sportAll)) {
+        const gaps = H.priceGaps(filtered).slice(0, 8);
+        lists += `<h3 class="ppv-h">Price gaps on the same line</h3>${gaps.length ? `<div class="ppv-list">${gaps.map(g => `<div class="ppv-line"><span><b>${esc(g.name)} · ${esc(g.label)}</b><small>${esc(g.team)} · ${esc(quoteLine(g))}</small></span><span class="num"><b>${esc((g.gap * 100).toFixed(1))} pts</b></span></div>`).join("")}</div>` : `<p class="na">No prop in this filter has two different prices on the same line.</p>`}`;
+      } else lists += `<p>Price gaps are left out: no book in this file posted a price.</p>`;
+      if (H.hasOpen(sportAll)) {
+        const moves = H.lineMoves(filtered).slice(0, 8);
+        lists += `<h3 class="ppv-h">Prop line moves</h3>${moves.length ? `<div class="ppv-list">${moves.map(m => `<div class="ppv-line"><span><b>${esc(m.name)} · ${esc(m.label)}</b><small>${esc(m.text)}</small></span><span class="num"><b>${m.delta > 0 ? "+" : ""}${esc(String(Math.round(m.delta * 10) / 10))}</b></span></div>`).join("")}</div>` : `<p class="na">No opening line in this filter has moved.</p>`}`;
+      } else lists += `<p>Prop history is coming soon. This file has no opening line.</p>`;
+      const prefer = preferBooks();
+      if (H.hotStreaks(sportAll, prefer).available) {
+        const hot = H.hotStreaks(filtered, prefer).rows.slice(0, 8);
+        lists += `<h3 class="ppv-h">Hot streaks</h3>${hot.length ? `<div class="ppv-list">${hot.map(h => `<div class="ppv-line"><span><b>${esc(h.name)} · ${esc(h.label)}</b><small>${esc(h.text)} in the last games played</small></span></div>`).join("")}</div>` : `<p class="na">No player in this filter went over in at least 4 of the last 5 games played.</p>`}<p class="note">Past results only, not a pick.</p>`;
+      } else lists += `<p>Hot streaks are coming soon. This file has no player game log.</p>`;
+    }
+    const html = `${flNote()}<p class="note">Built from the props file already on the site. Nothing here calls the odds provider. Saved filters stay in this browser.</p>
+      <div class="ppv-frow" data-pro-hot>${teamSel}${playerSel}${mkSel}</div>
+      <form id="proHotSave" class="ppv-form"><label class="vf-sel"><span>Save this filter</span><input name="name" maxlength="40" placeholder="Name" aria-label="Saved filter name"></label><button type="submit" class="chip">Save in this browser</button></form>
+      <p class="ppv-out" id="proHotErr" role="alert"></p>
+      <h3 class="ppv-h">Saved filters</h3>${store ? savedHtml : `<p class="na">This browser isn't storing filters.</p>`}
+      ${lists}
+      <p class="note"><span class="of-21">21+</span> A price gap is not a suggestion to bet either number.</p>`;
+    place("pro-props-panel", "props", panel("Hot props", html), ["#lines-s", "#ppPlayer", ".sx-player", ".phero", "h1"]);
+  }
+  function enhanceBets() {
+    const bets = loadBets();
+    const store = localStore();
+    const tags = store ? F().readTags(store) : {};
+    const C = window.BetCore;
+    const clv = F().clvSummary(bets);
+    const clvHtml = clv.available
+      ? `<p><b>${clv.n}</b> bet${clv.n === 1 ? "" : "s"} with a closing line. Mean close minus bet line: <b class="num">${esc((clv.mean > 0 ? "+" : "") + clv.mean.toFixed(2))}</b></p>`
+      : `<p>Closing-line value ${SOON}. None of these bets has a closing price, so CLV isn't filled in.</p>`;
+    const groups = F().tagGroups(bets, tags);
+    const one = (label, list) => {
+      const s = C ? C.stats(list) : { n: list.length, net: 0 };
+      return `<div class="ppv-line"><span><b>${esc(label)}</b><small>${s.n} bet${s.n === 1 ? "" : "s"}</small></span><span class="num ${cls(s.net || 0)}"><b>${esc(money(s.net || 0, true))}</b></span></div>`;
+    };
+    const byType = C ? C.groupBy(bets, b => (C.TYPES && C.TYPES[b.type]) || b.type || "Bet") : [];
+    const typeHtml = byType.length ? `<div class="ppv-list">${byType.map(r => one(r.key, bets.filter(b => ((C.TYPES && C.TYPES[b.type]) || b.type) === r.key))).join("")}</div>` : `<p class="na">No bets on this device yet.</p>`;
+    const tagHtml = groups.length ? `<div class="ppv-list">${groups.map(g => one(g.tag === "untagged" ? "No tag" : g.tag, g.bets)).join("")}</div>` : "";
+    const rows = bets.slice(0, 12).map(b => {
+      const c = F().clvPoints(b, b.closeLine);
+      const mine = tags[b.id] || [];
+      return `<tr><td>${esc(betLabel(b))}</td><td class="num">${c.available ? esc((c.delta > 0 ? "+" : "") + c.delta) : "—"}</td><td>${mine.map(t => `<span class="chip">${esc(t)}</span>`).join(" ")}${store ? `<form class="ppv-form" data-pro-tag="${esc(b.id)}"><input name="tag" maxlength="24" aria-label="Tag" placeholder="Tag"><button type="submit" class="chip">Add</button></form>` : ""}</td></tr>`;
+    }).join("");
+    const table = bets.length ? `<div class="tbl-wrap"><table class="books ppv-bets"><thead><tr><th>Bet</th><th>CLV</th><th>Tags</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="na">No bets saved on this device. Add one in My Bets and the split shows up here.</p>`;
+    const html = `${clvHtml}<h3 class="ppv-h">Splits by type</h3>${typeHtml}<h3 class="ppv-h">Splits by tag</h3>${tagHtml}${table}<p class="note">Tags stay in this browser. They don't turn Pro on. <span class="of-21">21+</span></p>`;
+    place("pro-bets-panel", "bets", panel("My Bets extras", html), [".bt-stats", ".bt-empty", ".page-head"]);
+  }
+  function enhanceSlate() {
+    document.querySelectorAll("a.game").forEach(a => {
+      const top = a.querySelector(".game-top");
+      if (!top || top.querySelector("[data-pro-badge]")) return;
+      const pub = top.querySelector(".mvbadge");
+      if (!pub) return;
+      const s = document.createElement("span");
+      s.className = "pro-pill";
+      s.dataset.proBadge = "1";
+      s.textContent = "Sharp";
+      s.title = "Pro · sharp move";
+      top.appendChild(s);
+    });
+  }
+  function watchSlate() {
+    if (slateWatch || !window.MutationObserver) return;
+    const app = document.getElementById("app");
+    if (!app) return;
+    slateWatch = true;
+    let t = 0;
+    new MutationObserver(() => {
+      const ctx = window.LSProGate && window.LSProGate.context && window.LSProGate.context();
+      if (!ctx || (ctx.kind !== "home" && ctx.kind !== "league" && ctx.kind !== "results")) return;
+      clearTimeout(t);
+      t = setTimeout(() => { if (window.LSProApp) enhanceSlate(); }, 40);
+    }).observe(app, { childList: true, subtree: true });
+  }
+  function refreshEmbed() {
+    if (!proOn()) return;
+    const ctx = window.LSProGate && window.LSProGate.context && window.LSProGate.context();
+    if (!ctx) return;
+    if (ctx.kind === "props") enhanceProps(ctx);
+    else if (ctx.kind === "bets") enhanceBets();
+  }
+  function bindEmbed() {
+    if (embedBound) return;
+    embedBound = true;
+    document.addEventListener("change", e => {
+      const t = e.target;
+      if (!t.closest || !t.closest("[data-pro-enhance]")) return;
+      const f = embedHot && embedHot.f;
+      if (!f) return;
+      if (t.id === "proHotTeam") { f.team = t.value; f.player = ""; f.mk = "all"; }
+      if (t.id === "proHotPlayer") { f.player = t.value; f.mk = "all"; }
+      if (t.id === "proHotMk") f.mk = t.value;
+      refreshEmbed();
+    });
+    document.addEventListener("submit", e => {
+      const hot = e.target.closest && e.target.closest("#proHotSave");
+      const tag = e.target.closest && e.target.closest("[data-pro-tag]");
+      if (!hot && !tag) return;
+      if (e.target.closest("[data-pro-owner]")) return;
+      e.preventDefault();
+      const store = localStore();
+      if (hot) {
+        const err = document.getElementById("proHotErr");
+        if (!store || !Hp() || !embedHot) { if (err) err.textContent = "This browser isn't storing filters."; return; }
+        const r = Hp().addSaved(store, { ...embedHot.f, name: new FormData(hot).get("name"), id: Date.now().toString(36) });
+        if (!r.ok) { if (err) err.textContent = r.error; return; }
+        refreshEmbed();
+      }
+      if (tag && store) {
+        F().setTag(store, tag.dataset.proTag, new FormData(tag).get("tag"), true);
+        refreshEmbed();
+      }
+    });
+    document.addEventListener("click", e => {
+      const del = e.target.closest && e.target.closest("[data-pro-hot-del]");
+      const apply = e.target.closest && e.target.closest("[data-pro-hot-apply]");
+      if (!del && !apply) return;
+      if (e.target.closest("[data-pro-owner]")) return;
+      e.preventDefault();
+      const store = localStore();
+      const H = Hp();
+      if (!store || !H || !embedHot) return;
+      if (del) H.removeSaved(store, del.dataset.proHotDel);
+      if (apply) {
+        const row = H.readSaved(store).find(s => s.id === apply.dataset.proHotApply);
+        if (row) embedHot.f = { lg: embedHot.f.lg, team: row.team || "", player: row.player || "", mk: row.mk || "all" };
+      }
+      refreshEmbed();
+    });
+  }
+  function proOn() {
+    const g = window.LSProGate;
+    if (g && g.verified && !g.verified()) return false;
+    return true;
+  }
+  async function enhance(ctx) {
+    if (!proOn()) return;
+    const n = ++paint;
+    ctx = ctx || {};
+    addNav();
+    document.querySelectorAll("[data-pro-enhance]").forEach(el => { if (el.dataset.proEnhance !== ctx.kind) el.remove(); });
+    if (ctx.kind !== "home" && ctx.kind !== "league" && ctx.kind !== "results") document.querySelectorAll("[data-pro-badge]").forEach(el => el.remove());
+    if (ctx.kind === "owner" || ctx.kind === "other") return;
+    try {
+      if (ctx.kind === "game") await enhanceGame(ctx);
+      else if (ctx.kind === "props") await enhanceProps(ctx);
+      else if (ctx.kind === "bets") enhanceBets();
+      else if (ctx.kind === "home" || ctx.kind === "league" || ctx.kind === "results") enhanceSlate();
+    } catch (e) { console.warn(e); }
+    if (n !== paint) return;
+  }
+  window.LSProApp = { view, boot, hide, enhance, alertCap: window.ProFeatures.ACTIVE_PRO };
 })();

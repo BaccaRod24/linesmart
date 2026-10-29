@@ -61,17 +61,21 @@ async function make(width, height) {
 }
 
 const shots = [
-  ["rankings_nfl_season_desktop.png", 1280, 900, "#/pro/rankings?lg=nfl&pos=QB&view=season", "season", "NFL"],
-  ["rankings_nfl_season_mobile.png", 390, 844, "#/pro/rankings?lg=nfl&pos=QB&view=season", "season", "NFL"],
+  ["rankings_nfl_season_desktop.png", 1280, 900, "#/pro/rankings?lg=nfl&pos=QB&view=season", "season", "NFL", /pass yds|passing yards|ppg/i],
+  ["rankings_nfl_season_mobile.png", 390, 844, "#/pro/rankings?lg=nfl&pos=QB&view=season", "season", "NFL", /pass yds|passing yards|ppg/i],
   ["rankings_nfl_hit_desktop.png", 1280, 900, "#/pro/rankings?lg=nfl&pos=QB&view=hit", "hit", "NFL"],
   ["rankings_nfl_hit_mobile.png", 390, 844, "#/pro/rankings?lg=nfl&pos=QB&view=hit", "hit", "NFL"],
-  ["rankings_nba_season_desktop.png", 1280, 900, "#/pro/rankings?lg=nba&pos=G&view=season", "season", "NBA"],
-  ["rankings_nba_season_mobile.png", 390, 844, "#/pro/rankings?lg=nba&pos=G&view=season", "season", "NBA"],
+  ["rankings_nba_season_desktop.png", 1280, 900, "#/pro/rankings?lg=nba&pos=G&view=season", "season", "NBA", /ppg/i],
+  ["rankings_nba_season_mobile.png", 390, 844, "#/pro/rankings?lg=nba&pos=G&view=season", "season", "NBA", /ppg/i],
   ["rankings_nba_hit_desktop.png", 1280, 900, "#/pro/rankings?lg=nba&pos=G&view=hit", "hit", "NBA"],
   ["rankings_nba_hit_mobile.png", 390, 844, "#/pro/rankings?lg=nba&pos=G&view=hit", "hit", "NBA"],
+  ["rankings_nfl_wr_receptions_desktop.png", 1280, 900, "#/pro/rankings?lg=nfl&pos=WR&view=season&stat=rec", "season", "NFL", /receptions/i],
+  ["rankings_nfl_rb_tds_desktop.png", 1280, 900, "#/pro/rankings?lg=nfl&pos=RB&view=season&stat=td", "season", "NFL", /Rushing TDs plus receiving/],
+  ["rankings_nfl_qb_yards_desktop.png", 1280, 900, "#/pro/rankings?lg=nfl&pos=QB&view=season&stat=yds", "season", "NFL", /Passing yards/],
+  ["rankings_nfl_wr_receptions_mobile.png", 390, 844, "#/pro/rankings?lg=nfl&pos=WR&view=season&stat=rec", "season", "NFL", /receptions/i],
 ];
 
-for (const [file, width, height, hash, view, lg] of shots) {
+for (const [file, width, height, hash, view, lg, need] of shots) {
   const { ctx, page } = await make(width, height);
   await page.goto(BASE + hash, { waitUntil: "domcontentloaded" });
   await page.waitForSelector(`#proRankings[data-rk-view='${view}']`, { timeout: 20000 });
@@ -83,7 +87,13 @@ for (const [file, width, height, hash, view, lg] of shots) {
   if (!/Hard Rock Bet is the only legal online sportsbook/.test(text)) fails.push(file + " missing Florida line");
   if (/DraftKings and FanDuel are available in Florida|legal in Florida/.test(text) && !/not available in Florida/.test(text)) fails.push(file + " implies DK/FD are legal");
   if (await page.locator("[data-ad-label]").count() < 1) fails.push(file + " missing Ad label");
-  if (view === "season" && !/Pass yds|PPG/.test(table)) fails.push(file + " missing season columns");
+  if (view === "season" && need && !need.test(table)) fails.push(file + " missing the ranked stat");
+  if (view === "season" && await page.locator("#proRankings th.rk-on").count() !== 1) fails.push(file + " should highlight one stat column");
+  if (/pos=QB/.test(hash) && view === "season") {
+    const labels = await page.locator("[aria-label='Rank by'] a").allInnerTexts();
+    if (labels.some(t => /Receptions/i.test(t))) fails.push(file + " offers quarterback receptions");
+    if (!labels.includes("Yards") || !labels.includes("TDs")) fails.push(file + " missing the quarterback stat picker");
+  }
   if (view === "hit" && !/This season vs the current line/.test(table)) fails.push(file + " missing hit label");
   if (view === "hit" && !/\d+\/\d+/.test(table)) fails.push(file + " missing sample");
   if (!table.includes(lg)) fails.push(file + " missing league");

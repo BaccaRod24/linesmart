@@ -402,7 +402,7 @@ async function quiet(page) {
   await page.waitForSelector("#proRankings[data-rk-view='season'] a.rk-player", { timeout: 15000 });
   const season = await page.locator("#proRankings").innerText();
   const playerHref = await page.locator("#proRankings a.rk-player").first().getAttribute("href");
-  check(/Season stats/.test(season) && /Pass yds/.test(season) && /GP/.test(season), "rankings season view lists quarterbacks");
+  check(/Season stats/.test(season) && /pass yds/i.test(season) && /GP/i.test(season), "rankings season view lists quarterbacks");
   check(/^#\/p\/nfl\//.test(playerHref || ""), `a ranked player opens the player page (${playerHref})`);
   const seasonPage = await page.locator("[data-pro-owner]").innerText();
   check(/21\+/.test(seasonPage) && /Hard Rock Bet is the only legal online sportsbook/.test(seasonPage), "rankings keeps 21+ and the Florida line");

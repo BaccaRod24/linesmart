@@ -1,4 +1,4 @@
-window.__PRO_BUILD="c220eff040-2026-10-29T13:51:53Z";
+window.__PRO_BUILD="6d64789475-2026-10-29T14:07:57Z";
 /* Hot props for LineSmart Pro. Pure logic: no DOM, no network.
    Input is data/props/<lg>.json (the shape scripts/props.py writes) plus props-core.js.
    Browser: window.HotProps. Node: require("./hot-props-core.js"). */
@@ -220,6 +220,25 @@ window.__PRO_BUILD="c220eff040-2026-10-29T13:51:53Z";
     ],
   };
   const NFL_KEYS = ["py", "ptd", "ry", "rtd", "rec", "recy", "rectd"];
+  /** NFL season rankers. `sort` is the column that orders the top 10. Receptions are not a quarterback stat. */
+  const SKILL_MODES = [
+    { id: "yds", label: "Yards", sort: "recy", note: "Receiving yards", cols: [["recy", "Rec yds"], ["rectd", "Rec TD"], ["rec", "Rec"]] },
+    { id: "td", label: "TDs", sort: "rectd", note: "Receiving TDs", cols: [["rectd", "Rec TD"], ["recy", "Rec yds"], ["rec", "Rec"]] },
+    { id: "rec", label: "Receptions", sort: "rec", note: "Receptions", cols: [["rec", "Rec"], ["recy", "Rec yds"], ["rectd", "Rec TD"]] },
+  ];
+  const NFL_MODES = {
+    QB: [
+      { id: "yds", label: "Yards", sort: "py", note: "Passing yards", cols: [["py", "Pass yds"], ["ptd", "Pass TD"], ["ry", "Rush yds"], ["rtd", "Rush TD"]] },
+      { id: "td", label: "TDs", sort: "qbtd", note: "Passing TDs plus rushing TDs", cols: [["qbtd", "TD"], ["ptd", "Pass TD"], ["rtd", "Rush TD"], ["py", "Pass yds"]] },
+    ],
+    RB: [
+      { id: "yds", label: "Yards", sort: "ry", note: "Rushing yards", cols: [["ry", "Rush yds"], ["scrim", "Scrim yds"], ["rtd", "Rush TD"], ["rec", "Rec"]] },
+      { id: "td", label: "TDs", sort: "rbtd", note: "Rushing TDs plus receiving TDs", cols: [["rbtd", "TD"], ["rtd", "Rush TD"], ["rectd", "Rec TD"], ["ry", "Rush yds"]] },
+      { id: "rec", label: "Receptions", sort: "rec", note: "Receptions", cols: [["rec", "Rec"], ["recy", "Rec yds"], ["ry", "Rush yds"]] },
+    ],
+    WR: SKILL_MODES,
+    TE: SKILL_MODES,
+  };
   const isNum = v => typeof v === "number" && isFinite(v);
   const num = v => (isNum(v) ? v : 0);
   const clean = n => {
@@ -264,36 +283,61 @@ window.__PRO_BUILD="c220eff040-2026-10-29T13:51:53Z";
     return String(Math.round(v));
   }
 
+  function rawStat(p, key) {
+    if (key === "qbtd") return num(p && p.ptd) + num(p && p.rtd);
+    if (key === "rbtd") return num(p && p.rtd) + num(p && p.rectd);
+    if (key === "scrim") return num(p && p.ry) + num(p && p.recy);
+    return num(p && p[key]);
+  }
   function statValue(p, key, perGame) {
-    const raw = num(p && p[key]);
+    const raw = rawStat(p, key);
     if (!perGame) return raw;
     const gp = num(p && p.gp);
     return gp ? raw / gp : 0;
   }
 
-  /** Top 10 by the position's key stat. NBA is per game. Players with none of that stat are left out. */
-  function seasonBoard(players, spec, limit) {
+  /** Yards / TDs / Receptions for an NFL position. Empty for every other league. */
+  function statModes(lg, pos) {
+    if (lg !== "nfl") return [];
+    const list = NFL_MODES[pos];
+    return list ? list.map(m => ({ id: m.id, label: m.label, sort: m.sort, note: m.note, cols: m.cols.map(c => c.slice()) })) : [];
+  }
+  /** The requested mode, or Yards when that stat does not apply (quarterback receptions). */
+  function resolveStat(lg, pos, statId) {
+    const modes = statModes(lg, pos);
+    if (!modes.length) return null;
+    return modes.find(m => m.id === statId) || modes[0];
+  }
+
+  /** Top 10 by the position's key stat. NFL can switch the sort with statId. NBA stays per game. */
+  function seasonBoard(players, spec, limit, statId) {
     const lim = limit || TOP_N;
-    if (!spec) return { rows: [], total: 0 };
-    const all = (players || []).filter(p => p && p.pos === spec.id && num(p.gp) >= 1 && statValue(p, spec.key, spec.perGame) > 0);
+    if (!spec) return { rows: [], total: 0, stat: "", statNote: "", cols: [] };
+    const mode = resolveStat("nfl", spec.id, statId);
+    const sortKey = mode ? mode.sort : spec.key;
+    const cols = mode ? mode.cols : spec.cols;
+    const perGame = !!spec.perGame;
+    const all = (players || []).filter(p => p && p.pos === spec.id && num(p.gp) >= 1 && statValue(p, sortKey, perGame) > 0);
     all.sort((a, b) => {
-      const d = statValue(b, spec.key, spec.perGame) - statValue(a, spec.key, spec.perGame);
+      const d = statValue(b, sortKey, perGame) - statValue(a, sortKey, perGame);
       if (Math.abs(d) > 1e-9) return d;
-      for (const [k] of spec.cols) {
-        const e = statValue(b, k, spec.perGame) - statValue(a, k, spec.perGame);
+      for (const [k] of cols) {
+        if (k === sortKey) continue;
+        const e = statValue(b, k, perGame) - statValue(a, k, perGame);
         if (Math.abs(e) > 1e-9) return e;
       }
       return String(a.n || "").localeCompare(String(b.n || "")) || String(a.id).localeCompare(String(b.id));
     });
+    const cell = (p, k, label) => ({ key: k, label, text: fmtStat(statValue(p, k, perGame), perGame), on: k === sortKey });
     const rows = all.slice(0, lim).map((p, i) => ({
       rank: i + 1,
       id: String(p.id),
       name: p.n || "",
       team: p.ta || "",
       gp: num(p.gp),
-      cells: spec.cols.map(([k, label]) => ({ key: k, label, text: fmtStat(statValue(p, k, spec.perGame), spec.perGame) })),
+      cells: cols.map(([k, label]) => cell(p, k, label)),
     }));
-    return { rows, total: all.length };
+    return { rows, total: all.length, stat: mode ? mode.id : "", statNote: mode ? mode.note : (spec.cols[0] ? spec.cols[0][1] : ""), cols: cols.map(([k, label]) => ({ key: k, label, on: k === sortKey })) };
   }
 
   /**
@@ -605,7 +649,7 @@ window.__PRO_BUILD="c220eff040-2026-10-29T13:51:53Z";
 
   return {
     TOP_N, HIT_MIN, BOOK_ORDER, LEAGUES, SPECS, specsFor, specById, bucket, playerHash, normPlayer,
-    seasonBoard, aggregateSeason, gradeCount, sampleText, basisLabel, pickLine,
+    seasonBoard, statModes, resolveStat, aggregateSeason, gradeCount, sampleText, basisLabel, pickLine,
     fromProps, fromPack, rankHits, propRowsFromOdds, statSample, matchPid,
   };
 });
@@ -890,7 +934,7 @@ window.__PRO_BUILD="c220eff040-2026-10-29T13:51:53Z";
   };
 });
 
-window.__PRO_CSS = "/* Injected with the private Pro bundle. Not shipped in site/assets/styles.css. */\n.ppv-banner{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin:16px 0 4px;padding:12px 16px;border-radius:var(--r-sm);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);background:color-mix(in srgb,var(--accent) 12%,var(--surface));font-size:14.5px;line-height:1.4}\n.ppv-build{margin:0 0 12px;font-size:12px;line-height:1.4;color:var(--dim)}\n.ppv-banner b{font-weight:800;letter-spacing:.01em}\n.ppv-back{display:inline-block;margin-bottom:4px;color:var(--accent);font-size:13px;font-weight:650}\n.ppv-nav{margin:0 0 16px}\n.ppv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:14px}\n.ppv-card{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:148px;padding:16px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow)}\n.ppv-card:hover{border-color:var(--accent-line)}\n.ppv-card b{font-size:15.5px;line-height:1.35;letter-spacing:-.01em}\n.ppv-card span{color:var(--mute);font-size:13.5px;line-height:1.45}\n.ppv-go{margin-top:auto;color:var(--accent);font-weight:700}\n.ppv-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px;font-size:16px}\n.ppv-h .st-sub{font-weight:500}\n.ppv-soon{display:inline-flex;align-items:center;margin-left:6px;padding:1px 7px;border-radius:999px;border:1px solid var(--line2);color:var(--mute);font-size:11px;font-weight:750;letter-spacing:.02em;vertical-align:middle}\n.ppv-frow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:10px}\n.ppv-q{display:flex;gap:8px;align-items:flex-end}\n.ppv-q input,.ppv-form input,.ppv-form select,.ppv-books select{font:500 14px var(--font);color:var(--txt);background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r-sm);min-height:40px;padding:0 10px}\n.ppv-list{display:flex;flex-direction:column;gap:8px}\n.ppv-line{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg2)}\n.ppv-line.on{border-color:var(--accent-line);background:var(--accent-soft)}\n.ppv-line b{display:block;font-weight:750}\n.ppv-line small{display:block;color:var(--dim);font-size:12.5px}\n.ppv-line .num{text-align:right;font-variant-numeric:tabular-nums}\n.ppv-cap-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline}\n.ppv-cap-row b{font-size:22px;letter-spacing:-.02em}\n.ppv-meter{height:8px;margin:10px 0 4px;border-radius:99px;background:var(--bg2);border:1px solid var(--line);overflow:hidden}\n.ppv-meter i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}\n.ppv-form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}\n.ppv-ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}\n.ppv-ul li{display:flex;flex-direction:column;gap:2px;padding-bottom:10px;border-bottom:1px solid var(--line);font-size:14px}\n.ppv-ul li:last-child{border-bottom:0;padding-bottom:0}\n.ppv-ul span{color:var(--mute)}\n.ppv-tags{margin:14px 0}\n.ppv-bets .chip{margin:2px 4px 2px 0}\n.ppv .card{margin-top:14px}\n.ppv .statgrid{margin:0 0 4px}\n.chip.ppv-off{opacity:.72}\n.ppv-saved{margin-top:8px}\n.ppv-saved-chip{gap:4px;padding-right:6px}\n.ppv-saved-chip a{color:inherit}\n.ppv-x{border:0;background:transparent;color:var(--mute);font:700 16px var(--font);line-height:1;padding:0 4px;cursor:pointer}\n.ppv-x:hover{color:var(--txt)}\nbody.app a.search-btn[data-pro-owner-nav]{display:inline-flex;width:auto;padding:0 12px;margin-left:8px}\n.ppv-inject{margin:8px 0 16px}\n.ppv-panel{margin-top:12px}\n.ppv-panel .ppv-h{gap:8px}\n.ppv-mks{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;align-items:start}\n.ppv-chart{display:block;width:100%;height:auto;max-height:160px;aspect-ratio:320/96;margin:2px 0 2px;color:var(--accent)}\n.ppv-chart path{stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}\n.ppv-chart circle{fill:currentColor}\n.ppv-mk{margin:0;min-width:0}\n.ppv-mk h4{margin:0 0 2px;font-size:13px}\n.ppv-mk .na{margin:0;font-size:12px;line-height:1.35}\n.ppv-apply{border:0;background:transparent;color:inherit;font:inherit;padding:0;cursor:pointer}\n.game-top .pro-pill{margin-left:6px}\n.pro-pill{display:inline-flex;align-items:center;padding:2px 7px;border-radius:999px;border:1px solid #a67c00;border-left:3px solid #8a6a12;background:linear-gradient(180deg,#f8e7b0,#e0b84a);color:#1c1404;font:800 9px/1.2 var(--font);letter-spacing:.14em;text-transform:uppercase;flex:none}\n.pro-frame{border-left:3px solid #e0b84a}\n.pro-sharp{display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:2px 8px 2px 4px;border-radius:999px;background:color-mix(in srgb,#e0b84a 18%,var(--surface))}\n.pro-sharp .pro-pill{margin-left:0}\n.pro-sharp-txt{color:var(--txt);font:750 10px var(--font);letter-spacing:.06em;text-transform:uppercase}\n.pro-empty{margin:8px 0 12px;color:var(--dim);font-size:13px;line-height:1.45}\n.pro-insights{margin:14px 0 16px;border:1px solid color-mix(in srgb,#e0b84a 55%,var(--line));border-left:3px solid #e0b84a;border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow)}\n.pro-insights-sum{display:flex;align-items:center;gap:8px;min-height:44px;padding:10px 14px;cursor:pointer;font-weight:750;list-style:none}\n.pro-insights-sum::-webkit-details-marker{display:none}\n.pro-insights[open]>.pro-insights-sum{border-bottom:1px solid var(--line)}\n.pro-insights-body{padding:4px 12px 12px}\n.pro-insights .ppv-panel{margin:10px 0 0}\n.ppv-book{margin:8px 0 6px;font-size:14px}\n.pro-best{background:color-mix(in srgb,#e0b84a 22%,transparent)}\n.pro-best-tag{display:inline-block;margin-left:4px;padding:1px 4px;border-radius:4px;background:#e0b84a;color:#1c1404;font:800 8px var(--font);letter-spacing:.08em;text-transform:uppercase;vertical-align:1px}\n.pro-sort{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}\n.pro-sort .chip{min-height:36px}\n[data-pro-owner] .card,[data-pro-enhance] .ppv-panel{border-left:3px solid #e0b84a}\n[data-pro-owner] h3.ppv-h:not(:has(.pro-pill))::before{content:\"PRO\";display:inline-flex;align-items:center;margin-right:6px;padding:2px 7px;border-radius:999px;border:1px solid #a67c00;border-left:3px solid #8a6a12;background:linear-gradient(180deg,#f8e7b0,#e0b84a);color:#1c1404;font:800 9px/1.2 var(--font);letter-spacing:.14em}\n.ppv-build{margin-top:18px;font-size:11px}\n.rk-meta{margin:0 0 10px;color:var(--mute);font-size:13.5px;line-height:1.45}\n.rk-pos,.rk-view{margin-top:8px}\n.rk-table{width:100%}\n.rk-table small{display:block;color:var(--dim);font-size:11px;font-weight:550;line-height:1.3}\n.rk-player{font-weight:750}\n@media (max-width:720px){\n  .ppv-grid{grid-template-columns:1fr}\n  .ppv-line{align-items:flex-start}\n  .ppv-q,.ppv-form{width:100%}\n  .ppv-q input,.ppv-form input,.ppv-form select{font-size:16px}\n  .pro-insights-sum{padding:10px 12px}\n  .pro-insights-body{padding:4px 8px 10px}\n  .ppv-panel{padding:12px}\n  .pro-moves,.ppv-panel .books,.pro-insights .books{font-size:12.5px}\n  .pro-moves th,.pro-moves td{padding:6px 5px}\n  .pro-sharp-txt{font-size:9px}\n  .ppv-mks{grid-template-columns:1fr}\n  .ppv-chart{max-height:140px}\n  .rk-table{font-size:13px}\n  .rk-table th,.rk-table td{padding:8px 6px}\n  .rk-view .chip,.rk-pos .chip{min-height:40px}\n}\n";
+window.__PRO_CSS = "/* Injected with the private Pro bundle. Not shipped in site/assets/styles.css. */\n.ppv-banner{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin:16px 0 4px;padding:12px 16px;border-radius:var(--r-sm);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);background:color-mix(in srgb,var(--accent) 12%,var(--surface));font-size:14.5px;line-height:1.4}\n.ppv-build{margin:0 0 12px;font-size:12px;line-height:1.4;color:var(--dim)}\n.ppv-banner b{font-weight:800;letter-spacing:.01em}\n.ppv-back{display:inline-block;margin-bottom:4px;color:var(--accent);font-size:13px;font-weight:650}\n.ppv-nav{margin:0 0 16px}\n.ppv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:14px}\n.ppv-card{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:148px;padding:16px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow)}\n.ppv-card:hover{border-color:var(--accent-line)}\n.ppv-card b{font-size:15.5px;line-height:1.35;letter-spacing:-.01em}\n.ppv-card span{color:var(--mute);font-size:13.5px;line-height:1.45}\n.ppv-go{margin-top:auto;color:var(--accent);font-weight:700}\n.ppv-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px;font-size:16px}\n.ppv-h .st-sub{font-weight:500}\n.ppv-soon{display:inline-flex;align-items:center;margin-left:6px;padding:1px 7px;border-radius:999px;border:1px solid var(--line2);color:var(--mute);font-size:11px;font-weight:750;letter-spacing:.02em;vertical-align:middle}\n.ppv-frow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:10px}\n.ppv-q{display:flex;gap:8px;align-items:flex-end}\n.ppv-q input,.ppv-form input,.ppv-form select,.ppv-books select{font:500 14px var(--font);color:var(--txt);background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r-sm);min-height:40px;padding:0 10px}\n.ppv-list{display:flex;flex-direction:column;gap:8px}\n.ppv-line{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg2)}\n.ppv-line.on{border-color:var(--accent-line);background:var(--accent-soft)}\n.ppv-line b{display:block;font-weight:750}\n.ppv-line small{display:block;color:var(--dim);font-size:12.5px}\n.ppv-line .num{text-align:right;font-variant-numeric:tabular-nums}\n.ppv-cap-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline}\n.ppv-cap-row b{font-size:22px;letter-spacing:-.02em}\n.ppv-meter{height:8px;margin:10px 0 4px;border-radius:99px;background:var(--bg2);border:1px solid var(--line);overflow:hidden}\n.ppv-meter i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}\n.ppv-form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}\n.ppv-ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}\n.ppv-ul li{display:flex;flex-direction:column;gap:2px;padding-bottom:10px;border-bottom:1px solid var(--line);font-size:14px}\n.ppv-ul li:last-child{border-bottom:0;padding-bottom:0}\n.ppv-ul span{color:var(--mute)}\n.ppv-tags{margin:14px 0}\n.ppv-bets .chip{margin:2px 4px 2px 0}\n.ppv .card{margin-top:14px}\n.ppv .statgrid{margin:0 0 4px}\n.chip.ppv-off{opacity:.72}\n.ppv-saved{margin-top:8px}\n.ppv-saved-chip{gap:4px;padding-right:6px}\n.ppv-saved-chip a{color:inherit}\n.ppv-x{border:0;background:transparent;color:var(--mute);font:700 16px var(--font);line-height:1;padding:0 4px;cursor:pointer}\n.ppv-x:hover{color:var(--txt)}\nbody.app a.search-btn[data-pro-owner-nav]{display:inline-flex;width:auto;padding:0 12px;margin-left:8px}\n.ppv-inject{margin:8px 0 16px}\n.ppv-panel{margin-top:12px}\n.ppv-panel .ppv-h{gap:8px}\n.ppv-mks{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;align-items:start}\n.ppv-chart{display:block;width:100%;height:auto;max-height:160px;aspect-ratio:320/96;margin:2px 0 2px;color:var(--accent)}\n.ppv-chart path{stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}\n.ppv-chart circle{fill:currentColor}\n.ppv-mk{margin:0;min-width:0}\n.ppv-mk h4{margin:0 0 2px;font-size:13px}\n.ppv-mk .na{margin:0;font-size:12px;line-height:1.35}\n.ppv-apply{border:0;background:transparent;color:inherit;font:inherit;padding:0;cursor:pointer}\n.game-top .pro-pill{margin-left:6px}\n.pro-pill{display:inline-flex;align-items:center;padding:2px 7px;border-radius:999px;border:1px solid #a67c00;border-left:3px solid #8a6a12;background:linear-gradient(180deg,#f8e7b0,#e0b84a);color:#1c1404;font:800 9px/1.2 var(--font);letter-spacing:.14em;text-transform:uppercase;flex:none}\n.pro-frame{border-left:3px solid #e0b84a}\n.pro-sharp{display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:2px 8px 2px 4px;border-radius:999px;background:color-mix(in srgb,#e0b84a 18%,var(--surface))}\n.pro-sharp .pro-pill{margin-left:0}\n.pro-sharp-txt{color:var(--txt);font:750 10px var(--font);letter-spacing:.06em;text-transform:uppercase}\n.pro-empty{margin:8px 0 12px;color:var(--dim);font-size:13px;line-height:1.45}\n.pro-insights{margin:14px 0 16px;border:1px solid color-mix(in srgb,#e0b84a 55%,var(--line));border-left:3px solid #e0b84a;border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow)}\n.pro-insights-sum{display:flex;align-items:center;gap:8px;min-height:44px;padding:10px 14px;cursor:pointer;font-weight:750;list-style:none}\n.pro-insights-sum::-webkit-details-marker{display:none}\n.pro-insights[open]>.pro-insights-sum{border-bottom:1px solid var(--line)}\n.pro-insights-body{padding:4px 12px 12px}\n.pro-insights .ppv-panel{margin:10px 0 0}\n.ppv-book{margin:8px 0 6px;font-size:14px}\n.pro-best{background:color-mix(in srgb,#e0b84a 22%,transparent)}\n.pro-best-tag{display:inline-block;margin-left:4px;padding:1px 4px;border-radius:4px;background:#e0b84a;color:#1c1404;font:800 8px var(--font);letter-spacing:.08em;text-transform:uppercase;vertical-align:1px}\n.pro-sort{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}\n.pro-sort .chip{min-height:36px}\n[data-pro-owner] .card,[data-pro-enhance] .ppv-panel{border-left:3px solid #e0b84a}\n[data-pro-owner] h3.ppv-h:not(:has(.pro-pill))::before{content:\"PRO\";display:inline-flex;align-items:center;margin-right:6px;padding:2px 7px;border-radius:999px;border:1px solid #a67c00;border-left:3px solid #8a6a12;background:linear-gradient(180deg,#f8e7b0,#e0b84a);color:#1c1404;font:800 9px/1.2 var(--font);letter-spacing:.14em}\n.ppv-build{margin-top:18px;font-size:11px}\n.rk-meta{margin:0 0 10px;color:var(--mute);font-size:13.5px;line-height:1.45}\n.rk-pos,.rk-view{margin-top:8px}\n.rk-table{width:100%}\n.rk-table small{display:block;color:var(--dim);font-size:11px;font-weight:550;line-height:1.3}\n.rk-player{font-weight:750}\n.rk-stat{margin-top:0}\n.rk-table th.rk-on,.rk-table td.rk-on{background:color-mix(in srgb,#e0b84a 24%,transparent);box-shadow:inset 0 -2px 0 #e0b84a;font-weight:750}\n@media (max-width:720px){\n  .ppv-grid{grid-template-columns:1fr}\n  .ppv-line{align-items:flex-start}\n  .ppv-q,.ppv-form{width:100%}\n  .ppv-q input,.ppv-form input,.ppv-form select{font-size:16px}\n  .pro-insights-sum{padding:10px 12px}\n  .pro-insights-body{padding:4px 8px 10px}\n  .ppv-panel{padding:12px}\n  .pro-moves,.ppv-panel .books,.pro-insights .books{font-size:12.5px}\n  .pro-moves th,.pro-moves td{padding:6px 5px}\n  .pro-sharp-txt{font-size:9px}\n  .ppv-mks{grid-template-columns:1fr}\n  .ppv-chart{max-height:140px}\n  .rk-table{font-size:13px}\n  .rk-table th,.rk-table td{padding:8px 6px}\n  .rk-view .chip,.rk-pos .chip{min-height:40px}\n}\n";
 
 /* LineSmart Pro screens. Loaded only after is_pro() is true, from the private bundle.
    Numbers come from the files the site already has. A panel with no numbers is left out. */
@@ -950,7 +994,7 @@ window.__PRO_CSS = "/* Injected with the private Pro bundle. Not shipped in site
   }
   function rankState() {
     const q = parts().q;
-    return { lg: q.get("lg") || "nfl", pos: q.get("pos") || "", view: q.get("view") === "hit" ? "hit" : "season" };
+    return { lg: q.get("lg") || "nfl", pos: q.get("pos") || "", view: q.get("view") === "hit" ? "hit" : "season", stat: q.get("stat") || "" };
   }
   function rankHash(patch) {
     const Rk = window.Rankings;
@@ -958,10 +1002,13 @@ window.__PRO_CSS = "/* Injected with the private Pro bundle. Not shipped in site
     const n = { ...cur, ...patch };
     const specs = Rk ? Rk.specsFor(n.lg) : [];
     if (!specs.some(s => s.id === n.pos)) n.pos = (specs[0] && specs[0].id) || "";
+    const mode = Rk && n.lg === "nfl" ? Rk.resolveStat(n.lg, n.pos, n.stat) : null;
+    n.stat = mode ? mode.id : "";
     const p = new URLSearchParams();
     p.set("lg", n.lg || "nfl");
     if (n.pos) p.set("pos", n.pos);
     if (n.view === "hit") p.set("view", "hit");
+    if (n.stat) p.set("stat", n.stat);
     return href("rankings") + "?" + p.toString();
   }
   function hotHash(patch) {
@@ -1494,24 +1541,29 @@ window.__PRO_CSS = "/* Injected with the private Pro bundle. Not shipped in site
     const spec = specs.find(s => s.id === st.pos) || specs[0] || null;
     const pos = spec ? spec.id : "";
     const view = st.view === "hit" ? "hit" : "season";
+    const statMode = Rk.resolveStat(lg, pos, st.stat);
+    const statId = statMode ? statMode.id : "";
     const label = (Rk.LEAGUES.find(([id]) => id === lg) || [, lg.toUpperCase()])[1];
     const pack = (window.RankingsData && window.RankingsData.leagues && window.RankingsData.leagues[lg]) || null;
     const chips = `<div class="chips" role="group" aria-label="League">${Rk.LEAGUES.map(([id, name]) => `<a class="chip${id === lg ? " on" : ""}" href="${rankHash({ lg: id })}"${id === lg ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;
     const posChips = specs.length ? `<div class="chips rk-pos" role="group" aria-label="Position">${specs.map(s => `<a class="chip${s.id === pos ? " on" : ""}" href="${rankHash({ lg, pos: s.id, view })}"${s.id === pos ? ' aria-current="true"' : ""}>${esc(s.label)}</a>`).join("")}</div>` : "";
-    const viewChips = `<div class="chips rk-view" role="group" aria-label="Ranking">${[["season", "Season stats"], ["hit", "Prop hit rate"]].map(([id, name]) => `<a class="chip${view === id ? " on" : ""}" href="${rankHash({ lg, pos, view: id })}"${view === id ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;
-    const filters = `<section class="card ppv-filters" aria-label="Rankings filters">${chips}${posChips}<div class="ppv-frow">${viewChips}</div></section>`;
+    const viewChips = `<div class="chips rk-view" role="group" aria-label="Ranking">${[["season", "Season stats"], ["hit", "Prop hit rate"]].map(([id, name]) => `<a class="chip${view === id ? " on" : ""}" href="${rankHash({ lg, pos, view: id, stat: statId })}"${view === id ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;
+    const statModes = view === "season" ? Rk.statModes(lg, pos) : [];
+    const statChips = statModes.length ? `<div class="chips rk-stat" role="group" aria-label="Rank by">${statModes.map(m => `<a class="chip${m.id === statId ? " on" : ""}" href="${rankHash({ lg, pos, view, stat: m.id })}"${m.id === statId ? ' aria-current="true"' : ""}>${esc(m.label)}</a>`).join("")}</div>` : "";
+    const filters = `<section class="card ppv-filters" aria-label="Rankings filters">${chips}${posChips}<div class="ppv-frow">${viewChips}${statChips}</div></section>`;
     let body = "";
     if (view === "season") {
       if (!pack || !spec) {
         body = `<p class="pro-empty">No season player stats for ${esc(label)}. NFL and NBA are the leagues with a box-score cache. Nothing is filled in for the rest.</p>`;
       } else {
-        const board = Rk.seasonBoard(pack.players, spec);
-        const statName = spec.cols[0][1];
+        const board = Rk.seasonBoard(pack.players, spec, Rk.TOP_N, statId);
+        const statName = board.statNote || (spec.cols[0] && spec.cols[0][1]) || "the stat";
         const kind = spec.perGame ? `${esc(statName)} are per game, from games he appeared in.` : `${esc(statName)} are season totals.`;
         const through = pack.through ? ` through ${esc(whenIso(pack.through))}` : "";
         const lead = board.total ? `Top ${board.rows.length} of ${board.total} by ${esc(statName).toLowerCase()}.` : `No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.`;
-        const table = board.rows.length ? `<div class="tbl-wrap"><table class="books rk-table"><thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>GP</th>${spec.cols.map(([, l]) => `<th>${esc(l)}</th>`).join("")}</tr></thead><tbody>${board.rows.map(r => `<tr><td class="num">${r.rank}</td><td><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a></td><td>${esc(r.team || "—")}</td><td class="num">${r.gp}</td>${r.cells.map(c => `<td class="num">${esc(c.text)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="pro-empty">No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.</p>`;
-        body = `<p class="rk-meta">${lead} ${pack.boxGames} regular-season games in the cache${through}. ${kind} Games played is how many of those games he appeared in. Postseason games are not in the cache.</p>${table}<p class="note">Counting stats from the cached ESPN box scores. A roster name is required. This is not a projection.</p>`;
+        const headCells = (board.cols || []).map(c => `<th class="${c.on ? "rk-on" : ""}">${esc(c.label)}</th>`).join("");
+        const table = board.rows.length ? `<div class="tbl-wrap"><table class="books rk-table"><thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>GP</th>${headCells}</tr></thead><tbody>${board.rows.map(r => `<tr><td class="num">${r.rank}</td><td><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a></td><td>${esc(r.team || "—")}</td><td class="num">${r.gp}</td>${r.cells.map(c => `<td class="num${c.on ? " rk-on" : ""}">${esc(c.text)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="pro-empty">No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.</p>`;
+        body = `<p class="rk-meta">${lead} ${pack.boxGames} regular-season games in the cache${through}. ${kind} Games played is how many of those games he appeared in. Postseason games are not in the cache.</p>${table}<p class="note">Counting stats from the cached ESPN box scores. The highlighted column is the one this list is ranked by. A roster name is required. Completed games only.</p>`;
       }
     } else {
       const live = await loadPropsDoc(lg);
@@ -1549,7 +1601,7 @@ window.__PRO_CSS = "/* Injected with the private Pro bundle. Not shipped in site
     const sub = view === "hit" ? "How often each player went over the current prop line." : "Top 10 at each position by the counting stat for that spot.";
     const offers = G() && G().offersHTML ? G().offersHTML("pro") : "";
     return shell("rankings", "Rankings", sub,
-      `${flNote()}${filters}<section class="card pro-frame" id="proRankings" data-rk-lg="${esc(lg)}" data-rk-pos="${esc(pos)}" data-rk-view="${esc(view)}"><h3 class="ppv-h">${PILL} ${view === "hit" ? "Prop hit rate" : "Season stats"} <span class="st-sub">${esc(label)}${pos ? " · " + esc(pos) : ""}</span></h3>${body}</section>${offers}`);
+      `${flNote()}${filters}<section class="card pro-frame" id="proRankings" data-rk-lg="${esc(lg)}" data-rk-pos="${esc(pos)}" data-rk-view="${esc(view)}" data-rk-stat="${esc(statId)}"><h3 class="ppv-h">${PILL} ${view === "hit" ? "Prop hit rate" : "Season stats"} <span class="st-sub">${esc(label)}${pos ? " · " + esc(pos) : ""}</span></h3>${body}</section>${offers}`);
   }
   function rSampleNote(ranked) {
     if (!ranked || !ranked.rows || !ranked.rows.length) return "";

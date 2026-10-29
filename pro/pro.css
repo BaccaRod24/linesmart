@@ -79,6 +79,8 @@ body.app a.search-btn[data-pro-owner-nav]{display:inline-flex;width:auto;padding
 .rk-table{width:100%}
 .rk-table small{display:block;color:var(--dim);font-size:11px;font-weight:550;line-height:1.3}
 .rk-player{font-weight:750}
+.rk-stat{margin-top:0}
+.rk-table th.rk-on,.rk-table td.rk-on{background:color-mix(in srgb,#e0b84a 24%,transparent);box-shadow:inset 0 -2px 0 #e0b84a;font-weight:750}
 @media (max-width:720px){
   .ppv-grid{grid-template-columns:1fr}
   .ppv-line{align-items:flex-start}

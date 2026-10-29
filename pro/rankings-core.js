@@ -28,6 +28,25 @@
     ],
   };
   const NFL_KEYS = ["py", "ptd", "ry", "rtd", "rec", "recy", "rectd"];
+  /** NFL season rankers. `sort` is the column that orders the top 10. Receptions are not a quarterback stat. */
+  const SKILL_MODES = [
+    { id: "yds", label: "Yards", sort: "recy", note: "Receiving yards", cols: [["recy", "Rec yds"], ["rectd", "Rec TD"], ["rec", "Rec"]] },
+    { id: "td", label: "TDs", sort: "rectd", note: "Receiving TDs", cols: [["rectd", "Rec TD"], ["recy", "Rec yds"], ["rec", "Rec"]] },
+    { id: "rec", label: "Receptions", sort: "rec", note: "Receptions", cols: [["rec", "Rec"], ["recy", "Rec yds"], ["rectd", "Rec TD"]] },
+  ];
+  const NFL_MODES = {
+    QB: [
+      { id: "yds", label: "Yards", sort: "py", note: "Passing yards", cols: [["py", "Pass yds"], ["ptd", "Pass TD"], ["ry", "Rush yds"], ["rtd", "Rush TD"]] },
+      { id: "td", label: "TDs", sort: "qbtd", note: "Passing TDs plus rushing TDs", cols: [["qbtd", "TD"], ["ptd", "Pass TD"], ["rtd", "Rush TD"], ["py", "Pass yds"]] },
+    ],
+    RB: [
+      { id: "yds", label: "Yards", sort: "ry", note: "Rushing yards", cols: [["ry", "Rush yds"], ["scrim", "Scrim yds"], ["rtd", "Rush TD"], ["rec", "Rec"]] },
+      { id: "td", label: "TDs", sort: "rbtd", note: "Rushing TDs plus receiving TDs", cols: [["rbtd", "TD"], ["rtd", "Rush TD"], ["rectd", "Rec TD"], ["ry", "Rush yds"]] },
+      { id: "rec", label: "Receptions", sort: "rec", note: "Receptions", cols: [["rec", "Rec"], ["recy", "Rec yds"], ["ry", "Rush yds"]] },
+    ],
+    WR: SKILL_MODES,
+    TE: SKILL_MODES,
+  };
   const isNum = v => typeof v === "number" && isFinite(v);
   const num = v => (isNum(v) ? v : 0);
   const clean = n => {
@@ -72,36 +91,61 @@
     return String(Math.round(v));
   }
 
+  function rawStat(p, key) {
+    if (key === "qbtd") return num(p && p.ptd) + num(p && p.rtd);
+    if (key === "rbtd") return num(p && p.rtd) + num(p && p.rectd);
+    if (key === "scrim") return num(p && p.ry) + num(p && p.recy);
+    return num(p && p[key]);
+  }
   function statValue(p, key, perGame) {
-    const raw = num(p && p[key]);
+    const raw = rawStat(p, key);
     if (!perGame) return raw;
     const gp = num(p && p.gp);
     return gp ? raw / gp : 0;
   }
 
-  /** Top 10 by the position's key stat. NBA is per game. Players with none of that stat are left out. */
-  function seasonBoard(players, spec, limit) {
+  /** Yards / TDs / Receptions for an NFL position. Empty for every other league. */
+  function statModes(lg, pos) {
+    if (lg !== "nfl") return [];
+    const list = NFL_MODES[pos];
+    return list ? list.map(m => ({ id: m.id, label: m.label, sort: m.sort, note: m.note, cols: m.cols.map(c => c.slice()) })) : [];
+  }
+  /** The requested mode, or Yards when that stat does not apply (quarterback receptions). */
+  function resolveStat(lg, pos, statId) {
+    const modes = statModes(lg, pos);
+    if (!modes.length) return null;
+    return modes.find(m => m.id === statId) || modes[0];
+  }
+
+  /** Top 10 by the position's key stat. NFL can switch the sort with statId. NBA stays per game. */
+  function seasonBoard(players, spec, limit, statId) {
     const lim = limit || TOP_N;
-    if (!spec) return { rows: [], total: 0 };
-    const all = (players || []).filter(p => p && p.pos === spec.id && num(p.gp) >= 1 && statValue(p, spec.key, spec.perGame) > 0);
+    if (!spec) return { rows: [], total: 0, stat: "", statNote: "", cols: [] };
+    const mode = resolveStat("nfl", spec.id, statId);
+    const sortKey = mode ? mode.sort : spec.key;
+    const cols = mode ? mode.cols : spec.cols;
+    const perGame = !!spec.perGame;
+    const all = (players || []).filter(p => p && p.pos === spec.id && num(p.gp) >= 1 && statValue(p, sortKey, perGame) > 0);
     all.sort((a, b) => {
-      const d = statValue(b, spec.key, spec.perGame) - statValue(a, spec.key, spec.perGame);
+      const d = statValue(b, sortKey, perGame) - statValue(a, sortKey, perGame);
       if (Math.abs(d) > 1e-9) return d;
-      for (const [k] of spec.cols) {
-        const e = statValue(b, k, spec.perGame) - statValue(a, k, spec.perGame);
+      for (const [k] of cols) {
+        if (k === sortKey) continue;
+        const e = statValue(b, k, perGame) - statValue(a, k, perGame);
         if (Math.abs(e) > 1e-9) return e;
       }
       return String(a.n || "").localeCompare(String(b.n || "")) || String(a.id).localeCompare(String(b.id));
     });
+    const cell = (p, k, label) => ({ key: k, label, text: fmtStat(statValue(p, k, perGame), perGame), on: k === sortKey });
     const rows = all.slice(0, lim).map((p, i) => ({
       rank: i + 1,
       id: String(p.id),
       name: p.n || "",
       team: p.ta || "",
       gp: num(p.gp),
-      cells: spec.cols.map(([k, label]) => ({ key: k, label, text: fmtStat(statValue(p, k, spec.perGame), spec.perGame) })),
+      cells: cols.map(([k, label]) => cell(p, k, label)),
     }));
-    return { rows, total: all.length };
+    return { rows, total: all.length, stat: mode ? mode.id : "", statNote: mode ? mode.note : (spec.cols[0] ? spec.cols[0][1] : ""), cols: cols.map(([k, label]) => ({ key: k, label, on: k === sortKey })) };
   }
 
   /**
@@ -413,7 +457,7 @@
 
   return {
     TOP_N, HIT_MIN, BOOK_ORDER, LEAGUES, SPECS, specsFor, specById, bucket, playerHash, normPlayer,
-    seasonBoard, aggregateSeason, gradeCount, sampleText, basisLabel, pickLine,
+    seasonBoard, statModes, resolveStat, aggregateSeason, gradeCount, sampleText, basisLabel, pickLine,
     fromProps, fromPack, rankHits, propRowsFromOdds, statSample, matchPid,
   };
 });

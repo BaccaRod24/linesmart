@@ -28,7 +28,29 @@ check(R.basisLabel("season") === "This season vs the current line", "a season ta
   const qb = players.find(p => p.id === "10");
   check(qb && qb.gp === 2 && qb.py === 400 && qb.ptd === 3 && qb.ta === "AAA" && qb.pos === "QB", "passing yards add across the cached games");
   const board = R.seasonBoard(players, R.specById("nfl", "QB"));
-  check(board.rows.length === 1 && board.rows[0].name === "QB One" && board.rows[0].cells[0].text === "400", "the season board shows the passing total and games");
+  check(board.rows.length === 1 && board.rows[0].name === "QB One" && board.rows[0].cells[0].text === "400" && board.rows[0].cells[0].on, "the season board shows the passing total and games");
+  check(R.statModes("nfl", "QB").map(m => m.id).join() === "yds,td" && R.resolveStat("nfl", "QB", "rec").id === "yds", "quarterbacks have no receptions rank");
+  const qbs = [
+    { id: "a", n: "Pass Only", pos: "QB", gp: 2, py: 100, ptd: 4, ry: 0, rtd: 0 },
+    { id: "b", n: "Legs", pos: "QB", gp: 2, py: 90, ptd: 1, ry: 40, rtd: 4 },
+  ];
+  const qtd = R.seasonBoard(qbs, R.specById("nfl", "QB"), 10, "td");
+  check(qtd.rows[0].name === "Legs" && qtd.rows[0].cells.find(c => c.on).text === "5", "quarterback TDs add rushing TDs and highlight that column");
+  const rbs = [
+    { id: "a", n: "Rusher", pos: "RB", gp: 2, ry: 100, recy: 10, rtd: 1, rectd: 0, rec: 2 },
+    { id: "b", n: "Catcher", pos: "RB", gp: 2, ry: 40, recy: 90, rtd: 0, rectd: 3, rec: 8 },
+  ];
+  const ryd = R.seasonBoard(rbs, R.specById("nfl", "RB"), 10, "yds");
+  check(ryd.rows[0].name === "Rusher" && ryd.rows[0].cells.some(c => c.key === "scrim" && !c.on), "running back yards rank by rushing yards and still show scrimmage");
+  const rtd = R.seasonBoard(rbs, R.specById("nfl", "RB"), 10, "td");
+  check(rtd.rows[0].name === "Catcher" && rtd.rows[0].cells.find(c => c.on).text === "3", "running back TDs are rush plus receiving");
+  const wrs = [
+    { id: "a", n: "Deep", pos: "WR", gp: 2, recy: 200, rec: 4, rectd: 1 },
+    { id: "b", n: "Slot", pos: "WR", gp: 2, recy: 80, rec: 12, rectd: 0 },
+  ];
+  const wrec = R.seasonBoard(wrs, R.specById("nfl", "WR"), 10, "rec");
+  check(wrec.rows[0].name === "Slot" && wrec.stat === "rec" && wrec.rows[0].cells.find(c => c.on).key === "rec", "wide receivers can be ranked by receptions");
+  check(R.statModes("nba", "G").length === 0, "the stat picker is NFL only");
 }
 
 {

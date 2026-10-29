@@ -56,7 +56,7 @@
   }
   function rankState() {
     const q = parts().q;
-    return { lg: q.get("lg") || "nfl", pos: q.get("pos") || "", view: q.get("view") === "hit" ? "hit" : "season" };
+    return { lg: q.get("lg") || "nfl", pos: q.get("pos") || "", view: q.get("view") === "hit" ? "hit" : "season", stat: q.get("stat") || "" };
   }
   function rankHash(patch) {
     const Rk = window.Rankings;
@@ -64,10 +64,13 @@
     const n = { ...cur, ...patch };
     const specs = Rk ? Rk.specsFor(n.lg) : [];
     if (!specs.some(s => s.id === n.pos)) n.pos = (specs[0] && specs[0].id) || "";
+    const mode = Rk && n.lg === "nfl" ? Rk.resolveStat(n.lg, n.pos, n.stat) : null;
+    n.stat = mode ? mode.id : "";
     const p = new URLSearchParams();
     p.set("lg", n.lg || "nfl");
     if (n.pos) p.set("pos", n.pos);
     if (n.view === "hit") p.set("view", "hit");
+    if (n.stat) p.set("stat", n.stat);
     return href("rankings") + "?" + p.toString();
   }
   function hotHash(patch) {
@@ -600,24 +603,29 @@
     const spec = specs.find(s => s.id === st.pos) || specs[0] || null;
     const pos = spec ? spec.id : "";
     const view = st.view === "hit" ? "hit" : "season";
+    const statMode = Rk.resolveStat(lg, pos, st.stat);
+    const statId = statMode ? statMode.id : "";
     const label = (Rk.LEAGUES.find(([id]) => id === lg) || [, lg.toUpperCase()])[1];
     const pack = (window.RankingsData && window.RankingsData.leagues && window.RankingsData.leagues[lg]) || null;
     const chips = `<div class="chips" role="group" aria-label="League">${Rk.LEAGUES.map(([id, name]) => `<a class="chip${id === lg ? " on" : ""}" href="${rankHash({ lg: id })}"${id === lg ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;
     const posChips = specs.length ? `<div class="chips rk-pos" role="group" aria-label="Position">${specs.map(s => `<a class="chip${s.id === pos ? " on" : ""}" href="${rankHash({ lg, pos: s.id, view })}"${s.id === pos ? ' aria-current="true"' : ""}>${esc(s.label)}</a>`).join("")}</div>` : "";
-    const viewChips = `<div class="chips rk-view" role="group" aria-label="Ranking">${[["season", "Season stats"], ["hit", "Prop hit rate"]].map(([id, name]) => `<a class="chip${view === id ? " on" : ""}" href="${rankHash({ lg, pos, view: id })}"${view === id ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;
-    const filters = `<section class="card ppv-filters" aria-label="Rankings filters">${chips}${posChips}<div class="ppv-frow">${viewChips}</div></section>`;
+    const viewChips = `<div class="chips rk-view" role="group" aria-label="Ranking">${[["season", "Season stats"], ["hit", "Prop hit rate"]].map(([id, name]) => `<a class="chip${view === id ? " on" : ""}" href="${rankHash({ lg, pos, view: id, stat: statId })}"${view === id ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;
+    const statModes = view === "season" ? Rk.statModes(lg, pos) : [];
+    const statChips = statModes.length ? `<div class="chips rk-stat" role="group" aria-label="Rank by">${statModes.map(m => `<a class="chip${m.id === statId ? " on" : ""}" href="${rankHash({ lg, pos, view, stat: m.id })}"${m.id === statId ? ' aria-current="true"' : ""}>${esc(m.label)}</a>`).join("")}</div>` : "";
+    const filters = `<section class="card ppv-filters" aria-label="Rankings filters">${chips}${posChips}<div class="ppv-frow">${viewChips}${statChips}</div></section>`;
     let body = "";
     if (view === "season") {
       if (!pack || !spec) {
         body = `<p class="pro-empty">No season player stats for ${esc(label)}. NFL and NBA are the leagues with a box-score cache. Nothing is filled in for the rest.</p>`;
       } else {
-        const board = Rk.seasonBoard(pack.players, spec);
-        const statName = spec.cols[0][1];
+        const board = Rk.seasonBoard(pack.players, spec, Rk.TOP_N, statId);
+        const statName = board.statNote || (spec.cols[0] && spec.cols[0][1]) || "the stat";
         const kind = spec.perGame ? `${esc(statName)} are per game, from games he appeared in.` : `${esc(statName)} are season totals.`;
         const through = pack.through ? ` through ${esc(whenIso(pack.through))}` : "";
         const lead = board.total ? `Top ${board.rows.length} of ${board.total} by ${esc(statName).toLowerCase()}.` : `No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.`;
-        const table = board.rows.length ? `<div class="tbl-wrap"><table class="books rk-table"><thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>GP</th>${spec.cols.map(([, l]) => `<th>${esc(l)}</th>`).join("")}</tr></thead><tbody>${board.rows.map(r => `<tr><td class="num">${r.rank}</td><td><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a></td><td>${esc(r.team || "—")}</td><td class="num">${r.gp}</td>${r.cells.map(c => `<td class="num">${esc(c.text)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="pro-empty">No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.</p>`;
-        body = `<p class="rk-meta">${lead} ${pack.boxGames} regular-season games in the cache${through}. ${kind} Games played is how many of those games he appeared in. Postseason games are not in the cache.</p>${table}<p class="note">Counting stats from the cached ESPN box scores. A roster name is required. This is not a projection.</p>`;
+        const headCells = (board.cols || []).map(c => `<th class="${c.on ? "rk-on" : ""}">${esc(c.label)}</th>`).join("");
+        const table = board.rows.length ? `<div class="tbl-wrap"><table class="books rk-table"><thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>GP</th>${headCells}</tr></thead><tbody>${board.rows.map(r => `<tr><td class="num">${r.rank}</td><td><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a></td><td>${esc(r.team || "—")}</td><td class="num">${r.gp}</td>${r.cells.map(c => `<td class="num${c.on ? " rk-on" : ""}">${esc(c.text)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="pro-empty">No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.</p>`;
+        body = `<p class="rk-meta">${lead} ${pack.boxGames} regular-season games in the cache${through}. ${kind} Games played is how many of those games he appeared in. Postseason games are not in the cache.</p>${table}<p class="note">Counting stats from the cached ESPN box scores. The highlighted column is the one this list is ranked by. A roster name is required. Completed games only.</p>`;
       }
     } else {
       const live = await loadPropsDoc(lg);
@@ -655,7 +663,7 @@
     const sub = view === "hit" ? "How often each player went over the current prop line." : "Top 10 at each position by the counting stat for that spot.";
     const offers = G() && G().offersHTML ? G().offersHTML("pro") : "";
     return shell("rankings", "Rankings", sub,
-      `${flNote()}${filters}<section class="card pro-frame" id="proRankings" data-rk-lg="${esc(lg)}" data-rk-pos="${esc(pos)}" data-rk-view="${esc(view)}"><h3 class="ppv-h">${PILL} ${view === "hit" ? "Prop hit rate" : "Season stats"} <span class="st-sub">${esc(label)}${pos ? " · " + esc(pos) : ""}</span></h3>${body}</section>${offers}`);
+      `${flNote()}${filters}<section class="card pro-frame" id="proRankings" data-rk-lg="${esc(lg)}" data-rk-pos="${esc(pos)}" data-rk-view="${esc(view)}" data-rk-stat="${esc(statId)}"><h3 class="ppv-h">${PILL} ${view === "hit" ? "Prop hit rate" : "Season stats"} <span class="st-sub">${esc(label)}${pos ? " · " + esc(pos) : ""}</span></h3>${body}</section>${offers}`);
   }
   function rSampleNote(ranked) {
     if (!ranked || !ranked.rows || !ranked.rows.length) return "";

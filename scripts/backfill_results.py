@@ -19,6 +19,12 @@ October 2010 for nfl, nba, ncaaf, ncaab, nhl, mlb and ufc. The day before each c
 was an empty 200, not an error. Current season starts from the scoreboard: NFL 2026-08-06, NBA 2026-09-30
 (first listed game 2026-10-03), NCAAF 2026-02-01, NCAAB 2026-07-13, NHL 2026-09-15, MLB 2026-02-19, UFC 2026-01-01.
 Oct 20 / 23 / 26 2026 NBA scoreboards include the Celtics games (BOS @ DET, NY @ BOS, CHI @ BOS) and do not include odds.
+
+NBA 2026-10-26 (and 2026-10-27) are a separate failure: the bare URL
+``basketball/nba/scoreboard?dates=20261026`` is HTTP 200 with a 0-byte body, so an earlier backfill
+recorded no games that day. ``?dates=20261026&limit=100`` returns the nine Oct 26 ET finals. Dates around
+them (Oct 25, Oct 24, Oct 23) return JSON with no extra parameter, so this is not the scoreboard date
+rolling on UTC. ``build_data.fetch_scoreboard`` retries once with ``limit=100`` when the bare URL is not JSON.
 """
 from __future__ import annotations
 
@@ -268,7 +274,7 @@ def backfill(out: Path, history: Path | None = None, keys=None, dates=None, thro
             if day > through:
                 continue
             try:
-                sb = fetch(scoreboard_url(lg, ymd))
+                sb = BD.fetch_scoreboard(lg, ymd, fetch)
             except Exception as ex:
                 print(f"  {lg['key']} {day}: {ex}", flush=True)
                 continue
@@ -308,7 +314,7 @@ def probe(fetch=None, pause=0.2):
             time.sleep(pause)
         for ymd in PROBE.get(lg["key"], []):
             try:
-                sb = fetch(scoreboard_url(lg, ymd))
+                sb = BD.fetch_scoreboard(lg, ymd, fetch)
                 ev = sb.get("events") or []
                 sample = (ev[0].get("shortName") or ev[0].get("name")) if ev else ""
                 print(f"  {ymd}: {len(ev)} events {sample}", flush=True)

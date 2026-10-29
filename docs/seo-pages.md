@@ -177,6 +177,11 @@ calendar start is the right place to begin). Closing lines exist in git history 
 
 Run this once, locally, after this change is on main. It never calls The Odds API, and it never commits or pushes.
 
+NBA `?dates=20261026` and `?dates=20261027` are HTTP 200 with a 0-byte body (checked 2026-10-29). The same
+dates with `&limit=100` return the games, and the nine Oct 26 ET finals are on `20261026`, not the next UTC
+day. `build_data.fetch_scoreboard` retries the bare URL once with `limit=100`. A real off day (JSON, no events)
+is not retried. The first backfill (data-history `2c7d745`) missed 2026-10-26 because of the empty body.
+
 ```sh
 # How far back ESPN goes, and where this season starts. No files written.
 env -u ODDS_API_KEY python3 scripts/backfill_results.py --probe

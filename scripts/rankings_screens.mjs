@@ -73,6 +73,10 @@ const shots = [
   ["rankings_nfl_rb_tds_desktop.png", 1280, 900, "#/pro/rankings?lg=nfl&pos=RB&view=season&stat=td", "season", "NFL", /Rushing TDs plus receiving/],
   ["rankings_nfl_qb_yards_desktop.png", 1280, 900, "#/pro/rankings?lg=nfl&pos=QB&view=season&stat=yds", "season", "NFL", /Passing yards/],
   ["rankings_nfl_wr_receptions_mobile.png", 390, 844, "#/pro/rankings?lg=nfl&pos=WR&view=season&stat=rec", "season", "NFL", /receptions/i],
+  ["rankings_nba_guards_assists_desktop.png", 1280, 900, "#/pro/rankings?lg=nba&pos=G&view=season&stat=ast", "season", "NBA", /assists per game/i],
+  ["rankings_nba_centers_rebounds_desktop.png", 1280, 900, "#/pro/rankings?lg=nba&pos=C&view=season&stat=reb", "season", "NBA", /rebounds per game/i],
+  ["rankings_nba_forwards_3pm_desktop.png", 1280, 900, "#/pro/rankings?lg=nba&pos=F&view=season&stat=3pm", "season", "NBA", /threes made per game/i],
+  ["rankings_nba_guards_assists_mobile.png", 390, 844, "#/pro/rankings?lg=nba&pos=G&view=season&stat=ast", "season", "NBA", /assists per game/i],
 ];
 
 for (const [file, width, height, hash, view, lg, need] of shots) {

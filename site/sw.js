@@ -76,6 +76,22 @@ async function cacheFirst(req) {
   if (res.ok) (await caches.open(SHELL)).put(req, res.clone());
   return res;
 }
+// These scripts decide Pro and routing. Cache-first kept the previous deploy's copy for the whole
+// visit that discovered the update. Online, fetch the new file and refresh the cache. Offline, the
+// cached copy still runs.
+const FRESH = new Set(["assets/pro-gate.js", "assets/pro-gate-core.js", "assets/account.js", "assets/app.js"]);
+async function networkFirstAsset(req) {
+  const cache = await caches.open(SHELL);
+  try {
+    const res = await fetch(req);
+    if (res.ok) await cache.put(req, res.clone());
+    return res;
+  } catch (err) {
+    const hit = await cache.match(req);
+    if (hit) return hit;
+    throw err;
+  }
+}
 self.addEventListener("fetch", e => {
   const req = e.request; if (req.method !== "GET") return;
   const url = new URL(req.url);
@@ -86,5 +102,6 @@ self.addEventListener("fetch", e => {
   if (p === "sw.js") return;
   if (p.startsWith("data/")) return e.respondWith(networkFirstData(req));
   if (req.mode === "navigate") return e.respondWith(networkFirstPage(req));
+  if (FRESH.has(p)) return e.respondWith(networkFirstAsset(req));
   e.respondWith(cacheFirst(req));
 });

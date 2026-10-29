@@ -1329,7 +1329,7 @@
     Promise.resolve(route()).then(() => window.scrollTo(0, y));
   });
   // helpers shared with the My Bets tracker (assets/bets.js)
-  window.LSApp = { previewHref, previewLink, esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, nav: () => NAV, espn, crest, notAvail, sidx, linesCard, booksCard, lineMoveSection };
+  window.LSApp = { previewHref, previewLink, esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, pages: () => PAGES, nav: () => NAV, espn, crest, notAvail, sidx, linesCard, booksCard, lineMoveSection };
   // "/" opens search from anywhere (unless typing in a field)
   document.addEventListener("keydown", e => {
     if (e.key === "/" && !e.metaKey && !e.ctrlKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "")) {

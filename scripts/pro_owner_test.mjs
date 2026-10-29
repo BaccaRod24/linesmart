@@ -18,6 +18,7 @@ const read = p => fs.readFileSync(p, "utf8");
 const OWNER_EMAIL = "pro-owner-test@example.com";
 const MEMBER_EMAIL = "pro-member-test@example.com";
 const OWNER_TOKEN = "test-owner-token";
+const EXPIRED_JWT = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url") + "." + Buffer.from(JSON.stringify({ exp: 1700000000, sub: "owner" })).toString("base64url") + ".x";
 const MEMBER_TOKEN = "test-member-token";
 
 {
@@ -28,6 +29,27 @@ const MEMBER_TOKEN = "test-member-token";
   check(G.verdict(true, false) === "unknown" && G.verdict(false, false) === "unknown", "an HTTP failure is unknown, not a no");
   check(G.shouldHide(false, "yes") === true && G.shouldHide(true, "no") === true, "sign-out and a definite false hide Pro");
   check(G.shouldHide(true, "unknown") === false && G.shouldHide(true, "yes") === false, "a blip or a yes does not hide Pro");
+  const now = Date.now();
+  const live = { access_token: "live", refresh_token: "rt", expires_at: Math.floor(now / 1000) + 3600 };
+  const old = { access_token: "old", refresh_token: "rt", expires_at: Math.floor(now / 1000) - 120 };
+  check(!G.accessStale(live, now) && G.accessStale(old, now), "a stored access token is stale only after it expires");
+  check(G.accessStale({ refresh_token: "rt" }, now) && !G.accessStale(null, now) && !G.accessStale("", now), "no access token needs a refresh only when a session is stored");
+  check(G.hasRefresh(old) && !G.hasRefresh({ access_token: "live" }) && !G.hasRefresh("ls-pro"), "a refresh token is not a browser flag");
+  const exp = Math.floor(now / 1000) - 30;
+  const payload = btoa(JSON.stringify({ exp })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  check(G.accessStale({ access_token: "aaa." + payload + ".sig", refresh_token: "rt" }, now), "a JWT exp in the past is stale when expires_at is absent");
+  const finished = G.pageContext({ hash: "", page: "game", lg: "nfl", route: "", gid: "401873011" });
+  check(finished.kind === "game" && finished.lg === "nfl" && finished.id === "401873011", "a finished game page uses data-gid, not the URL slug");
+  const hydrated = G.pageContext({ hash: "", page: "game", lg: "nfl", route: "g/nfl/401873023" });
+  check(hydrated.id === "401873023" && hydrated.kind === "game", "a current game page keeps the route id");
+  const propsCtx = G.pageContext({ hash: "", page: "player", lg: "nfl", playerHref: "#/p/nfl/4036378/log" });
+  check(propsCtx.kind === "props" && propsCtx.id === "4036378", "a props page id comes from the app link, not the player slug");
+  const pages = { g: { nfl: { "401873011": "nfl/games/pittsburgh-steelers-at-new-orleans-saints-2026-10-25/" } }, p: { nfl: { "4036378": "nfl/props/jordan-love/" } } };
+  const byPath = G.idFromPages(pages, "/nfl/games/pittsburgh-steelers-at-new-orleans-saints-2026-10-25/index.html");
+  check(byPath && byPath.kind === "game" && byPath.id === "401873011", "pages.json maps a slug path back to the ESPN game id");
+  const byProp = G.idFromPages(pages, "/nfl/props/jordan-love/");
+  check(byProp && byProp.kind === "props" && byProp.id === "4036378", "pages.json maps a props slug back to the player id");
+  check(G.pageContext({ hash: "", page: "", lg: "" }).kind === "home", "the SPA home is the home surface");
   check(G.tokenOf(null) === "" && G.tokenOf("not-json") === "" && G.tokenOf("{}") === "", "a missing session has no token");
   check(G.tokenOf(JSON.stringify({ access_token: OWNER_TOKEN })) === OWNER_TOKEN, "session JSON yields the access token");
   check(G.isOwnerHash("#/owner") && G.isOwnerHash("#/owner/hot?lg=nfl") && !G.isOwnerHash("#/") && !G.isOwnerHash("#/pro"), "owner hash is #/owner only");
@@ -123,9 +145,17 @@ const MEMBER_TOKEN = "test-member-token";
   check(/\[data-pro-owner\]/.test(appJs) && appJs.includes("#/owner/history/"), "a public game link tapped inside Pro is sent to line history");
   const gateJs = read("site/assets/pro-gate.js");
   check(/shouldHide/.test(gateJs) && /\.allow\(/.test(gateJs) && /LSProApp\.enhance/.test(gateJs), "the loader asks allow(), hides only through shouldHide, and enhances after yes");
+  check(/refreshOnce/.test(gateJs) && /LSAccount/.test(gateJs) && /status === 401/.test(gateJs), "an expired token or a 401 refreshes the session once and retries");
+  const acct = read("site/assets/account.js");
+  check(/TOKEN_REFRESHED/.test(acct) && /SIGNED_IN/.test(acct) && /ls-auth/.test(acct), "account dispatches ls-auth when the access token is refreshed or sign-in finishes");
+  check(!/INITIAL_SESSION/.test(acct), "the initial session event is not a second sign-in");
+  const sw = read("site/sw.js");
+  check(/networkFirstAsset/.test(sw) && /assets\/pro-gate\.js/.test(sw) && /assets\/account\.js/.test(sw) && /cacheFirst/.test(sw), "pro-gate and account are fetched fresh online and the rest of the shell stays cached");
+  check(/controllerchange/.test(read("site/assets/site.js")) && /had/.test(read("site/assets/site.js")), "an updated service worker reloads a page that was already controlled");
   const shellFn = read("scripts/seo_pages.py");
   const shell = shellFn.slice(shellFn.indexOf("class Shell"), shellFn.indexOf("def crumbs("));
   check(shell.includes("preview.js") && !shell.includes("pro-ui.js") && !shell.includes("hot-props"), "generated pages keep index scripts and do not inline Pro");
+  check(/data-gid/.test(shell) && /data-pid/.test(shell) && /route = f"g\/\{L\.lg\}\/\{gid\}" if cur and not final/.test(read("scripts/seo_pages.py")), "finished games carry data-gid and still do not hydrate");
   check(!/data-pro-owner|pro-app\.js/.test(read("site/sitemap-core.xml") + read("site/robots.txt")), "core sitemap and robots stay clear of Pro");
 }
 
@@ -211,6 +241,7 @@ async function open(seed) {
       if (gate.mode === "err") return json(503, { message: "unavailable" });
       if (gate.mode === "no") return json(200, false);
       if (gate.mode === "junk") return json(200, { ok: true });
+      if (auth === "Bearer " + EXPIRED_JWT) return json(401, { message: "JWT expired" });
       return json(200, owner);
     }
     if (u.pathname.includes("/storage/v1/object/pro-private/pro-app.js")) {
@@ -220,6 +251,7 @@ async function open(seed) {
     let posted = null;
     try { posted = req.postDataJSON(); } catch (e) { posted = null; }
     if (u.pathname.startsWith("/auth/v1/token")) {
+      if (gate.mode === "bad-refresh") return json(400, { error: "invalid_grant", error_description: "refresh failed" });
       const who = posted && posted.refresh_token === "rt-owner" ? session(OWNER_TOKEN, OWNER_EMAIL, "rt-owner") : session(MEMBER_TOKEN, MEMBER_EMAIL, "rt-member");
       return json(200, who);
     }
@@ -353,6 +385,8 @@ async function quiet(page) {
   await page.waitForSelector("#pro-bets-panel", { timeout: 15000 });
   const betsText = await page.locator("#pro-bets-panel").innerText();
   check(/closing line/i.test(betsText) && /prime/.test(betsText) && /Spread/.test(betsText), "My Bets shows CLV, tags, and splits");
+  await page.waitForTimeout(2500);
+  check(await page.locator("#pro-bets-panel").count() === 1, "My Bets Pro panel stays after the account sync redraws the page");
   await page.goto(BASE + "props-fixture/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#pro-props-panel", { timeout: 15000 });
   const propsText = await page.locator("#pro-props-panel").innerText();
@@ -361,6 +395,35 @@ async function quiet(page) {
   await page.waitForFunction(() => !document.querySelector("[data-pro-owner-nav]") && !document.querySelector("[data-pro-enhance]"), null, { timeout: 8000 });
   check(true, "sign-out removes Pro panels and the nav link");
   check(!errors.filter(e => !/supabase|session/i.test(e)).length, `owner flow page errors ${errors.join(" | ")}`);
+  await ctx.close();
+}
+
+{
+  const expired = session(EXPIRED_JWT, OWNER_EMAIL, "rt-owner");
+  expired.expires_at = 1700000000;
+  const { ctx, page, calls, errors } = await open({ session: expired });
+  await page.goto(BASE + "#/owner", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("[data-pro-owner]", { timeout: 20000 });
+  const ui = await quiet(page);
+  const proCalls = calls.filter(c => c.includes("/rpc/is_pro"));
+  check(ui.pro && ui.nav && ui.bundle, "expired access token: one refresh, then Pro shows");
+  check(proCalls.some(c => c.endsWith("owner")), "the retry calls is_pro() with the refreshed token");
+  check(proCalls.length <= 4, `refresh does not loop (${proCalls.length} is_pro calls)`);
+  check(!errors.filter(e => !/supabase|session|JWT|expired/i.test(e)).length, `expired token page errors ${errors.join(" | ")}`);
+  await ctx.close();
+}
+
+{
+  const expired = session(EXPIRED_JWT, OWNER_EMAIL, "rt-owner");
+  expired.expires_at = 1700000000;
+  const { ctx, page, calls, gate } = await open({ session: expired, flags: { "ls-pro": "1", isPro: "true" } });
+  gate.mode = "bad-refresh";
+  await page.goto(BASE + "#/owner", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1500);
+  const ui = await quiet(page);
+  const proCalls = calls.filter(c => c.includes("/rpc/is_pro"));
+  check(!ui.pro && !ui.bundle && (ui.hash === "#/" || ui.hash === ""), `a failed refresh does not grant Pro (${ui.hash})`);
+  check(proCalls.length <= 2, `a failed refresh does not retry forever (${proCalls.length})`);
   await ctx.close();
 }
 

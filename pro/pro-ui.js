@@ -589,6 +589,7 @@
     addNav();
     window.LSProApp.alertCap = F().ACTIVE_PRO;
     watchSlate();
+    watchApp();
     bindEmbed();
   }
   function hide() {
@@ -691,7 +692,7 @@
     const info = F().refreshInfo((meta && meta.generated) || (idx && idx.generated) || "", Date.now());
     const fresh = `<div class="statgrid"><div class="stat"><span class="sl">File age</span><b class="num">${info.ageHours == null ? "—" : esc(info.ageHours.toFixed(1) + " h")}</b><span class="ss">since the data file</span></div><div class="stat"><span class="sl">Cadence today</span><b class="num">about ${esc(String(info.cadenceMin))} min</b><span class="ss">how the site refreshes</span></div></div><p class="note">A faster pull is not running. This panel does not fetch new odds.</p>`;
     const html = `${flNote()}${panel("Sharp move", sharp)}${panel("Line history", charts)}${panel("All books", books)}${panel("File freshness", fresh)}<p class="note"><span class="of-21">21+</span> Pro reads the lines already in the file. It isn't a pick. Confirm the price at the sportsbook.</p>`;
-    place("pro-game-panel", "game", html, [".lm", "#line-movement-s", ".cols"]);
+    place("pro-game-panel", "game", html, [".lm", "#line-movement-s", "#odds-s", ".pv-h1", "article.sx-game", ".cols"]);
   }
   function hotFilter(ctx) {
     const key = (ctx.lg || "") + "/" + (ctx.id || "");
@@ -792,6 +793,23 @@
       s.title = "Pro · sharp move";
       top.appendChild(s);
     });
+  }
+  let appWatch = false;
+  function watchApp() {
+    if (appWatch || !window.MutationObserver) return;
+    const app = document.getElementById("app");
+    if (!app) return;
+    appWatch = true;
+    let t = 0;
+    new MutationObserver(() => {
+      const ctx = window.LSProGate && window.LSProGate.context && window.LSProGate.context();
+      if (!ctx || !proOn() || ctx.kind === "owner" || ctx.kind === "other") return;
+      const want = ctx.kind === "game" || ctx.kind === "props" || ctx.kind === "bets";
+      if (!want) return;
+      if (document.querySelector(`[data-pro-enhance="${ctx.kind}"]`)) return;
+      clearTimeout(t);
+      t = setTimeout(() => { if (window.LSProApp) enhance(ctx); }, 40);
+    }).observe(app, { childList: true });
   }
   function watchSlate() {
     if (slateWatch || !window.MutationObserver) return;

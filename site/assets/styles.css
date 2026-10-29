@@ -1012,11 +1012,12 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .bnav{display:none}
 @media (max-width:760px){
   :root{--bnav-h:62px}
-  .bnav{display:flex;position:fixed;z-index:40;left:10px;right:10px;bottom:calc(8px + env(safe-area-inset-bottom,0px));height:var(--bnav-h);padding:6px;gap:4px;border-radius:20px;
+  .bnav{display:flex;position:fixed;z-index:40;left:10px;right:10px;bottom:calc(8px + env(safe-area-inset-bottom,0px));height:var(--bnav-h);padding:6px;gap:2px;border-radius:20px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
     border:1px solid var(--glass-brd);background:color-mix(in srgb,var(--bg2) 72%,transparent);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
     box-shadow:var(--inner),0 18px 40px -12px color-mix(in srgb,var(--shade) 90%,transparent)}
-  .bnav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:14px;color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;transition:color .15s,background .15s,transform .1s}
-  .bnav a .ic{width:21px;height:21px}
+  .bnav::-webkit-scrollbar{display:none}
+  .bnav a{flex:0 0 auto;min-width:54px;padding:0 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:14px;color:var(--dim);font-size:9px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;transition:color .15s,background .15s,transform .1s}
+  .bnav a .ic{width:18px;height:18px}
   .bnav a:active{transform:scale(.94)}
   .bnav a.on{color:var(--txt);background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 22%,transparent),color-mix(in srgb,var(--accent) 8%,transparent));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent)}
   .bnav a.on .ic{color:var(--accent2);filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accent2) 60%,transparent))}
@@ -1138,7 +1139,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .intro.js{padding-top:14px}
 .intro.js h1{font-size:18px;margin-bottom:6px}
 .intro.js p{font-size:13px;margin-bottom:6px}
-.intro[hidden]{display:none}
+.intro[hidden],.intro-states[hidden]{display:none}
 .nojs-note{margin:8px auto 0;font-size:13.5px;color:var(--warn)}
 @media (max-width:760px){
   .intro h1{font-size:19px}
@@ -1766,7 +1767,7 @@ body:has(.news-bets) .footer .news-foot{display:none}
   .vf-lbl{white-space:normal}
   .vf-frow{gap:8px}.vf-mks{width:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}.vf-mks a{white-space:nowrap}
 }
-@media (max-width:420px){.bnav a{font-size:9px;letter-spacing:.03em}}
+@media (max-width:420px){.bnav a{font-size:9px;letter-spacing:.01em;min-width:52px}}
 
 /* ---------- nav polish: "All" (home) pill, swipe affordance on the league row, home tools row */
 .tab-all{padding-left:13px}
@@ -2089,6 +2090,11 @@ body::before{opacity:.55}
 .topbar-inner{gap:10px;height:60px}
 .topbar::after{opacity:.7}
 @media (max-width:1360px){.brand-tag{display:none}}
+@media (max-width:1400px) and (min-width:761px){
+  .updated .u-long{display:none}
+  .topbar-inner{gap:8px}
+  .search-btn{padding:0 10px 0 8px;gap:6px}
+}
 @media (max-width:1180px) and (min-width:761px){.top-about{display:none}}
 .updated{font-size:12px;padding:5px 11px}
 
@@ -2107,6 +2113,42 @@ body::before{opacity:.55}
 
 /* cards: crisp hairline, gentle depth, consistent radius */
 .game,.card,.tbl-wrap,.sr,.hc-card{border-radius:var(--r)}
+
+/* ---------- props / stats access */
+.gjump{display:flex;gap:8px;margin:0 0 14px}
+.gjump a,.gjump span{flex:1;min-width:0;min-height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid var(--line2);background:var(--surface);font-weight:750;font-size:14px}
+.gjump a.on,.gjump span.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.gjump .off{opacity:.45;cursor:default}
+.gwrap.has-ps{display:flex;flex-direction:column}
+.gwrap.has-ps>.game{height:auto;border-bottom-left-radius:0;border-bottom-right-radius:0}
+.gwrap.has-ps:hover>.game{transform:none}
+.ps-links{display:flex;border:1px solid var(--line);border-top:0;border-radius:0 0 var(--r) var(--r);overflow:hidden;background:var(--surface2)}
+.ps-links .ps-link{flex:1;min-height:40px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;color:var(--bestTxt)}
+.ps-links .ps-link+.ps-link{box-shadow:inset 1px 0 0 var(--line)}
+.ps-links .ps-link.off{color:var(--dim)}
+.ps-links a.ps-link:hover{background:var(--accent-soft)}
+.ps-lgs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:4px 0 8px;padding-bottom:2px}
+.ps-lgs::-webkit-scrollbar{display:none}
+.ps-lgs .chip{flex:none;font-weight:700}
+.chip.on{border-color:var(--accent);color:var(--txt);background:var(--accent-soft)}
+.chip.off{opacity:.45;cursor:default}
+.ps-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;margin:0 0 8px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.ps-main{flex:1 1 160px;min-width:0;display:flex;flex-direction:column;gap:1px}
+.ps-nm{font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ps-when{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.ps-go{display:flex;gap:6px;margin-left:auto}
+.ps-go .ps-link{min-height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--line2);display:inline-flex;align-items:center;font-size:12.5px;font-weight:750;background:var(--surface2)}
+.ps-go a.ps-link{color:var(--bestTxt)}
+.ps-go .ps-link.off{color:var(--dim);opacity:.7}
+.ps-note{margin:8px 0}
+#psres{margin:8px 0 4px}
+#psres:empty{display:none}
+@media (max-width:760px){
+  .gjump{gap:6px}
+  .gjump a,.gjump span{min-height:44px}
+  .ps-go{width:100%;margin-left:0}
+  .ps-go .ps-link{flex:1;justify-content:center}
+}
 .game,.card,.skel-tile,.sr,.tbl-wrap{box-shadow:var(--inner),var(--shadow-1)}
 .match,.phero{border-radius:18px;box-shadow:var(--inner),var(--shadow-2)}
 .game::before{opacity:.35}

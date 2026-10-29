@@ -19,7 +19,7 @@ const ESPN_HOST = "site.web.api.espn.com";
 const SHELL_FILES = [
   "./", "index.html", "manifest.webmanifest", "favicon.ico",
   "responsible-gambling.html", "privacy.html", "terms.html", "affiliate-disclosure.html", "about.html", "subscribed.html", "unsubscribe.html",
-  "assets/styles.css", "assets/theme.js", "assets/config.js", "assets/site.js", "assets/books-by-state.js", "assets/geo-core.js", "assets/geo.js", "assets/line-core.js", "assets/app.js", "assets/bets-core.js", "assets/slip-core.js", "assets/bets.js", "assets/matchup-core.js", "assets/matchup.js", "assets/weather-core.js", "assets/weather.js", "assets/props-core.js", "assets/props.js", "assets/ufc.js", "assets/pickem-core.js", "assets/adv-core.js", "assets/adv.js", "assets/value-core.js", "assets/value.js", "assets/news-core.js", "assets/news.js", "assets/live-core.js", "assets/live.js", "assets/livetab-core.js", "assets/alerts-core.js", "assets/alerts.js", "assets/pro-core.js", "assets/pro.js", "assets/pro-gate-core.js", "assets/pro-gate.js", "assets/fonts/inter-latin-var.woff2",
+  "assets/styles.css", "assets/theme.js", "assets/config.js", "assets/site.js", "assets/books-by-state.js", "assets/geo-core.js", "assets/geo.js", "assets/line-core.js", "assets/access-core.js", "assets/app.js", "assets/bets-core.js", "assets/slip-core.js", "assets/bets.js", "assets/matchup-core.js", "assets/matchup.js", "assets/weather-core.js", "assets/weather.js", "assets/props-core.js", "assets/props.js", "assets/ufc.js", "assets/pickem-core.js", "assets/adv-core.js", "assets/adv.js", "assets/value-core.js", "assets/value.js", "assets/news-core.js", "assets/news.js", "assets/live-core.js", "assets/live.js", "assets/livetab-core.js", "assets/alerts-core.js", "assets/alerts.js", "assets/pro-core.js", "assets/pro.js", "assets/pro-gate-core.js", "assets/pro-gate.js", "assets/fonts/inter-latin-var.woff2",
   "assets/brand/logo.svg", "assets/brand/icon.svg", "assets/brand/apple-touch-icon.png",
   "assets/brand/favicon-32.png", "assets/brand/favicon-16.png",
   "assets/brand/icon-192.png", "assets/brand/icon-512.png", "assets/brand/icon-maskable-512.png",
@@ -79,7 +79,7 @@ async function cacheFirst(req) {
 // These scripts decide Pro and routing. Cache-first kept the previous deploy's copy for the whole
 // visit that discovered the update. Online, fetch the new file and refresh the cache. Offline, the
 // cached copy still runs.
-const FRESH = new Set(["assets/pro-gate.js", "assets/pro-gate-core.js", "assets/account.js", "assets/app.js"]);
+const FRESH = new Set(["assets/pro-gate.js", "assets/pro-gate-core.js", "assets/account.js", "assets/app.js", "assets/access-core.js"]);
 async function networkFirstAsset(req) {
   const cache = await caches.open(SHELL);
   try {

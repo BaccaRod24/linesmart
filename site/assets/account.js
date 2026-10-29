@@ -26,6 +26,9 @@
       SB.auth.onAuthStateChange((ev, s) => {
         const was = !!SESSION; SESSION = s || null;
         if (ev === "SIGNED_OUT" || (was && !SESSION)) { UI.step = "email"; draw(); }
+        // The gate reads localStorage on its own. Tell it when this client has a new access token.
+        // Sign-out already dispatches from signOut(). The startup session event is not a new token.
+        if ((ev === "TOKEN_REFRESHED" || ev === "SIGNED_IN") && s && s.access_token) window.dispatchEvent(new Event("ls-auth"));
       });
       return SB;
     });

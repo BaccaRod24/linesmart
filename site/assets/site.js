@@ -104,6 +104,15 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(e => console.warn("SW registration failed", e)));
+    window.addEventListener("load", () => {
+      const had = !!navigator.serviceWorker.controller;
+      let once = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!had || once) return;   // first install has nothing to replace; an update reloads once
+        once = true;
+        location.reload();
+      });
+      navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(e => console.warn("SW registration failed", e));
+    });
   }
 })();

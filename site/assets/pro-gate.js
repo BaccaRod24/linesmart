@@ -25,40 +25,29 @@
     try { raw = localStorage.getItem(AC.AUTH_KEY) || ""; } catch (e) { raw = ""; }
     return G.tokenOf(raw);
   }
-  function playerFromDom() {
-    const a = document.querySelector("a[href*='#/p/']");
-    const m = a && /#\/p\/([^/]+)\/([^/?#]+)/.exec(a.getAttribute("href") || "");
-    return m ? { lg: decodeURIComponent(m[1]), id: decodeURIComponent(m[2]) } : null;
-  }
   /** Where Pro should attach. Public pages pass this into the private bundle. It does not grant access. */
   function context() {
-    const hash = location.hash || "";
-    const path = hash.replace(/^#\/?/, "").split("?")[0];
-    const segs = path ? path.split("/") : [];
-    const page = (document.body && document.body.dataset.page) || "";
-    const lgAttr = (document.body && document.body.dataset.lg) || "";
-    const route = (document.body && document.body.dataset.route) || "";
-    const base = { hash, page, lg: lgAttr, id: "", kind: "other" };
-    if (segs[0] === "owner") return { ...base, kind: "owner" };
-    if (segs[0] === "g" && segs[1] && segs[2]) return { ...base, kind: "game", lg: segs[1], id: decodeURIComponent(segs[2]) };
-    if (segs[0] === "p" && segs[1] && segs[2]) return { ...base, kind: "props", lg: segs[1], id: decodeURIComponent(segs[2]) };
-    if (segs[0] === "bets") return { ...base, kind: "bets" };
-    if (segs[0] === "l" && segs[1]) return { ...base, kind: "league", lg: segs[1] };
-    if (!segs[0]) {
-      if (page === "game") {
-        const r = route.split("/");
-        return { ...base, kind: "game", lg: r[1] || lgAttr, id: r[2] ? decodeURIComponent(r[2]) : "" };
-      }
-      if (page === "player") {
-        const found = playerFromDom();
-        return { ...base, kind: "props", lg: (found && found.lg) || lgAttr, id: (found && found.id) || "" };
-      }
-      if (page === "hub") return { ...base, kind: "league", lg: lgAttr };
-      if (page === "results") return { ...base, kind: "results", lg: lgAttr };
-      if (!page) return { ...base, kind: "home" };
-      return { ...base, kind: page };
-    }
-    return base;
+    const ds = (document.body && document.body.dataset) || {};
+    const link = document.querySelector("a[href*='#/p/']");
+    let ctx = G.pageContext({
+      hash: location.hash,
+      page: ds.page || "",
+      lg: ds.lg || "",
+      route: ds.route || "",
+      gid: ds.gid || "",
+      pid: ds.pid || "",
+      playerHref: link ? link.getAttribute("href") : "",
+    });
+    if (ctx.id) return ctx;
+    if (ctx.kind !== "game" && ctx.kind !== "props" && ds.page !== "game" && ds.page !== "player") return ctx;
+    const pages = window.LSApp && window.LSApp.pages && window.LSApp.pages();
+    const hit = pages && G.idFromPages(pages, location.pathname);
+    if (!hit) return ctx;
+    if (ds.page === "player" || hit.kind === "props") return { ...ctx, kind: "props", lg: hit.lg, id: hit.id };
+    return { ...ctx, kind: "game", lg: hit.lg, id: hit.id };
+  }
+  function stored() {
+    try { return localStorage.getItem(AC.AUTH_KEY) || ""; } catch (e) { return ""; }
   }
   async function ask(tok) {
     let res;
@@ -69,12 +58,39 @@
         body: "{}",
         cache: "no-store",
       });
-    } catch (e) { return "unknown"; }
-    if (!res.ok) return G.verdict(null, false);
+    } catch (e) { return { verdict: "unknown", status: 0 }; }
+    if (!res.ok) return { verdict: G.verdict(null, false), status: res.status };
     let body;
-    try { body = await res.json(); } catch (e) { return "unknown"; }
-    if (G.allow(body)) return "yes";
-    return G.verdict(body, true);
+    try { body = await res.json(); } catch (e) { return { verdict: "unknown", status: res.status }; }
+    if (G.allow(body)) return { verdict: "yes", status: res.status };
+    return { verdict: G.verdict(body, true), status: res.status };
+  }
+  // One refresh per stale access token. A TOKEN_REFRESHED event starts another check; it must not refresh again.
+  let refreshP = null, refreshedFor = null;
+  async function refreshOnce(stale) {
+    const key = stale || "";
+    if (refreshP) return refreshP;
+    if (refreshedFor === key) return "";
+    const acct = window.LSAccount;
+    if (!acct || !acct.client) return "";
+    refreshedFor = key;
+    refreshP = (async () => {
+      try {
+        const sb = await acct.client();
+        if (acct.session) {
+          const s = await acct.session();
+          const got = (s && s.access_token) || token();
+          if (got && got !== stale) return got;
+        }
+        if (!sb || !sb.auth || !sb.auth.refreshSession) return "";
+        const { data, error } = await sb.auth.refreshSession();
+        if (error || !data || !data.session) return "";
+        const next = data.session.access_token || "";
+        return next && next !== stale ? next : "";
+      } catch (e) { return ""; }
+      finally { refreshP = null; }
+    })();
+    return refreshP;
   }
   async function bundle(tok) {
     const res = await fetch(G.bundleUrl(AC.SB_URL), {
@@ -115,14 +131,30 @@
     started = true;
     try {
       noindex();
-      const tok = token();
+      const raw = stored();
+      let tok = G.tokenOf(raw);
+      if ((!tok || G.accessStale(raw)) && G.hasRefresh(raw)) {
+        const next = await refreshOnce(tok);
+        if (n !== gen) return;
+        if (next) tok = next;
+      }
       if (!tok) {
         if (n !== gen) return;
         conceal();
         return;
       }
-      const v = await ask(tok);
+      let result = await ask(tok);
       if (n !== gen) return;
+      if (result.status === 401 && G.hasRefresh(stored())) {
+        const next = await refreshOnce(tok);
+        if (n !== gen) return;
+        if (next && next !== tok) {
+          tok = next;
+          result = await ask(tok);
+          if (n !== gen) return;
+        }
+      }
+      const v = result.verdict;
       if (G.shouldHide(true, v)) { conceal(); return; }
       if (v !== "yes") {
         if (verified) await reveal(false);
@@ -139,7 +171,7 @@
       verified = true;
       await reveal(!first);
     } finally {
-      settle();
+      if (n === gen) settle();
     }
   }
 

@@ -37,7 +37,8 @@ Sign in with the LineSmart account from the statement above, then open `/owner.h
 only after `is_pro()` returns true. A flag in the browser does not turn it on.
 
 The same check runs on the rest of the site, but only when this browser already has a
-session token. When `is_pro()` is true, the private bundle adds Pro panels on game pages,
+session. An access token that has expired is refreshed once, then `is_pro()` is tried
+again. A browser flag still does not turn Pro on. When `is_pro()` is true, the private bundle adds Pro panels on game pages,
 hot-prop filters on player props pages, a stats panel on My Bets, and a sharp-move badge
 on the slate. Visitors and free accounts do not get those panels, and they do not download
 the bundle. A failed or timed-out `is_pro()` call does not remove Pro for a session that

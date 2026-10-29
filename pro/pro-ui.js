@@ -44,11 +44,34 @@
     const segs = path.split("/");
     return { screen: segs[1] || "", a: segs[2] || "", b: segs[3] || "", q: new URLSearchParams(qs || "") };
   };
-  const href = (screen, extra) => "#/owner" + (screen ? "/" + screen : "") + (extra || "");
+  function rootName() {
+    const h = String(location.hash || "").replace(/^#\/?/, "").split("?")[0].split("/")[0];
+    return h === "pro" ? "pro" : "owner";
+  }
+  const href = (screen, extra) => "#/" + rootName() + (screen ? "/" + screen : "") + (extra || "");
   const gameHref = (lg, id) => `${href("history")}/${esc(lg)}/${esc(id)}`;
   function hotState() {
     const q = parts().q;
     return { lg: q.get("lg") || "nfl", team: q.get("team") || "", player: q.get("player") || "", mk: q.get("mk") || "all" };
+  }
+  function rankState() {
+    const q = parts().q;
+    return { lg: q.get("lg") || "nfl", pos: q.get("pos") || "", view: q.get("view") === "hit" ? "hit" : "season", stat: q.get("stat") || "" };
+  }
+  function rankHash(patch) {
+    const Rk = window.Rankings;
+    const cur = rankState();
+    const n = { ...cur, ...patch };
+    const specs = Rk ? Rk.specsFor(n.lg) : [];
+    if (!specs.some(s => s.id === n.pos)) n.pos = (specs[0] && specs[0].id) || "";
+    const mode = Rk && n.lg === "nfl" ? Rk.resolveStat(n.lg, n.pos, n.stat) : null;
+    n.stat = mode ? mode.id : "";
+    const p = new URLSearchParams();
+    p.set("lg", n.lg || "nfl");
+    if (n.pos) p.set("pos", n.pos);
+    if (n.view === "hit") p.set("view", "hit");
+    if (n.stat) p.set("stat", n.stat);
+    return href("rankings") + "?" + p.toString();
   }
   function hotHash(patch) {
     const n = { ...hotState(), ...patch };
@@ -97,7 +120,7 @@
       <p class="note">Pro is data and software: odds comparison, line history, alerts and a bet tracker. It doesn't include picks or predictions, and nothing here can promise that a bet wins. Most bets lose. LineSmart doesn't take bets. Always confirm the price at the sportsbook.</p>`;
   }
   function crumbs(screen) {
-    const items = [["", "Overview"], ["value", "Value"], ["alerts", "Alerts"], ["tracker", "My Bets"], ["books", "Books"], ["history", "Line history"], ["refresh", "Refresh"], ["hot", "Hot props"]];
+    const items = [["", "Overview"], ["value", "Value"], ["alerts", "Alerts"], ["tracker", "My Bets"], ["books", "Books"], ["history", "Line history"], ["refresh", "Refresh"], ["hot", "Hot props"], ["rankings", "Rankings"]];
     return `<nav class="chips ppv-nav" aria-label="Pro">${items.map(([id, label]) => `<a class="chip${id === screen ? " on" : ""}" href="${href(id)}">${esc(label)}</a>`).join("")}</nav>`;
   }
   const shell = (screen, title, sub, body) => `<div class="ppv ppv-ready" data-pro-owner data-screen="${esc(screen)}">${banner()}${head(screen, title, sub)}${crumbs(screen)}${body}${fine()}</div>`;
@@ -180,11 +203,12 @@
     dash += hubBets();
     if (!dash) dash = EMPTY;
     const cards = ((window.ProCore && window.ProCore.FEATURES) || []).map(([k, label]) => `<a class="ppv-card pro-frame" href="${href(SCREEN[k])}">${PILL}<b>${esc(label)}</b><span>${esc(HINT[k] || "")}</span><span class="ppv-go">Open</span></a>`).join("")
+      + `<a class="ppv-card pro-frame" href="${href("rankings")}">${PILL}<b>Rankings</b><span>Top 10 at each position by season stat, and by how often they went over the current prop line. Only players the files actually cover.</span><span class="ppv-go">Open</span></a>`
       + `<a class="ppv-card pro-frame" href="${href("hot")}">${PILL}<b>Hot props</b><span>Same-line price gaps, prop line moves, and hot streaks, only from props files the site has. Saved filters stay in this browser.</span><span class="ppv-go">Open</span></a>`;
     const offers = G() && G().offersHTML ? G().offersHTML("pro") : "";
     return shell("", "LineSmart Pro", "Today's line moves, sharp flags, and My Bets, from the files already on the site.",
       `${flNote()}${dash}<h2 class="ppv-h">${PILL} Tools</h2><div class="ppv-grid">${cards}</div>
-      <p class="note">Sharp-move flags, line charts, game lines, My Bets, and hot props use the data files. Nothing here calls the odds provider, takes a payment, or sends email. The public waitlist stays at <a href="#/pro">#/pro</a> for everyone else.</p>
+      <p class="note">Sharp-move flags, line charts, game lines, My Bets, hot props, and rankings use the data files. Nothing here calls the odds provider, takes a payment, or sends email. The public waitlist stays at <a href="#/pro">#/pro</a> for everyone else.</p>
       ${offers}${buildLine()}`);
   }
 
@@ -546,6 +570,110 @@
       ${offers}`);
   }
 
+  function lineText(line) {
+    if (!isNum(line)) return "—";
+    const t = Math.round(line * 10) / 10;
+    return "O/U " + (Number.isInteger(t) ? String(t) : String(t));
+  }
+  function bookLabel(key) {
+    if (!key) return "";
+    const names = (F() && F().BOOK_NAME) || {};
+    return names[key] || key;
+  }
+  function whenIso(iso) {
+    if (!iso) return "";
+    try { return A() && A().fullET ? A().fullET(iso) : String(iso); }
+    catch (e) { return String(iso); }
+  }
+  async function loadPropsDoc(lg) {
+    const api = A();
+    if (!api || !api.getJSON) return null;
+    try {
+      const doc = await api.getJSON(`data/props/${lg}.json`);
+      if (doc && doc.games && Object.keys(doc.games).length) return doc;
+    } catch (e) { /* no props file for this league */ }
+    return null;
+  }
+  async function viewRankings() {
+    const Rk = window.Rankings;
+    if (!Rk) return shell("rankings", "Rankings", "Top 10 by position.", `<p class="pro-empty">Rankings didn't load.</p>`);
+    const st = rankState();
+    const lg = Rk.LEAGUES.some(([id]) => id === st.lg) ? st.lg : "nfl";
+    const specs = Rk.specsFor(lg);
+    const spec = specs.find(s => s.id === st.pos) || specs[0] || null;
+    const pos = spec ? spec.id : "";
+    const view = st.view === "hit" ? "hit" : "season";
+    const statMode = Rk.resolveStat(lg, pos, st.stat);
+    const statId = statMode ? statMode.id : "";
+    const label = (Rk.LEAGUES.find(([id]) => id === lg) || [, lg.toUpperCase()])[1];
+    const pack = (window.RankingsData && window.RankingsData.leagues && window.RankingsData.leagues[lg]) || null;
+    const chips = `<div class="chips" role="group" aria-label="League">${Rk.LEAGUES.map(([id, name]) => `<a class="chip${id === lg ? " on" : ""}" href="${rankHash({ lg: id })}"${id === lg ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;
+    const posChips = specs.length ? `<div class="chips rk-pos" role="group" aria-label="Position">${specs.map(s => `<a class="chip${s.id === pos ? " on" : ""}" href="${rankHash({ lg, pos: s.id, view })}"${s.id === pos ? ' aria-current="true"' : ""}>${esc(s.label)}</a>`).join("")}</div>` : "";
+    const viewChips = `<div class="chips rk-view" role="group" aria-label="Ranking">${[["season", "Season stats"], ["hit", "Prop hit rate"]].map(([id, name]) => `<a class="chip${view === id ? " on" : ""}" href="${rankHash({ lg, pos, view: id, stat: statId })}"${view === id ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;
+    const statModes = view === "season" ? Rk.statModes(lg, pos) : [];
+    const statChips = statModes.length ? `<div class="chips rk-stat" role="group" aria-label="Rank by">${statModes.map(m => `<a class="chip${m.id === statId ? " on" : ""}" href="${rankHash({ lg, pos, view, stat: m.id })}"${m.id === statId ? ' aria-current="true"' : ""}>${esc(m.label)}</a>`).join("")}</div>` : "";
+    const filters = `<section class="card ppv-filters" aria-label="Rankings filters">${chips}${posChips}<div class="ppv-frow">${viewChips}${statChips}</div></section>`;
+    let body = "";
+    if (view === "season") {
+      if (!pack || !spec) {
+        body = `<p class="pro-empty">No season player stats for ${esc(label)}. NFL and NBA are the leagues with a box-score cache. Nothing is filled in for the rest.</p>`;
+      } else {
+        const board = Rk.seasonBoard(pack.players, spec, Rk.TOP_N, statId);
+        const statName = board.statNote || (spec.cols[0] && spec.cols[0][1]) || "the stat";
+        const kind = spec.perGame ? `${esc(statName)} are per game, from games he appeared in.` : `${esc(statName)} are season totals.`;
+        const through = pack.through ? ` through ${esc(whenIso(pack.through))}` : "";
+        const lead = board.total ? `Top ${board.rows.length} of ${board.total} by ${esc(statName).toLowerCase()}.` : `No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.`;
+        const headCells = (board.cols || []).map(c => `<th class="${c.on ? "rk-on" : ""}">${esc(c.label)}</th>`).join("");
+        const table = board.rows.length ? `<div class="tbl-wrap"><table class="books rk-table"><thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>GP</th>${headCells}</tr></thead><tbody>${board.rows.map(r => `<tr><td class="num">${r.rank}</td><td><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a></td><td>${esc(r.team || "—")}</td><td class="num">${r.gp}</td>${r.cells.map(c => `<td class="num${c.on ? " rk-on" : ""}">${esc(c.text)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="pro-empty">No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.</p>`;
+        body = `<p class="rk-meta">${lead} ${pack.boxGames} regular-season games in the cache${through}. ${kind} Games played is how many of those games he appeared in. Postseason games are not in the cache.</p>${table}<p class="note">Counting stats from the cached ESPN box scores. The highlighted column is the one this list is ranked by. A roster name is required. Completed games only.</p>`;
+      }
+    } else {
+      const live = await loadPropsDoc(lg);
+      const prefer = preferBooks();
+      let src = "none", pulled = "", saw = false, entries = [], gameNote = "";
+      if (live) {
+        const got = Rk.fromProps(live, spec, prefer, null, lg);
+        saw = got.saw; entries = got.entries; src = "file";
+        const nGames = Object.keys(live.games || {}).length;
+        gameNote = `${nGames} game${nGames === 1 ? "" : "s"} in the props file.`;
+      } else if (pack && pack.props && pack.props.length && spec) {
+        const got = Rk.fromPack(pack.props, spec, prefer);
+        saw = got.saw; entries = got.entries; src = "pack";
+        pulled = pack.propsPulledAt ? ` Stored lines as of ${whenIso(pack.propsPulledAt)}.` : "";
+        const nGames = pack.propsGames || 0;
+        gameNote = nGames ? `${nGames} upcoming game${nGames === 1 ? "" : "s"} in that pull have lines.` : "";
+      }
+      const ranked = spec ? Rk.rankHits(entries) : { rows: [], total: 0, basis: null, min: Rk.HIT_MIN };
+      if (!spec || (!live && !(pack && pack.props && pack.props.length))) {
+        body = `<p class="pro-empty">No props data for ${esc(label)}. Hit rate stays blank. Nothing is estimated.</p>`;
+      } else if (!saw || !entries.length) {
+        body = `<p class="pro-empty">No ${esc(spec.label)} ${esc(spec.hitLabel).toLowerCase()} line from a book available in your state. A line that book did not post is left off.</p><p class="note">${esc(gameNote)} The list uses the current number only.</p>`;
+      } else if (!ranked.rows.length) {
+        body = `<p class="pro-empty">${entries.length} ${esc(spec.label)} ${entries.length === 1 ? "has a line" : "have lines"}, and none ${entries.length === 1 ? "has" : "have"} ${ranked.min} games against it. The minimum sample is ${ranked.min}. The list stays empty.</p>`;
+      } else {
+        const windowLabel = Rk.basisLabel(ranked.basis);
+        const table = `<div class="tbl-wrap"><table class="books rk-table"><thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>Line</th><th>Over</th><th>Rate</th></tr></thead><tbody>${ranked.rows.map(r => `<tr><td class="num">${r.rank}</td><td><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a></td><td>${esc(r.team || "—")}</td><td class="num">${esc(lineText(r.line))}<small>${esc(bookLabel(r.book))}${ranked.basis === "mixed" ? ` · ${esc(Rk.basisLabel(r.basis))}` : ""}</small></td><td class="num"><b>${esc(r.text)}</b></td><td class="num">${esc(r.pct == null ? "—" : Math.round(r.pct * 100) + "%")}</td></tr>`).join("")}</tbody></table></div>`;
+        const showing = ranked.total > ranked.rows.length ? `Top ${ranked.rows.length} of ${ranked.total}.` : `${ranked.rows.length} player${ranked.rows.length === 1 ? "" : "s"} with at least ${ranked.min} games.`;
+        const srcNote = src === "file"
+          ? "From the props file on the site. A season tally in that file is every cached game against the current line. When the file has no season tally, the row is the last 10 logged games, and it is labeled that way."
+          : `From the props lines stored with the box-score cache.${pulled} The live props file is not on this copy of the site. Each played game in the cache is graded against that current line.`;
+        body = `<p class="rk-meta">${esc(windowLabel)}. ${showing} ${esc(spec.hitLabel)} for ${esc(spec.label)}. ${esc(gameNote)} ${esc(rSampleNote(ranked))}</p>${table}<p class="note">${srcNote} ${esc(sampleExplain())}</p>`;
+      }
+    }
+    const sub = view === "hit" ? "How often each player went over the current prop line." : "Top 10 at each position by the counting stat for that spot.";
+    const offers = G() && G().offersHTML ? G().offersHTML("pro") : "";
+    return shell("rankings", "Rankings", sub,
+      `${flNote()}${filters}<section class="card pro-frame" id="proRankings" data-rk-lg="${esc(lg)}" data-rk-pos="${esc(pos)}" data-rk-view="${esc(view)}" data-rk-stat="${esc(statId)}"><h3 class="ppv-h">${PILL} ${view === "hit" ? "Prop hit rate" : "Season stats"} <span class="st-sub">${esc(label)}${pos ? " · " + esc(pos) : ""}</span></h3>${body}</section>${offers}`);
+  }
+  function rSampleNote(ranked) {
+    if (!ranked || !ranked.rows || !ranked.rows.length) return "";
+    const ex = ranked.rows[0];
+    return ex && ex.text ? `The Over column is overs out of games played, for example ${ex.text}.` : "";
+  }
+  function sampleExplain() {
+    return "Over means the game was higher than today's number. A push counts as a game and not as an over. Today's number is not the line that was posted for that game. Past results only. Not a pick.";
+  }
+
   async function render(screen) {
     if (screen === "value") return viewValue();
     if (screen === "alerts") return viewAlerts();
@@ -554,6 +682,7 @@
     if (screen === "history") return viewHistory();
     if (screen === "refresh") return viewRefresh();
     if (screen === "hot") return viewHot();
+    if (screen === "rankings") return viewRankings();
     return home();
   }
 

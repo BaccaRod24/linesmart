@@ -1285,7 +1285,13 @@
     if (h[0] === "account") return window.LSAccount ? window.LSAccount.view() : (app.innerHTML = `<div class="empty"><h3>Account didn't load</h3>Reload the page to try again.</div>`);
     if (isValue) return window.LSValue ? window.LSValue.view() : (app.innerHTML = `<div class="empty"><h3>Value finder didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "live") return viewLive();
-    if (h[0].split("?")[0] === "pro") return window.LSPro ? window.LSPro.view() : (app.innerHTML = `<div class="empty"><h3>LineSmart Pro didn't load</h3>Reload the page to try again.</div>`);
+    if (h[0].split("?")[0] === "pro") {
+      if (window.LSProGate && window.LSProGate.ready) await window.LSProGate.ready;
+      const nowPro = location.hash.replace(/^#\/?/, "").split("/")[0].split("?")[0];
+      if (nowPro !== "pro") return;
+      if (window.LSProApp && window.LSProApp.view && window.LSProGate && window.LSProGate.verified && window.LSProGate.verified()) return window.LSProApp.view();
+      return window.LSPro ? window.LSPro.view() : (app.innerHTML = `<div class="empty"><h3>LineSmart Pro didn't load</h3>Reload the page to try again.</div>`);
+    }
     if (h[0] === "search") return viewSearch(decodeURIComponent(h.slice(1).join("/") || ""));
     if (h[0] === "t" && h[1] && h[2]) return viewTeam(h[1], h[2]);
     if (h[0] === "p" && h[1] && h[2]) return viewPlayer(h[1], h[2], h[3]);
@@ -1314,6 +1320,7 @@
   document.addEventListener("click", e => {
     const a = e.target && e.target.closest && e.target.closest("a[href]");
     if (!a || !a.closest("[data-pro-owner]")) return;
+    if (a.dataset.proGoto === "game") return;
     const raw = a.dataset.h || a.getAttribute("href") || "";
     const m = /^#\/g\/([a-z0-9]+)\/([^/?#]+)/.exec(raw);
     if (!m) return;

@@ -592,6 +592,7 @@ class Shell:
         t = index_html
         t = re.sub(re.escape(HOME_START) + r".*?" + re.escape(HOME_END), "", t, flags=re.S)
         t = re.sub(r'<section class="intro wrap" id="intro".*?</section>\s*', "", t, flags=re.S)
+        t = re.sub(r'<nav class="intro-states[^"]*" id="homeStates".*?</nav>\s*', "", t, count=1, flags=re.S)
         t = re.sub(r'<script type="application/ld\+json"[^>]*>.*?</script>\s*', "", t, flags=re.S)
         t = re.sub(r'<noscript><style>#app \.loading.*?</noscript>\s*', "", t, count=1, flags=re.S)
         t = re.sub(r'<main class="wrap" id="app">.*?</main>', "\x00MAIN\x00", t, count=1, flags=re.S)

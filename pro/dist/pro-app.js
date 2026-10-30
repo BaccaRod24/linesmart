@@ -1,4 +1,4 @@
-window.__PRO_BUILD="0adee022f6-2026-10-29T14:25:34Z";
+window.__PRO_BUILD="820f7955cc-2026-10-30T17:59:40Z";
 /* Hot props for LineSmart Pro. Pure logic: no DOM, no network.
    Input is data/props/<lg>.json (the shape scripts/props.py writes) plus props-core.js.
    Browser: window.HotProps. Node: require("./hot-props-core.js"). */
@@ -1083,12 +1083,27 @@ window.__PRO_CSS = "/* Injected with the private Pro bundle. Not shipped in site
   const gamesOf = idx => (idx && idx.games) || [];
   const future = (idx, now) => gamesOf(idx).filter(g => g.state === "pre" && Date.parse(g.date) > now);
 
+  const OWNER_EMAIL = "copenhaverrodney24@yahoo.com";
+  // Label only. Who can open Pro is still is_pro(); this reads the stored session and does not call the network.
+  function ownerAccount() {
+    try {
+      const key = (window.AcctCore && window.AcctCore.AUTH_KEY) || "ls-sb-auth";
+      const j = JSON.parse(localStorage.getItem(key) || "null");
+      const user = j && (j.user || (j.currentSession && j.currentSession.user));
+      const email = user && typeof user.email === "string" ? user.email.trim() : "";
+      return email.toLowerCase() === OWNER_EMAIL;
+    } catch (e) { return false; }
+  }
   function banner() {
-    return `<div class="ppv-banner" role="status"><b>LineSmart Pro</b><span>Your account only. No payment. Not linked from the public site.</span></div>`;
+    const note = ownerAccount()
+      ? "Your account only. No payment. Not linked from the public site."
+      : "Pro access. No payment. Not linked from the public site.";
+    return `<div class="ppv-banner" role="status"><b>LineSmart Pro</b><span>${note}</span></div>`;
   }
   const labelOf = k => { const row = ((window.ProCore && window.ProCore.FEATURES) || []).find(x => x[0] === k); return row ? row[1] : k; };
   function head(screen, title, sub) {
-    return `<div class="page-head ppv-head"><div>${screen ? `<a class="lnk ppv-back" href="${href()}">Pro</a>` : `<span class="eyebrow">Owner</span>`}<h1>${esc(title)}</h1><div class="sub">${esc(sub)}</div></div></div>`;
+    const mark = screen ? `<a class="lnk ppv-back" href="${href()}">Pro</a>` : `<span class="eyebrow">${ownerAccount() ? "Owner" : "Pro"}</span>`;
+    return `<div class="page-head ppv-head"><div>${mark}<h1>${esc(title)}</h1><div class="sub">${esc(sub)}</div></div></div>`;
   }
   function fine() {
     const rg = G() && G().rgSpan ? G().rgSpan() : `Call or text <a href="tel:18004262537">1-800-GAMBLER</a>.`;

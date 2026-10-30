@@ -718,11 +718,14 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
         hist = LH.load(hpath, lg["key"]); added = LH.merge(hist, snap, run_t); pruned = LH.prune(hist); LH.save(hpath, hist)
         report["history"] = f"+{added} points, pruned {pruned}, tracking {len(hist['games'])} games"
     else:
-        hist = dict(games={}); LH.merge(hist, snap, run_t)
+        hist = dict(league=lg["key"], games={}); LH.merge(hist, snap, run_t)
         report["history"] = "no history dir (ESPN open line only)"
     for g in games:
         gh = hist["games"].get(g["id"])
-        if gh: g["move"] = LH.summarize(gh, lg["kind"], lg["key"])
+        if gh:
+            op = (gh.get("open") or {}).get("draftkings")
+            if op: LH.stamp_open(g, op)   # line card reads odds.*Open; history.open feeds the movement chart
+            g["move"] = LH.summarize(gh, lg["kind"], lg["key"])
         elif not g.get("stale"): g["move"] = None        # a stale copy keeps the movement it was saved with
     # game-day weather (Open-Meteo); fail soft: WX.attach never raises. Stale copies keep their saved forecast.
     if weather:

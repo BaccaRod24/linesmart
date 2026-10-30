@@ -15,7 +15,7 @@ File format (v1):
     "<espn event id>": {
       "date": "<start UTC>", "home": "SEA", "away": "KC",
       "firstSeen": "<UTC>", "lastSeen": "<UTC>",
-      "open":  {"draftkings": {..same keys as a point..}},      # ESPN-reported opening line
+      "open":  {"draftkings": {..same keys as a point..}},      # opening line (ESPN, side-checked)
       "books": {"draftkings": [["<UTC>", {"hs": -3, "as": 3, "hso": -110, "aso": -110,
                                          "hml": -162, "aml": 136, "dml": null,
                                          "tot": 43.5, "ov": -110, "un": -110}], ...]}
@@ -40,6 +40,76 @@ FIELDS = {"hs": "homeSpread", "as": "awaySpread", "hso": "homeSpreadOdds", "aso"
 OPEN_FIELDS = {"hs": "homeSpreadOpen", "as": "awaySpreadOpen", "hml": "homeMLOpen", "aml": "awayMLOpen",
                "dml": "drawMLOpen", "tot": "totalOpen"}
 BOOK_ORDER = ["draftkings", "hardrockbet", "fanduel"]
+# ESPN's opening total for basketball is sometimes a stale number that never traded.
+# Totals we actually record sit within 2 points of a real open. Farther than this, the
+# ESPN figure is dropped for the first total the snapshots recorded.
+BASKETBALL_TOTAL_OPEN_GAP = 4
+LEAGUE_KIND = {"nfl": "football", "ncaaf": "football", "nba": "basketball", "ncaab": "basketball",
+               "nhl": "hockey", "mlb": "baseball", "epl": "soccer", "mls": "soccer", "ucl": "soccer", "ufc": "mma"}
+OPEN_TO_GAME = {"hs": "homeSpreadOpen", "as": "awaySpreadOpen", "hml": "homeMLOpen", "aml": "awayMLOpen",
+                "dml": "drawMLOpen", "tot": "totalOpen"}
+
+def league_kind(league):
+    return LEAGUE_KIND.get(league or "", "")
+
+def _spread_side(hs):
+    """Which side is laying points. A pick'em (0) and a missing number have no side."""
+    if hs is None or hs == 0: return None
+    return "home" if hs < 0 else "away"
+
+def _ml_side(hml, aml):
+    """Which moneyline is the favorite. Even prices and a missing price have no side."""
+    ih, ia = implied(hml), implied(aml)
+    if ih is None or ia is None or abs(ih - ia) < 1e-9: return None
+    return "home" if ih > ia else "away"
+
+def reconcile_open(op, points=None, kind=""):
+    """Correct one book's opening line using that book's recorded snapshots.
+
+    ESPN sometimes stores the opening spread on the wrong side: home gets the away
+    number (the signs flip) while the opening moneyline stays with the right team.
+    A team is not a spread favorite and a moneyline dog at the same open. When those
+    disagree, and the first recorded spread agrees with the moneyline (or we have no
+    recorded spread yet), the two opening spreads are swapped.
+
+    A basketball opening total that is more than BASKETBALL_TOTAL_OPEN_GAP points
+    from every recorded total never traded in the snapshots. It is replaced with the
+    first total those snapshots recorded.
+    """
+    if not op: return op
+    out = dict(op)
+    points = list(points or [])
+    sp, ml = _spread_side(out.get("hs")), _ml_side(out.get("hml"), out.get("aml"))
+    if sp and ml and sp != ml:
+        series_sp = next((s for s in (_spread_side(p.get("hs")) for p in points) if s), None)
+        if series_sp is None or series_sp == ml:
+            hs, as_ = out.get("hs"), out.get("as")
+            if hs is not None and as_ is not None:
+                out["hs"], out["as"] = as_, hs
+            elif hs is not None:
+                out["hs"] = -hs
+            elif as_ is not None:
+                out["as"] = -as_
+    if kind == "basketball" and out.get("tot") is not None:
+        observed = [p["tot"] for p in points if p.get("tot") is not None]
+        if observed and min(abs(out["tot"] - t) for t in observed) > BASKETBALL_TOTAL_OPEN_GAP:
+            out["tot"] = observed[0]
+    return out
+
+def stamp_open(game, op):
+    """Copy a reconciled DraftKings open onto the odds objects the line card reads."""
+    if not op: return
+    targets = []
+    books = game.get("books") or {}
+    dk = books.get("draftkings")
+    if isinstance(dk, dict): targets.append(dk)
+    odds = game.get("odds")
+    if isinstance(odds, dict):
+        prov = "".join(c for c in (odds.get("provider") or "").lower() if c.isalpha())
+        if "draftkings" in prov or dk is None: targets.append(odds)
+    for t in targets:
+        for k, src in OPEN_TO_GAME.items():
+            if op.get(k) is not None: t[src] = op[k]
 
 def now_iso():
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -91,13 +161,19 @@ def load(path, league):
     return dict(v=1, league=league, updated=None, games={})
 
 def merge(hist, snap, t):
-    """Append changed points from one run's snapshot (taken at UTC time t). Returns #points appended."""
+    """Append changed points from one run's snapshot (taken at UTC time t). Returns #points appended.
+
+    The opening line is reconciled after the points are updated, so a bad ESPN open
+    (spread on the wrong side, or a basketball total that never appears in the
+    snapshots) is corrected from those snapshots on the way in. A later run that
+    sends the same bad open is corrected again; it does not stick.
+    """
     added = 0
+    kind = league_kind(hist.get("league"))
     for gid, s in snap.items():
         g = hist["games"].setdefault(gid, dict(date=s["date"], home=s.get("home"), away=s.get("away"), firstSeen=t, lastSeen=t, open={}, books={}))
         g.update(date=s["date"], home=s.get("home"), away=s.get("away"))
         if t > (g.get("lastSeen") or ""): g["lastSeen"] = t
-        for bk, op in (s.get("open") or {}).items(): g["open"][bk] = op
         for bk, pt in s["books"].items():
             tb = (s.get("bt") or {}).get(bk) or t         # per-book observation time (e.g. Hard Rock pull time)
             pts = g["books"].setdefault(bk, [])
@@ -105,6 +181,9 @@ def merge(hist, snap, t):
                 continue
             if not pts or pts[-1][1] != pt:
                 pts.append([tb, pt]); added += 1
+        for bk, op in (s.get("open") or {}).items():
+            series = [p[1] for p in g["books"].get(bk, [])]
+            g["open"][bk] = reconcile_open(op, series, kind)
     hist["updated"] = max(hist.get("updated") or "", t)
     return added
 

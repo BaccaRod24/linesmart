@@ -87,9 +87,12 @@ const MEMBER_TOKEN = "test-member-token";
   for (const f of shipped) {
     if (!fs.existsSync(f)) continue;
     const t = read(f);
-    check(!ownerEmail || !t.includes(ownerEmail), `${f} has no owner email`);
+    if (f !== "pro/pro-ui.js") check(!ownerEmail || !t.includes(ownerEmail), `${f} has no owner email`);
     check(!/contact@linesmart\.app/.test(t), `${f} does not use the contact address as a sign-in`);
   }
+  const uiEarly = read("pro/pro-ui.js");
+  check(/const OWNER_EMAIL = "copenhaverrodney24@yahoo\.com"/.test(uiEarly) && /email\.toLowerCase\(\) === OWNER_EMAIL/.test(uiEarly), "hub badge matches the owner email, case-insensitive, from the stored session");
+  check(/localStorage\.getItem/.test(uiEarly) && !/getSession\(/.test(uiEarly) && !/\/auth\/v1\/user/.test(uiEarly), "the badge does not call auth");
 }
 
 {
@@ -398,6 +401,32 @@ async function quiet(page) {
   check(/21\+/.test(text) && /Hard Rock Bet is the only legal online sportsbook/.test(text), "owner home: 21+ and Florida line");
   check(/Pro build /.test(text) && /site dev/.test(text), "owner hub shows the build stamp");
   check(logs.some(l => /^LineSmart Pro build \S+$/.test(l) && !l.endsWith("no-build-id")), "gate logs the embedded bundle build id");
+  const mark = await page.evaluate(() => {
+    const badge = document.querySelector(".ppv-head .eyebrow");
+    const note = document.querySelector(".ppv-banner span");
+    return { badge: badge ? badge.textContent : "", note: note ? note.textContent : "" };
+  });
+  check(mark.badge === "Pro" && mark.note === "Pro access. No payment. Not linked from the public site.", `other Pro account sees PRO, not OWNER (${mark.badge} / ${mark.note})`);
+  await page.evaluate(() => {
+    const raw = JSON.parse(localStorage.getItem("ls-sb-auth"));
+    raw.user.email = "CopenhaverRodney24@Yahoo.COM";
+    localStorage.setItem("ls-sb-auth", JSON.stringify(raw));
+    return window.LSProApp.view();
+  });
+  await page.waitForFunction(() => {
+    const el = document.querySelector(".ppv-head .eyebrow");
+    return !!el && el.textContent === "Owner";
+  }, null, { timeout: 15000 });
+  const ownerMark = await page.evaluate(() => ({
+    badge: document.querySelector(".ppv-head .eyebrow").textContent,
+    note: document.querySelector(".ppv-banner span").textContent,
+  }));
+  check(ownerMark.badge === "Owner" && ownerMark.note === "Your account only. No payment. Not linked from the public site.", `owner email sees OWNER (${ownerMark.badge} / ${ownerMark.note})`);
+  await page.evaluate(() => {
+    const raw = JSON.parse(localStorage.getItem("ls-sb-auth"));
+    raw.user.email = "pro-owner-test@example.com";
+    localStorage.setItem("ls-sb-auth", JSON.stringify(raw));
+  });
   await page.goto(BASE + "#/pro/rankings?lg=nfl&pos=QB&view=season", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#proRankings[data-rk-view='season'] a.rk-player", { timeout: 15000 });
   const season = await page.locator("#proRankings").innerText();

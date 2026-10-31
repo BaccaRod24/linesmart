@@ -14,6 +14,8 @@
   const PAGE = document.body.dataset.page || "", PAGE_ROUTE = document.body.dataset.route || "", PAGE_LG = document.body.dataset.lg || "";
   // the generated page's "What to watch" notes (static, crawlable): kept and shown under the match header when this page's game hydrates
   const PAGE_WTW = (document.querySelector("#app #wtw-s") || {}).outerHTML || "";
+  // H1 + data-driven intro. The game view replaces #app, so keep this block on the matching pre-game / live route.
+  const PAGE_SEO = (document.querySelector("#app .seo-head") || {}).outerHTML || "";
   let PAGES = {};
   const realPath = hash => {   // "#/g/nfl/401…" → "nfl/games/…/" (only exact app views that have a page; sub-views like /log stay in the app)
     const m = /^#\/([lgtp])\/([a-z0-9]+)(?:\/([^/?#]+))?\/?$/.exec(hash || "");
@@ -534,6 +536,7 @@
         <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}${g.neutral ? " (neutral)" : ""}</div><div class="where">${esc(g.broadcasts.join(", "))}</div>${g.note ? `<div class="where">${esc(g.note)}</div>` : ""}${window.LSWeather && g.state !== "post" && g.weather ? `<div class="where wx-where">${window.LSWeather.chip(g)}</div>` : ""}</div>
         <div class="mteam home">${logo(H)}<div><div class="nm">${H.rank ? `<span class="rk" style="color:var(--warn)">#${H.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${H.id}">${esc(H.name)}</a></div><div class="rec">${esc(H.record || "—")} · Home ${esc(H.homeRecord || "—")}${formDots(H.form)}</div></div></div>
       </div>${staleNote(g0.stale, "game details")}`;
+    if (PAGE_SEO && (g.state === "pre" || g.state === "in") && PAGE_ROUTE === `g/${key}/${id}`) html = PAGE_SEO + html;
     if (focus !== "stats" && PAGE_WTW && g.state === "pre" && PAGE_ROUTE === `g/${key}/${id}`) html += PAGE_WTW;
 
     const wireLive = () => startLive([liveRef(key, g0)], { lg: key, id: String(g0.id), g: g0, A, H, kind });

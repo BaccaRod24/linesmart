@@ -1640,6 +1640,14 @@ body:has(.news-bets) .footer .news-foot{display:none}
 .pv h2.section-title{margin-top:26px}
 .pv-tbl{margin-top:0}
 .pv-tbl .books th,.pv-tbl .books td{padding:9px 10px}
+/* Best-lines table: fit the 980px article on a desktop, scroll sideways on a phone. */
+.sx-lines .bl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+.sx-lines .bl-scroll table.books{width:max-content;min-width:100%}
+@media (min-width:900px){
+  .sx-lines .bl-scroll table.books{width:100%;font-size:12.5px}
+  .sx-lines .bl-scroll th,.sx-lines .bl-scroll td{padding:8px 6px}
+  .sx-lines .bl-scroll td:first-child,.sx-lines .bl-scroll th:first-child{white-space:normal;overflow-wrap:anywhere}
+}
 .pv-books td:first-child{white-space:nowrap}
 .pv .na{color:var(--dim);font-weight:500}
 .pv-move td,.pv-move th{text-align:center}

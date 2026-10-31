@@ -85,13 +85,15 @@ SUFFIX = " | LineSmart"
 TITLE_MAX = 60
 DESC_MAX = 155
 TITLE_BOOK = {"hardrockbet": "Hard Rock", "draftkings": "DraftKings", "fanduel": "FanDuel"}   # short names for titles/descriptions
+BOOK_TAG = {"hardrockbet": "HR", "draftkings": "DK", "fanduel": "FD"}   # table cells; ties read "DK, FD"
+BEST_LINES = "best-lines-today/"
 
 # Shared with geo-core.js. The browser file site/assets/books-by-state.js is generated from this JSON.
 BOOKS_PATH = ROOT / "data" / "books-by-state.json"
 ASOF_MAX_DAYS = 30
 # A state slug is a top-level directory the build swaps. These names belong to leagues, tools, or the index.
 RESERVED_DIRS = set(LEAGUE_DIRS) | {
-    "states", "assets", "data", "preview",
+    "states", "assets", "data", "preview", "best-lines-today",
     "about", "responsible-gambling", "privacy", "terms", "affiliate-disclosure",
     "subscribed", "unsubscribe", "index",
 }
@@ -174,7 +176,7 @@ _BOOKS_DOC = load_books()
 _SLUG_CLASH = slug_clashes(_BOOKS_DOC)
 if _SLUG_CLASH:
     raise SystemExit("seo_pages: state slug clashes with a league or tool folder: " + ", ".join(_SLUG_CLASH))
-GEN_DIRS = LEAGUE_DIRS + [s for _, _, s in legal_states(_BOOKS_DOC)] + ["states"]
+GEN_DIRS = LEAGUE_DIRS + [s for _, _, s in legal_states(_BOOKS_DOC)] + ["states", "best-lines-today"]
 
 
 def iso(dt):
@@ -348,6 +350,17 @@ def title_day(dt):
     """'Sun, Nov 1' (ET)"""
     d = et(dt)
     return f"{d.strftime('%a, %b')} {d.day}"
+
+
+def clock_et(dt):
+    """Clock the game hero uses, without the date: '1:00 PM ET'."""
+    d = et(dt)
+    h = d.strftime("%I").lstrip("0")
+    return f"{h}:{d.strftime('%M %p')} ET"
+
+
+def weekday_long(dt):
+    return et(dt).strftime("%A")
 
 
 # ---------------------------------------------------------------- archive
@@ -988,7 +1001,11 @@ class League:
         if self.lg == "ufc":
             return f"{tname(a)} vs. {tname(h)}"
         n = (lambda t: pv.side_name(t)) if short else tname
-        return f"{n(a)} at {n(h)}"
+        na, nh = n(a), n(h)
+        if short and na == nh:
+            na, nh = tname(a), tname(h)
+        sep = "vs" if g.get("neutral") else "at"
+        return f"{na} {sep} {nh}"
 
     def lines_brief(self, g):
         """'PHI -6.5 · O/U 54.5' from the reference book."""
@@ -1414,11 +1431,431 @@ def wtw_section(notes):
     return f'<section class="wtw" aria-labelledby="wtw" id="wtw-s"><h2 class="section-title" id="wtw">What to watch</h2>{inner}</section>' if inner else ""
 
 
+def _title_word(w):
+    return " ".join(p[:1].upper() + p[1:] if p else p for p in (w or "").split())
+
+
+def title_markets(mk):
+    """Market phrase for a title. Moneyline is dropped unless it is the only market.
+    'Spread & Total', 'Puck Line & Total', 'Run Line & Total', 'Spread', 'Total', 'Moneyline'."""
+    words = [w for w in (mk or []) if w != "moneyline"]
+    if not words and "moneyline" in (mk or []):
+        words = ["moneyline"]
+    titled = [_title_word(w) for w in words if w]
+    if not titled:
+        return ""
+    if len(titled) == 1:
+        return titled[0]
+    return ", ".join(titled[:-1]) + " & " + titled[-1]
+
+
+def _market_one(mk):
+    words = [w for w in (mk or []) if w != "moneyline"]
+    if not words and "moneyline" in (mk or []):
+        words = ["moneyline"]
+    return _title_word(words[0]) if words else ""
+
+
+def pair_shorts(g):
+    """Away and home short names. Two identical shorts fall back to the full name for both."""
+    a, h = g["away"], g["home"]
+    sa, shn = pv.side_name(a), pv.side_name(h)
+    if sa == shn:
+        sa, shn = tname(a), tname(h)
+    return sa, shn
+
+
+def _vs_forms(g):
+    a, h = g["away"], g["home"]
+    sa, shn = pair_shorts(g)
+    return f"{sa} vs {shn}", f"{a.get('abbr') or sa} vs {h.get('abbr') or shn}"
+
+
+def _side_label(g, side):
+    a, h = g["away"], g["home"]
+    t = h if side == "home" else a
+    if pv.side_name(a) == pv.side_name(h):
+        return tname(t)
+    return pv.side_name(t)
+
+
+def posted_books(g, lg):
+    """Numbers on the page: live books limited to page_books, else the odds column under that book's key."""
+    live = pv.live_books(g)
+    keys = [k for k in page_books(g, lg) if k in live]
+    if keys:
+        return {k: live[k] for k in keys}
+    o = g.get("odds") or {}
+    if not (pv.has_line(g) and isinstance(o, dict) and any(isnum(o.get(k)) for k in ("homeML", "awayML", "homeSpread", "total"))):
+        return {}
+    named = page_books(g, lg)
+    if len(named) == 1:
+        return {named[0]: o}
+    return {"odds": o}
+
+
+def _book_keys(books):
+    keys = [k for k in pv.SUMMARY_BOOK_ORDER if k in books]
+    return keys + [k for k in books if k not in keys]
+
+
+def _book_name(k, g=None):
+    if k in TITLE_BOOK:
+        return TITLE_BOOK[k]
+    if k == "odds":
+        prov = ((g.get("odds") or {}).get("provider") or "").strip() if g else ""
+        return prov or "ESPN"
+    return pv.BOOK_NAME.get(k) or ""
+
+
+def spread_phrase(g, books):
+    """Favorite and number, or a range when books disagree. 'pick'em'. Moneyline-only: '{fav} {ml}'."""
+    rows = []
+    for k in _book_keys(books):
+        hs = books[k].get("homeSpread")
+        if not isnum(hs):
+            continue
+        if hs < 0:
+            rows.append((_side_label(g, "home"), hs))
+        elif hs > 0:
+            rows.append((_side_label(g, "away"), -hs))
+        else:
+            rows.append((None, 0))
+    if rows:
+        if all(sp == 0 for _, sp in rows):
+            return "pick'em"
+        sided = [(n, sp) for n, sp in rows if sp]
+        if sided and len({n for n, _ in sided}) == 1:
+            fav = sided[0][0]
+            nums = []
+            for _, sp in sided:
+                if sp not in nums:
+                    nums.append(sp)
+            if len(nums) == 1:
+                return f"{fav} {line(nums[0])}"
+            return f"{fav} {line(max(nums))} to {line(min(nums))}"
+        return ""
+    ml_rows = []
+    for k in _book_keys(books):
+        b = books[k]
+        hml, aml = b.get("homeML"), b.get("awayML")
+        if isnum(hml) and isnum(aml):
+            ml_rows.append((_side_label(g, "home"), hml) if hml <= aml else (_side_label(g, "away"), aml))
+        elif isnum(hml):
+            ml_rows.append((_side_label(g, "home"), hml))
+        elif isnum(aml):
+            ml_rows.append((_side_label(g, "away"), aml))
+    if ml_rows and len({n for n, _ in ml_rows}) == 1:
+        fav = ml_rows[0][0]
+        prices = []
+        for _, p in ml_rows:
+            if p not in prices:
+                prices.append(p)
+        if len(prices) == 1:
+            return f"{fav} {am(prices[0])}"
+        return f"{fav} {am(max(prices))} to {am(min(prices))}"
+    return ""
+
+
+def _total_bit(books):
+    seen = []
+    for k in _book_keys(books):
+        t = books[k].get("total")
+        if isnum(t) and t not in seen:
+            seen.append(t)
+    if len(seen) == 1:
+        return f"total {num(seen[0])}"
+    if len(seen) > 1:
+        return f"total {num(min(seen))}–{num(max(seen))}"
+    return ""
+
+
+def compare_sentence(mk, has_props):
+    bits = [w for w in (mk or []) if w not in ("total", "total rounds")]
+    if "total rounds" in (mk or []):
+        bits.append("total rounds")
+    elif "total" in (mk or []):
+        bits.append("total")
+    if has_props:
+        bits.append("player props")
+    return ("Compare " + and_list(bits) + ".") if bits else ""
+
+
+def _legacy_line_desc(vs0, day, bnames, mk, has_props, lg):
+    what = (" and ".join([", ".join(mk), "player props"]) if has_props else and_list(mk)) if mk else ("player props" if has_props else "")
+    desc = f"Compare {vs0} odds for {day}" + (f" at {and_list(bnames)}" if bnames else "") + (f": {what}." if what else ".")
+    if len(desc) < 110 and lg != "ufc" and not has_props:
+        desc += " Line movement, form and injuries."
+    return desc
+
+
+def line_desc(L, g, v0, day, books, bnames, mk, has_props):
+    phrase = spread_phrase(g, books)
+    if not phrase:
+        return _legacy_line_desc(v0, day, bnames, mk, has_props, L.lg)
+    total_bit = _total_bit(books)
+    book_s = and_list(bnames)
+    tail = compare_sentence(mk, has_props)
+    clock = clock_et(parse_dt(g["date"]))
+
+    def core(with_time):
+        s = f"{v0} odds for {day}" + (f", {clock}" if with_time else "") + f": {phrase}"
+        if total_bit:
+            s += f", {total_bit}"
+        if book_s:
+            s += f" at {book_s}"
+        return s + "."
+
+    full = core(True) + (f" {tail}" if tail else "")
+    if len(full) <= DESC_MAX:
+        return full
+    if len(core(True)) <= DESC_MAX:
+        return core(True)
+    if len(core(False)) <= DESC_MAX:
+        return core(False)
+    return _legacy_line_desc(v0, day, bnames, mk, has_props, L.lg)
+
+
+def upcoming_title_cands(L, g, vs, mk, dt):
+    """Title candidates for an upcoming or live game. Finished games do not use this."""
+    D = short_day(dt, False)
+    if L.lg == "ufc":
+        if pv.has_line(g):
+            return [f"{v} Odds ({D})" for v in vs] + [f"{v} Odds" for v in vs]
+        out = []
+        for v in vs:
+            out += [f"{v} Odds & Preview ({D})", f"{v} Odds ({D})"]
+        return out
+    v0, v1 = _vs_forms(g)
+    if not pv.has_line(g):
+        return [f"{v0} Odds & Preview ({D})", f"{v0} Odds ({D})", f"{v1} Odds & Preview ({D})", f"{v1} Odds ({D})"]
+    M, M1 = title_markets(mk), _market_one(mk)
+    if not M:
+        return [f"{v0} Odds ({D})", f"{v1} Odds ({D})", f"{v0} Odds", f"{v1} Odds"]
+    return [
+        f"{v0} Odds, {M} ({D})",
+        f"{v0} Odds & {M1} ({D})",
+        f"{v0} Odds, {M}",
+        f"{v0} Odds ({D})",
+        f"{v1} Odds, {M} ({D})",
+        f"{v1} Odds ({D})",
+        f"{v1} Odds",
+    ]
+
+
+def game_h1(L, g):
+    """H1 for an upcoming or live game. Full names; 'vs' on a neutral site."""
+    a, h = g["away"], g["home"]
+    dt = parse_dt(g["date"])
+    sep = "vs." if L.lg == "ufc" else "vs" if g.get("neutral") else "at"
+    pair = f"{tname(a)} {sep} {tname(h)}"
+    if g.get("state") == "in":
+        return f"{pair} Live Odds"
+    wd, D = weekday_long(dt), short_day(dt, False)
+    if not pv.has_line(g):
+        return f"{pair} Odds & Preview – {wd}, {D}"
+    M = title_markets(market_words(g, L.kind))
+    return f"{pair} Odds, {M} – {wd}, {D}" if M else f"{pair} Odds – {wd}, {D}"
+
+
+def _ranked(t, name):
+    r = t.get("rank")
+    return f"No. {r} {name}" if r else name
+
+
+def _intro_when(g):
+    dt = parse_dt(g.get("date"))
+    if not dt:
+        return ""
+    a, h = g["away"], g["home"]
+    sa, shn = pair_shorts(g)
+    venue, city = (g.get("venue") or "").strip(), (g.get("city") or "").strip()
+    if venue and city:
+        place = f" at {venue} in {city}"
+    elif venue:
+        place = f" at {venue}"
+    elif city:
+        place = f" in {city}"
+    else:
+        place = ""
+    neutral = " (neutral site)" if g.get("neutral") else ""
+    return f"{_ranked(a, sa)} and {_ranked(h, shn)} meet {weekday_long(dt)}, {short_day(dt, False)} at {clock_et(dt)}{place}{neutral}."
+
+
+def _intro_line(g, books):
+    keys = _book_keys(books)
+    names = [n for n in (_book_name(k, g) for k in keys) if n]
+
+    def groups(fn):
+        order, grouped = [], {}
+        for k in keys:
+            v = fn(books[k])
+            if v is None:
+                continue
+            name = _book_name(k, g)
+            if not name:
+                continue
+            if v not in grouped:
+                grouped[v] = []
+                order.append(v)
+            if name not in grouped[v]:
+                grouped[v].append(name)
+        return [(v, grouped[v]) for v in order]
+
+    def total_clause():
+        tg = groups(lambda b: b.get("total") if isnum(b.get("total")) else None)
+        if not tg:
+            return ""
+        if len(tg) == 1:
+            return f"the total is {num(tg[0][0])}"
+        return "the total is " + and_list(f"{num(v)} at {and_list(ns)}" for v, ns in tg)
+
+    favs = []
+    for k in keys:
+        hs = books[k].get("homeSpread")
+        if not isnum(hs):
+            continue
+        if hs == 0:
+            favs.append((k, "", 0))
+        elif hs < 0:
+            favs.append((k, _side_label(g, "home"), abs(hs)))
+        else:
+            favs.append((k, _side_label(g, "away"), abs(hs)))
+    if favs:
+        tc = total_clause()
+        if all(n == 0 for _, _, n in favs):
+            s = f"The spread is a pick'em at {and_list(names)}" if names else "The spread is a pick'em"
+            return s + (f"; {tc}." if tc else ".")
+        sided = [(k, name, n) for k, name, n in favs if n != 0]
+        if len({name for _, name, _ in sided}) == 1:
+            fav = sided[0][1]
+            order, grouped = [], {}
+            for k, _, n in sided:
+                bn = _book_name(k, g)
+                if not bn:
+                    continue
+                if n not in grouped:
+                    grouped[n] = []
+                    order.append(n)
+                if bn not in grouped[n]:
+                    grouped[n].append(bn)
+            if not order:
+                return ""
+            if len(order) == 1:
+                s = f"{fav} is favored by {num(order[0])} at {and_list(grouped[order[0]])}"
+            else:
+                s = f"{fav} is favored by " + and_list(f"{num(n)} at {and_list(grouped[n])}" for n in order)
+            return s + (f"; {tc}." if tc else ".")
+        return ""
+    ml_rows = []
+    for k in keys:
+        b = books[k]
+        hml, aml = b.get("homeML"), b.get("awayML")
+        if isnum(hml) and isnum(aml):
+            if hml == aml:
+                ml_rows.append((k, "", hml))
+            else:
+                ml_rows.append((k, _side_label(g, "home"), hml) if hml < aml else (k, _side_label(g, "away"), aml))
+        elif isnum(hml):
+            ml_rows.append((k, _side_label(g, "home"), hml))
+        elif isnum(aml):
+            ml_rows.append((k, _side_label(g, "away"), aml))
+    if not ml_rows:
+        tc = total_clause()
+        return (tc[:1].upper() + tc[1:] + ".") if tc else ""
+    if all(not name for _, name, _ in ml_rows):
+        who = and_list(names)
+        return f"Both sides are priced at {am(ml_rows[0][2])} on the moneyline" + (f" at {who}." if who else ".")
+    if len({name for _, name, _ in ml_rows if name}) != 1:
+        return ""
+    fav = next(name for _, name, _ in ml_rows if name)
+    order, grouped = [], {}
+    for k, name, price in ml_rows:
+        if not name:
+            continue
+        bn = _book_name(k, g)
+        if not bn:
+            continue
+        if price not in grouped:
+            grouped[price] = []
+            order.append(price)
+        if bn not in grouped[price]:
+            grouped[price].append(bn)
+    if not order:
+        return ""
+    if len(order) == 1:
+        return f"{fav} is the moneyline favorite at {am(order[0])} at {and_list(grouped[order[0]])}."
+    return f"{fav} is " + and_list(f"{am(p)} at {and_list(grouped[p])}" for p in order) + " on the moneyline."
+
+
+def _intro_move(L, g):
+    _, facts = pv.movement(g, L.kind)
+    by = {k: (op, cur) for k, op, cur, _d in facts}
+    if not by:
+        return ""
+    book = TITLE_BOOK.get((g.get("move") or {}).get("book")) or pv.BOOK_NAME.get((g.get("move") or {}).get("book")) or ""
+    if not book:
+        return ""
+
+    def signed(hs):
+        if not isnum(hs) or hs == 0:
+            return None
+        if hs < 0:
+            return _side_label(g, "home"), line(hs)
+        return _side_label(g, "away"), line(-hs)
+
+    spread_bit = ""
+    if "spread" in by:
+        a, b = signed(by["spread"][0]), signed(by["spread"][1])
+        if a and b and a[0] == b[0]:
+            spread_bit = f"the spread has moved from {a[0]} {a[1]} to {b[1]}"
+        elif a and b:
+            spread_bit = f"the spread has moved from {a[0]} {a[1]} to {b[0]} {b[1]}"
+    total_bit = ""
+    if "total" in by:
+        op, cur = by["total"]
+        total_bit = f"the total from {num(op)} to {num(cur)}" if spread_bit else f"the total has moved from {num(op)} to {num(cur)}"
+    if spread_bit and total_bit:
+        return f"At {book}, {spread_bit} and {total_bit}."
+    if spread_bit:
+        return f"At {book}, {spread_bit}."
+    if total_bit:
+        return f"At {book}, {total_bit}."
+    return ""
+
+
+def _compare_book_names(lg):
+    keys = [k for k in pv.SUMMARY_BOOK_ORDER if lg != "ufc" or k == "draftkings"]
+    return and_list(TITLE_BOOK[k] for k in keys)
+
+
+def game_intro(L, g, gid):
+    """Two or three sentences under the H1, from fields already on the page. Pre-game and live only."""
+    if L.is_final(g) or abnormal(g):
+        return ""
+    parts = []
+    when = _intro_when(g)
+    if when:
+        parts.append(when)
+    books = posted_books(g, L.lg)
+    if pv.has_line(g) and books:
+        line_s = _intro_line(g, books)
+        if line_s:
+            parts.append(line_s)
+        move = _intro_move(L, g)
+        if move:
+            parts.append(move)
+    elif not pv.has_line(g):
+        names = _compare_book_names(L.lg)
+        if names:
+            parts.append(f"No lines are posted yet; this page updates when {names} post odds.")
+    return " ".join(parts)
+
+
 def game_meta(L: League, g, gid):
     """Search-style <title> and meta description for a game / fight page.
-    Upcoming / live: "Cardinals vs Cowboys Odds: Hard Rock, DraftKings, FanDuel | LineSmart" (away first; only books shown
-    on the page), falling back to "... Odds & Props" / "Odds & Lines" / "Odds & Preview" when the books don't fit.
-    Finished: "Cardinals vs Cowboys Result & Closing Odds (27-20) | LineSmart". UFC: "Fighter vs Fighter Odds: DraftKings"."""
+    Upcoming / live: "Ravens vs Bills Odds, Spread & Total (Nov 1) | LineSmart" (date in ET; books stay in the description).
+    Finished: "Cardinals vs Cowboys Result & Closing Odds (27-20) | LineSmart". UFC: "Fighter vs Fighter Odds (Nov 7)"."""
     a, h = g["away"], g["home"]
     dt = parse_dt(g["date"])
     final = L.is_final(g)
@@ -1465,17 +1902,12 @@ def game_meta(L: League, g, gid):
         if len(desc) > DESC_MAX:
             desc = head + (" Closing odds and line movement." if closing else "")
     else:
-        what = (" and ".join([", ".join(mk), "player props"]) if has_props else and_list(mk)) if mk else ("player props" if has_props else "")
-        rest = "Odds & Props" if has_props else "Odds & Lines" if pv.has_line(g) else "Odds & Preview"
-        cands = (([f"{vs[0]} Odds: {', '.join(bnames)}"] if bnames else []) + [f"{vs[0]} {rest}", f"{vs[0]} Odds"]
-                 + ([f"{vs[1]} Odds: {', '.join(bnames)}"] if bnames else []) + [f"{vs[1]} {rest}", f"{vs[1]} Odds"])
-        title = fit(*cands)
+        title = fit(*upcoming_title_cands(L, g, vs, mk, dt))
+        v0 = vs[0] if L.lg == "ufc" else _vs_forms(g)[0]
         if pv.has_line(g):
-            desc = f"Compare {vs[0]} odds for {day}" + (f" at {and_list(bnames)}" if bnames else "") + (f": {what}." if what else ".")
-            if len(desc) < 110 and L.lg != "ufc" and not has_props:
-                desc += " Line movement, form and injuries."
+            desc = line_desc(L, g, v0, day, posted_books(g, L.lg), bnames, mk, has_props)
         else:
-            desc = f"{vs[0]} odds for {day}: lines appear here as soon as books post them." + (" Player props, form and injuries." if has_props else " Records, form and injuries." if L.lg != "ufc" else " Fighter records and recent results.")
+            desc = f"{v0} odds for {day}: lines appear here as soon as books post them." + (" Player props, form and injuries." if has_props else " Records, form and injuries." if L.lg != "ufc" else " Fighter records and recent results.")
     return title, cut(desc)
 
 
@@ -1484,7 +1916,7 @@ def game_page(L: League, sh: Shell, gid):
     path = L.paths[gid]
     a, h = g["away"], g["home"]
     dt = parse_dt(g["date"])
-    final, live = L.is_final(g), g.get("state") == "in"
+    final = L.is_final(g)
     ab = abnormal(g)
     cur = gid in L.current
     detail = ((load_json(L.data_dir / L.lg / "games" / f"{gid}.json") or {}).get("detail") or {}) if cur else {}
@@ -1505,7 +1937,16 @@ def game_page(L: League, sh: Shell, gid):
                 ot = '<div class="noline">Closing lines not recorded</div>'
             else:
                 ot += closed_note(g)
-    head = (f"{esc(mtch)}: canceled" if ab == "canceled" else f"{esc(mtch)}: postponed" if ab == "postponed" else f"{esc(mtch)}: final score &amp; closing odds" if final else f"{esc(mtch)}: live odds" if live else f"{esc(mtch)} odds &amp; preview")
+    if ab == "canceled":
+        head = f"{esc(mtch)}: canceled"
+    elif ab == "postponed":
+        head = f"{esc(mtch)}: postponed"
+    elif final:
+        head = f"{esc(mtch)}: final score &amp; closing odds"
+    else:
+        head = esc(game_h1(L, g))
+    intro = game_intro(L, g, gid) if not final and not ab else ""
+    seo_head = f'<div class="seo-head"><h1 class="pv-h1">{head}</h1>' + (f'<p class="pv-lead">{esc(intro)}</p>' if intro else "") + "</div>"
     hub_label = NAMES[L.lg]
     hydrates = cur and not final        # same rule as `route` below: the app view replaces #app
     nxt_html = next_links(L, g)         # each side's next matchup (static pages: under the odds; hydrated: first under "More")
@@ -1515,7 +1956,7 @@ def game_page(L: League, sh: Shell, gid):
                   f'page uses the last good update ({esc(fmt_et(st_t))}). Times, records and lines may be out of date.</div>\n') if st_t else ""
     main = f"""<article class="pv sx-game">
 {crumbs((L.hub, hub_label), (None, mshort if L.lg != "ufc" else mtch))}
-<h1 class="pv-h1">{head}</h1>
+{seo_head}
 {stale_html}{hero(L, g)}
 {wtw_section(what_to_watch(L, g, gid, detail))}
 {result_card(L, g) if final else ''}
@@ -2195,6 +2636,7 @@ def hub_page(L: League, sh: Shell, Ls):
 {crumbs((None, NAMES[L.lg]))}
 <h1 class="pv-h1">{h1}</h1>
 <p class="pv-lead">{esc(lead)}</p>
+<p class="note"><a href="{BEST_LINES}">Best lines today</a></p>
 {today_html}
 {evs}
 {section("schedule", "Upcoming " + ("bouts" if L.lg == "ufc" else "games"), "".join(days) or '<div class="empty">No games in the next few days. Check back after the next data refresh.</div>')}
@@ -2401,6 +2843,63 @@ def _best_line(books, fn):
     return win
 
 
+def _market_fns(g):
+    """Scoring for one side of spread, total and moneyline. Higher score is the better number, then the better price."""
+    def spread(side):
+        def fn(b):
+            sp = b.get(side + "Spread")
+            if not isnum(sp):
+                return None
+            price = b.get(side + "SpreadOdds")
+            score = sp * 1000 + (price if isnum(price) else -110)
+            od = f" ({am(price)})" if isnum(price) else ""
+            return (f"{line(sp)}{od}", score)
+        return fn
+
+    def total(which):
+        def fn(b):
+            t = b.get("total")
+            if not isnum(t):
+                return None
+            price = b.get("overOdds" if which == "over" else "underOdds")
+            p = price if isnum(price) else -110
+            score = (-t if which == "over" else t) * 1000 + p
+            od = f" ({am(price)})" if isnum(price) else ""
+            return (f"{num(t)}{od}", score)
+        return fn
+
+    def ml(side):
+        def fn(b):
+            v = b.get(side + "ML")
+            if not isnum(v):
+                return None
+            return (am(v), v)
+        return fn
+
+    return {"spread": (spread("away"), spread("home")), "total": (total("over"), total("under")), "ml": (ml("away"), ml("home"))}
+
+
+def best_sides(g, books):
+    """Best number and price per side. spread and ml are (away, home); total is (over, under).
+    Each entry is the _best_line() tuple (score, book, display) or None. line_cell() is unchanged."""
+    fns = _market_fns(g)
+    return {k: tuple(_best_line(books, fn) for fn in pair) for k, pair in fns.items()}
+
+
+def best_label(books, fn, g=None):
+    """Display for one side, with every book that ties the best score ('DK, FD')."""
+    win = _best_line(books, fn)
+    if not win:
+        return "—"
+    tags = []
+    for k, b in books.items():
+        got = fn(b)
+        if got and got[1] == win[0]:
+            tags.append(BOOK_TAG.get(k) or _book_name(k, g) or k)
+    body = win[2]
+    return f"{body} {', '.join(tags)}".strip() if tags else body
+
+
 def line_cell(g, books, names, kind):
     """Plain text for one market: the best price among this state's books, or an em dash."""
     def spread(b):
@@ -2462,7 +2961,9 @@ def state_slate(Ls, now, keys, limit=12):
 
 
 def sport_links(Ls):
-    return " ".join(f'<a href="{lg}/">{esc(NAMES[lg])}</a>' for lg in ORDER if lg in Ls)
+    parts = [f'<a href="{lg}/">{esc(NAMES[lg])}</a>' for lg in ORDER if lg in Ls]
+    parts.append(f'<a href="{BEST_LINES}">Best Lines Today</a>')
+    return " ".join(parts)
 
 
 def lines_block(doc, st, Ls, now):
@@ -2472,8 +2973,9 @@ def lines_block(doc, st, Ls, now):
     names = doc.get("books") or {}
     hubs = sport_links(Ls)
     hub_p = f'<p class="note">Odds by sport: {hubs}.</p>' if hubs else ""
+    best_link = f'<p class="note"><a href="{BEST_LINES}">Best lines across all books today</a></p>'
     if not keys:
-        return f"<p>LineSmart lists none of the books we compare in {esc(name)}, so this page does not show odds.</p>{hub_p}"
+        return f"<p>LineSmart lists none of the books we compare in {esc(name)}, so this page does not show odds.</p>{best_link}{hub_p}"
     label = and_list(book_names(doc, keys))
     if len(keys) == 1:
         lead = f"Lines are from {label}, the book we compare in {name}."
@@ -2481,7 +2983,7 @@ def lines_block(doc, st, Ls, now):
         lead = f"Best price among the books we compare in {name}: {label}."
     rows = state_slate(Ls, now, priced_keys, 12) if priced_keys else []
     today = day_et(now)
-    bits = [f"<p>{esc(lead)}</p>"]
+    bits = [f"<p>{esc(lead)}</p>", best_link]
     if not any(day_et(r[0]) == today for r in rows):
         bits.append('<p class="na">No games today.</p>')
     if not rows:
@@ -2603,6 +3105,163 @@ def states_index(doc, sh: Shell, Ls):
     return sh.page(path, title, desc, main, more, kind="states", route="", ld=ld, og_type="website"), title
 
 
+def _has_shown_line(g, lg):
+    """A spread, total, or moneyline from a book this page shows. One market is enough."""
+    for b in posted_books(g, lg).values():
+        if isinstance(b, dict) and any(isnum(b.get(k)) for k in ("homeSpread", "awaySpread", "total", "homeML", "awayML")):
+            return True
+    return False
+
+
+def _lines_kick(L, gid, g, now):
+    """Start time for a game that can still take a best line. None once it has started, is live, is final, or has no posted number."""
+    if gid not in L.paths or L.is_final(g) or abnormal(g) or g.get("state") in ("in", "post") or not _has_shown_line(g, L.lg):
+        return None
+    dt = parse_dt(g.get("date"))
+    if not dt or dt <= now:
+        return None
+    return dt
+
+
+def _best_line_rows(Ls, now):
+    """Not-yet-started games that have a posted line, on today's ET date, else the next such day.
+    A game with only some markets stays, with dashes for the rest. A sport with none is omitted.
+    Returns (rows, next_day or None). rows are (lg, dt, gid, g, L)."""
+    def collect(day):
+        rows = []
+        for lg in ORDER:
+            L = Ls.get(lg)
+            if not L:
+                continue
+            for gid, g in L.games.items():
+                dt = _lines_kick(L, gid, g, now)
+                if not dt or day_et(dt) != day:
+                    continue
+                rows.append((lg, dt, gid, g, L))
+        rows.sort(key=lambda r: (ORDER.index(r[0]), r[1], r[2]))
+        return rows
+
+    today = day_et(now)
+    rows = collect(today)
+    if rows:
+        return rows, None
+    later = []
+    for lg in ORDER:
+        L = Ls.get(lg)
+        if not L:
+            continue
+        for gid, g in L.games.items():
+            dt = _lines_kick(L, gid, g, now)
+            if dt and day_et(dt) > today:
+                later.append(day_et(dt))
+    if not later:
+        return [], None
+    return collect(min(later)), min(later)
+
+
+def _best_table(rows):
+    groups = []
+    for lg, dt, gid, g, L in rows:
+        if not groups or groups[-1][0] != lg:
+            groups.append((lg, L, []))
+        groups[-1][2].append((dt, gid, g))
+    blocks, listed = [], []
+    for lg, L, games in groups:
+        trs = []
+        for dt, gid, g in games:
+            books = posted_books(g, lg)
+            fns = _market_fns(g)
+            sides = best_sides(g, books)
+            a_abbr = (g.get("away") or {}).get("abbr") or "Away"
+            h_abbr = (g.get("home") or {}).get("abbr") or "Home"
+
+            def show(win, fn, prefix=""):
+                if not win:
+                    return "—"
+                tags = []
+                for k, b in books.items():
+                    got = fn(b)
+                    if got and got[1] == win[0]:
+                        tags.append(BOOK_TAG.get(k) or _book_name(k, g) or k)
+                text = f"{win[2]} {', '.join(tags)}".strip() if tags else win[2]
+                return f"{prefix} {text}" if prefix else text
+
+            cells = [
+                show(sides["spread"][0], fns["spread"][0], a_abbr), show(sides["spread"][1], fns["spread"][1], h_abbr),
+                show(sides["total"][0], fns["total"][0]), show(sides["total"][1], fns["total"][1]),
+                show(sides["ml"][0], fns["ml"][0], a_abbr), show(sides["ml"][1], fns["ml"][1], h_abbr),
+            ]
+            when = et(dt).strftime("%-I:%M %p")
+            v0 = f"{pair_shorts(g)[0]} vs {pair_shorts(g)[1]}" if lg != "ufc" else f"{tname(g['away'])} vs {tname(g['home'])}"
+            listed.append((L.paths[gid], f"{v0} odds"))
+            trs.append(
+                "<tr>"
+                f'<td><a href="{esc(L.paths[gid])}">{esc(L.matchup(g))}</a></td>'
+                f"<td>{esc(when)}</td>"
+                + "".join(f"<td>{esc(c)}</td>" for c in cells)
+                + "</tr>")
+        blocks.append(
+            f'<h2 class="sx-seg"><a href="{esc(L.hub)}">{esc(NAMES[lg])}</a></h2>'
+            '<div class="tbl-wrap pv-tbl bl-scroll"><table class="books pv-books"><thead><tr>'
+            "<th>Game</th><th>Time (ET)</th><th>Away spread</th><th>Home spread</th>"
+            "<th>Over</th><th>Under</th><th>Away ML</th><th>Home ML</th>"
+            f"</tr></thead><tbody>{''.join(trs)}</tbody></table></div>")
+    return "".join(blocks), listed
+
+
+def best_lines_page(Ls, sh: Shell, now, base_url):
+    """Evergreen /best-lines-today/: best posted number and price per side, from books already on the game pages."""
+    path = BEST_LINES
+    d = et(now)
+    h1 = f"Best betting lines today – {d.strftime('%A')}, {d.strftime('%B')} {d.day}"
+    title = fit(f"Best Betting Lines Today ({title_day(now)})", "Best Betting Lines Today", "Best Lines Today")
+    rows, nxt = _best_line_rows(Ls, now)
+    slate_dt = rows[0][1] if rows else now
+    day_label = f"{weekday_long(slate_dt)}, {short_day(slate_dt, False)}"
+    n = len(rows)
+    seen_lg = []
+    for lg, _, _, _, _ in rows:
+        if lg not in seen_lg:
+            seen_lg.append(lg)
+    league_s = and_list(NAMES[lg] for lg in seen_lg) if seen_lg else "the sports we cover"
+    book_s = "Hard Rock, DraftKings and FanDuel"
+    if not rows:
+        meta = f"Best spread, total and moneyline across {book_s}. The page fills in when books post a line. Odds for reference; 21+."
+    elif nxt:
+        meta = f"Best spread, total and moneyline for {plural(n, 'game')} on {title_day(slate_dt)} across {book_s}: {league_s}. Odds for reference; 21+."
+    else:
+        meta = f"Best spread, total and moneyline for {plural(n, 'game')} today across {book_s}: {league_s}. Odds for reference; 21+."
+    desc = cut(meta)
+    intro = (
+        f"{plural(n, 'game')} on {day_label} have lines posted at Hard Rock, DraftKings or FanDuel. "
+        "For each game, the table shows the best available number and price for each side and which book has it. "
+        "Odds change quickly and are for reference only; confirm in the sportsbook app. "
+        'Book availability depends on your state (<a href="states/">see states</a>). 21+.'
+    )
+    if not rows:
+        intro = ("No upcoming games are left on the board right now. This page lists the best spread, total and moneyline "
+                 "for each side when books post them. Odds are for reference only. "
+                 'Book availability depends on your state (<a href="states/">see states</a>). 21+.')
+    body, listed = _best_table(rows)
+    banner = f'<h2 class="sx-seg">Next up: {esc(title_day(slate_dt))}</h2>' if nxt and rows else ""
+    empty = '<p class="na">No upcoming games are left on the board right now.</p>' if not rows else ""
+    main = f"""<article class="pv sx-lines">
+{crumbs((None, "Best lines today"))}
+<h1 class="pv-h1">{esc(h1)}</h1>
+<p class="pv-lead">{intro}</p>
+{banner}{body or empty}
+<p class="note">Odds change. Confirm with the sportsbook. For reference only. 21+.</p>
+<p class="note"><a href="states/">Sports betting by state</a> · <a href="responsible-gambling.html">Responsible gambling</a></p>
+</article>"""
+    more = section("leagues", "Odds by sport", link_list([(f"{lg}/", f"{NAMES[lg]} odds", "") for lg in ORDER if lg in Ls]))
+    ld = []
+    il = item_list(base_url, listed, name="Best betting lines today")
+    if il:
+        ld.append({"@context": "https://schema.org", **il})
+    ld.append(crumbs_ld(base_url, [(path, "Best lines today")]))
+    return sh.page(path, title, desc, main, more, kind="lines", route="", ld=ld, robots="index,follow", og_type="website"), title
+
+
 def home_cards(Ls, now):
     """Mobile-first strip for the top of the homepage: today's top games, biggest moves, hot props. Links only to real URLs."""
     today = day_et(now)
@@ -2636,8 +3295,11 @@ def home_cards(Ls, now):
         row("hcMoves", "Biggest line moves", "Since open", [move_tile(m, Ls) for m in moves]),
         row("hcHot", "Hot props", "Last 5 vs the line", [prop_tile(p, Ls) for p in hp]),
     ])
+    more = f'<p class="hc-more"><a href="{BEST_LINES}">See all best lines today →</a></p>'
     hubs = "".join(f'<a href="{lg}/">{esc(SHORT[lg])}</a>' for lg in ORDER if lg in Ls)
-    return f'<div class="home-cards" id="homeCards">{html_}<nav class="hc-hubs" aria-label="Sports">{hubs}</nav></div>' if html_ else ""
+    if not html_ and not hubs:
+        return ""
+    return f'<div class="home-cards" id="homeCards">{html_}{more}<nav class="hc-hubs" aria-label="Sports">{hubs}</nav></div>'
 
 
 # ---------------------------------------------------------------- redirects, sitemap, homepage
@@ -2775,6 +3437,8 @@ def update_sitemap(site: Path, entries, Ls, generated, base_url=BASE_URL):
     index = sitemap_index_of(Ls)
     groups = {}
     for rel, lm in entries:
+        if rel == BEST_LINES:
+            lm = generated   # one evergreen URL: lastmod is this run's data stamp, every build
         groups.setdefault(sitemap_bucket(rel, index), []).append((base_url + rel, lm))
     tools = _kept_tool_lastmods(site, base_url)
     static = [(base_url, generated)] + [(base_url + rel, lm) for rel, lm in tools.items()]
@@ -2887,6 +3551,8 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
         put(f"{slug}/", html, t, "state", "states")
     html, t = states_index(books_doc, sh, Ls)
     put("states/", html, t, "states", "states")
+    html, t = best_lines_page(Ls, sh, now, base_url)
+    put(BEST_LINES, html, t, "core", None)
     # titles must be unique. Same matchup on several dates (series, rematches): every one of those game pages gets its
     # date; anything still colliding gets the page's own path. og:title / twitter:title follow the <title>.
     def retitle(p, old, new):
@@ -3013,7 +3679,7 @@ def main(argv=None):
     data_dir = Path(a.data) if a.data else site / "data"
     now = parse_dt(a.now) if a.now else datetime.now(timezone.utc)
     s = build(site, data_dir, now, a.base_url, a.archive, write_site_files=not a.no_site_files)
-    lg = "; ".join(f"{k} " + ", ".join(f"{n} {t}" for t, n in v.items()) for k, v in s["leagues"].items())
+    lg = "; ".join(f"{k or 'site'} " + ", ".join(f"{n} {t}" for t, n in v.items()) for k, v in s["leagues"].items())
     print(f"seo pages: {s['pages']} pages + {s['redirects']} redirects, {s['bytes'] / 1e6:.1f} MB, {s['seconds']}s ({lg})")
     if s["archive"] is not None:
         print(f"seo archive: {s['archive']} (wrote {', '.join(s['archiveWrote']) or 'nothing'})")

@@ -118,6 +118,7 @@ LD_TYPES = {
     "results": {"CollectionPage", "ItemList", "BreadcrumbList"},
     "state": {"WebPage", "BreadcrumbList", "FAQPage"},
     "states": {"CollectionPage", "BreadcrumbList", "ItemList"},
+    "lines": {"ItemList", "BreadcrumbList"},
 }
 
 
@@ -212,12 +213,19 @@ def check_page_ld(rel, h, hrefs, kind):
             els = book_lists[0].get("itemListElement") or []
             check(book_lists[0].get("numberOfItems") == len(els) and els, f"{rel}: book ItemList has entries")
             check(all(e.get("@type") == "ListItem" and e.get("position") == i and str(e.get("url") or "").startswith("https://") for i, e in enumerate(els, 1)), f"{rel}: book ItemList positions and https urls")
+    elif kind == "lines":
+        check("SportsEvent" not in types and "Event" not in types, f"{rel}: best lines page has no Event markup")
+        check("BreadcrumbList" in types, f"{rel}: breadcrumb JSON-LD")
+        check(len(lists) == (1 if games else 0), f"{rel}: ItemList only when games are listed ({len(lists)})")
+        if lists and games:
+            paths = check_item_list(rel, lists[0])
+            check(paths == games, f"{rel}: ItemList matches game links ({len(paths)} vs {len(games)})")
     elif kind == "states":
         check(any(n.get("@type") == "CollectionPage" for n in tops), f"{rel}: CollectionPage is top-level")
         check(len(lists) == 1, f"{rel}: one ItemList ({len(lists)})")
         if lists:
             paths = check_item_list(rel, lists[0])
-            want = [p for p in _listed_paths(hrefs, re.compile(r"^[a-z0-9-]+/$")) if p.split("/")[0] not in SP.LEAGUE_DIRS and p != "states/"]
+            want = [p for p in _listed_paths(hrefs, re.compile(r"^[a-z0-9-]+/$")) if p.split("/")[0] not in SP.LEAGUE_DIRS and p not in ("states/", "best-lines-today/")]
             check(paths == want, f"{rel}: ItemList matches state links ({len(paths)} vs {len(want)})")
     else:
         check(not lists, f"{rel}: ItemList only on hubs, team, results and state pages")
@@ -261,6 +269,141 @@ def title_limit_tests():
         lead = SP.hub_custom_lead(lg, 3)
         check(many in lead and books in lead and lead.startswith("Today's"), f"{lg} intro uses the count and the book list")
         check(not PROMO_RE.search(title + " " + desc + " " + h1 + " " + lead), f"{lg} hub copy has no promo wording")
+
+
+def _fixture_league(lg):
+    ix = json.loads((ROOT / "site" / "data" / lg / "index.json").read_text())
+    props_p = ROOT / "site" / "data" / "props" / f"{lg}.json"
+    props = json.loads(props_p.read_text()) if props_p.exists() else None
+    return SP.League(lg, ix, props, None, pv.parse_dt(ix.get("generated")), SP.BASE_URL)
+
+
+def game_title_tests():
+    """The seven pre-game titles from the committed fixtures, plus finished titles left unchanged."""
+    cases = [
+        ("ncaaf", "401856734", "Florida vs Georgia Odds, Spread & Total (Oct 31) | LineSmart"),
+        ("nfl", "401873026", "Ravens vs Bills Odds, Spread & Total (Nov 1) | LineSmart"),
+        ("nfl", "401873024", "Cardinals vs Cowboys Odds & Spread (Nov 1) | LineSmart"),
+        ("ncaab", "401906769", "Miami vs Florida Odds, Spread & Total (Nov 2) | LineSmart"),
+        ("ncaaf", "401866454", "Buffalo vs Miami OH Odds & Preview (Nov 3) | LineSmart"),
+        ("ncaaf", "401858509", "Ohio State vs USC Odds, Spread & Total (Oct 31) | LineSmart"),
+        ("nba", "401909903", "Celtics vs Magic Odds & Preview (Nov 1) | LineSmart"),
+    ]
+    leagues = {}
+    for lg, gid, want in cases:
+        L = leagues.setdefault(lg, _fixture_league(lg))
+        g = L.cur[gid]
+        title, desc = SP.game_meta(L, g, gid)
+        check(title == want, f"{lg} {gid} title ({title})")
+        check(len(title) <= SP.TITLE_MAX and len(desc) <= SP.DESC_MAX, f"{lg} {gid} title {len(title)} desc {len(desc)}")
+        check("Odds:" not in title, f"{lg} {gid} title does not name a book")
+    # Buffalo has no line in the snapshot. With a spread and a total, the dated market title fits at 60.
+    L = leagues["ncaaf"]
+    buffalo = json.loads(json.dumps(L.cur["401866454"]))
+    buffalo["books"] = {"draftkings": {"homeSpread": -3.5, "awaySpread": 3.5, "homeSpreadOdds": -110, "awaySpreadOdds": -110,
+                                       "total": 48.5, "overOdds": -110, "underOdds": -110, "homeML": -160, "awayML": 140}}
+    lined, lined_desc = SP.game_meta(L, buffalo, "401866454")
+    check(lined == "Buffalo vs Miami OH Odds, Spread & Total (Nov 3) | LineSmart" and len(lined) == 60, f"Buffalo with a line ({lined})")
+    check(len(lined_desc) <= SP.DESC_MAX, f"Buffalo lined description {len(lined_desc)}")
+    fl = leagues["ncaaf"].cur["401856734"]
+    h1 = SP.game_h1(leagues["ncaaf"], fl)
+    check(h1.startswith("Florida Gators vs Georgia Bulldogs ") and " at " not in h1, f"neutral H1 uses vs ({h1})")
+    check(leagues["ncaaf"].game_slug(fl) == "florida-gators-at-georgia-bulldogs-2026-10-31", "neutral slug stays at")
+    intro = SP.game_intro(leagues["ncaaf"], fl, "401856734")
+    check("neutral site" in intro and "favored by" in intro and "should win" not in intro.lower(), f"Florida intro is the line, not a pick ({intro[:80]})")
+    check(not pv.FORBIDDEN.search(intro) and not PROMO_RE.search(intro), "intro has no pick or promo wording")
+    finished = {
+        "401873012": "Bengals vs Ravens Final Score: 35-13 | LineSmart",
+        "401873011": "Steelers vs Saints Final Score: 16-10 | LineSmart",
+        "401873016": "Giants vs Texans Final Score: 27-21, OT | LineSmart",
+    }
+    nfl = leagues["nfl"]
+    for gid, want in finished.items():
+        title, desc = SP.game_meta(nfl, nfl.cur[gid], gid)
+        check(title == want and len(desc) <= SP.DESC_MAX, f"finished title unchanged ({title})")
+    # best number per side: +3.5 beats +3, -2.5 beats -3, lowest total for the over, highest for the under
+    g = {"away": {"abbr": "BAL", "short": "Ravens", "name": "Baltimore Ravens"},
+         "home": {"abbr": "BUF", "short": "Bills", "name": "Buffalo Bills"}}
+    books = {
+        "draftkings": {"awaySpread": 3, "homeSpread": -3, "awaySpreadOdds": -110, "homeSpreadOdds": -110,
+                       "total": 45, "overOdds": -110, "underOdds": -108, "awayML": 130, "homeML": -150},
+        "fanduel": {"awaySpread": 3.5, "homeSpread": -3.5, "awaySpreadOdds": -105, "homeSpreadOdds": -115,
+                    "total": 44.5, "overOdds": -105, "underOdds": -115, "awayML": 120, "homeML": -140},
+        "hardrockbet": {"awaySpread": 3.5, "homeSpread": -3.5, "awaySpreadOdds": -105, "homeSpreadOdds": -115,
+                        "total": 44.5, "overOdds": -105, "underOdds": -115, "awayML": 120, "homeML": -140},
+    }
+    sides = SP.best_sides(g, books)
+    check(sides["spread"][0][2].startswith("+3.5") and sides["spread"][1][2].startswith("-3 ("), f"best spread per side ({sides['spread']})")
+    check(sides["total"][0][2].startswith("44.5") and sides["total"][1][2].startswith("45"), f"best over is the lower total, best under the higher ({sides['total']})")
+    check(sides["ml"][0][2] == "+130" and sides["ml"][1][2] == "-140", f"best moneyline is the higher price ({sides['ml']})")
+    check(SP.best_label(books, SP._market_fns(g)["spread"][0], g).endswith("FD, HR"), f"tied books ({SP.best_label(books, SP._market_fns(g)['spread'][0], g)})")
+    # line_cell still scores the home spread only
+    cell = SP.line_cell(g, books, {"fanduel": "FanDuel", "draftkings": "DraftKings", "hardrockbet": "Hard Rock"}, "spread")
+    check(cell.startswith("BUF -3 ("), f"line_cell unchanged ({cell})")
+    disagree = {
+        "draftkings": {"homeSpread": -4.5, "awaySpread": 4.5, "total": 161.5, "homeML": -180, "awayML": 150},
+        "hardrockbet": {"homeSpread": -5.5, "awaySpread": 5.5, "total": 159.5, "homeML": -200, "awayML": 170},
+        "fanduel": {"homeSpread": -5.5, "awaySpread": 5.5, "total": 159.5, "homeML": -200, "awayML": 170},
+    }
+    phrase = SP.spread_phrase({"away": {"short": "Miami", "name": "Miami"}, "home": {"short": "Florida", "name": "Florida"}}, disagree)
+    check(phrase == "Florida -4.5 to -5.5", f"spread range ({phrase})")
+    js = (ROOT / "site" / "assets" / "app.js").read_text()
+    check("PAGE_SEO" in js and ".seo-head" in js and "PAGE_ROUTE === `g/${key}/${id}`" in js, "app.js keeps .seo-head on the matching game route")
+
+
+def _slate_game(gid, date, state="pre", line=True):
+    g = {"id": gid, "date": date, "state": state, "completed": state == "post", "neutral": False,
+         "away": {"id": "1", "name": "Away Team", "short": "Away", "abbr": "AWY"},
+         "home": {"id": "2", "name": "Home Team", "short": "Home", "abbr": "HOM"}}
+    if line:
+        g["books"] = {"draftkings": {"homeSpread": -3, "awaySpread": 3, "homeSpreadOdds": -110, "awaySpreadOdds": -110,
+                                     "total": 45, "overOdds": -110, "underOdds": -110, "homeML": -150, "awayML": 130}}
+    else:
+        g["books"] = {}
+        g["odds"] = None
+    return g
+
+
+def _slate_league(lg, games, now):
+    kind = {"nba": "basketball", "ncaab": "basketball", "nhl": "hockey", "mlb": "baseball"}.get(lg, "football")
+    ix = {"league": {"kind": kind}, "games": games, "teams": {}, "generated": "2026-10-31T20:00:00Z"}
+    L = SP.League(lg, ix, None, None, now, SP.BASE_URL)
+    L.games = {str(g["id"]): g for g in games}
+    L.paths = {str(g["id"]): f"{lg}/games/{g['id']}/" for g in games}
+    return L
+
+
+def best_lines_filter_tests():
+    """Started, live, final, and no-line games are not listed. A partial line stays, with the missing markets blank.
+    Next up skips a day whose games have no posted number."""
+    now = pv.parse_dt("2026-10-31T20:00:00Z")  # 4:00 PM ET
+    ml_only = _slate_game("nhl-ml", "2026-10-31T23:00:00Z", line=False)
+    ml_only["books"] = {"draftkings": {"homeML": -150, "awayML": 130}}
+    nfl = _slate_league("nfl", [
+        _slate_game("nfl-later", "2026-10-31T23:00:00Z"),          # 7:00 PM ET, still ahead
+        _slate_game("nfl-started", "2026-10-31T17:00:00Z"),        # 1:00 PM ET, already started
+        _slate_game("nfl-now", "2026-10-31T20:00:00Z"),            # kickoff == build time
+        _slate_game("nfl-live", "2026-10-31T23:30:00Z", "in"),
+        _slate_game("nfl-final", "2026-10-31T17:00:00Z", "post"),
+    ], now)
+    nba = _slate_league("nba", [
+        _slate_game("nba-noline", "2026-11-01T00:00:00Z", line=False),  # 8:00 PM ET, nothing posted
+    ], now)
+    nhl = _slate_league("nhl", [ml_only], now)
+    rows, nxt = SP._best_line_rows({"nfl": nfl, "nba": nba, "nhl": nhl}, now)
+    ids = [r[2] for r in rows]
+    check(nxt is None and ids == ["nfl-later", "nhl-ml"], f"today keeps a full line and a moneyline-only game ({ids}, next={nxt})")
+    check("nba-noline" not in ids and not any(x in ids for x in ("nfl-started", "nfl-now", "nfl-live", "nfl-final")), f"no-line, started, live and final stay off ({ids})")
+    check([r[0] for r in rows] == ["nfl", "nhl"], f"a sport with no lined game is dropped ({[r[0] for r in rows]})")
+    # nothing lined today: skip a later day that also has no line
+    nfl2 = _slate_league("nfl", [_slate_game("nfl-old", "2026-10-31T17:00:00Z")], now)
+    nba2 = _slate_league("nba", [_slate_game("nba-empty-day", "2026-11-01T23:00:00Z", line=False)], now)
+    ncaaf = _slate_league("ncaaf", [
+        _slate_game("ncaaf-next", "2026-11-02T16:00:00Z"),
+        _slate_game("ncaaf-live", "2026-11-02T20:00:00Z", "in"),
+    ], now)
+    rows2, nxt2 = SP._best_line_rows({"nfl": nfl2, "nba": nba2, "ncaaf": ncaaf}, now)
+    check(nxt2 == "2026-11-02" and [r[2] for r in rows2] == ["ncaaf-next"], f"Next up uses the next day that has a line ({[r[2] for r in rows2]}, {nxt2})")
 
 
 OFFER = re.compile(r'class="of-book|Bet on (DraftKings|FanDuel|Hard Rock|BetMGM|Caesars|Fanatics)|href="https?://[^"]*(draftkings|fanduel|hardrock|betmgm|caesars|fanatics)[^"]*"', re.I)
@@ -624,6 +767,8 @@ def state_unit_tests():
 
 def main():
     title_limit_tests()
+    game_title_tests()
+    best_lines_filter_tests()
     wtw_tests()
     state_unit_tests()
     # last-5 prop strip: boxes render oldest -> newest (newest on the right), each with its M/D date under it; the stats stay latest first
@@ -643,14 +788,14 @@ def main():
         st = SP.build(site, data, now, archive_dir=tmp / "arch")
         print(f"snapshot build: {st['pages']} pages + {st['redirects']} redirects, {st['bytes'] / 1e6:.1f} MB, {st['seconds']}s {st['total']}")
         check(st["pages"] > 50, f"snapshot builds a real number of pages ({st['pages']})")
-        # Other league hubs stay byte-identical. Hashes are from this snapshot before the NBA / NCAAF copy change.
+        # Other league hubs stay byte-identical aside from the best-lines link, the footer link, and "vs" on neutral sites.
         if not os.environ.get("DATA_DIR"):
             same = {
-                "nfl": "5c0bde9af4148553bc8eec5f54119d51c797e3955452e2d14417f6d3a6cec0b7",
-                "ncaab": "ba51b7e0c82b40b7712ca79245adec9c25fd3ec76cf7e00b95b952a37ced4b68",
-                "nhl": "069e19ad368ec12a36553a4b64099139c96f4318a95d75007bde2afcea56d743",
-                "mlb": "e4ed3a2ab0e4082c261ba1e42cb594ade735c3971e5d228b3b5817af833aae2d",
-                "ufc": "d7934ba85702a5a6265940527e24d6335da3916a1608705d1e008e6ef11000e0",
+                "nfl": "1ff9fa341aad6d8d79162ff75fae2b652d1dc2da29a3e1475364594120af9655",
+                "ncaab": "3e7d3d589bd8f9d47476f96fc44d23771905b2e50f2c5eb93ce4dd8d52a4ebe0",
+                "nhl": "c4e18d9f15b0e8580ee1d3b8a8a4c1a68eb1139ba741a979d02d76caa1bd974c",
+                "mlb": "8d789fee4d38c97fec5c3179d9f760f06cf2c4bcf17e4e9fabbd40196a455c3d",
+                "ufc": "c507cd4d07b11e6368c89e7e5afa5a757827350e7288bac0ef430247d849be43",
             }
             for lg, digest in same.items():
                 got = hashlib.sha256((site / lg / "index.html").read_bytes()).hexdigest()
@@ -930,8 +1075,16 @@ def main():
         check(not any(u[len(SP.BASE_URL):] in {r for r, _, _ in stubs} for u in urls), "sitemap: no redirect stubs")
         check(any(u.endswith("/results/") for u in urls), "sitemap-results (or a child) lists results pages")
         core_txt = (site / "sitemap-core.xml").read_text()
-        for rel in ("florida/", "new-york/", "louisiana/", "delaware/", "states/"):
+        for rel in ("florida/", "new-york/", "louisiana/", "delaware/", "states/", "best-lines-today/"):
             check(SP.BASE_URL + rel in core_txt, f"sitemap-core lists {rel}")
+        bl_lm = home_lm = None
+        for u in ET.fromstring(core_txt.encode()).findall(ns + "url"):
+            loc, lm = u.find(ns + "loc").text, u.find(ns + "lastmod").text
+            if loc == SP.BASE_URL:
+                home_lm = lm
+            if loc == SP.BASE_URL + "best-lines-today/":
+                bl_lm = lm
+        check(bl_lm and bl_lm == home_lm, f"best-lines-today lastmod is this run's generated stamp ({bl_lm})")
         live_txt = (site / "sitemap-live.xml").read_text() if (site / "sitemap-live.xml").exists() else ""
         check(SP.BASE_URL + "florida/" not in live_txt and SP.BASE_URL + "states/" not in live_txt, "state pages are not in sitemap-live")
         for u in urls:
@@ -975,16 +1128,14 @@ def main():
                 if g and lg != "ufc":
                     a_, h_ = pv.side_name(g["away"]), pv.side_name(g["home"])
                     check(t.startswith(f"{a_} vs {h_} ") or t.startswith(f"{g['away'].get('abbr')} vs {g['home'].get('abbr')} "), f"{rel}: away team first ({t})")
-                if g and g.get("state") == "pre":
+                if g and g.get("state") in ("pre", "in"):
                     check(" Odds" in t, f"{rel}: upcoming title says Odds ({t})")
-                    bk = [SP.TITLE_BOOK[k] for k in SP.page_books(g, lg)]
-                    vs0 = f"{g['away'].get('name')} vs {g['home'].get('name')}" if lg == "ufc" else f"{a_} vs {h_}"
-                    if bk and len(f"{vs0} Odds: {', '.join(bk)}") <= SP.TITLE_MAX - len(SP.SUFFIX):
-                        check(t.split(" Odds", 1)[-1].startswith(": "), f"{rel}: books in the title when they fit ({t})")
+                    check("Odds:" not in t, f"{rel}: books stay out of the title ({t})")
                 if "/games/" in rel and 'class="card sx-result"' in h or (g and g.get("state") == "post"):
                     check("Result" in t or "Final Score" in t, f"{rel}: finished game says Result ({t})")
         nfl_t = [parse((site / r / "index.html").read_text()).title for r in man["g"].get("nfl", {}).values()]
-        check(any(re.search(r" vs .+ Odds: (Hard Rock, )?DraftKings(, FanDuel)? \| LineSmart$", x) for x in nfl_t), f"NFL titles carry the books ({nfl_t[:2]})")
+        check(any("Odds, Spread" in x or "Odds & Spread" in x or "Odds (" in x for x in nfl_t), f"NFL titles name the market and the date ({nfl_t[:2]})")
+        check(all("Odds:" not in x for x in nfl_t), f"NFL titles do not name a book ({[x for x in nfl_t if 'Odds:' in x][:2]})")
         check(SP.and_list(["Hard Rock", "DraftKings", "FanDuel"]) == "Hard Rock, DraftKings and FanDuel" and SP.and_list(["FanDuel"]) == "FanDuel", "and_list()")
         g0 = {"odds": {"provider": "DraftKings", "homeML": -150, "awayML": 130}, "books": {}}
         check(SP.page_books({"odds": {"provider": "ESPN BET", "homeML": -150, "awayML": 130}}, "nba") == [] and
@@ -1007,6 +1158,7 @@ def main():
         check(all(n.get("@type") != "SearchAction" and (not isinstance(n.get("potentialAction"), dict) or n["potentialAction"].get("@type") != "SearchAction") for n in home_nodes), "homepage has no SearchAction")
         block = ih.split(SP.HOME_START, 1)[1].split(SP.HOME_END, 1)[0]
         check("home-cards" in block and "Top games" in block, "homepage cards filled in")
+        check('href="best-lines-today/"' in block and "See all best lines today" in block, "homepage cards link best lines today")
         hrefs = re.findall(r'href="([^"]+)"', block)
         check(hrefs and all(resolve(site, "", None, x).exists() for x in hrefs if not x.startswith("#")), "homepage cards link real pages")
         check(not OFFER.search(block), "homepage cards: no hard-coded offers")

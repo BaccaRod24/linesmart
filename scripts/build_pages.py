@@ -50,6 +50,7 @@ HUBS = [  # (href, label): crawlable league hubs built each refresh by scripts/s
     ("ncaaf/", "College football odds"),
     ("ncaab/", "College basketball odds"),
     ("ufc/", "UFC odds"),
+    ("best-lines-today/", "Best Lines Today"),
 ]
 
 TOOLS = [  # (href, label): footer quick links into the app (relative, so subpath hosting and preview pages' <base> work)

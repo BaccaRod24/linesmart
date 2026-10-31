@@ -367,7 +367,24 @@
   }
 
   // ---------- league view
-  async function viewLeague(key, home = false) {
+  // Monday–Sunday in US Eastern, compared as YYYY-MM-DD. "This week" for the Top 25 tab.
+  function etYmd(iso) {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+  }
+  function inThisWeek(gameIso, nowIso) {
+    const wd = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(new Date(nowIso));
+    const idx = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(wd);
+    const [y, m, d] = etYmd(nowIso).split("-").map(Number);
+    const monday = new Date(Date.UTC(y, m - 1, d, 16) - (idx < 0 ? 0 : idx) * 864e5);
+    const start = etYmd(monday.toISOString()), end = etYmd(new Date(monday.getTime() + 6 * 864e5).toISOString());
+    const g = etYmd(gameIso);
+    return g >= start && g <= end;
+  }
+  function stampApRank(g, byId) {
+    const side = t => { const r = t && byId.get(String(t.id)); return r ? Object.assign({}, t, { rank: r.rank }) : t; };
+    return Object.assign({}, g, { home: side(g.home), away: side(g.away) });
+  }
+  async function viewLeague(key, home = false, sub = "") {
     rememberLg(key);
     renderTabs(home ? HOME : key);
     const L = META.leagues[key];
@@ -377,7 +394,9 @@
     try { data = await getJSON(`data/${key}/index.json`); }
     catch (e) { return (app.innerHTML = `<div class="page-head"><h1>${esc(L.full)}</h1></div><div class="empty"><h3>No data file for ${esc(L.name)}</h3>Run <code>python3 scripts/build_data.py</code> to refresh.${L.error ? "<br>" + esc(L.error) : ""}</div>`); }
     const kind = data.league.kind;
-    const filter = sessionStorage.getItem("filter-" + key) || "upcoming";
+    let filter = sessionStorage.getItem("filter-" + key) || "upcoming";
+    if (key === "ncaaf" && sub === "top25") filter = "top25";
+    if (filter === "top25" && key !== "ncaaf") filter = "upcoming";
     if (kind === "mma" && window.LSUfc) {   // UFC: fight cards grouped by event and main card / prelims (assets/ufc.js)
       app.innerHTML = window.LSUfc.league(data, key, filter);
       addStale(data.stale, "fights");
@@ -393,8 +412,37 @@
       <span class="chip"><b>${data.report.withOdds}</b> with lines</span>
       <span class="chip">Lines: <b>${esc((data.report.providers || []).join(", ") || "none")}</b></span>
       <span class="chip">Next ${data.windowDays} days</span></div>${staleNote(data.stale)}`;
-    let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(data.league.full)}</h1><div class="sub">Upcoming games, lines and form · times in ${TZL}</div></div>
-      <div class="seg"><button data-f="upcoming" class="${filter === "upcoming" ? "on" : ""}">Upcoming & live</button><button data-f="all" class="${filter === "all" ? "on" : ""}">Incl. today's finals</button></div></div>${chips}`;
+    const seg = `<div class="seg${key === "ncaaf" ? " seg-3" : ""}"><button data-f="upcoming" class="${filter === "upcoming" ? "on" : ""}">Upcoming & live</button><button data-f="all" class="${filter === "all" ? "on" : ""}">Incl. today's finals</button>${key === "ncaaf" ? `<button data-f="top25" class="${filter === "top25" ? "on" : ""}">Top 25</button>` : ""}</div>`;
+    let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(data.league.full)}</h1><div class="sub">${filter === "top25" ? `AP Top 25 games this week · times in ${TZL}` : `Upcoming games, lines and form · times in ${TZL}`}</div></div>
+      ${seg}</div>${filter === "top25" ? "" : chips}`;
+    if (filter === "top25") {
+      let rankDoc = null;
+      try { rankDoc = await getJSON("data/ncaaf/rankings.json"); } catch (e) { rankDoc = null; }
+      const ap = rankDoc && rankDoc.ap && Array.isArray(rankDoc.ap.teams) && rankDoc.ap.teams.length ? rankDoc.ap : null;
+      if (!ap) html += `<div class="empty" id="top25"><h3>Rankings not available</h3></div>`;
+      else {
+        const byId = new Map(ap.teams.map(t => [String(t.id), t]));
+        const now = new Date().toISOString();
+        const ranked = data.games.filter(g => inThisWeek(g.date, now) && (byId.has(String(g.home.id)) || byId.has(String(g.away.id))))
+          .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        if (!ranked.length) html += `<div class="empty" id="top25"><h3>No Top 25 games this week</h3></div>`;
+        else {
+          const days = {};
+          ranked.forEach(g => (days[dayKey(g.date)] ||= []).push(g));
+          html += `<div id="top25">`;
+          for (const k of Object.keys(days)) {
+            html += `<div class="day">${dayLabel(days[k][0].date)}<span class="dn">${days[k].length} game${days[k].length > 1 ? "s" : ""}</span></div><div class="grid">` +
+              days[k].map(g => gameTile(stampApRank(g, byId), key, kind, home)).join("") + `</div>`;
+          }
+          html += `</div>`;
+        }
+      }
+      app.innerHTML = html;
+      wireLeagueSeg(key, home);
+      const shown = [...app.querySelectorAll("a.game")].map(a => { const id = (a.getAttribute("href") || "").split("/").pop(); return data.games.find(g => String(g.id) === id); }).filter(Boolean);
+      startLive(shown.map(g => liveRef(key, g)));
+      return;
+    }
     if (!games.length) {
       html += `<div class="empty" style="margin-top:16px"><h3>No ${esc(data.league.name)} games in the next ${data.windowDays} days</h3>
         ${data.league.key === "mlb" ? "MLB is in its offseason / postseason window." : data.league.key === "ncaab" ? "The college basketball season is just getting started." : "The league may be on a break or out of season."} Check back after the next data refresh.</div>`;
@@ -406,7 +454,7 @@
     }
     html += teamTable(data, kind);
     app.innerHTML = html;
-    app.querySelectorAll(".seg button").forEach(b => (b.onclick = () => { sessionStorage.setItem("filter-" + key, b.dataset.f); viewLeague(key, home); }));
+    wireLeagueSeg(key, home);
     wireSort(app.querySelector("#teamTbl"));
     const tick = home ? ((META.slate || {}).ticker || []).map(t => ({ lg: t.lg, id: String(t.id), state: t.st, date: t.d })) : [];
     startLive([...games.map(g => liveRef(key, g)), ...tick]);
@@ -434,6 +482,18 @@
           ${td(t.streak)}<td data-v="${esc(b.form || "")}">${formDots(b.form) || NA}</td></tr>`;
       }).join("")}</tbody></table></div>
       <div class="note">Computed from each team's completed games this season (ESPN team schedules${rows[0].t.seasonType ? ", " + esc(rows[0].t.seasonType) : ""}). Teams with no completed games show N/A.${window.LSAdv && window.LSAdv.ADV_LGS.has(data.league.key) ? " ATS and over/under records are on each team page." : ""}</div>`;
+  }
+
+  function wireLeagueSeg(key, home) {
+    app.querySelectorAll(".page-head .seg button").forEach(b => (b.onclick = () => {
+      const f = b.dataset.f;
+      sessionStorage.setItem("filter-" + key, f);
+      if (key === "ncaaf") {
+        const next = f === "top25" ? "#/l/ncaaf/top25" : "#/l/ncaaf";
+        if ((location.hash || "#") !== next) { location.hash = next; return; }
+      }
+      viewLeague(key, home, f === "top25" ? "top25" : "");
+    }));
   }
 
   function wireSort(tbl) {
@@ -1529,7 +1589,7 @@
     if (h[0] === "t" && h[1] && h[2]) return viewTeam(h[1], h[2]);
     if (h[0] === "p" && h[1] && h[2]) return viewPlayer(h[1], h[2], h[3]);
     if (h[0] === "g" && h[1] && h[2]) return viewGame(h[1], h[2], h[3]);
-    if (h[0] === "l" && h[1]) return viewLeague(h[1]);
+    if (h[0] === "l" && h[1]) return viewLeague(h[1], false, h[2] || "");
     if (h[0].split("?")[0] === "owner") {
       if (window.LSProGate && window.LSProGate.ready) await window.LSProGate.ready;
       const now = location.hash.replace(/^#\/?/, "").split("/")[0].split("?")[0];

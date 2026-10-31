@@ -37,6 +37,7 @@ import adv as ADV
 import linevalue as LV
 import lastgood as LG
 import final_label as FL
+import ncaaf_rankings as NR
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.environ.get("DATA_OUT") or os.path.join(ROOT, "site", "data")   # DATA_OUT: build elsewhere (local testing)
@@ -848,7 +849,31 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
     wxs = f" weather=forecast {wxr.get('forecast', 0)}, indoor {wxr.get('indoor', 0)}, pending {wxr.get('pending', 0)}, n/a {wxr.get('unavailable', 0)}, calls {wxr.get('calls', 0)}{(' errors ' + str(wxr['errors'])) if wxr.get('errors') else ''}" if wxr else ""
     fbs = f" FALLBACK(stale {len(restored)} as of {fb['asOf']})" if restored else ""
     log(f"[{lg['key']}] games={len(games)}{fbs} upcoming={upcoming} withOdds={with_odds} providers={providers} {report['endpoints']} oddsApi={report['oddsApi']} history={report['history']}{wxs} ({report['seconds']}s)")
+    if lg["key"] == "ncaaf":
+        write_ncaaf_rankings(getj, log)
     return report
+
+def write_ncaaf_rankings(fetch, log=print):
+    """Refresh site/data/ncaaf/rankings.json from ESPN's free rankings feed. No Odds API call.
+
+    Runs at the end of every college football data build (the same 30-minute refresh as the
+    scoreboard). A failed fetch leaves the previous file in place. A feed with no AP poll
+    is written as ap: null so the page can say rankings are not available.
+    """
+    path = os.path.join(OUT, "ncaaf", "rankings.json")
+    try:
+        parsed = NR.parse_rankings(fetch(SITE + "football/college-football/rankings"))
+    except Exception as ex:
+        log(f"[ncaaf] rankings FAILED: {ex}")
+        return
+    body = NR.file_body(parsed, dt.datetime.now(dt.timezone.utc).isoformat())
+    if not body.get("ap"):
+        log("[ncaaf] rankings: AP poll missing")
+    else:
+        log(f"[ncaaf] rankings: {body['ap']['name']} ({len(body['ap']['teams'])} teams, {body['ap'].get('date') or 'no date'})")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as fh:
+        json.dump(body, fh, separators=(",", ":"))
 
 def _refresh_rankings(a, log=print):
     """Rewrite pro/rankings-data.js from the box-score and props caches already on disk. No odds request."""

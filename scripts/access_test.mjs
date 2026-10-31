@@ -198,7 +198,7 @@ try {
     const m = document.querySelector(".match").getBoundingClientRect();
     return { jTop: j.top, mTop: m.top, labels: [...document.querySelectorAll(".gjump a, .gjump span")].map(el => el.textContent.trim()) };
   });
-  check(jump.labels.join(",") === "Lines,Props,Stats" && jump.jTop < jump.mTop && jump.jTop < 700, `game tabs sit above the matchup (${jump.jTop} vs ${jump.mTop})`);
+  check(jump.labels.join(",") === "Lines,Props,Matchup" && jump.jTop < jump.mTop && jump.jTop < 700, `game tabs sit above the matchup (${jump.jTop} vs ${jump.mTop})`);
   await game.ctx.close();
 
   const gProps = await open(375, 812, `#/g/nfl/${nflId}/props`);
@@ -218,9 +218,17 @@ try {
   const gs = await gStats.page.evaluate(() => {
     const s = document.getElementById("stats").getBoundingClientRect();
     const m = document.querySelector(".match").getBoundingClientRect();
-    return { top: s.top, beforeMatch: s.top < m.top, text: document.getElementById("stats").parentElement.innerText.slice(0, 40) };
+    const text = document.getElementById("app").textContent;
+    const tab = document.querySelector(".gjump .on");
+    return {
+      top: s.top, beforeMatch: s.top < m.top, heading: document.getElementById("stats").textContent.trim(),
+      h2h: text.includes("Head to head comparison"), season: text.includes("Season team stats"),
+      last5: text.includes("Last 5 games"), players: text.includes("Player stats"),
+      lines: text.includes("Betting lines"), tab: tab && tab.textContent.trim(),
+      tabH: tab ? tab.getBoundingClientRect().height : 0,
+    };
   });
-  check(gs.beforeMatch && gs.top < 500, `game stats sit above the matchup (${gs.top})`);
+  check(gs.beforeMatch && gs.top < 500 && gs.heading === "Team & matchup stats" && gs.h2h && gs.season && gs.last5 && gs.players && !gs.lines && gs.tab === "Matchup" && gs.tabH >= 44, `game matchup tab sits above the teams (${gs.top}, ${gs.heading}, tab ${gs.tabH}px)`);
   await gStats.ctx.close();
 
   if (nhlId) {

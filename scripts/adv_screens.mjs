@@ -35,8 +35,8 @@ async function shot(name, hash, sel, { wait, state, maxH = 1700, endSel, act, ti
   console.log(`${out}/${name}.png  ${hash}${state ? "  state=" + state : ""}`);
   await ctx.close();
 }
-await shot("adv-nfl-game", `#/g/nfl/${NFL_G}`, "#advGame", { wait: "#advGame .cmp", maxH: 2200 });
-await shot("adv-nba-game", `#/g/nba/${NBA_G}`, "#advGame", { wait: "#advGame .av-proj", maxH: 2000 });
+await shot("adv-nfl-game", `#/g/nfl/${NFL_G}/stats`, "#advGame", { wait: "#advGame .cmp", maxH: 2200 });
+await shot("adv-nba-game", `#/g/nba/${NBA_G}/stats`, "#advGame", { wait: "#advGame .av-proj", maxH: 2000 });
 await shot("adv-team", `#/t/${TEAM}`, "#advTeam", { wait: "#advTeam .stat", maxH: 2000 });
 await shot("adv-player", `#/p/${PLAYER}`, "#advPlayer", { wait: "#advPlayer .av-tbl" });
 await shot("adv-odds", `#/g/nba/${NBA_G}`, ".cols .card:has(table.lv-on)", { wait: "table.books.lv-on", titleBefore: false });

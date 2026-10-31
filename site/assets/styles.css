@@ -268,16 +268,20 @@ td.pos{color:var(--pos);font-weight:650}td.neg{color:var(--neg);font-weight:650}
   .tname{font-size:14px}
   .oc{height:48px}.oc b{font-size:13px}
   .game{padding:14px 14px 12px}
-  .match{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px;padding:22px 14px 20px;border-radius:20px}
-  .mteam,.mteam.home{flex-direction:column;text-align:center;gap:10px}
-  .mteam img{width:58px;height:58px}
-  .mteam .nm{font-size:15px}
+  .match{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr) minmax(0,1fr);gap:8px;padding:18px 10px 16px;border-radius:20px}
+  .mteam,.mteam.home{flex-direction:column;text-align:center;gap:8px}
+  .mteam > div{min-width:0;max-width:100%}
+  .mteam img{width:52px;height:52px}
+  .mteam .nm{font-size:14px;line-height:1.15}
+  .mteam .nm,.mteam .nm a,.mteam .rec,.mmid .when,.mmid .where{overflow-wrap:anywhere}
   .mteam .rec{font-size:11.5px}
   .mteam .rec .form{display:flex;justify-content:center;margin:4px 0 0}
-  .mmid .when{font-size:13.5px}.mmid .where{font-size:11px}
+  .mmid .when{font-size:12.5px;line-height:1.25}.mmid .where{font-size:11px;line-height:1.3}
   .mmid .score{font-size:30px}
   .cmp-row,.cmp-head{grid-template-columns:1fr 112px 1fr}
   .card{padding:14px}
+  .l5 th,.l5 td,.inj th,.inj td{white-space:normal}
+  .l5 table,.inj table{width:100%}
   .books .px{min-width:0;padding:6px 8px}
   .skel-cols{grid-template-columns:1fr}.skel-tile .r{grid-template-columns:30px 1fr repeat(3,56px)}
 }
@@ -674,7 +678,7 @@ a.grow:hover{background:color-mix(in srgb,var(--tint) 2.5%,transparent)}
 .mu-ln{position:absolute;left:0;right:0;bottom:calc(18px + (100% - 18px) * var(--ln));border-top:1px dashed var(--warn);pointer-events:none}
 .mu-kmc{display:grid;gap:8px}
 .mu-kmc h3{margin-bottom:4px}
-.mu-km{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:10px 12px;border-radius:var(--r-sm);background:var(--bg2);border:1px solid var(--line);transition:border-color .15s,background .15s}
+.mu-km{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;min-height:44px;padding:10px 12px;border-radius:var(--r-sm);background:var(--bg2);border:1px solid var(--line);transition:border-color .15s,background .15s}
 .mu-km:hover{border-color:var(--accent-line);background:var(--accent-soft)}
 .mu-km-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mu-km-go{font-size:12px;font-weight:650;color:var(--accent);align-self:center}
@@ -2149,14 +2153,18 @@ body::before{opacity:.55}
 
 /* ---------- props / stats access */
 .gjump{display:flex;gap:8px;margin:0 0 14px}
-.gjump a,.gjump span{flex:1;min-width:0;min-height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid var(--line2);background:var(--surface);font-weight:750;font-size:14px}
+.gjump a,.gjump span{flex:1;min-width:0;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid var(--line2);background:var(--surface);font-weight:750;font-size:14px;padding:0 8px;text-align:center}
 .gjump a.on,.gjump span.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .gjump .off{opacity:.45;cursor:default}
+.mu-open{display:flex;flex-direction:column;justify-content:center;gap:2px;min-height:44px;margin:14px 0 4px;padding:12px 16px;border-radius:14px;border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--txt);text-decoration:none}
+.mu-open-t{font-weight:750;font-size:15px}
+.mu-open-s{color:var(--mute);font-size:12.5px;line-height:1.35}
+.mu-open:hover{border-color:var(--accent)}
 .gwrap.has-ps{display:flex;flex-direction:column}
 .gwrap.has-ps>.game{height:auto;border-bottom-left-radius:0;border-bottom-right-radius:0}
 .gwrap.has-ps:hover>.game{transform:none}
 .ps-links{display:flex;border:1px solid var(--line);border-top:0;border-radius:0 0 var(--r) var(--r);overflow:hidden;background:var(--surface2)}
-.ps-links .ps-link{flex:1;min-height:40px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;color:var(--bestTxt)}
+.ps-links .ps-link{flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;color:var(--bestTxt)}
 .ps-links .ps-link+.ps-link{box-shadow:inset 1px 0 0 var(--line)}
 .ps-links .ps-link.off{color:var(--dim)}
 .ps-links a.ps-link:hover{background:var(--accent-soft)}
@@ -2170,7 +2178,7 @@ body::before{opacity:.55}
 .ps-nm{font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ps-when{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
 .ps-go{display:flex;gap:6px;margin-left:auto}
-.ps-go .ps-link{min-height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--line2);display:inline-flex;align-items:center;font-size:12.5px;font-weight:750;background:var(--surface2)}
+.ps-go .ps-link{min-height:44px;padding:0 12px;border-radius:999px;border:1px solid var(--line2);display:inline-flex;align-items:center;font-size:12.5px;font-weight:750;background:var(--surface2)}
 .ps-go a.ps-link{color:var(--bestTxt)}
 .ps-go .ps-link.off{color:var(--dim);opacity:.7}
 .ps-note{margin:8px 0}

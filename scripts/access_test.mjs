@@ -33,6 +33,31 @@ const players = [
 check(AC.searchPlayers(players, "love").map(p => p.name).join() === "Jordan Love", "search matches a last name and skips teams");
 check(AC.searchPlayers(players, "jordan a").map(p => p.name).join() === "Jordan Addison", "every word must match");
 check(AC.searchPlayers(players, "lamb").length === 1 && AC.searchPlayers(players, "").length === 0 && AC.searchPlayers(players, "zzzz").length === 0, "plain name, empty query, no match");
+check(AC.leaderNumber("24.0") === 24 && AC.leaderNumber(".291") === 0.291 && AC.leaderNumber("143/233, 1,487 YDS, 12 TD, 5 INT") === 1487, "leader number reads a rate, an average, and yards");
+check(AC.leaderNumber("Matches: 8, Goals: 2") === 2 && AC.leaderNumber("") === null && AC.leaderNumber("no number") === null, "leader number reads the stat after Matches, or nothing");
+check(AC.leaderLabel("143/233, 1,487 YDS, 12 TD, 5 INT") === "1,487 YDS · 12 TD · 5 INT" && AC.leaderLabel("Matches: 11, Goals: 13") === "13 · 11 GP" && AC.leaderLabel("24.0") === "24.0", "leader label shortens a long line and keeps a short one");
+const boards = AC.seasonBoards([
+  { cat: "Points", player: "A", teamId: "1", value: "20.0" },
+  { cat: "Points", player: "A", teamId: "1", value: "20.0" },
+  { cat: "Points", player: "B", teamId: "2", value: "30" },
+  { cat: "Earned Run Average", player: "C", teamId: "3", value: "2.67" },
+  { cat: "Earned Run Average", player: "D", teamId: "4", value: "1.80" },
+  { cat: "Passing Yards", player: "E", teamId: "5", value: "111/174, 1,174 YDS, 7 TD, 2 INT" },
+  { cat: "Passing Yards", player: "F", teamId: "6", value: "84 CAR, 460 YDS, 1 TD" },
+], 8);
+const pts = boards.find(b => b.cat === "Points"), era = boards.find(b => b.cat === "Earned Run Average"), yds = boards.find(b => b.cat === "Passing Yards");
+check(pts.rows.map(r => r.player).join() === "B,A" && pts.rows.length === 2, "points board ranks high to low and drops the duplicate team");
+check(era.rows.map(r => r.player).join() === "D,C", "earned run average ranks low to high");
+check(yds.rows.map(r => r.player).join() === "E,F", "passing yards ranks on the YDS number, not the attempts");
+check(AC.seasonBoards(null).length === 0 && AC.seasonBoards([{ cat: "Points" }]).length === 0, "empty or nameless leaders make no board");
+const cover = AC.leaderGameOrder([
+  { id: "1", home: { id: "h" }, away: { id: "a" } },
+  { id: "2", home: { id: "h" }, away: { id: "a" } },
+  { id: "3", home: { id: "c" }, away: { id: "a" } },
+  { id: "x" },
+]);
+check(cover.map(g => g.id).join() === "1,3", `leader files cover new teams only (${cover.map(g => g.id)})`);
+check(AC.playerHref("nba", "Ty Jerome", [{ id: "4242", name: "Ty Jerome" }]) === "#/p/nba/4242" && AC.playerHref("nba", "Nobody", [{ id: "1", name: "Ty Jerome" }]) === "" && AC.playerHref("nba", "", []) === "", "player link when the index has that name");
 
 // ---------- static wiring
 const idx = fs.readFileSync("site/index.html", "utf8");
@@ -41,6 +66,8 @@ const app = fs.readFileSync("site/assets/app.js", "utf8");
 const bnav = (idx.match(/<nav class="bnav"[\s\S]*?<\/nav>/) || [""])[0];
 check(/id="propsBtn" href="#\/props"/.test(idx) && /id="statsBtn" href="#\/stats"/.test(idx), "desktop nav has Props and Stats");
 check(/data-nav="props"/.test(bnav) && /data-nav="stats"/.test(bnav) && /href="#\/props"/.test(bnav) && /href="#\/stats"/.test(bnav), "mobile menu has Props and Stats");
+check(/id="i-stats"/.test(idx) && /id="statsBtn"[\s\S]*?#i-stats/.test(idx) && /data-nav="stats"[\s\S]*?#i-stats/.test(bnav), "Stats uses its own sprite in the header and the mobile menu");
+check(!/#i-stats/.test((idx.match(/id="valueBtn"[\s\S]*?<\/a>/) || [""])[0]) && /M3 17l6-6/.test((bnav.match(/data-nav="value"[\s\S]*?<\/a>/) || [""])[0]), "Value keeps the trend arrow");
 check(!/data-nav="pro"/.test(bnav), "Pro stays off the mobile menu");
 check(idx.includes('src="assets/access-core.js"') && idx.indexOf("access-core.js") < idx.indexOf('src="assets/app.js"'), "access-core.js loads before app.js");
 check(sw.includes('"assets/access-core.js"'), "service worker caches access-core.js");
@@ -81,6 +108,8 @@ async function open(width, height, hash, opts = {}) {
     return r.abort();
   });
   if (opts.propsFile) await ctx.route("**/data/props/nfl.json", r => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ v: 1, lg: "nfl", games: { [nflId]: { props: [] } }, players: { p: { n: "Jordan Love" } } }) }));
+  if (opts.propsBody) await ctx.route(`**/data/props/${opts.propsLeague || "nba"}.json`, r => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(opts.propsBody) }));
+  if (opts.searchNba) await ctx.route("**/data/search/nba.json", r => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ v: 1, lg: "nba", kind: "basketball", name: "NBA", path: "basketball/nba", hs: "", teams: [["1", "Test Team", "TST", "Test", "", "", "", "", 1]], players: [[String(opts.searchNba.id), opts.searchNba.name, 0, "", "", 0]] }) }));
   const page = await ctx.newPage();
   page.on("pageerror", e => pageErrs.push(hash + ": " + e.message));
   await page.goto(BASE + hash, { waitUntil: "domcontentloaded", timeout: 20000 });
@@ -204,6 +233,113 @@ try {
     check(nh.off && /no player-props file/.test(nh.text), "NHL game props tab is off and the page says why");
     await nhlg.ctx.close();
   } else check(false, "nhl game id missing");
+
+  const dayOf = iso => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+  const nbaIdx = JSON.parse(fs.readFileSync("site/data/nba/index.json", "utf8"));
+  const todayET = dayOf(new Date().toISOString());
+  let nbaSlate = nbaIdx.games.filter(g => dayOf(g.date) === todayET);
+  if (!nbaSlate.length) {
+    const next = nbaIdx.games.filter(g => g.state !== "post").sort((a, b) => String(a.date).localeCompare(String(b.date)))[0];
+    nbaSlate = next ? nbaIdx.games.filter(g => dayOf(g.date) === dayOf(next.date)) : [];
+  }
+  const propGame = nbaSlate.find(g => g.state === "pre") || nbaSlate[0];
+  check(!!propGame, "nba slate has a game to hang a props fixture on");
+  if (propGame) {
+    const propDoc = {
+      v: 1, lg: "nba", gen: "2026-10-30T12:00:00Z", source: "ESPN", book: "DraftKings", books: ["draftkings"],
+      markets: { points: ["Points", "Pts"], rebounds: ["Rebounds", "Reb"] },
+      games: { [propGame.id]: { props: [["p1", "points", 24.5, 23.5, [3, 1, 0, 4]], ["p1", "rebounds", 8.5, null, [2, 2, 0, 4]]] } },
+      players: { p1: { n: "Test Guard", pos: "G", t: String(propGame.away.id), ta: propGame.away.abbr, log: [["2026-10-28", "BOS", "@", { points: 30, rebounds: 10 }], ["2026-10-26", "NY", "vs", { points: 18, rebounds: 6 }]] } },
+    };
+    const shown = await open(375, 812, "#/props/nba", { propsBody: propDoc, propsLeague: "nba" });
+    await shown.page.waitForSelector("#psProps", { timeout: 15000 });
+    await shown.page.waitForSelector(".ps-prop-g .pp-card", { timeout: 15000 });
+    const propView = await shown.page.evaluate(() => {
+      const card = document.querySelector(".ps-prop-g .pp-card");
+      return {
+        h: document.querySelector("#app h1").textContent,
+        who: card.querySelector(".pp-h").innerText,
+        line: card.innerText,
+        games: document.querySelectorAll("#psGames .ps-row").length,
+        search: !!document.getElementById("psq"),
+        groups: document.querySelectorAll(".ps-prop-g").length,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        statsH: !!document.querySelector("#psStats"),
+      };
+    });
+    check(propView.h === "Player props" && /Test Guard/.test(propView.who) && /O\/U 24\.5/.test(propView.line) && propView.groups >= 1, `props landing shows today's lines grouped by game (${propView.who.split("\n")[0]})`);
+    check(propView.search && propView.games > 0 && !propView.statsH, `props landing keeps search and the game list (${propView.games} games)`);
+    check(propView.overflow <= 1, `props landing at 375 does not scroll sideways (${propView.overflow}px)`);
+    const propFoot = await shown.page.locator("#app").innerText();
+    check(!/DraftKings is legal|FanDuel is legal|legal in Florida/i.test(propFoot), "props lines do not call DraftKings or FanDuel legal in Florida");
+    await shown.ctx.close();
+  }
+
+  async function featureText(hash, ready) {
+    const o = await open(375, 812, hash);
+    await o.page.waitForSelector("#psq", { timeout: 15000 });
+    await o.page.waitForFunction(ready, { timeout: 20000 });
+    const info = await o.page.evaluate(() => ({
+      h: document.querySelector("#app h1").textContent,
+      kind: document.querySelector(".ps-page").getAttribute("data-ps"),
+      feat: (document.getElementById("psFeature") || {}).innerText || "",
+      note: (document.querySelector(".ps-note") || {}).innerText || "",
+      games: document.querySelectorAll("#psGames .ps-row").length,
+      search: !!document.getElementById("psq"),
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      leaders: document.querySelectorAll("#psStats .ps-lead li").length,
+      linked: document.querySelectorAll("#psStats a[href^='#/p/']").length,
+      plain: document.querySelectorAll("#psStats [data-leader]").length,
+    }));
+    await o.ctx.close();
+    return info;
+  }
+  const nbaProps = await featureText("#/props/nba", () => !!document.querySelector(".ps-note"));
+  const nbaStats = await featureText("#/stats/nba", () => !!document.querySelector("#psStats"));
+  check(nbaProps.h === "Player props" && nbaProps.kind === "props" && /aren't in this data update|no player-props file/.test(nbaProps.note), `nba props explains a missing file (${nbaProps.note.slice(0, 70)})`);
+  check(nbaStats.h === "Player stats" && nbaStats.kind === "stats" && nbaStats.leaders > 0 && /Points/.test(nbaStats.feat), `nba stats shows season leaders (${nbaStats.leaders} rows)`);
+  check(nbaProps.feat !== nbaStats.feat && !/Season leaders/.test(nbaProps.feat) && nbaProps.h !== nbaStats.h, "props and stats landings are not the same view");
+  check(nbaProps.search && nbaStats.search && nbaProps.games > 0 && nbaStats.games > 0, `both landings keep search and the game list (${nbaProps.games}, ${nbaStats.games})`);
+  check(nbaProps.overflow <= 1 && nbaStats.overflow <= 1, `nba landings at 375 do not scroll sideways (${nbaProps.overflow}, ${nbaStats.overflow})`);
+
+  const nflProps = await featureText("#/props/nfl", () => !!document.querySelector(".ps-note, #psProps"));
+  const nflStats = await featureText("#/stats/nfl", () => !!document.querySelector("#psStats"));
+  check(nflProps.kind === "props" && nflStats.kind === "stats" && nflProps.feat !== nflStats.feat, "nfl props and stats landings differ");
+  check(nflStats.leaders > 0 && /Passing Yards/.test(nflStats.feat), `nfl stats shows passing leaders (${nflStats.leaders} rows)`);
+  check(nflProps.search && nflStats.search && nflProps.games > 0 && nflStats.games > 0, `nfl landings keep the search box and a game list (${nflProps.games}, ${nflStats.games})`);
+  check(nflProps.overflow <= 1 && nflStats.overflow <= 1, `nfl landings at 375 do not scroll sideways (${nflProps.overflow}, ${nflStats.overflow})`);
+
+  const nbaGames = JSON.parse(fs.readFileSync("site/data/nba/index.json", "utf8")).games;
+  const nbaRecs = [];
+  for (const g of AC.leaderGameOrder(nbaGames).slice(0, 40)) {
+    const d = JSON.parse(fs.readFileSync(`site/data/nba/games/${g.id}.json`, "utf8"));
+    for (const x of ((d.detail || {}).leaders) || []) nbaRecs.push(x);
+  }
+  const topPts = AC.seasonBoards(nbaRecs, 8).find(b => b.cat === "Points").rows[0];
+  const linked = await open(375, 812, "#/stats/nba", { searchNba: { name: topPts.player, id: "4242" } });
+  await linked.page.waitForFunction(() => [...document.querySelectorAll("#psStats a")].some(a => /\/p\/nba\/4242/.test(a.getAttribute("href") || "") || /\/p\/nba\/4242/.test(a.href)), { timeout: 20000 });
+  const linkInfo = await linked.page.evaluate(() => {
+    const a = [...document.querySelectorAll("#psStats a")].find(x => /\/p\/nba\/4242/.test(x.getAttribute("href") || "") || /\/p\/nba\/4242/.test(x.href));
+    return { text: a ? a.textContent : "" };
+  });
+  check(linkInfo.text === topPts.player, `a season leader links to the player page (${linkInfo.text || "missing"}, expected ${topPts.player})`);
+  await linked.ctx.close();
+
+  const ncaab = await featureText("#/stats/ncaab", () => !!document.querySelector("#psStats"));
+  check(/don't include season leaders/.test(ncaab.feat) && ncaab.search && ncaab.h === "Player stats", "a league without leader data says so instead of going blank");
+  check(ncaab.overflow <= 1, `ncaab stats at 375 does not scroll sideways (${ncaab.overflow}px)`);
+
+  const phoneNav = await open(375, 812, "#/");
+  await phoneNav.page.waitForSelector("#bnav [data-nav='stats']", { timeout: 15000 });
+  const icons = await phoneNav.page.evaluate(() => {
+    const use = sel => { const u = document.querySelector(sel); return u ? u.getAttribute("href") : ""; };
+    const stats = (document.getElementById("i-stats") || {}).innerHTML || "";
+    const trend = (document.getElementById("i-trend") || {}).innerHTML || "";
+    const value = (document.querySelector("#bnav [data-nav='value'] svg") || {}).innerHTML || "";
+    return { nav: use("#bnav [data-nav='stats'] use"), head: use("#statsBtn use"), stats: stats.replace(/\s/g, ""), trend: trend.replace(/\s/g, ""), value: value.replace(/\s/g, "") };
+  });
+  check(icons.nav === "#i-stats" && icons.head === "#i-stats" && icons.stats && icons.stats !== icons.trend && icons.value !== icons.stats, "mobile Stats icon is not the Value trend arrow");
+  await phoneNav.ctx.close();
 
   check(odds.length === 0, `no Odds API or geo calls (${odds.length})`);
   check(!pageErrs.length, `no page errors (${pageErrs.slice(0, 3).join(" | ")})`);

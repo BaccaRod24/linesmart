@@ -167,5 +167,65 @@
     }).join("") + foot(doc) + `</div>`;
   }
 
-  window.LSProps = { SUPPORTED, gameSlot, mountGame, mountPlayer };
+  const LAND_SHOW = 4;
+
+  /** Props landing: today's (or the next upcoming) player lines, one block per game, using the same player cards as the game page. */
+  async function mountLanding(el, lg, slate, allGames, alive = () => true) {
+    if (!el || !SUPPORTED.has(lg)) return;
+    let doc = null;
+    try { doc = await load(lg); } catch (e) { /* no props file */ }
+    if (!alive()) return;
+    if (!doc || !doc.games) { el.innerHTML = ""; return; }
+    MULTI = multi(doc);
+    const hasLines = g => {
+      const slot = g && doc.games[String(g.id)];
+      return !!(slot && (slot.props || []).length);
+    };
+    let list = (slate || []).filter(hasLines);
+    let head = "Today's prop lines";
+    if (!list.length) {
+      list = (allGames || []).filter(g => g && g.state === "pre" && hasLines(g)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      head = "Upcoming prop lines";
+    }
+    if (!list.length) {
+      el.innerHTML = `<div class="section-title" id="psProps">Today's prop lines</div><div class="card note ps-empty">No player props are posted for these games yet. The games below still open, and Stats still opens.</div>`;
+      return;
+    }
+    const when = g => g.state === "in" ? (g.statusDetail || "Live") : g.state === "post" ? "Final" : A().timeET(g.date);
+    const nm = g => `${(g.away || {}).abbr || (g.away || {}).short || ""} @ ${(g.home || {}).abbr || (g.home || {}).short || ""}`;
+    const blocks = [];
+    let nLines = 0;
+    for (const g of list) {
+      const players = C.byPlayer(doc, g.id, [String((g.away || {}).id || ""), String((g.home || {}).id || "")], prefer());
+      if (!players.length) continue;
+      nLines += players.reduce((a, p) => a + p.props.length, 0);
+      blocks.push({ g, players });
+    }
+    if (!alive()) return;
+    if (!blocks.length) {
+      el.innerHTML = `<div class="section-title" id="psProps">Today's prop lines</div><div class="card note ps-empty">No player props are posted for these games yet. The games below still open, and Stats still opens.</div>`;
+      return;
+    }
+    el.innerHTML = `<div class="section-title" id="psProps">${esc(head)} <span class="st-sub">${nLines} lines · ${blocks.length} ${blocks.length === 1 ? "game" : "games"}</span></div><div class="ps-prop-sub">${subTitle(doc)}</div><div class="pp ps-props">${legend}`
+      + blocks.map(({ g, players }) => `<section class="ps-prop-g" aria-label="${esc(nm(g))}">
+          <a class="pp-game" href="#/g/${esc(lg)}/${esc(g.id)}/props"><b>${esc(nm(g))}</b><span>${esc(when(g))}</span><span class="pp-go">All props</span></a>
+          <div class="pp-list">${players.map(p => playerCard(lg, p, { gid: g.state === "pre" ? g.id : null })).join("")}</div>
+          <button type="button" class="pp-more" hidden>Show all ${players.length} players</button>
+        </section>`).join("")
+      + foot(doc) + `</div>`;
+    if (window.LSAdv) window.LSAdv.decorateProps(el, lg).catch(() => {});
+    el.querySelectorAll(".ps-prop-g").forEach(sec => {
+      const more = sec.querySelector(".pp-more");
+      const cards = [...sec.querySelectorAll(".pp-card")];
+      let open = false;
+      const draw = () => {
+        cards.forEach((c, i) => { c.hidden = !open && i >= LAND_SHOW; });
+        if (more) { more.hidden = open || cards.length <= LAND_SHOW; more.textContent = `Show all ${cards.length} players`; }
+      };
+      if (more) more.addEventListener("click", () => { open = true; draw(); });
+      draw();
+    });
+  }
+
+  window.LSProps = { SUPPORTED, gameSlot, mountGame, mountPlayer, mountLanding };
 })();

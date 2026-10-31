@@ -1360,13 +1360,22 @@
     const list = shown.length
       ? `<div class="ps-games" id="psGames">${shown.map(row).join("")}</div>`
       : `<div class="empty" id="psGames"><h3>No ${esc(lgName(lg))} games on this slate</h3>Try another league.</div>`;
-    app.innerHTML = `<div class="ps-page"><div class="page-head"><div><h1>${propsMode ? "Player props" : "Player stats"}</h1><div class="sub">${esc(head)} · ${esc(lgName(lg))} · search any player by name</div></div></div>
+    const sub = propsMode
+      ? `${esc(head)} · ${esc(lgName(lg))} · today's prop lines, then the games`
+      : `${esc(head)} · ${esc(lgName(lg))} · season leaders, then the games`;
+    const featureSlot = !propsMode
+      ? `<div id="psFeature"><div class="card note" data-loading>Loading season leaders…</div></div>`
+      : hasFile
+        ? `<div id="psFeature"><div class="card note" data-loading>Loading today's prop lines…</div></div>`
+        : `<div id="psFeature"></div>`;
+    app.innerHTML = `<div class="ps-page" data-ps="${propsMode ? "props" : "stats"}"><div class="page-head"><div><h1>${propsMode ? "Player props" : "Player stats"}</h1><div class="sub">${sub}</div></div></div>
       <div class="sbox"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="psq" type="search" placeholder="Player name, any league" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Search players by name"></div>
       <div id="psres"></div>
       ${note ? `<div class="note ps-note">${esc(note)}</div>` : ""}
       <nav class="ps-lgs" aria-label="League">${order.map(chip).join("")}</nav>
-      <div class="section-title">${esc(head)}</div>${list}
+      ${featureSlot}
+      <div class="section-title">Games <span class="st-sub">${esc(head)}</span></div>${list}
       <div class="note">Times in ${TZL}. Player search reads the on-site player index.</div></div>`;
     window.scrollTo(0, 0);
     const inp = document.getElementById("psq"), box = document.getElementById("psres");
@@ -1384,6 +1393,59 @@
     };
     inp.addEventListener("input", draw);
     searchEntries().then(() => { if (tok === NAV) draw(); }).catch(() => {});
+    const feat = document.getElementById("psFeature");
+    if (propsMode && hasFile && window.LSProps && window.LSProps.mountLanding) {
+      const tok2 = tok;
+      window.LSProps.mountLanding(feat, lg, shown.map(x => x.g), games, () => tok2 === NAV).catch(e => {
+        if (tok2 === NAV && feat) feat.innerHTML = notAvail("Player props", "Couldn't load player props right now.");
+        console.warn(e);
+      });
+    } else if (!propsMode) {
+      const tok2 = tok;
+      const abbr = new Map();
+      for (const g of games) for (const side of [g.home, g.away]) if (side && side.id != null) abbr.set(String(side.id), side.abbr || side.short || "");
+      loadSeasonLeaders(lg, games, () => tok2 === NAV).then(recs => {
+        if (tok2 !== NAV || !feat || recs == null) return;
+        const boards = AC && AC.seasonBoards ? AC.seasonBoards(recs, 8) : [];
+        feat.innerHTML = statsFeatureHtml(lg, boards, abbr);
+        linkLeaders(lg, tok2);
+      }).catch(e => {
+        if (tok2 === NAV && feat) feat.innerHTML = notAvail("Season leaders", "Couldn't load season leaders right now.");
+        console.warn(e);
+      });
+    }
+  }
+
+  // One file per new team. Finished games are often the ones without a summary, so keep going until a leader shows up.
+  // A league whose files have none (college basketball) stops after 16 empty files instead of reading the whole slate.
+  async function loadSeasonLeaders(lg, games, alive) {
+    const AC = window.AccessCore;
+    const order = ((AC && AC.leaderGameOrder ? AC.leaderGameOrder(games) : games) || []).slice(0, 40);
+    const out = [], seen = new Set();
+    const BATCH = 8;
+    for (let i = 0; i < order.length; i += BATCH) {
+      const docs = await Promise.all(order.slice(i, i + BATCH).map(g => getJSON(`data/${lg}/games/${g.id}.json`).catch(() => null)));
+      if (!alive()) return null;
+      for (const d of docs) for (const x of ((d && d.detail && d.detail.leaders) || [])) {
+        if (!x || !x.player || !x.cat) continue;
+        const k = x.cat + "\0" + String(x.teamId || "") + "\0" + x.player;
+        if (seen.has(k)) continue;
+        seen.add(k); out.push(x);
+      }
+      if (!out.length && i + BATCH >= 16) break;
+    }
+    return out;
+  }
+  function statsFeatureHtml(lg, boards, abbr) {
+    if (!boards.length) return `<div class="card ps-miss" id="psStats"><h3>Season leaders</h3><div class="na">This league's game files don't include season leaders yet. Search a player by name above, or open a game below for its Stats page.</div></div>`;
+    const AC = window.AccessCore;
+    const label = v => AC && AC.leaderLabel ? AC.leaderLabel(v) : String(v ?? "");
+    const board = b => `<section class="card ps-board" aria-label="${esc(b.cat)}"><h3>${esc(b.cat)}</h3><ol class="ps-lead">${b.rows.map((r, i) => {
+      const tm = abbr.get(String(r.teamId)) || "";
+      return `<li><span class="ps-rank">${i + 1}</span><span class="ps-who"><span data-leader="${esc(r.player)}">${esc(r.player)}</span>${tm ? `<span class="ps-tm">${esc(tm)}</span>` : ""}</span><span class="ps-val" title="${esc(r.value)}">${esc(label(r.value))}</span></li>`;
+    }).join("")}</ol></section>`;
+    return `<div id="psStats"><div class="section-title">Season leaders <span class="st-sub">top ${Math.max(...boards.map(b => b.rows.length))} per category</span></div><div class="ps-boards">${boards.map(board).join("")}</div>
+      <div class="note">Each row is that team's season leader from the on-site game files (the same stats as a game's Stats page), ranked in the category. A name links to the player page when the on-site player index has it.</div></div>`;
   }
 
   // ---------- router

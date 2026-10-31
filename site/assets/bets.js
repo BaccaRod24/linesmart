@@ -979,7 +979,7 @@
   const SC = () => window.SlipCore;
   const QKEY = "ls-slip-queue";
   const TESS_SRC = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
-  let SLIPQ = null, SLIP_TEXT = "", SLIP_BOOK = "";
+  let SLIPQ = null, SLIP_TEXT = "", SLIP_BOOK = "", LAST_OCR = null;
   const loadQ = () => { if (!SLIPQ) try { SLIPQ = JSON.parse(sessionStorage.getItem(QKEY) || "null"); } catch (e) { SLIPQ = null; } return SLIPQ; };
   const saveQ = () => { try { SLIPQ ? sessionStorage.setItem(QKEY, JSON.stringify(SLIPQ)) : sessionStorage.removeItem(QKEY); } catch (e) {} };
   const SEARCH = {};
@@ -1030,14 +1030,15 @@
     const root = $(".bt-imp-wrap", app), ta = $(".bt-slip-ta", root), err = $(".bt-err", root), st = $(".bt-ocr", root);
     const status = msg => { st.hidden = !msg; $(".bt-ocr-t", st).textContent = msg || ""; };
     const fail = msg => { status(""); err.textContent = msg; return false; };
-    ta.addEventListener("input", () => { SLIP_TEXT = ta.value; err.textContent = ""; });
+    ta.addEventListener("input", () => { LAST_OCR = null; SLIP_TEXT = ta.value; err.textContent = ""; });
     const fromImage = async file => {
       err.textContent = "";
       if (!file || !/^image\//.test(file.type)) return fail("Choose an image file (a screenshot of your bet slip).");
       try {
-        const text = await ocrImage(file, status);
-        if (!text.trim()) return fail("Couldn't read any text in that screenshot. Try a sharper one, or paste the text instead.");
-        SLIP_TEXT = ta.value = text.trim();
+        const texts = await ocrImage(file, status);
+        if (!texts.length) return fail("Couldn't read any text in that screenshot. Try a sharper one, or paste the text instead.");
+        LAST_OCR = texts;
+        SLIP_TEXT = ta.value = texts.join("\n\n");
         return read();
       } catch (e) { return fail(e && e.message ? e.message : "Couldn't read that screenshot."); }
     };
@@ -1049,7 +1050,8 @@
       const tok = A().nav();
       let idx; try { idx = await slipIndex(); } catch (e) { idx = SC().buildIndex({}); }
       if (tok !== A().nav()) return;
-      const r = SC().parseSlip(text, idx);
+      const merged = LAST_OCR && SC().bestOcrTicket ? SC().bestOcrTicket(LAST_OCR) : null;
+      const r = merged ? { tickets: [merged] } : SC().parseSlip(text, idx);
       if (!r.tickets.length) return fail("Couldn't find a bet in that text. Include the selection (e.g. “Eagles -3.5 -110”) and the stake, or use + Add bet.");
       const items = r.tickets.map(t => {
         SC().matchTicket(t, idx);
@@ -1070,7 +1072,7 @@
       const b = e.target.closest("[data-a]"); if (!b) return;
       const a = b.dataset.a;
       if (a === "sbook") { SLIP_BOOK = b.dataset.v; root.querySelectorAll('[data-a="sbook"]').forEach(x => x.classList.toggle("on", x === b)); }
-      else if (a === "example") { SLIP_TEXT = ta.value = SLIP_EXAMPLE; ta.focus(); }
+      else if (a === "example") { LAST_OCR = null; SLIP_TEXT = ta.value = SLIP_EXAMPLE; ta.focus(); }
       else if (a === "read") read();
       else if (a === "discard") { SLIPQ = null; saveQ(); viewImport(app); }
     });
@@ -1093,27 +1095,55 @@
       document.head.appendChild(sc);
     }));
   }
-  async function slipCanvas(file) {   // upscale small screenshots, grayscale + invert dark mode + stretch contrast (slip-core ocrPrep)
+  async function slipCanvas(file, prep) {   // upscale small screenshots; optional grayscale + invert (slip-core ocrPrep)
     const url = URL.createObjectURL(file);
     try {
       const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("That file isn't an image this browser can open.")); i.src = url; });
       const w = img.naturalWidth || img.width, k = w < 1100 ? Math.min(2.5, 1600 / w) : w > 2400 ? 2400 / w : 1;
       const c = document.createElement("canvas"); c.width = Math.round(w * k); c.height = Math.round((img.naturalHeight || img.height) * k);
       const x = c.getContext("2d", { willReadFrequently: true }); x.imageSmoothingQuality = "high"; x.drawImage(img, 0, 0, c.width, c.height);
-      const d = x.getImageData(0, 0, c.width, c.height); SC().ocrPrep(d.data); x.putImageData(d, 0, 0);
+      if (prep) { const d = x.getImageData(0, 0, c.width, c.height); SC().ocrPrep(d.data); x.putImageData(d, 0, 0); }
       return c;
     } finally { URL.revokeObjectURL(url); }
+  }
+  /** Bright band of a mixed card (green Hard Rock header on a dark body). Null when the photo is one tone. */
+  function brightBandCanvas(source) {
+    const w = source.width, h = source.height;
+    const data = source.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+    const rows = [];
+    for (let y = 0; y < h; y++) {
+      let s = 0, n = 0;
+      for (let x = 0; x < w; x += 4) { const i = (y * w + x) * 4; s += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]; n++; }
+      rows.push(s / n);
+    }
+    let best = null, start = -1;
+    for (let y = 0; y <= h; y++) {
+      const bright = y < h && rows[y] >= 80;
+      if (bright && start < 0) start = y;
+      if ((!bright || y === h) && start >= 0) { if (!best || y - start > best[1] - best[0]) best = [start, y]; start = -1; }
+    }
+    if (!best || best[1] - best[0] < h * 0.12 || best[1] - best[0] > h * 0.85) return null;
+    const c = document.createElement("canvas"); c.width = w; c.height = best[1] - best[0];
+    c.getContext("2d").drawImage(source, 0, best[0], w, c.height, 0, 0, w, c.height);
+    return c;
   }
   async function ocrImage(file, status) {
     status("Loading the screenshot reader…");
     const T = await loadTess();
-    const canvas = await slipCanvas(file);
+    const raw = await slipCanvas(file, false);
+    const prep = await slipCanvas(file, true);
+    const band = brightBandCanvas(raw);
     const worker = await T.createWorker("eng", 1, { logger: m => {
       if (m.status === "recognizing text") status(`Reading your screenshot… ${Math.round((m.progress || 0) * 100)}%`);
       else if (/load|initiali/i.test(m.status || "")) status("Loading the screenshot reader (first time only)…");
     } });
-    try { await worker.setParameters({ preserve_interword_spaces: "1" }); const r = await worker.recognize(canvas); return (r && r.data && r.data.text) || ""; }
-    finally { worker.terminate(); }
+    const read = async canvas => { const r = await worker.recognize(canvas); return (r && r.data && r.data.text) || ""; };
+    try {
+      await worker.setParameters({ preserve_interword_spaces: "1" });
+      const texts = [await read(raw), await read(prep)];
+      if (band) texts.push(await read(band));
+      return texts.map(t => t.trim()).filter(Boolean);
+    } finally { worker.terminate(); }
   }
 
   async function viewReview(app, i) {

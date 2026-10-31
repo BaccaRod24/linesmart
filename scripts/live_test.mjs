@@ -39,6 +39,15 @@ const p = C.plan([g("nfl", "1", "in", "2026-10-27T00:15:00Z"), g("nfl", "2", "po
   g("nba", "4", "pre", "2026-10-27T02:30:00Z"), g("nhl", "5", "post", "2026-10-26T23:00:00Z")], now);
 check(JSON.stringify(Object.fromEntries(Object.entries(p).map(([k, v]) => [k, [...v]]))) === JSON.stringify({ nfl: ["20261026"], nba: ["20261026"] }), "plan: one scoreboard per live league/day only");
 check(Object.keys(C.plan([g("nfl", "2", "post", "2026-10-26T17:00:00Z")], now)).length === 0, "plan: nothing live -> no requests");
+// 12:21 AM ET: a game that tipped at 10:00 PM ET is on yesterday's scoreboard, not today's.
+const afterMidnight = Date.parse("2026-10-31T04:21:00Z");
+const nightPlan = C.plan([
+  g("nba", "401909285", "in", "2026-10-31T02:00:00Z"),
+  g("nba", "401909286", "in", "2026-10-31T02:00:00Z"),
+  g("ncaaf", "401866451", "in", "2026-10-31T02:30:00Z"),
+], afterMidnight);
+check([...nightPlan.nba].join() === "20261030" && [...nightPlan.ncaaf].join() === "20261030", "after midnight ET: poll yesterday's ET scoreboard, not today's");
+check(C.scoreboardUrl("ncaaf", [...nightPlan.ncaaf][0]).includes("groups=80") && !C.scoreboardUrl("ncaaf", [...nightPlan.ncaaf][0]).includes("groups=81"), "after midnight ET: college football poll stays on the FBS group");
 
 // scoreboards
 const nfl = C.parseScoreboard("nfl", fx("sb_nfl"), AS_OF), dal = nfl["nfl/401873009"];

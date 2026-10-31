@@ -96,6 +96,20 @@ check(!K.has("nba/1") && !K.has("nba/2") && K.size === 4, "settled bets and sett
 const meta = { order, leagues: Object.fromEntries(order.map(k => [k, { games: k === "mls" ? 0 : 5 }])), slate: { leagues: { nfl: { today: 1 }, nba: { today: 9 }, nhl: { today: 0, live: 1 }, ufc: { today: 0 } } } };
 check(T.leaguesToLoad(meta, Date.parse("2026-10-26T20:00:00Z")).join() === "nfl,nba,nhl", "afternoon: leagues playing today or live");
 check(T.leaguesToLoad(meta, Date.parse("2026-10-27T05:30:00Z")).join() === order.filter(k => k !== "mls").join(), "after midnight ET: every league with games (late games from yesterday)");
+// 12:21 AM ET Sat Oct 31 2026: games that started Friday night are still in progress. The bucket does not
+// care that their ET date is yesterday; state "in" is enough. A 7 PM final is not "just finished".
+const lateNow = Date.parse("2026-10-31T04:21:00Z");
+const lateNight = [
+  { lg: "nba", g: G("401909285", "in", "2026-10-31T02:00:00Z", { det: "8:50 - 4th" }) },   // LAL @ GS, 10:00 PM ET
+  { lg: "nba", g: G("401909286", "in", "2026-10-31T02:00:00Z", { det: "35.4 - 4th" }) },   // DEN @ PHX
+  { lg: "ncaaf", g: G("401866451", "in", "2026-10-31T02:30:00Z", { det: "Halftime" }) },   // Kent State @ Sacramento State
+  { lg: "nba", g: G("401909277", "post", "2026-10-30T23:00:00Z", { det: "Final" }) },      // 7:00 PM ET final
+  { lg: "nba", g: G("401909896", "pre", "2026-10-31T19:00:00Z", { det: "10/31 - 3:00 PM EDT" }) },
+];
+const lateB = T.classify(lateNight, lateNow);
+check(lateB.live.map(x => x.g.id).join() === "401909285,401909286,401866451", "after midnight ET: yesterday's in-progress games stay on Live");
+check(lateB.recent.length === 0 && lateB.soon.length === 0, "after midnight ET: a 7 PM final and a 3 PM game are not live, soon, or just finished");
+check(T.clockText("nba", lateNight[0].g, "basketball") === "Q4 · 8:50" && T.clockText("ncaaf", lateNight[2].g, "football") === "Halftime", "after midnight ET: quarter clock and halftime labels");
 check(T.leaguesToLoad({ order }).join() === order.join(), "no slate: every league");
 
 // ---------- UFC cards collapse to one row per event for soon / recent

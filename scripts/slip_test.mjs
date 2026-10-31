@@ -2,6 +2,7 @@
 // matched to LineSmart games/players -> bet-form draft -> saved bet that BetCore can auto-settle. No browser, no network.
 // Usage: node scripts/slip_test.mjs
 import { createRequire } from "module";
+import fs from "fs";
 const require = createRequire(import.meta.url);
 const S = require("../site/assets/slip-core.js");
 const C = require("../site/assets/bets-core.js");
@@ -412,6 +413,19 @@ BAM ADEBAYO - REBOUNDS`);
   check(col && col.legs.length === 3 && col.stake === 20 && col.payout === 126.29 && col.status === "won" && col.legs[0].ou === "under" && col.legs[1].ou === "over" && col.legs[2].pmk === "rebounds", "HRB settled: two-column Wager Paid / $20 $126.29 stays one ticket", "hardrock");
   const banner = S.classify("WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER", null, NOW);
   check(banner.length === 1 && banner[0].k === "status" && banner[0].status === "won", "WINNER watermark is a result, not a moneyline", "hardrock");
+}
+
+// ---------- 18. real dark-mode photo: inverted OCR drops the green header; raw + header band merge
+{
+  const ocr = JSON.parse(fs.readFileSync(new URL("./fixtures/hrb-photo-ocr.json", import.meta.url)));
+  const bad = S.parseSlip(ocr.inverted).tickets[0];
+  check(!bad || !bad.stake || bad.legs.length !== 3, "inverted photo OCR alone misses the stake or splits the legs", "photo");
+  const t = S.bestOcrTicket([ocr.raw, ocr.inverted, ocr.header]);
+  check(t && t.book === "hardrock" && t.status === "won" && t.stake === 20 && t.odds === 531 && t.payout === 126.29 && t.toWin === 106.29, `photo OCR merges to Hard Rock won $20 +531 paid $126.29 (got ${t && t.book} ${t && t.status} ${t && t.stake} ${t && t.odds} ${t && t.payout})`, "photo");
+  check(t.legs.length === 3 && t.legs[0].player.includes("CUNNINGHAM") && t.legs[0].ou === "under" && t.legs[0].line === 9.5 && t.legs[0].pmk === "assists"
+    && t.legs[1].player.includes("MAXEY") && t.legs[1].ou === "over" && t.legs[1].line === 25.5
+    && t.legs[2].player.includes("ADEBAYO") && t.legs[2].ou === "under" && t.legs[2].line === 9.5 && t.legs[2].pmk === "rebounds", "photo OCR: 3 paired legs", "photo");
+  check(t.ref === "HRB-TEST-1001" && !JSON.stringify(ocr).match(/\d{8,}/), "photo fixture uses the fake bet ID only", "photo");
 }
 
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall slip import tests passed");

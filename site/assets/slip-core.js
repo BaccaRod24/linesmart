@@ -20,7 +20,7 @@
 
   // ---------- sportsbooks (tracker keys: hardrock / draftkings / fanduel / other)
   const BOOK_RX = [
-    ["hardrock", "Hard Rock Bet", /hard\s*rock(\s*bet)?|\bhrb\b/i],
+    ["hardrock", "Hard Rock Bet", /h[ae]rd\s*rock(\s*bet)?|\bhrb\b/i],
     ["draftkings", "DraftKings", /draft\s*kings|\bdk\s*sportsbook/i],
     ["fanduel", "FanDuel", /fan\s*duel/i],
     ["other", "BetMGM", /bet\s*mgm/i], ["other", "Caesars Sportsbook", /caesars/i], ["other", "ESPN BET", /espn\s*bet/i],
@@ -138,7 +138,7 @@
     const n = (String(s).match(/\bwinner\b/gi) || []).length;
     if (n >= 2) return true;
     if (n !== 1) return false;
-    const rest = String(s).replace(/\b(winner|won|win|hard\s*rock(\s*bet)?|sportsbook|bet)\b/gi, "").replace(/[^a-z]/gi, "");
+    const rest = String(s).replace(/\b(winner|won|win|h[ae]rd\s*rock(\s*bet)?|sportsbook|bet)\b/gi, "").replace(/[^a-z]/gi, "");
     return rest.length < 3;
   }
   function statusOfWord(w) {
@@ -188,11 +188,13 @@
     const out = [];
     const checked = /[✓✔☑]/.test(String(line).slice(0, 8));
     let s = line.replace(/^(leg\s*\d+\s*[:.)-]?|\d{1,2}[.)]\s|[•·*>✓✔☑]\s*)/i, "").trim();
-    s = s.replace(/^["“”'`]+/, "").replace(/^[A-Za-z]\s+(?=(?:over|under)\b)/i, "").trim();
+    // dark-mode OCR turns the green check into © or @ glued to "Under 9.5"
+    s = s.replace(/^[\s©@•·*✓✔☑#\[\]<>~]+/, "").replace(/^["“”'`]+/, "").replace(/^[A-Za-z]\s+(?=(?:over|under)\b)/i, "").trim();
     if (!s) return out;
     const low = s.toLowerCase();
     const book = detectBook(s);
-    if (winnerBanner(s)) {
+    const winnerLine = winnerBanner(s) || (book && /\bwinner\b/i.test(s) && s.replace(/\b(winner|h[ae]rd\s*rock(\s*bet)?|sportsbook|bet)\b/gi, "").replace(/[^a-z]/gi, "").length < 8);
+    if (winnerLine) {
       if (book) out.push({ k: "book", book });
       out.push({ k: "status", status: "won", amount: null });
       return out;
@@ -244,8 +246,9 @@
         if (keys.every(Boolean)) { keys.forEach(key => out.push({ k: "label", key })); return out; }
       }
     }
-    if (/^\$/.test(s) && !/[a-z]{3,}/i.test(s.replace(/\$[\d.,\s]+/g, ""))) {
-      const amounts = [...s.matchAll(/\$\s?(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)/g)].map(m => money(m[1])).filter(v => v !== null);
+    // "$20 $126.29", or OCR reading the dollar sign as S ("S20 $126.29")
+    if (/[S$]/.test(s) && !/[a-z]{3,}/i.test(s.replace(/[$S\d.,\s]/g, ""))) {
+      const amounts = [...s.matchAll(/[$S]\s?(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)/g)].map(m => money(m[1])).filter(v => v !== null);
       if (amounts.length) { amounts.forEach(v => out.push({ k: "amount", v })); return out; }
     }
     // ticket header: "3 Leg Parlay +596", "SGP +1200", "Same Game Parlay", "Single"
@@ -449,8 +452,9 @@
           case "text": {
             const numOnly = /^[\d]+(?:\.\d+)?$/.test(String(tok.text || "").trim());
             if (L && numOnly && isNum(L.line) && L.statValue == null) {
-              const n = parseFloat(tok.text);
-              if (Math.abs(n - Number(L.line)) > 1e-6) L.statValue = n;
+              const n = parseFloat(tok.text), ln = Number(L.line);
+              const echo = Math.abs(n - ln) < 1e-6 || Math.abs(n - ln * 10) < 0.2;
+              if (!echo) L.statValue = n;
               break;
             }
             if (L && !P.event && !P.market) L.extra.push(tok.text); else P.texts.push(tok.text);
@@ -483,7 +487,8 @@
       }
     }
     if (P.texts.length && L && !L.odds) { /* leftover descriptive lines */ }
-    finish();
+    if (L) { T.legs.push(L); L = null; }
+    if (T.legs.length || T.stake !== null || T.payout !== null || T.status || isNum(T.odds)) tickets.push(T);
     for (const t of tickets) finalizeTicket(t, idx);
     return { tickets: tickets.filter(t => t.legs.length || t.stake !== null), book, lines };
   }
@@ -815,5 +820,56 @@
     return { dark };
   }
 
-  return { clean, detectBook, parseDate, classify, parseSel, findStat, parseSlip, buildIndex, teamScore, teamHits, playerHits, matchTicket, toDraft, evOf, dupOf, matchOpenBets, ocrPrep, normName, norm };
+  function legGood(l) {
+    return !!(l && l.player && String(l.player).replace(/[^A-Za-z]/g, "").length > 3 && l.ou && isNum(l.line));
+  }
+  function slipScore(t) {
+    if (!t) return 0;
+    let s = 0;
+    if (t.book) s += 3;
+    if (t.status && t.status !== "pending") s += 4;
+    if (isNum(t.stake) && t.stake > 0) s += 4;
+    if (isNum(t.odds)) s += 2;
+    if (isNum(t.payout) && t.payout > 0) s += 4;
+    const legs = t.legs || [];
+    s += legs.filter(legGood).length * 3;
+    s -= Math.max(0, legs.length - legs.filter(legGood).length) * 2;
+    return s;
+  }
+  /** Fill gaps: one OCR pass may see the green header (stake, Paid, Winner) and another the dark legs. */
+  function richer(a, b) {
+    if (!a) return b ? JSON.parse(JSON.stringify(b)) : null;
+    if (!b) return a;
+    const base = slipScore(a) >= slipScore(b) ? a : b;
+    const other = base === a ? b : a;
+    const out = JSON.parse(JSON.stringify(base));
+    for (const k of ["book", "bookName", "status", "stake", "odds", "payout", "toWin", "cashout", "ref"]) {
+      if ((out[k] === null || out[k] === undefined || out[k] === "") && other[k] !== null && other[k] !== undefined && other[k] !== "") out[k] = other[k];
+    }
+    const nGood = legs => (legs || []).filter(legGood).length;
+    if (nGood(other.legs) > nGood(out.legs)) out.legs = other.legs.filter(legGood);
+    else out.legs = (out.legs || []).map(l => {
+      if (!legGood(l)) return l;
+      const o = (other.legs || []).find(x => normName(x.player) === normName(l.player));
+      if (!o) return l;
+      const statValue = isNum(l.statValue) ? l.statValue : o.statValue;
+      const result = gradeStat(l.ou, l.line, statValue) || l.result || o.result || null;
+      return { ...l, statValue: isNum(statValue) ? statValue : null, result };
+    });
+    if ((out.legs || []).length > 1) out.parlay = true;
+    if (out.status === "won") out.legs = (out.legs || []).map(l => (l.result ? l : { ...l, result: "won" }));
+    if (isNum(out.payout) && isNum(out.stake) && !isNum(out.toWin)) out.toWin = Math.round((Number(out.payout) - Number(out.stake)) * 100) / 100;
+    return out;
+  }
+  /** Several OCR readings of one photo (raw, inverted, header band). Returns the merged ticket. */
+  function bestOcrTicket(texts) {
+    let acc = null;
+    for (const text of texts || []) {
+      if (!String(text || "").trim()) continue;
+      for (const t of parseSlip(text).tickets) acc = richer(acc, t);
+    }
+    return acc;
+  }
+
+  return { clean, detectBook, parseDate, classify, parseSel, findStat, parseSlip, buildIndex, teamScore, teamHits, playerHits, matchTicket, toDraft, evOf, dupOf, matchOpenBets, bestOcrTicket, ocrPrep, normName, norm };
 });

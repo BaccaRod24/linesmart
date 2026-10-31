@@ -2101,9 +2101,47 @@ def prop_tile(x, Ls):
             f'<div class="hc-pn">{esc(pl.get("n"))}</div><div class="hc-pm">{esc((L.markets.get(r[1]) or [r[1], r[1]])[1])} {esc(line_text(r[1], r[2]).replace("O/U ", ""))}</div>{strip_html(pl.get("log"), r[1], r[2])}</a>')
 
 
+# Search copy for two hubs. Every other league keeps the shared wording in hub_page / hub_lead.
+# {n} is the upcoming-game count. {books} is the same book list the odds tables use (previews.BOOKS).
+HUB_COPY = {
+    "nba": {
+        "title": "NBA Odds & Betting Lines Today: Spreads & Totals",
+        "desc": "Compare NBA betting lines today: spreads, totals and moneylines from DraftKings, Hard Rock Bet and FanDuel, plus line movement, player props and scores.",
+        "h1": "NBA odds & betting lines today: spreads, totals & props",
+        "intro": "Today's NBA betting lines for {n} upcoming games: compare point spreads, totals and moneylines across {books}, with line movement, player props with last-5 hit rates, injuries, and NBA scores with closing lines.",
+    },
+    "ncaaf": {
+        "title": "College Football Lines & NCAAF Spreads Today",
+        "desc": "Compare college football betting lines: NCAAF spreads, totals and moneylines from DraftKings, Hard Rock Bet and FanDuel, with line movement and scores.",
+        "h1": "College football lines today: NCAAF spreads, totals & moneylines",
+        "intro": "Today's college football betting lines for {n} upcoming NCAAF games: compare spreads, totals and moneylines across {books}, with line movement, weather, injuries and final scores with closing lines.",
+    },
+}
+
+
+def hub_books():
+    """Book names in the order the odds tables use them."""
+    return and_list([name for _key, name in pv.BOOKS])
+
+
+def hub_custom_lead(lg, n_up):
+    """Intro for a hub with its own search copy. None keeps the shared sentence, including when nothing is upcoming."""
+    spec = HUB_COPY.get(lg)
+    if not spec or not n_up:
+        return None
+    n = int(n_up)
+    intro = spec["intro"]
+    if n == 1:
+        intro = intro.replace("{n} upcoming NCAAF games", "{n} upcoming NCAAF game").replace("{n} upcoming games", "{n} upcoming game")
+    return intro.format(n=n, books=hub_books())
+
+
 def hub_lead(L: League, n_up):
     """Opening sentence on a league hub. UFC odds are DraftKings lines via ESPN only.
     The other leagues compare Hard Rock Bet, DraftKings and FanDuel."""
+    custom = hub_custom_lead(L.lg, n_up)
+    if custom:
+        return custom
     if not n_up:
         if L.lg == "ufc":
             return ("No UFC bouts are on the board right now. When the next ones are scheduled, this page lists their moneylines and totals "
@@ -2131,6 +2169,8 @@ def hub_page(L: League, sh: Shell, Ls):
         days.append(f'<h3 class="sx-seg">{esc(lab)}</h3>{link_list(items)}')
     n_up = len(up)
     lead = hub_lead(L, n_up)
+    h1 = (esc(HUB_COPY[L.lg]["h1"]) if L.lg in HUB_COPY else
+          f"{esc(NAMES[L.lg])} odds today: {'fights, moneylines &amp; results' if L.lg == 'ufc' else 'spreads, totals &amp; player props' if L.players else 'spreads, totals &amp; moneylines'}")
     evs = ""
     # today's slate (or the next one) near the top, every game a real link to its page
     words = "bouts" if L.lg == "ufc" else "games"
@@ -2153,7 +2193,7 @@ def hub_page(L: League, sh: Shell, Ls):
         evs = section("events", "Fight cards", link_list(sorted([(e["path"], e["name"], short_day(parse_dt(e["date"]), False)) for e in L.ev.values()], key=lambda x: x[0])))
     main = f"""<article class="pv sx-hub">
 {crumbs((None, NAMES[L.lg]))}
-<h1 class="pv-h1">{esc(NAMES[L.lg])} odds today: {'fights, moneylines &amp; results' if L.lg == 'ufc' else 'spreads, totals &amp; player props' if L.players else 'spreads, totals &amp; moneylines'}</h1>
+<h1 class="pv-h1">{h1}</h1>
 <p class="pv-lead">{esc(lead)}</p>
 {today_html}
 {evs}
@@ -2179,6 +2219,9 @@ def hub_page(L: League, sh: Shell, Ls):
     if L.lg == "ufc":
         title = fit("UFC Odds: Fight Cards, Moneylines & Results", "UFC Odds: Cards & Results", "UFC Odds Today")
         desc = "Free UFC odds comparison: UFC moneylines and totals by fight card, fighter records and results with closing odds."
+    elif L.lg in HUB_COPY:
+        title = fit(HUB_COPY[L.lg]["title"])
+        desc = cut(HUB_COPY[L.lg]["desc"])
     else:
         tail = " & Player Props" if L.players else " & Moneylines"
         short_tail = " & Props" if L.players else " & Moneylines"

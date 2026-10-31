@@ -374,9 +374,11 @@ def _slate_league(lg, games, now):
 
 
 def best_lines_filter_tests():
-    """Started, live and final games are not listed. A day with nothing left falls through to Next up.
-    A game with no line still gets a row, so a league is not dropped just because books have not posted."""
+    """Started, live, final, and no-line games are not listed. A partial line stays, with the missing markets blank.
+    Next up skips a day whose games have no posted number."""
     now = pv.parse_dt("2026-10-31T20:00:00Z")  # 4:00 PM ET
+    ml_only = _slate_game("nhl-ml", "2026-10-31T23:00:00Z", line=False)
+    ml_only["books"] = {"draftkings": {"homeML": -150, "awayML": 130}}
     nfl = _slate_league("nfl", [
         _slate_game("nfl-later", "2026-10-31T23:00:00Z"),          # 7:00 PM ET, still ahead
         _slate_game("nfl-started", "2026-10-31T17:00:00Z"),        # 1:00 PM ET, already started
@@ -385,20 +387,23 @@ def best_lines_filter_tests():
         _slate_game("nfl-final", "2026-10-31T17:00:00Z", "post"),
     ], now)
     nba = _slate_league("nba", [
-        _slate_game("nba-noline", "2026-11-01T00:00:00Z", line=False),  # 8:00 PM ET, no line yet
+        _slate_game("nba-noline", "2026-11-01T00:00:00Z", line=False),  # 8:00 PM ET, nothing posted
     ], now)
-    rows, nxt = SP._best_line_rows({"nfl": nfl, "nba": nba}, now)
+    nhl = _slate_league("nhl", [ml_only], now)
+    rows, nxt = SP._best_line_rows({"nfl": nfl, "nba": nba, "nhl": nhl}, now)
     ids = [r[2] for r in rows]
-    check(nxt is None and ids == ["nfl-later", "nba-noline"], f"today keeps later games from every league, including one with no line ({ids}, next={nxt})")
-    check(not any(x in ids for x in ("nfl-started", "nfl-now", "nfl-live", "nfl-final")), f"started, live and final stay off the page ({ids})")
-    # nothing left today: the next ET day is the slate, still without started games
+    check(nxt is None and ids == ["nfl-later", "nhl-ml"], f"today keeps a full line and a moneyline-only game ({ids}, next={nxt})")
+    check("nba-noline" not in ids and not any(x in ids for x in ("nfl-started", "nfl-now", "nfl-live", "nfl-final")), f"no-line, started, live and final stay off ({ids})")
+    check([r[0] for r in rows] == ["nfl", "nhl"], f"a sport with no lined game is dropped ({[r[0] for r in rows]})")
+    # nothing lined today: skip a later day that also has no line
     nfl2 = _slate_league("nfl", [_slate_game("nfl-old", "2026-10-31T17:00:00Z")], now)
+    nba2 = _slate_league("nba", [_slate_game("nba-empty-day", "2026-11-01T23:00:00Z", line=False)], now)
     ncaaf = _slate_league("ncaaf", [
-        _slate_game("ncaaf-next", "2026-11-01T16:00:00Z"),
-        _slate_game("ncaaf-live", "2026-11-01T20:00:00Z", "in"),
+        _slate_game("ncaaf-next", "2026-11-02T16:00:00Z"),
+        _slate_game("ncaaf-live", "2026-11-02T20:00:00Z", "in"),
     ], now)
-    rows2, nxt2 = SP._best_line_rows({"nfl": nfl2, "ncaaf": ncaaf}, now)
-    check(nxt2 == "2026-11-01" and [r[2] for r in rows2] == ["ncaaf-next"], f"empty today falls through to Next up ({[r[2] for r in rows2]}, {nxt2})")
+    rows2, nxt2 = SP._best_line_rows({"nfl": nfl2, "nba": nba2, "ncaaf": ncaaf}, now)
+    check(nxt2 == "2026-11-02" and [r[2] for r in rows2] == ["ncaaf-next"], f"Next up uses the next day that has a line ({[r[2] for r in rows2]}, {nxt2})")
 
 
 OFFER = re.compile(r'class="of-book|Bet on (DraftKings|FanDuel|Hard Rock|BetMGM|Caesars|Fanatics)|href="https?://[^"]*(draftkings|fanduel|hardrock|betmgm|caesars|fanatics)[^"]*"', re.I)

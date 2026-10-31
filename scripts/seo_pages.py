@@ -3105,9 +3105,17 @@ def states_index(doc, sh: Shell, Ls):
     return sh.page(path, title, desc, main, more, kind="states", route="", ld=ld, og_type="website"), title
 
 
+def _has_shown_line(g, lg):
+    """A spread, total, or moneyline from a book this page shows. One market is enough."""
+    for b in posted_books(g, lg).values():
+        if isinstance(b, dict) and any(isnum(b.get(k)) for k in ("homeSpread", "awaySpread", "total", "homeML", "awayML")):
+            return True
+    return False
+
+
 def _lines_kick(L, gid, g, now):
-    """Start time for a game that can still take a best line. None once it has started, is live, or is final."""
-    if gid not in L.paths or L.is_final(g) or abnormal(g) or g.get("state") in ("in", "post"):
+    """Start time for a game that can still take a best line. None once it has started, is live, is final, or has no posted number."""
+    if gid not in L.paths or L.is_final(g) or abnormal(g) or g.get("state") in ("in", "post") or not _has_shown_line(g, L.lg):
         return None
     dt = parse_dt(g.get("date"))
     if not dt or dt <= now:
@@ -3116,9 +3124,9 @@ def _lines_kick(L, gid, g, now):
 
 
 def _best_line_rows(Ls, now):
-    """Not-yet-started games from every league, on today's ET date, else the next ET day.
-    A missing line still gets a row (the cells are dashes). Returns (rows, next_day or None).
-    rows are (lg, dt, gid, g, L)."""
+    """Not-yet-started games that have a posted line, on today's ET date, else the next such day.
+    A game with only some markets stays, with dashes for the rest. A sport with none is omitted.
+    Returns (rows, next_day or None). rows are (lg, dt, gid, g, L)."""
     def collect(day):
         rows = []
         for lg in ORDER:
@@ -3224,10 +3232,8 @@ def best_lines_page(Ls, sh: Shell, now, base_url):
     else:
         meta = f"Best spread, total and moneyline for {plural(n, 'game')} today across {book_s}: {league_s}. Odds for reference; 21+."
     desc = cut(meta)
-    n_line = sum(1 for _lg, _dt, _gid, g, _L in rows if pv.has_line(g))
-    posted = " have lines posted at Hard Rock, DraftKings or FanDuel" if n and n_line == n else ""
     intro = (
-        f"{plural(n, 'game')} on {day_label}{posted}. "
+        f"{plural(n, 'game')} on {day_label} have lines posted at Hard Rock, DraftKings or FanDuel. "
         "For each game, the table shows the best available number and price for each side and which book has it. "
         "Odds change quickly and are for reference only; confirm in the sportsbook app. "
         'Book availability depends on your state (<a href="states/">see states</a>). 21+.'

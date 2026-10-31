@@ -126,13 +126,36 @@
   const NOISE = /^(bet (placed|confirmed|accepted|receipt|slip|details|summary|info)|your bet (has been|was) (placed|accepted)|placed!?|confirmed!?|accepted!?|success!?|my bets|open( bets)?|settled|active|pending|upcoming|live|single|singles|straight( bet)?|straights|share( bet| slip)?|keep (picks|selections|bets)|reuse selections|retain selections|done|close|ok|view( my)? bets?|details|receipt|go to my bets|bet again|new bet|edit bet|cash ?out|cash ?out available|in[- ]play|today|tomorrow|sgp|same game parlay|parlay|boost(ed)?|profit boost|odds boost|bet boost|parlay boost|bonus bet|free bet|no sweat( bet)?|sportsbook|place bet|leg|legs|selections?|bet|bets|odds|result|status)$/i;
   const SUMMARY_LABELS = [
     ["stake", /\b(total\s+)?(wager(ed)?|stake[ds]?|risk(ed)?|bet amount|amount( wagered)?|you risked|your bet|bet total)\b/i],
-    ["payout", /\b(potential|est(imated)?\.?|total|projected)?\s*(payout|return|returns|to pay|winnings|to collect|collect)\b/i],
+    ["payout", /\b(potential|est(imated)?\.?|total|projected)?\s*(payout|return|returns|to pay|winnings|to collect|collect|paid)\b/i],
     ["toWin", /\b(to win|potential win|win amount|potential profit|profit|you could win|you win|won|win)\b/i],
     ["cashout", /\bcash(ed)?\s*out( for| amount)?\b/i],
   ];
   const REF_RX = /\b(bet\s*(id|ref(erence)?|#|no\.?|number|slip id)|ticket\s*(#|id|no\.?|number)?|receipt\s*(#|id|no\.?|number)?|ref(erence)?\s*(#|no\.?|number|id)?|confirmation\s*(#|number|id|no\.?)?|wager\s*id|id)\s*[:#]?\s*([A-Z0-9][A-Z0-9/_-]{3,})/i;
   const PLACED_RX = /\b(placed|accepted|date|bet placed on|submitted|time placed)\b/i;
   const STATUS_RX = /^(?:(?:result|status|outcome|settled)\s*:?\s*)?(won|win|winner|lost|loss|lose|void|voided|cancel+ed|push|pushed|refunded|cashed out)\b/i;
+  /** Hard Rock paints WINNER across the share-card header. That is a result, not a moneyline. */
+  function winnerBanner(s) {
+    const n = (String(s).match(/\bwinner\b/gi) || []).length;
+    if (n >= 2) return true;
+    if (n !== 1) return false;
+    const rest = String(s).replace(/\b(winner|won|win|hard\s*rock(\s*bet)?|sportsbook|bet)\b/gi, "").replace(/[^a-z]/gi, "");
+    return rest.length < 3;
+  }
+  function statusOfWord(w) {
+    w = String(w || "").toLowerCase();
+    if (/^won|^win/.test(w)) return "won";
+    if (/^los/.test(w)) return "lost";
+    if (/^push/.test(w)) return "push";
+    if (/cash/.test(w)) return "cashout";
+    if (/^void|^cancel|^refund/.test(w)) return "void";
+    return null;
+  }
+  /** Final stat printed next to an over/under (4 on a 9.5 line). */
+  function gradeStat(ou, line, value) {
+    if (!isNum(value) || !isNum(line) || (ou !== "over" && ou !== "under")) return null;
+    if (Math.abs(Number(value) - Number(line)) < 1e-6) return "push";
+    return (Number(value) > Number(line)) === (ou === "over") ? "won" : "lost";
+  }
 
   /** team / player recognition hooks from buildIndex (optional; the parser works without them) */
   const isTeam = (idx, s) => !!(idx && teamHits(idx, s).length);
@@ -163,17 +186,27 @@
   /** classify one cleaned line -> list of tokens */
   function classify(line, idx, now) {
     const out = [];
+    const checked = /[✓✔☑]/.test(String(line).slice(0, 8));
     let s = line.replace(/^(leg\s*\d+\s*[:.)-]?|\d{1,2}[.)]\s|[•·*>✓✔☑]\s*)/i, "").trim();
+    s = s.replace(/^["“”'`]+/, "").replace(/^[A-Za-z]\s+(?=(?:over|under)\b)/i, "").trim();
     if (!s) return out;
     const low = s.toLowerCase();
     const book = detectBook(s);
+    if (winnerBanner(s)) {
+      if (book) out.push({ k: "book", book });
+      out.push({ k: "status", status: "won", amount: null });
+      return out;
+    }
+    if (/^(hide|show)\s+selections?\b/i.test(s)) return out;
+    // "Under 9.5, Over 25.5, Under 9.5" is the parlay subtitle, not a game total
+    if ((s.match(/\b(?:over|under)\s*\d/gi) || []).length >= 2 && !/\$/.test(s)) return out;
     if (book && s.replace(/hard\s*rock(\s*bet)?|draft\s*kings|fan\s*duel|sportsbook|bet\s*mgm|caesars|espn\s*bet|fanatics|bet\s*365|bet\s*rivers|bally\s*bet|casino|[^a-z]/gi, "").length < 4) { out.push({ k: "book", book }); return out; }
     if (book) out.push({ k: "book", book });
     // status
     const st = s.match(STATUS_RX);
     if (st && s.length < 40 && !/\b(to win|win amount|potential)\b/i.test(s)) {
       const w = st[1].toLowerCase();
-      const status = /^won|^win/.test(w) ? "won" : /^los/.test(w) ? "lost" : /^push/.test(w) ? "push" : /cash/.test(w) ? "cashout" : "void";
+      const status = statusOfWord(w) || "void";
       out.push({ k: "status", status, amount: (s.match(new RegExp(AMOUNT)) || [])[1] ? money(s.match(new RegExp(AMOUNT))[1]) : null });
       if (status !== "cashout" || !/\$/.test(s)) return out;
     }
@@ -204,7 +237,17 @@
     if (sums.length) { out.push(...sums); if (/(total|parlay)\s*odds|odds\s*:/i.test(s)) { const o = oddsIn(s); if (o.length) out.push({ k: "todds", v: o[o.length - 1] }); } return out; }
     // label alone ("Wager" then "$10.00" on the next line) -> pending label
     for (const [key, rx] of SUMMARY_LABELS) if (rx.test(s) && s.replace(rx, "").replace(/[^a-z0-9]/gi, "").length === 0) { out.push({ k: "label", key }); return out; }
-    if (/^\$\s?\d/.test(s) && !/[a-z]{3,}/i.test(s.replace(/\$[\d.,]+/g, ""))) { out.push({ k: "amount", v: money(s) }); return out; }
+    {
+      const parts = s.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2 && parts.length <= 4) {
+        const keys = parts.map(p => { for (const [key, rx] of SUMMARY_LABELS) if (rx.test(p) && p.replace(rx, "").replace(/[^a-z0-9]/gi, "") === "") return key; return null; });
+        if (keys.every(Boolean)) { keys.forEach(key => out.push({ k: "label", key })); return out; }
+      }
+    }
+    if (/^\$/.test(s) && !/[a-z]{3,}/i.test(s.replace(/\$[\d.,\s]+/g, ""))) {
+      const amounts = [...s.matchAll(/\$\s?(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)/g)].map(m => money(m[1])).filter(v => v !== null);
+      if (amounts.length) { amounts.forEach(v => out.push({ k: "amount", v })); return out; }
+    }
     // ticket header: "3 Leg Parlay +596", "SGP +1200", "Same Game Parlay", "Single"
     const pm = s.match(PARLAY_RX);
     if (pm && !/\b(over|under)\s*\d/i.test(s) && !/\b(o|u)\s?\d+(\.\d)?\b/i.test(s) && !(pm[2] && /team/i.test(pm[2]) && /total/i.test(s))) {
@@ -245,7 +288,7 @@
     if (w.when) extra.push({ k: "when", ...w.when });
     if (selPart === null) { out.push(...extra); if (odds.length) out.push({ k: "odds", v: odds[odds.length - 1] }); return out; }
     const sel = parseSel(selPart, idx);
-    if (sel) { if (odds.length) sel.odds = odds[odds.length - 1]; out.push(sel, ...extra); return out; }
+    if (sel) { if (odds.length) sel.odds = odds[odds.length - 1]; if (checked) sel.checked = true; out.push(sel, ...extra); return out; }
     // a market label ("Moneyline", "Point Spread", "Passing Yards O/U", "Anytime TD Scorer")
     const mk = marketOf(selPart);
     if (mk && mk.mk === "other" && (odds.length || mk.stat === null) && /^[A-Z][A-Za-z.'’-]+(\s+[A-Z][A-Za-z.'’-]+)+/.test(selPart)) {
@@ -268,6 +311,7 @@
     return out.filter(v => Math.abs(v) >= 100);
   }
   function marketOf(s) {
+    if (winnerBanner(s)) return null;
     const low = s.toLowerCase();
     const period = PERIOD.test(low);
     const stat = findStat(low);
@@ -339,7 +383,7 @@
     const lines = clean(text);
     const book = detectBook(lines.join("\n"));
     const tickets = [];
-    let T = null, L = null, P = null, label = null;
+    let T = null, L = null, P = null, labels = [];
     const newTicket = () => ({ book: book ? book.key : null, bookName: book ? book.name : null, header: null, legs: [], stake: null, toWin: null, payout: null, odds: null, ref: null, placed: null, status: null, cashout: null, boost: false, bonus: false, inSum: false, lines: [] });
     const newP = () => ({ event: null, market: null, when: null, league: null, texts: [] });
     T = newTicket(); P = newP();
@@ -355,6 +399,7 @@
       L = { kind: tok.kind, text: tok.text, team: tok.team || null, draw: !!tok.draw, ou: tok.ou || null, line: isNum(tok.line) ? tok.line : null, odds: isNum(tok.odds) ? tok.odds : null,
         player: tok.player || null, pmk: tok.pmk || null, slg: tok.slg || null, otherStat: !!tok.otherStat, teamTotal: !!tok.teamTotal, period: !!tok.period, name: tok.name || null,
         isTeamName: !!tok.team && tok.kind === "name", isPlayerName: tok.kind === "name" && !!tok.player,
+        checked: !!tok.checked, statValue: null, result: null,
         event: P.event, market: P.market, when: P.when, league: P.league, extra: [] };
       if (L.isTeamName) L.team = tok.text;
       P = newP();
@@ -363,7 +408,7 @@
     for (const line of lines) {
       const toks = classify(line, idx, now), Tline = T;
       for (const tok of toks) {
-        if (label && tok.k !== "amount") label = null;
+        if (tok.k !== "amount" && tok.k !== "label") labels = [];
         switch (tok.k) {
           case "book": break;
           case "sum":
@@ -371,8 +416,16 @@
             else if (tok.key === "toWin" && /^won/i.test(line) && T.toWin !== null) { /* settled "Won $19.09" */ }
             else if (T[tok.key] === null) T[tok.key] = tok.v;
             T.inSum = true; break;
-          case "label": label = tok.key; break;
-          case "amount": if (label) { if (label === "cashout") { T.status = "cashout"; T.cashout = tok.v; } else if (T[label] === null) T[label] = tok.v; T.inSum = true; label = null; } break;
+          case "label": labels.push(tok.key); break;
+          case "amount": {
+            const key = labels.shift();
+            if (key) {
+              if (key === "cashout") { T.status = "cashout"; T.cashout = tok.v; }
+              else if (T[key] === null) T[key] = tok.v;
+              T.inSum = true;
+            }
+            break;
+          }
           case "ref": T.ref = T.ref || tok.ref; T.inSum = true; break;
           case "placed": T.placed = T.placed || { date: tok.date, time: tok.time }; break;
           case "status": T.status = tok.status; if (tok.amount !== null && tok.status === "cashout") T.cashout = tok.amount; break;
@@ -393,9 +446,24 @@
             else if (P.texts.length) { startLeg({ kind: "name", text: P.texts.pop(), odds: tok.v }); }
             else if (T.inSum || (L && L.odds !== null)) { if (T.odds === null) T.odds = tok.v; }
             break;
-          case "text": if (L && !P.event && !P.market) L.extra.push(tok.text); else P.texts.push(tok.text); break;
+          case "text": {
+            const numOnly = /^[\d]+(?:\.\d+)?$/.test(String(tok.text || "").trim());
+            if (L && numOnly && isNum(L.line) && L.statValue == null) {
+              const n = parseFloat(tok.text);
+              if (Math.abs(n - Number(L.line)) > 1e-6) L.statValue = n;
+              break;
+            }
+            if (L && !P.event && !P.market) L.extra.push(tok.text); else P.texts.push(tok.text);
+            break;
+          }
           case "sel": {
-            if (T.inSum && (T.legs.length || L)) finish();
+            // Hard Rock settled props: "Under 9.5 -130" then "CADE CUNNINGHAM - ASSISTS"
+            if (L && !L.player && tok.kind === "prop" && tok.player && !tok.ou && (L.kind === "total" || L.kind === "prop") && !P.event && !P.market) {
+              Object.assign(L, { kind: "prop", player: tok.player, pmk: tok.pmk || L.pmk, slg: tok.slg || L.slg, otherStat: !!(L.otherStat || tok.otherStat), checked: L.checked || !!tok.checked, text: `${L.text} ${tok.text}`.trim() });
+              break;
+            }
+            // A parlay header already on this ticket keeps later legs here. Stake-above-legs share cards would otherwise split one parlay into many tickets.
+            if (T.inSum && (T.legs.length || L) && !(T.header && T.header.parlay)) finish();
             // "Saquon Barkley - Rushing Yards" then "Over 89.5": the over/under completes that prop
             if (L && L.kind === "prop" && !L.ou && L.odds === null && tok.kind === "total" && !P.event && !P.market) { Object.assign(L, { ou: tok.ou, line: tok.line, odds: isNum(tok.odds) ? tok.odds : null, text: `${L.text} ${tok.text}` }); break; }
             // two-line selections: a bare name followed by "Over 26.5 Points" / "-3.5" belongs to the same leg
@@ -446,6 +514,14 @@
       if (mk && mk.teamTotal) { l.kind = "other"; l.teamTotal = true; }
       if (l.kind === "spread" && mk && mk.mk === "ml") { /* "Eagles -3.5" under a Moneyline label is still a spread */ }
       if (!l.league && l.slg) l.league = null;   // stat league is only a hint (nfl/ncaaf, nba/ncaab share words)
+      const graded = gradeStat(l.ou, l.line, l.statValue);
+      if (graded) l.result = graded;
+      else if (l.checked && !l.result) l.result = "won";
+    }
+    if (!T.status && T.legs.length && T.legs.every(l => l.result && l.result !== "pending")) {
+      if (T.legs.some(l => l.result === "lost")) T.status = "lost";
+      else if (T.legs.every(l => l.result === "push" || l.result === "void")) T.status = "push";
+      else T.status = "won";
     }
     const h = T.header || {};
     T.parlay = !!h.parlay || T.legs.length > 1;
@@ -647,6 +723,7 @@
       type, date: (T.placed && T.placed.date) || opts.today || new Date().toISOString().slice(0, 10), stake: isNum(T.stake) ? T.stake : "",
       odds: parlay ? (T.oddsManual ? odds : "") : odds, oddsManual: !!(parlay && T.oddsManual), notes,
       status: T.status && T.status !== "pending" ? T.status : "", cashout: isNum(T.cashout) ? T.cashout : "",
+      paid: T.status === "won" && isNum(T.payout) ? T.payout : "",
       ref: T.ref || "", legs: legs.length ? legs : [legDraft({ kind: "other", text: "", m: {} }, opts)],
     };
     if (!parlay && F.legs[0] && !isNum(F.legs[0].odds) && isNum(odds)) F.legs[0].odds = odds;
@@ -654,7 +731,7 @@
   }
   function legDraft(l, opts) {
     const m = l.m || {};
-    const base = { league: m.lg || l.league || l.slg || opts.defaultLeague || "nfl", eventId: "", event: null, manual: false, eventText: "", mk: "ml", side: "", line: "", odds: isNum(l.odds) ? l.odds : "", selection: "", pid: "", player: "", pmk: "", custom: false };
+    const base = { league: m.lg || l.league || l.slg || opts.defaultLeague || "nfl", eventId: "", event: null, manual: false, eventText: "", mk: "ml", side: "", line: "", odds: isNum(l.odds) ? l.odds : "", selection: "", pid: "", player: "", pmk: "", custom: false, result: l.result || "", statValue: isNum(l.statValue) ? l.statValue : "" };
     const info = { text: l.text || "", status: "manual", why: "" };
     const g = m.game;
     if (g) { base.eventId = String(g.id); base.event = evOf(g, m.lg); }
@@ -687,6 +764,44 @@
   }
   /** slips already imported (same sportsbook reference) */
   const dupOf = (bets, ref) => (ref ? (bets || []).find(b => b.slipRef && String(b.slipRef) === String(ref)) || null : null);
+  function legParts(l, fromBet) {
+    const pr = fromBet ? (l.prop || {}) : null;
+    const player = normName(fromBet ? pr.player || "" : l.player || "");
+    const side = fromBet ? (pr.side || "") : (l.ou || "");
+    const line = fromBet ? (isNum(pr.line) ? Number(pr.line) : null) : (isNum(l.line) ? Number(l.line) : null);
+    const mk = fromBet ? (pr.mk || "") : (l.pmk || "");
+    if (!player || (side !== "over" && side !== "under") || !isNum(line)) return null;
+    return { p: player, side, line, mk };
+  }
+  function sameLegs(a, b) {
+    if (!a || !b || a.length !== b.length || !a.length) return false;
+    const used = new Set();
+    for (const x of a) {
+      const i = b.findIndex((y, idx) => !used.has(idx) && y.p === x.p && y.side === x.side && Math.abs(y.line - x.line) < 1e-6 && (!x.mk || !y.mk || x.mk === y.mk));
+      if (i < 0) return false;
+      used.add(i);
+    }
+    return true;
+  }
+  /** Pending bets a settled slip should close. Bet ID (slipRef, or the ID written in notes) first;
+   *  otherwise a pending Hard Rock bet with the same odds, stake and legs. */
+  function matchOpenBets(bets, ticket) {
+    const pending = (bets || []).filter(b => b && (!b.status || b.status === "pending"));
+    const ref = ticket && ticket.ref ? String(ticket.ref) : "";
+    if (ref) {
+      const byRef = pending.filter(b => (b.slipRef && String(b.slipRef) === ref) || (b.notes && String(b.notes).includes(ref)));
+      if (byRef.length) return byRef;
+    }
+    const want = ((ticket && ticket.legs) || []).map(l => legParts(l, false)).filter(Boolean);
+    if (!want.length || !ticket || !isNum(ticket.stake) || !isNum(ticket.odds)) return [];
+    return pending.filter(b => {
+      if ((b.book || "") !== "hardrock") return false;
+      if (Math.abs(Number(b.stake) - Number(ticket.stake)) > 0.001) return false;
+      if (Number(b.odds) !== Number(ticket.odds)) return false;
+      const have = (b.type === "parlay" ? b.legs || [] : [b]).map(l => legParts(l, true)).filter(Boolean);
+      return sameLegs(want, have);
+    });
+  }
 
   /** Preprocess a screenshot's pixel data in place for OCR: grayscale, invert dark mode, stretch contrast. data = RGBA Uint8ClampedArray. */
   function ocrPrep(data) {
@@ -700,5 +815,5 @@
     return { dark };
   }
 
-  return { clean, detectBook, parseDate, classify, parseSel, findStat, parseSlip, buildIndex, teamScore, teamHits, playerHits, matchTicket, toDraft, evOf, dupOf, ocrPrep, normName, norm };
+  return { clean, detectBook, parseDate, classify, parseSel, findStat, parseSlip, buildIndex, teamScore, teamHits, playerHits, matchTicket, toDraft, evOf, dupOf, matchOpenBets, ocrPrep, normName, norm };
 });

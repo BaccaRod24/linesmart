@@ -31,7 +31,7 @@
   function defaultBook() {
     const last = prefs().book, geo = GEO() && GEO().defaultBetBook();
     if (last && C.BOOKS[last] && okBook(last)) return last;
-    return geo || (last && C.BOOKS[last] ? last : "draftkings");
+    return geo || "hardrock";
   }
 
   // ---------- storage (this device only)
@@ -266,6 +266,7 @@
     if (!list.length) return;
     for (const k of ["sport", "type", "book", "prop"]) renderBD(app, k);
     renderChart(app);
+    wireQuick(app, () => viewOverview(app));
     let rt; window.onresize = () => { clearTimeout(rt); rt = setTimeout(() => renderChart(app), 150); };
   }
 
@@ -415,9 +416,55 @@
   }
   const emptyArt = () => `<svg viewBox="0 0 160 70" width="160" height="70"><defs><linearGradient id="bteg" x1="0" x2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--accent2)"/></linearGradient></defs><path d="M4 58 L34 46 L58 52 L86 30 L110 36 L140 12 L156 16" fill="none" stroke="url(#bteg)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 6" opacity=".8"/><circle cx="140" cy="12" r="5" fill="var(--accent2)"/></svg>`;
 
+  let CASH_ID = null, UNDO = null;
+  function quickBtns(b) {
+    const open = CASH_ID === b.id;
+    return `<div class="bt-quick" role="group" aria-label="Settle ${esc(describe(b))}">
+      <button type="button" class="bt-rb rb-won" data-quick="won" data-id="${esc(b.id)}">Won</button>
+      <button type="button" class="bt-rb rb-lost" data-quick="lost" data-id="${esc(b.id)}">Lost</button>
+      <button type="button" class="bt-rb rb-push" data-quick="push" data-id="${esc(b.id)}">Push</button>
+      <button type="button" class="bt-rb rb-cash" data-cash="${esc(b.id)}" aria-expanded="${open}">Cash out</button>
+    </div>${open ? `<div class="bt-co-row"><label>Amount received<input type="number" inputmode="decimal" step="0.01" min="0" data-co="${esc(b.id)}" placeholder="0.00" value=""></label><p class="bt-co-profit" data-co-profit="${esc(b.id)}">Profit shows after the amount.</p><button type="button" class="bt-add" data-co-save="${esc(b.id)}">Save cash out</button></div>` : ""}`;
+  }
+  function recordStrip(bets) {
+    const s = C.stats(bets);
+    const midL = unitsOn() ? "Units" : "Net";
+    const midV = unitsOn() ? mv(s.net, true) : money(s.net, true);
+    return `<div class="bt-recstrip" aria-label="Settled results"><div><span>Record</span><b class="num">${s.won}-${s.lost}-${s.push}</b></div><div><span>${midL}</span><b class="num ${cls(s.net)}">${midV}</b></div><div><span>ROI</span><b class="num ${cls(s.roi)}">${pct(s.roi, true)}</b></div></div>`;
+  }
+  function quickSettle(id, status, extra, redraw) {
+    const i = BETS.findIndex(b => b.id === id); if (i < 0) return;
+    UNDO = JSON.parse(JSON.stringify(BETS[i]));
+    const nb = C.manualSettle(BETS[i], status, { ...extra, today: today() });
+    delete nb.review;
+    BETS[i] = nb; CASH_ID = null; save(); redraw();
+    const net = C.netResult(nb);
+    const msg = status === "cashout" ? `Cashed out · ${money(net, true)}` : `Marked ${C.STATUS[status].toLowerCase()} · ${money(net, true)}`;
+    toast(msg, () => {
+      const j = BETS.findIndex(b => b.id === UNDO.id);
+      if (j >= 0) BETS[j] = UNDO; else BETS.unshift(UNDO);
+      UNDO = null; save(); redraw();
+    });
+  }
+  function wireQuick(app, redraw) {
+    app.querySelectorAll("[data-quick]").forEach(b => (b.onclick = e => { e.preventDefault(); e.stopPropagation(); quickSettle(b.dataset.id, b.dataset.quick, {}, redraw); }));
+    app.querySelectorAll("[data-cash]").forEach(b => (b.onclick = e => { e.preventDefault(); e.stopPropagation(); CASH_ID = CASH_ID === b.dataset.cash ? null : b.dataset.cash; redraw(); if (CASH_ID) { const i = app.querySelector(`[data-co="${CSS.escape(CASH_ID)}"]`); if (i) i.focus(); } }));
+    app.querySelectorAll("[data-co]").forEach(inp => (inp.oninput = () => {
+      const bet = BETS.find(x => x.id === inp.dataset.co); const el = app.querySelector(`[data-co-profit="${CSS.escape(inp.dataset.co)}"]`);
+      const v = parseFloat(inp.value);
+      if (el && bet) el.textContent = isNum(v) && v >= 0 ? `Profit ${money(v - Number(bet.stake), true)} (${money(v)} received − ${money(bet.stake)} stake)` : "Profit shows after the amount.";
+    }));
+    app.querySelectorAll("[data-co-save]").forEach(b => (b.onclick = e => {
+      e.preventDefault();
+      const inp = app.querySelector(`[data-co="${CSS.escape(b.dataset.coSave)}"]`);
+      const v = inp ? parseFloat(inp.value) : NaN;
+      if (!isNum(v) || v < 0) { if (inp) inp.focus(); return; }
+      quickSettle(b.dataset.coSave, "cashout", { cashout: Math.round(v * 100) / 100 }, redraw);
+    }));
+  }
   function recentCard(list) {
     const pend = list.filter(b => b.status === "pending").sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(0, 5);
-    return `<div class="card"><h3>Open bets <a class="lnk bt-more" href="#/bets/list">See all ›</a></h3>${pend.length ? `<div class="bt-mini">${pend.map(b => `<a class="bt-mrow" href="#/bets/list" data-focus="${esc(b.id)}"><span><b>${esc(describe(b))}</b><span class="na">${esc(eventLabel(b) || bookName(b))}</span></span><span class="num">${money(b.stake)} <span class="na">@ ${esc(am(b.odds) || am(C.parlayAmerican(b.legs)))}</span></span></a>`).join("")}</div>` : `<div class="na">No open bets.</div>`}</div>`;
+    return `<div class="card"><h3>Open bets <a class="lnk bt-more" href="#/bets/list">See all ›</a></h3>${pend.length ? `<div class="bt-mini">${pend.map(b => `<div class="bt-mrow" id="bet-${esc(b.id)}"><a href="#/bets/list" data-focus="${esc(b.id)}"><span><b>${esc(describe(b))}</b><span class="na">${esc(eventLabel(b) || bookName(b))} · to win ${money(C.toWin(b))}</span></span></a>${quickBtns(b)}</div>`).join("")}</div>` : `<div class="na">No open bets.</div>`}</div>`;
   }
 
 
@@ -429,14 +476,14 @@
     const fin = isNum(b.statValue) && b.prop ? ` · final: ${esc(b.statValue)} ${esc(C.propLabel(b.league, b.prop.mk).toLowerCase())}` : b.final ? ` · final ${esc(b.final.away)}-${esc(b.final.home)}` : "";
     const rv = C.needsReview(b);
     const review = rv ? `<div class="bt-review" role="note"><b>Needs review</b> ${esc(b.review ? b.review.reason : "A leg couldn't be graded from the box score.")}
-      ${b.type === "parlay" ? `<span class="bt-rv-btns"><button type="button" class="chip" data-settle="${esc(b.id)}">Grade legs</button></span>` : `<span class="bt-rv-btns">${["won", "lost", "push"].map(st => `<button type="button" class="bt-rb rb-${st}" data-quick="${st}" data-id="${esc(b.id)}">${st === "won" ? "Win" : st === "lost" ? "Loss" : "Push"}</button>`).join("")}</span>`}</div>` : "";
+      ${b.type === "parlay" ? `<span class="bt-rv-btns"><button type="button" class="chip" data-settle="${esc(b.id)}">Grade legs</button></span>` : ""}</div>` : "";
     const meta = [b.date, bookName(b), b.type === "parlay" ? null : lgName(b.league || ""), C.TYPES[b.type]].filter(Boolean).join(" · ");
     const res = pend ? `<span class="na">to win</span> <b>${money(C.toWin(b))}</b>` : b.status === "void" ? `<b class="na">stake returned</b>` : `<b class="${cls(net)}">${money(net, true)}</b>`;
     return `<article class="bt-card st-${esc(b.status)}" id="bet-${esc(b.id)}">
       <div class="bt-top">${badge(b.status)}${rv ? `<span class="bs bs-review">Needs review</span>` : ""}${b.settledBy === "auto" && !pend ? `<span class="bt-auto" title="${b.prop ? "Settled automatically from the ESPN box score" : "Settled automatically from the ESPN final score"}">auto${fin}</span>` : ""}<span class="bt-meta">${esc(meta)}</span></div>
       <div class="bt-main"><div class="bt-sel"><b>${esc(describe(b))}</b><span class="na">${esc(eventLabel(b))}</span></div>
         <div class="bt-px"><span class="oc"><b>${esc(price || "—")}</b><small>${money(b.stake)}</small></span></div></div>
-      ${legs}${review}${b.notes ? `<div class="bt-notes">${esc(b.notes)}</div>` : ""}
+      ${legs}${review}${pend ? quickBtns(b) : ""}${b.notes ? `<div class="bt-notes">${esc(b.notes)}</div>` : ""}
       <div class="bt-foot"><span class="bt-res">${res}</span>
         <span class="bt-act"><button type="button" class="chip" data-settle="${esc(b.id)}">${pend ? "Settle" : "Change result"}</button><a class="chip" href="#/bets/edit/${encodeURIComponent(b.id)}">Edit</a><button type="button" class="chip bt-del" data-del="${esc(b.id)}" aria-label="Delete bet">Delete</button></span></div></article>`;
   }
@@ -446,7 +493,7 @@
     counts.settled = counts.all - counts.pending;
     const shown = list.filter(b => LISTF === "all" || (LISTF === "pending" ? b.status === "pending" : b.status !== "pending"))
       .sort((a, b) => (b.status === "pending") - (a.status === "pending") || String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)));
-    let html = filterBar(BETS) + `<div class="chips bt-lf" role="group" aria-label="Show">${[["all", "All"], ["pending", "Open"], ["settled", "Settled"]].map(([k, l]) => `<button type="button" class="chip${LISTF === k ? " on" : ""}" data-lf="${k}">${l} <b>${counts[k]}</b></button>`).join("")}</div>`;
+    let html = filterBar(BETS) + recordStrip(list) + `<div class="chips bt-lf" role="group" aria-label="Show">${[["all", "All"], ["pending", "Open"], ["settled", "Settled"]].map(([k, l]) => `<button type="button" class="chip${LISTF === k ? " on" : ""}" data-lf="${k}">${l} <b>${counts[k]}</b></button>`).join("")}</div>`;
     html += shown.length ? `<div class="bt-list">${shown.map(betCard).join("")}</div>` : `<div class="empty"><h3>${BETS.length ? "No bets match these filters" : "No bets tracked yet"}</h3>${BETS.length ? "Try a wider date range." : `<a class="lnk" href="#/bets/add">Add a bet</a> you've placed to start tracking.`}</div>`;
     html += `<div class="note">Moneyline, spread and total bets linked to a game settle automatically once ESPN posts the final score. NFL and NBA player props picked from a game settle from ESPN's box score; if a player isn't in the box score (didn't play) or the game wasn't completed, the bet is marked "Needs review" for you to grade. Other props and manual entries: tap Settle.</div>` + privacyNote();
     app.innerHTML = shell("list", html);
@@ -458,11 +505,7 @@
       BETS = BETS.filter(x => x.id !== bet.id); save(); viewList(app);
     }));
     app.querySelectorAll("[data-settle]").forEach(b => (b.onclick = () => settleDialog(b.dataset.settle, () => viewList(app))));
-    app.querySelectorAll("[data-quick]").forEach(b => (b.onclick = () => {
-      const i = BETS.findIndex(x => x.id === b.dataset.id); if (i < 0) return;
-      const nb = { ...BETS[i], status: b.dataset.quick, manual: true, settledBy: "manual", settledAt: today() }; delete nb.review;
-      BETS[i] = nb; save(); viewList(app); toast(`Marked ${C.STATUS[nb.status].toLowerCase()}.`);
-    }));
+    wireQuick(app, () => viewList(app));
   }
 
   // manual settle / override
@@ -534,10 +577,13 @@
       BETS = []; save(); localStorage.removeItem(DEMO_KEY); view();
     };
   }
-  function toast(msg) {
+  function toast(msg, undo) {
     let t = document.getElementById("btToast");
     if (!t) { t = document.createElement("div"); t.id = "btToast"; t.className = "bt-toast"; t.setAttribute("role", "status"); document.body.appendChild(t); }
-    t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 3200);
+    t.replaceChildren();
+    const span = document.createElement("span"); span.textContent = msg; t.appendChild(span);
+    if (undo) { const btn = document.createElement("button"); btn.type = "button"; btn.className = "bt-undo"; btn.textContent = "Undo"; btn.onclick = () => { clearTimeout(t._h); t.classList.remove("on"); undo(); }; t.appendChild(btn); }
+    t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), undo ? 6000 : 3200);
   }
 
   // ---------- add / edit form
@@ -759,6 +805,7 @@
     if (R) h += reviewPanel();
     else if (!F.id) h += `<a class="bt-implink" href="#/bets/import">Have a bet slip? <b>Import it instead ›</b></a>`;
     h += `<div class="bt-lbl">Sportsbook</div><div class="chips bt-books">${Object.entries(C.BOOKS).map(([k, n]) => `<button type="button" class="chip${F.book === k ? " on" : ""}" data-a="book" data-v="${k}">${esc(n)}</button>`).join("")}</div>`;
+    h += `<p class="bt-fl">Hard Rock Bet is the only legal online sportsbook in Florida.</p>`;
     if (F.book === "other") h += `<label class="bt-f"><span class="bt-lbl">Sportsbook name</span><input data-f="bookOther" value="${esc(F.bookOther)}" placeholder="e.g. BetMGM" autocomplete="off"></label>`;
     // guided order for a single bet: sport -> game -> bet type -> pick; a parlay keeps the type switch on top (legs pick their own market)
     const typeSeg = `<div class="bt-lbl">Bet type</div><div class="seg bt-types">${Object.entries(C.TYPES).map(([k, n]) => `<button type="button" data-a="type" data-v="${k}" class="${F.type === k ? "on" : ""}">${esc(k === "total" ? "Total" : k === "prop" ? "Player prop" : n)}</button>`).join("")}</div>`;
@@ -1011,11 +1058,13 @@
         if (D.book === "other" && !D.bookOther) D.bookOther = prefs().bookOther || "";
         D.review = { warnings: t.warnings || [], bookFromSlip: !!t.book, bookName: t.bookName || "", text: (t.lines || []).join("\n"),
           sum: { stake: t.stake, odds: t.odds, toWin: t.toWin, payout: t.payout, ref: t.ref, placed: t.placed ? t.placed.date : "", status: t.status, cashout: t.cashout, parlay: !!t.parlay, legs: t.legs.length } };
+        D.ticket = slimTicket(t);
         return D;
       });
       status("");
       SLIPQ = { items, i: 0, saved: 0, at: Date.now() }; saveQ();
-      location.hash = "#/bets/import/review/0";
+      const settled = items.findIndex(it => it.ticket && it.ticket.status && it.ticket.status !== "pending");
+      location.hash = settled >= 0 ? `#/bets/import/confirm/${settled}` : "#/bets/import/review/0";
     };
     root.addEventListener("click", e => {
       const b = e.target.closest("[data-a]"); if (!b) return;
@@ -1125,6 +1174,117 @@
     </div>`;
   }
 
+  function slimTicket(t) {
+    return {
+      book: t.book || "", bookName: t.bookName || "", status: t.status || "", stake: t.stake, odds: t.odds,
+      payout: t.payout, toWin: t.toWin, cashout: t.cashout, ref: t.ref || "", parlay: !!t.parlay,
+      warnings: t.warnings || [],
+      legs: (t.legs || []).map(l => ({
+        player: l.player || "", pmk: l.pmk || "", ou: l.ou || "", line: isNum(l.line) ? l.line : null, odds: isNum(l.odds) ? l.odds : null,
+        result: l.result || "", statValue: isNum(l.statValue) ? l.statValue : null, text: l.text || "", slg: l.slg || ""
+      }))
+    };
+  }
+  function maskRef(ref) {
+    const s = String(ref || "");
+    if (!s) return "";
+    if (/^\d{8,}$/.test(s)) return "••••••••";
+    return s.length > 8 ? "••••" + s.slice(-4) : s;
+  }
+  function prettyPlayer(name) {
+    return String(name || "").toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
+  }
+  function newBetFromTicket(t) {
+    const legs = (t.legs || []).filter(l => l.player || l.text).map(l => {
+      const lg = l.slg || "nba";
+      const prop = l.player && l.pmk ? { mk: l.pmk, player: prettyPlayer(l.player), line: l.line, side: l.ou, label: C.propLabel(lg, l.pmk) } : null;
+      return { type: "prop", league: lg, odds: isNum(l.odds) ? Number(l.odds) : null, result: l.result || undefined, statValue: isNum(l.statValue) ? l.statValue : undefined, prop, selection: prop ? undefined : (l.text || "") };
+    });
+    const parlay = legs.length > 1;
+    const base = { id: C.uid(), createdAt: new Date().toISOString(), date: today(), book: t.book || "hardrock", type: parlay ? "parlay" : "prop", odds: isNum(t.odds) ? Number(t.odds) : undefined, oddsManual: parlay, stake: Number(t.stake) || 0, status: "pending", source: "slip", slipRef: t.ref || undefined, notes: t.ref ? `Bet ID ${t.ref}` : undefined };
+    let bet = C.normalizeBet(parlay ? { ...base, legs } : { ...base, ...(legs[0] || {}), type: "prop" });
+    if (!bet) return null;
+    return C.manualSettle(bet, t.status || "won", { paid: t.status === "won" ? t.payout : null, cashout: t.status === "cashout" ? (isNum(t.cashout) ? t.cashout : t.payout) : null, today: today(), by: "slip" });
+  }
+  function applyExisting(existing, t) {
+    const b = JSON.parse(JSON.stringify(existing));
+    const applyLeg = (leg, hit) => {
+      if (!hit) return leg;
+      const next = { ...leg };
+      if (hit.result) next.result = hit.result;
+      if (isNum(hit.statValue)) next.statValue = hit.statValue;
+      return next;
+    };
+    if (b.type === "parlay") b.legs = (b.legs || []).map(leg => applyLeg(leg, (t.legs || []).find(l => C.normName(l.player) && C.normName((leg.prop || {}).player) === C.normName(l.player))));
+    else if ((t.legs || [])[0]) { const hit = t.legs[0]; if (hit.result) b.result = hit.result; if (isNum(hit.statValue)) b.statValue = hit.statValue; }
+    const out = C.manualSettle(b, t.status, { paid: t.status === "won" ? t.payout : null, cashout: t.status === "cashout" ? (isNum(t.cashout) ? t.cashout : t.payout) : null, today: today(), by: "slip" });
+    if (t.ref) out.slipRef = String(t.ref);
+    return out;
+  }
+  function finishConfirm(i) {
+    const q = loadQ(); if (!q) { location.hash = "#/bets/list"; return; }
+    q.saved = (q.saved || 0) + 1;
+    const next = i + 1;
+    if (next < q.items.length) {
+      q.i = next; saveQ();
+      const n = q.items[next];
+      location.hash = n.ticket && n.ticket.status ? `#/bets/import/confirm/${next}` : `#/bets/import/review/${next}`;
+      return;
+    }
+    SLIPQ = null; saveQ(); SLIP_TEXT = "";
+    location.hash = "#/bets/list";
+  }
+  function viewConfirm(app, i) {
+    const q = loadQ();
+    if (!q || !q.items || !q.items[i]) { location.hash = "#/bets/import"; return; }
+    const item = q.items[i], t = item.ticket;
+    if (!t || !t.status) { location.hash = `#/bets/import/review/${i}`; return; }
+    q.i = i; saveQ();
+    const matches = SC().matchOpenBets(BETS, t);
+    const stake = isNum(t.stake) ? Number(t.stake) : null;
+    const paid = t.status === "won" && isNum(t.payout) ? Number(t.payout) : t.status === "cashout" && isNum(t.cashout || t.payout) ? Number(t.cashout || t.payout) : null;
+    const profit = paid !== null && stake !== null ? Math.round((paid - stake) * 100) / 100 : isNum(t.toWin) ? Number(t.toWin) : null;
+    const nLegs = (t.legs || []).length;
+    const title = t.parlay || nLegs > 1 ? `${nLegs}-leg parlay` : (t.legs[0] ? prettyPlayer(t.legs[0].player) || "Bet" : "Bet");
+    const legs = (t.legs || []).map(l => {
+      const mark = l.result === "won" ? "✓" : l.result === "lost" ? "✗" : l.result === "push" ? "–" : "";
+      const side = l.ou === "under" ? "under" : l.ou === "over" ? "over" : "";
+      const mk = l.pmk ? C.propLabel(l.slg || "nba", l.pmk).toLowerCase() : "";
+      const fin = isNum(l.statValue) ? `<span class="na">final ${esc(l.statValue)}</span>` : "";
+      return `<li><span class="ok">${mark}</span> ${esc(prettyPlayer(l.player) || l.text)} ${esc(side)} ${esc(isNum(l.line) ? l.line : "")} ${esc(mk)} ${fin}</li>`;
+    }).join("");
+    const matchBox = matches.length === 1
+      ? `<div class="bt-match">Matches your open ${esc(describe(matches[0]))}: same legs, ${esc(am(t.odds) || "odds")}, ${money(stake)} stake.</div>
+         <button type="button" class="bt-add bt-confirm" data-go="match" data-id="${esc(matches[0].id)}">Settle that bet</button>
+         <button type="button" class="chip bt-confirm-alt" data-go="new">Save as a new settled bet</button>`
+      : matches.length > 1
+        ? `<div class="bt-match">${matches.length} open bets match this slip. Pick one.</div>${matches.map(b => `<button type="button" class="chip bt-confirm-alt" data-go="match" data-id="${esc(b.id)}">Settle ${esc(describe(b))} · ${money(b.stake)}</button>`).join("")}<button type="button" class="chip bt-confirm-alt" data-go="new">Save as a new settled bet</button>`
+        : `<div class="bt-match">No open bet matched. This will be saved as a new settled bet.</div><button type="button" class="bt-add bt-confirm" data-go="new">Save settled bet</button>`;
+    const st = t.status === "won" ? "Winner" : (C.STATUS[t.status] || t.status);
+    app.innerHTML = shell("imp", `<section class="bt-confirm" aria-label="Settle from slip">
+      <h2 class="bt-fh">Settle from slip${q.items.length > 1 ? ` <span class="na">${i + 1} of ${q.items.length}</span>` : ""}</h2>
+      <p class="bt-fl">Hard Rock Bet is the only legal online sportsbook in Florida.</p>
+      <article class="bt-card st-${esc(t.status)}">
+        <div class="bt-top"><span class="bs bs-${esc(t.status)}">${esc(st)}</span><span class="bt-meta">${t.ref ? `ID ${esc(maskRef(t.ref))}` : esc(t.bookName || C.BOOKS[t.book] || "Hard Rock Bet")}</span></div>
+        <h3>${esc(title)} ${isNum(t.odds) ? esc(am(t.odds)) : ""}</h3>
+        <div class="bt-paidgrid"><div><span>Wager</span><b>${money(stake)}</b></div><div><span>${t.status === "cashout" ? "Cash out" : "Paid"}</span><b>${paid !== null ? money(paid) : "—"}</b></div><div><span>Profit</span><b class="${cls(profit)}">${profit !== null ? money(profit, true) : "—"}</b></div></div>
+        <ul class="bt-conf-legs">${legs}</ul>
+        ${matchBox}
+      </article>
+      <p class="note">Paid is the amount the sportsbook returned. Nothing is saved until you tap the button. ${q.items.length > 1 ? `<button type="button" class="chip" data-go="skip">Skip</button>` : ""}</p>
+    </section>`);
+    const go = (kind, id) => {
+      if (kind === "skip") { const qq = loadQ(); if (!qq) return; const next = i + 1; if (next < qq.items.length) { qq.i = next; saveQ(); const n = qq.items[next]; location.hash = n.ticket && n.ticket.status ? `#/bets/import/confirm/${next}` : `#/bets/import/review/${next}`; } else { SLIPQ = null; saveQ(); location.hash = "#/bets/import"; } return; }
+      const bet = kind === "match" ? applyExisting(BETS.find(b => b.id === id), t) : newBetFromTicket(t);
+      if (!bet) { toast("That slip is missing a stake or a selection."); return; }
+      if (kind === "match") BETS = BETS.map(b => b.id === id ? bet : b); else BETS = [bet, ...BETS];
+      if (!save()) return;
+      toast(kind === "match" ? "Open bet settled from the slip." : "Settled bet saved on this device.");
+      finishConfirm(i);
+    };
+    app.querySelectorAll("[data-go]").forEach(b => (b.onclick = () => go(b.dataset.go, b.dataset.id)));
+  }
+
   // ---------- router entry (called by app.js)
   async function view() {
     const app = document.getElementById("app");
@@ -1133,7 +1293,11 @@
     window.onresize = null;
     BETS = load();
     if (seg[1] === "add") { window.scrollTo(0, 0); return viewForm(app, null, new URLSearchParams(query || "")); }
-    if (seg[1] === "import") { window.scrollTo(0, 0); return seg[2] === "review" ? viewReview(app, Number(seg[3]) || 0) : viewImport(app); }
+    if (seg[1] === "import") {
+      window.scrollTo(0, 0);
+      if (seg[2] === "confirm") return viewConfirm(app, Number(seg[3]) || 0);
+      return seg[2] === "review" ? viewReview(app, Number(seg[3]) || 0) : viewImport(app);
+    }
     if (seg[1] === "edit" && seg[2]) { window.scrollTo(0, 0); return viewForm(app, decodeURIComponent(seg[2])); }
     const render = () => (seg[1] === "list" ? viewList(app) : viewOverview(app));
     render();

@@ -20,6 +20,12 @@ check(C.toAmerican(2.5) === 150 && C.toAmerican(1.5) === -200 && C.toAmerican(2)
 check(!C.validAmerican(50) && !C.validAmerican(-99) && !C.validAmerican("abc") && C.validAmerican("-110"), "rejects invalid American odds (|odds|<100, text)", "odds");
 check(near(C.impliedProb(-110), 0.5238, 0.0001) && near(C.impliedProb(100), 0.5), "implied probability", "odds");
 check(near(C.netResult(bet({ status: "won", odds: -110 })), 90.91) && near(C.payout(bet({ status: "won", odds: -110 })), 190.91), "won -110 bet: net +90.91, payout 190.91", "odds");
+check(C.netResult(bet({ status: "won", odds: 531, stake: 20, paid: 126.29 })) === 106.29 && C.payout(bet({ status: "won", odds: 531, stake: 20, paid: 126.29 })) === 126.29, "won bet uses the slip's paid amount ($126.29), not odds math ($126.20)", "odds");
+{
+  const settled = C.manualSettle(bet({ odds: 531, stake: 20 }), "won", { paid: 126.29, by: "slip" });
+  check(settled.paid === 126.29 && settled.manual && settled.settledBy === "slip" && C.autoSettle(settled, {}) === null, "slip settle stores paid and auto-settle does not override it", "odds");
+  check(C.manualSettle(settled, "").paid === undefined, "reopening a bet drops the paid amount", "odds");
+}
 check(C.netResult(bet({ status: "won", odds: 250, stake: 20 })) === 50, "won +250 bet ($20) nets +$50", "odds");
 check(C.netResult(bet({ status: "lost", odds: 250, stake: 20 })) === -20, "lost bet nets −stake", "odds");
 check(C.netResult(bet({ status: "pending", odds: -110 })) === 0, "pending bet nets 0", "odds");

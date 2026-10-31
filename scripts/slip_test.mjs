@@ -351,5 +351,68 @@ To Pay $28.00`);
   check(r.dark && px[0] === 255 && px[4] === 0, "OCR prep inverts dark-mode screenshots", "ocr");
 }
 
+// ---------- 17. Hard Rock settled share card (Winner banner, Paid, line-then-player props). Fake bet ID only.
+{
+  const SLIP = `Hard Rock Bet
+WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER
+WINNER
+PARLAY 3-Bet Parlay +531
+Under 9.5, Over 25.5, Under 9.5
+Wager
+$20
+Paid
+$126.29
+ID: HRB-TEST-1001
+Hide selections
+Under 9.5 -130
+CADE CUNNINGHAM - ASSISTS
+4
+9.5
+Over 25.5 -110
+TYRESE MAXEY - POINTS
+27
+25.5
+Under 9.5 -115
+BAM ADEBAYO - REBOUNDS
+9
+9.5`;
+  const [t, ...rest] = run(SLIP);
+  check(rest.length === 0 && t.parlay && t.legs.length === 3, `HRB settled: one 3-leg ticket (got ${rest.length + 1} tickets, ${t && t.legs.length} legs)`, "hardrock");
+  check(t.status === "won" && t.stake === 20 && t.odds === 531 && t.payout === 126.29 && t.ref === "HRB-TEST-1001", `HRB settled: won, $20, +531, paid $126.29, fake id (got ${t.status}, ${t.stake}, ${t.odds}, ${t.payout}, ${t.ref})`, "hardrock");
+  const [a, b, c] = t.legs;
+  check(a.player === "CADE CUNNINGHAM" && a.pmk === "assists" && a.ou === "under" && a.line === 9.5 && a.odds === -130 && a.result === "won" && a.statValue === 4, "HRB settled leg 1: Cunningham under 9.5 assists, final 4 won", "hardrock");
+  check(b.player === "TYRESE MAXEY" && b.pmk === "points" && b.ou === "over" && b.line === 25.5 && b.odds === -110 && b.result === "won" && b.statValue === 27, "HRB settled leg 2: Maxey over 25.5 points, final 27 won", "hardrock");
+  check(c.player === "BAM ADEBAYO" && c.pmk === "rebounds" && c.ou === "under" && c.line === 9.5 && c.odds === -115 && c.result === "won" && c.statValue === 9, "HRB settled leg 3: Adebayo under 9.5 rebounds, final 9 won", "hardrock");
+  const F = draft(t);
+  check(F.status === "won" && F.paid === 126.29 && F.type === "parlay", "HRB settled: draft keeps Won and the slip's paid amount", "hardrock");
+  const open = { id: "open-1", status: "pending", book: "hardrock", type: "parlay", odds: 531, stake: 20, notes: "Bet ID HRB-TEST-1001", legs: [
+    { prop: { player: "Cade Cunningham", mk: "assists", side: "under", line: 9.5 } },
+    { prop: { player: "Tyrese Maxey", mk: "points", side: "over", line: 25.5 } },
+    { prop: { player: "Bam Adebayo", mk: "rebounds", side: "under", line: 9.5 } },
+  ] };
+  check(S.matchOpenBets([open], t).map(b => b.id).join() === "open-1", "HRB settled: matches the open bet by the bet ID in notes", "hardrock");
+  const byLegs = { ...open, id: "open-2", notes: "" };
+  check(S.matchOpenBets([byLegs], t)[0].id === "open-2", "HRB settled: matches one pending Hard Rock bet by odds, stake and legs", "hardrock");
+  const two = S.matchOpenBets([open, { ...byLegs, id: "open-3" }], { ...t, ref: "" });
+  check(two.length === 2, "HRB settled: several leg matches are listed, not auto-picked", "hardrock");
+  const [col] = run(`Hard Rock Bet
+WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER
+3-Bet Parlay +531
+Under 9.5, Over 25.5, Under 9.5
+Wager Paid
+$20 $126.29
+ID: HRB-TEST-1001
+Hide selections
+Under 9.5 -130
+CADE CUNNINGHAM - ASSISTS
+Over 25.5 -110
+TYRESE MAXEY - POINTS
+Under 9.5 -115
+BAM ADEBAYO - REBOUNDS`);
+  check(col && col.legs.length === 3 && col.stake === 20 && col.payout === 126.29 && col.status === "won" && col.legs[0].ou === "under" && col.legs[1].ou === "over" && col.legs[2].pmk === "rebounds", "HRB settled: two-column Wager Paid / $20 $126.29 stays one ticket", "hardrock");
+  const banner = S.classify("WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER WINNER", null, NOW);
+  check(banner.length === 1 && banner[0].k === "status" && banner[0].status === "won", "WINNER watermark is a result, not a moneyline", "hardrock");
+}
+
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall slip import tests passed");
 process.exit(fails.length ? 1 : 0);

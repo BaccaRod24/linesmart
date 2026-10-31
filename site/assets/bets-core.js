@@ -67,7 +67,10 @@
   function netResult(bet) {
     const stake = Number(bet.stake) || 0;
     switch (bet.status) {
-      case "won": { const d = effectiveDecimal(bet); return d === null ? 0 : r2(stake * (d - 1)); }
+      case "won": {
+        if (isNum(bet.paid)) return r2(Number(bet.paid) - stake);
+        const d = effectiveDecimal(bet); return d === null ? 0 : r2(stake * (d - 1));
+      }
       case "lost": return r2(-stake);
       case "cashout": return r2((Number(bet.cashout) || 0) - stake);
       default: return 0; // pending, push, void
@@ -76,6 +79,7 @@
   /** amount returned to the bettor (stake + profit) */
   function payout(bet) {
     if (bet.status === "pending" || bet.status === "lost") return 0;
+    if (bet.status === "won" && isNum(bet.paid)) return r2(Number(bet.paid));
     if (bet.status === "push" || bet.status === "void") return Number(bet.stake) || 0;
     return r2((Number(bet.stake) || 0) + netResult(bet));
   }
@@ -308,15 +312,17 @@
   }
   /** Mark a bet settled by hand (or re-open it). date = placed date (YYYY-MM-DD) so it lands on that day in the charts;
    *  manual: true keeps auto-settle from overriding it. */
-  function manualSettle(bet, status, { cashout, date, today } = {}) {
+  function manualSettle(bet, status, { cashout, paid, date, today, by } = {}) {
     const b = { ...bet };
     if (!RESULTS.includes(status)) {
       Object.assign(b, { status: "pending", manual: false, settledAt: null, settledBy: null, cashout: null, final: null });
+      delete b.paid;
       return b;
     }
     delete b.review;
-    Object.assign(b, { status, manual: true, settledBy: "manual", settledAt: date || bet.date || today || new Date().toISOString().slice(0, 10) });
+    Object.assign(b, { status, manual: true, settledBy: by || "manual", settledAt: date || bet.date || today || new Date().toISOString().slice(0, 10) });
     if (status === "cashout") b.cashout = isNum(cashout) ? r2(Number(cashout)) : 0; else delete b.cashout;
+    if (status === "won" && isNum(paid)) b.paid = r2(Number(paid)); else delete b.paid;
     return b;
   }
   /** Finished / scheduled games from an ESPN scoreboard (site.web.api.espn.com, read in the browser) for the

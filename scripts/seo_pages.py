@@ -3105,9 +3105,20 @@ def states_index(doc, sh: Shell, Ls):
     return sh.page(path, title, desc, main, more, kind="states", route="", ld=ld, og_type="website"), title
 
 
+def _lines_kick(L, gid, g, now):
+    """Start time for a game that can still take a best line. None once it has started, is live, or is final."""
+    if gid not in L.paths or L.is_final(g) or abnormal(g) or g.get("state") in ("in", "post"):
+        return None
+    dt = parse_dt(g.get("date"))
+    if not dt or dt <= now:
+        return None
+    return dt
+
+
 def _best_line_rows(Ls, now):
-    """Upcoming games with a posted line whose ET start date is today, else the next ET day.
-    Returns (rows, next_day or None). rows are (lg, dt, gid, g, L)."""
+    """Not-yet-started games from every league, on today's ET date, else the next ET day.
+    A missing line still gets a row (the cells are dashes). Returns (rows, next_day or None).
+    rows are (lg, dt, gid, g, L)."""
     def collect(day):
         rows = []
         for lg in ORDER:
@@ -3115,9 +3126,7 @@ def _best_line_rows(Ls, now):
             if not L:
                 continue
             for gid, g in L.games.items():
-                if gid not in L.paths or L.is_final(g) or abnormal(g) or not pv.has_line(g):
-                    continue
-                dt = parse_dt(g.get("date"))
+                dt = _lines_kick(L, gid, g, now)
                 if not dt or day_et(dt) != day:
                     continue
                 rows.append((lg, dt, gid, g, L))
@@ -3134,9 +3143,7 @@ def _best_line_rows(Ls, now):
         if not L:
             continue
         for gid, g in L.games.items():
-            if gid not in L.paths or L.is_final(g) or abnormal(g) or not pv.has_line(g):
-                continue
-            dt = parse_dt(g.get("date"))
+            dt = _lines_kick(L, gid, g, now)
             if dt and day_et(dt) > today:
                 later.append(day_et(dt))
     if not later:
@@ -3187,7 +3194,7 @@ def _best_table(rows):
                 + "</tr>")
         blocks.append(
             f'<h2 class="sx-seg"><a href="{esc(L.hub)}">{esc(NAMES[lg])}</a></h2>'
-            '<div class="tbl-wrap pv-tbl"><table class="books pv-books"><thead><tr>'
+            '<div class="tbl-wrap pv-tbl bl-scroll"><table class="books pv-books"><thead><tr>'
             "<th>Game</th><th>Time (ET)</th><th>Away spread</th><th>Home spread</th>"
             "<th>Over</th><th>Under</th><th>Away ML</th><th>Home ML</th>"
             f"</tr></thead><tbody>{''.join(trs)}</tbody></table></div>")
@@ -3217,19 +3224,21 @@ def best_lines_page(Ls, sh: Shell, now, base_url):
     else:
         meta = f"Best spread, total and moneyline for {plural(n, 'game')} today across {book_s}: {league_s}. Odds for reference; 21+."
     desc = cut(meta)
+    n_line = sum(1 for _lg, _dt, _gid, g, _L in rows if pv.has_line(g))
+    posted = " have lines posted at Hard Rock, DraftKings or FanDuel" if n and n_line == n else ""
     intro = (
-        f"{plural(n, 'game')} on {day_label} have lines posted at Hard Rock, DraftKings or FanDuel. "
+        f"{plural(n, 'game')} on {day_label}{posted}. "
         "For each game, the table shows the best available number and price for each side and which book has it. "
         "Odds change quickly and are for reference only; confirm in the sportsbook app. "
         'Book availability depends on your state (<a href="states/">see states</a>). 21+.'
     )
     if not rows:
-        intro = ("No games with a posted line are on the board right now. This page lists the best spread, total and moneyline "
+        intro = ("No upcoming games are left on the board right now. This page lists the best spread, total and moneyline "
                  "for each side when books post them. Odds are for reference only. "
                  'Book availability depends on your state (<a href="states/">see states</a>). 21+.')
     body, listed = _best_table(rows)
     banner = f'<h2 class="sx-seg">Next up: {esc(title_day(slate_dt))}</h2>' if nxt and rows else ""
-    empty = '<p class="na">No games with a posted line are on the board right now.</p>' if not rows else ""
+    empty = '<p class="na">No upcoming games are left on the board right now.</p>' if not rows else ""
     main = f"""<article class="pv sx-lines">
 {crumbs((None, "Best lines today"))}
 <h1 class="pv-h1">{esc(h1)}</h1>

@@ -351,6 +351,56 @@ def game_title_tests():
     check("PAGE_SEO" in js and ".seo-head" in js and "PAGE_ROUTE === `g/${key}/${id}`" in js, "app.js keeps .seo-head on the matching game route")
 
 
+def _slate_game(gid, date, state="pre", line=True):
+    g = {"id": gid, "date": date, "state": state, "completed": state == "post", "neutral": False,
+         "away": {"id": "1", "name": "Away Team", "short": "Away", "abbr": "AWY"},
+         "home": {"id": "2", "name": "Home Team", "short": "Home", "abbr": "HOM"}}
+    if line:
+        g["books"] = {"draftkings": {"homeSpread": -3, "awaySpread": 3, "homeSpreadOdds": -110, "awaySpreadOdds": -110,
+                                     "total": 45, "overOdds": -110, "underOdds": -110, "homeML": -150, "awayML": 130}}
+    else:
+        g["books"] = {}
+        g["odds"] = None
+    return g
+
+
+def _slate_league(lg, games, now):
+    kind = {"nba": "basketball", "ncaab": "basketball", "nhl": "hockey", "mlb": "baseball"}.get(lg, "football")
+    ix = {"league": {"kind": kind}, "games": games, "teams": {}, "generated": "2026-10-31T20:00:00Z"}
+    L = SP.League(lg, ix, None, None, now, SP.BASE_URL)
+    L.games = {str(g["id"]): g for g in games}
+    L.paths = {str(g["id"]): f"{lg}/games/{g['id']}/" for g in games}
+    return L
+
+
+def best_lines_filter_tests():
+    """Started, live and final games are not listed. A day with nothing left falls through to Next up.
+    A game with no line still gets a row, so a league is not dropped just because books have not posted."""
+    now = pv.parse_dt("2026-10-31T20:00:00Z")  # 4:00 PM ET
+    nfl = _slate_league("nfl", [
+        _slate_game("nfl-later", "2026-10-31T23:00:00Z"),          # 7:00 PM ET, still ahead
+        _slate_game("nfl-started", "2026-10-31T17:00:00Z"),        # 1:00 PM ET, already started
+        _slate_game("nfl-now", "2026-10-31T20:00:00Z"),            # kickoff == build time
+        _slate_game("nfl-live", "2026-10-31T23:30:00Z", "in"),
+        _slate_game("nfl-final", "2026-10-31T17:00:00Z", "post"),
+    ], now)
+    nba = _slate_league("nba", [
+        _slate_game("nba-noline", "2026-11-01T00:00:00Z", line=False),  # 8:00 PM ET, no line yet
+    ], now)
+    rows, nxt = SP._best_line_rows({"nfl": nfl, "nba": nba}, now)
+    ids = [r[2] for r in rows]
+    check(nxt is None and ids == ["nfl-later", "nba-noline"], f"today keeps later games from every league, including one with no line ({ids}, next={nxt})")
+    check(not any(x in ids for x in ("nfl-started", "nfl-now", "nfl-live", "nfl-final")), f"started, live and final stay off the page ({ids})")
+    # nothing left today: the next ET day is the slate, still without started games
+    nfl2 = _slate_league("nfl", [_slate_game("nfl-old", "2026-10-31T17:00:00Z")], now)
+    ncaaf = _slate_league("ncaaf", [
+        _slate_game("ncaaf-next", "2026-11-01T16:00:00Z"),
+        _slate_game("ncaaf-live", "2026-11-01T20:00:00Z", "in"),
+    ], now)
+    rows2, nxt2 = SP._best_line_rows({"nfl": nfl2, "ncaaf": ncaaf}, now)
+    check(nxt2 == "2026-11-01" and [r[2] for r in rows2] == ["ncaaf-next"], f"empty today falls through to Next up ({[r[2] for r in rows2]}, {nxt2})")
+
+
 OFFER = re.compile(r'class="of-book|Bet on (DraftKings|FanDuel|Hard Rock|BetMGM|Caesars|Fanatics)|href="https?://[^"]*(draftkings|fanduel|hardrock|betmgm|caesars|fanatics)[^"]*"', re.I)
 
 
@@ -713,6 +763,7 @@ def state_unit_tests():
 def main():
     title_limit_tests()
     game_title_tests()
+    best_lines_filter_tests()
     wtw_tests()
     state_unit_tests()
     # last-5 prop strip: boxes render oldest -> newest (newest on the right), each with its M/D date under it; the stats stay latest first

@@ -149,9 +149,13 @@
   // ---------- views
   let FILT = { range: "all", book: "", league: "", type: "" };
   let LISTF = "all";
+  const buildLabel = () => {
+    const m = document.querySelector('meta[name="ls-build-label"]');
+    return (m && m.content) || "dev";
+  };
   function shell(active, body) {
     const demo = isDemo() ? `<div class="bt-demo" role="note"><b>Example data</b> These are sample bets for screenshots only, not real wagers.</div>` : "";
-    return `<div class="page-head bt-head"><div><h1>My Bets</h1><div class="sub">${signedIn() ? "Private tracker · synced to your account" : "Private tracker · stored on this device"}</div></div>
+    return `<div class="page-head bt-head"><div><h1>My Bets</h1><div class="sub">${signedIn() ? "Private tracker · synced to your account" : "Private tracker · stored on this device"}</div><div class="ls-build" data-ls-build>Build ${esc(buildLabel())}</div></div>
       <div class="bt-hbtns"><a class="chip bt-impbtn" href="#/bets/import">Import slip</a><a class="bt-add" href="#/bets/add">+ Add bet</a></div></div>
       <nav class="seg bt-tabs" aria-label="My Bets sections"><a href="#/bets" class="${active === "ov" ? "on" : ""}">Overview</a><a href="#/bets/list" class="${active === "list" ? "on" : ""}">Bets${BETS.length ? ` <span class="na">${BETS.length}</span>` : ""}</a><a href="#/bets/add" class="${active === "add" ? "on" : ""}">Add</a><a href="#/bets/import" class="${active === "imp" ? "on" : ""}">Import</a></nav>
       ${demo}${body}`;

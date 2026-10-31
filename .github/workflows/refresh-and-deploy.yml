@@ -242,15 +242,17 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v6
 
-      - name: Stamp service-worker cache version
+      - name: Stamp service-worker cache version and visible build
         # New VERSION on every deploy -> browsers install the new worker and drop the old shell cache.
         # Format: <shell content hash>-<UTC build time>. Data JSON is network-first, so the 30-min refresh is unaffected.
+        # The visible footer / My Bets line is the short commit plus the build time in US Eastern.
         run: |
           H=$(cat site/*.html site/manifest.webmanifest site/assets/*.css site/assets/*.js | sha256sum | cut -c1-10)
           V="$H-$(date -u +%Y%m%d%H%M%S)"
           sed -i "s/^const VERSION = \".*\";/const VERSION = \"$V\";/" site/sw.js
           sed -i "s/^  const SITE_BUILD = \".*\";/  const SITE_BUILD = \"$V\";/" site/assets/pro-gate-core.js
           grep -q "const VERSION = \"$V\";" site/sw.js && grep -q "const SITE_BUILD = \"$V\";" site/assets/pro-gate-core.js && echo "sw.js VERSION=$V"
+          python3 scripts/stamp_build.py --root site --sha "${GITHUB_SHA}"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

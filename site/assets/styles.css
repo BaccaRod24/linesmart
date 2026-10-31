@@ -260,6 +260,8 @@ td.pos{color:var(--pos);font-weight:650}td.neg{color:var(--neg);font-weight:650}
   .page-head{margin:22px 0 14px}
   .page-head h1{font-size:24px}
   .page-head .seg{width:100%}.page-head .seg button{flex:1;min-height:38px}
+  .page-head .seg.seg-3{flex-wrap:wrap}
+  .page-head .seg.seg-3 button{flex:1 1 0;min-height:44px;padding:0 6px;font-size:12.5px;line-height:1.15;text-align:center;white-space:normal}
   .grid,.cols{grid-template-columns:minmax(0,1fr)}
   .c3 .trow,.c3 .gt-head{grid-template-columns:30px minmax(0,1fr) auto repeat(3,62px);column-gap:6px}
   .c2 .trow,.c2 .gt-head{grid-template-columns:30px minmax(0,1fr) auto repeat(2,66px);column-gap:6px}

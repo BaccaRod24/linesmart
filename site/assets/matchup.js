@@ -183,7 +183,7 @@
       return `<a class="mu-km" href="#/p/${lg}/${esc(p.id)}/m"><span class="mu-km-n"><b>${esc(p.name)}</b> <span class="na">${esc(p.pos)}</span></span><span class="mu-km-go">Matchup ›</span><span class="mu-km-v"><span class="na">${esc(p.cat || "")}:</span> <span class="num">${esc(p.value || "")}</span></span>${vs}</a>`;
     };
     const blocks = sides.map((t, i) => { const opp = sides[1 - i], ps = pick(t); return ps.length ? `<div class="card mu-kmc"><h3>${t.logo ? `<img src="${esc(t.logo)}" alt="" onerror="this.remove()">` : ""}${esc(t.name)}</h3>${ps.map(p => row(p, t, opp)).join("")}</div>` : ""; }).join("");
-    el.innerHTML = blocks ? `<div class="section-title">Key player matchups</div><div class="cols">${blocks}</div><div class="note">Season leaders vs the opponent's defense against their position (rank 1 = fewest allowed). Tap a player for form, history vs this opponent and hit rates.</div>` : "";
+    el.innerHTML = blocks ? `<div class="section-title">Key player matchups</div><div class="cols">${blocks}</div><div class="note">Season leaders vs the opponent's defense against their position (rank 1 = fewest allowed). Tap a player for form, history vs this opponent and hit rates.</div>` : (app.notAvail ? app.notAvail("Key player matchups", "Not available") : `<div class="card na-card"><h3>Key player matchups</h3><div class="na">Not available</div></div>`);
   }
 
   window.LSMatchup = { mount, keyMatchups, SUPPORTED };

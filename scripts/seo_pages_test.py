@@ -8,6 +8,7 @@ finished-games archive: closing lines captured before the start, the final fille
 the past-game page, and that a finished game is never pruned.
 Usage: python3 scripts/seo_pages_test.py        (DATA_DIR=/path/to/data to test with fresher data)
 """
+import hashlib
 import html
 import json
 import os
@@ -245,6 +246,21 @@ def title_limit_tests():
     check(SP.cut("Short description.") == "Short description.", "cut(): short text unchanged")
     sample = "Free NFL odds comparison: spreads, totals and moneylines from DraftKings, Hard Rock Bet and FanDuel, line movement and final scores."
     check(len(sample) <= SP.DESC_MAX and not PROMO_RE.search(sample) and "Florida" not in sample, "comparison description: no promo wording and no Florida availability claim")
+    check(SP.hub_books() == "DraftKings, Hard Rock Bet and FanDuel", "hub book list is the odds-table book list")
+    check(SP.hub_custom_lead("nba", 0) is None and SP.hub_custom_lead("nfl", 4) is None, "shared hubs and an empty slate keep the existing intro")
+    books = SP.hub_books()
+    for lg, one, many in (
+        ("nba", "1 upcoming game", "3 upcoming games"),
+        ("ncaaf", "1 upcoming NCAAF game", "3 upcoming NCAAF games"),
+    ):
+        spec = SP.HUB_COPY[lg]
+        title, desc, h1 = SP.fit(spec["title"]), SP.cut(spec["desc"]), spec["h1"]
+        check(title == spec["title"] + SP.SUFFIX and len(title) <= SP.TITLE_MAX, f"{lg} hub title <= 60 ({len(title)}: {title})")
+        check(desc == spec["desc"] and len(desc) <= SP.DESC_MAX, f"{lg} hub description <= 155 ({len(desc)})")
+        check(SP.hub_custom_lead(lg, 1).split(":", 1)[0].endswith(one), f"{lg} singular count ({SP.hub_custom_lead(lg, 1).split(':', 1)[0]})")
+        lead = SP.hub_custom_lead(lg, 3)
+        check(many in lead and books in lead and lead.startswith("Today's"), f"{lg} intro uses the count and the book list")
+        check(not PROMO_RE.search(title + " " + desc + " " + h1 + " " + lead), f"{lg} hub copy has no promo wording")
 
 
 OFFER = re.compile(r'class="of-book|Bet on (DraftKings|FanDuel|Hard Rock|BetMGM|Caesars|Fanatics)|href="https?://[^"]*(draftkings|fanduel|hardrock|betmgm|caesars|fanatics)[^"]*"', re.I)
@@ -627,6 +643,30 @@ def main():
         st = SP.build(site, data, now, archive_dir=tmp / "arch")
         print(f"snapshot build: {st['pages']} pages + {st['redirects']} redirects, {st['bytes'] / 1e6:.1f} MB, {st['seconds']}s {st['total']}")
         check(st["pages"] > 50, f"snapshot builds a real number of pages ({st['pages']})")
+        # Other league hubs stay byte-identical. Hashes are from this snapshot before the NBA / NCAAF copy change.
+        if not os.environ.get("DATA_DIR"):
+            same = {
+                "nfl": "5c0bde9af4148553bc8eec5f54119d51c797e3955452e2d14417f6d3a6cec0b7",
+                "ncaab": "ba51b7e0c82b40b7712ca79245adec9c25fd3ec76cf7e00b95b952a37ced4b68",
+                "nhl": "069e19ad368ec12a36553a4b64099139c96f4318a95d75007bde2afcea56d743",
+                "mlb": "e4ed3a2ab0e4082c261ba1e42cb594ade735c3971e5d228b3b5817af833aae2d",
+                "ufc": "d7934ba85702a5a6265940527e24d6335da3916a1608705d1e008e6ef11000e0",
+            }
+            for lg, digest in same.items():
+                got = hashlib.sha256((site / lg / "index.html").read_bytes()).hexdigest()
+                check(got == digest, f"{lg} hub is byte-identical")
+            for lg in ("nba", "ncaaf"):
+                h = (site / lg / "index.html").read_text()
+                d = parse(h)
+                spec = SP.HUB_COPY[lg]
+                h1 = html.unescape(re.search(r'class="pv-h1">(.*?)</h1>', h).group(1))
+                lead = html.unescape(re.search(r'class="pv-lead">(.*?)</p>', h).group(1))
+                cp = next(n for n in walk_nodes(ld_scripts(h)) if n.get("@type") == "CollectionPage")
+                check(d.title == spec["title"] + SP.SUFFIX and len(d.title) <= SP.TITLE_MAX, f"{lg} rendered title {len(d.title)}")
+                check(d.meta.get("description") == spec["desc"] and len(spec["desc"]) <= SP.DESC_MAX, f"{lg} rendered description {len(spec['desc'])}")
+                check(h1 == spec["h1"], f"{lg} rendered h1")
+                check(cp.get("name") == spec["title"] and cp.get("description") == spec["desc"], f"{lg} CollectionPage name and description follow the new copy")
+                check(SP.hub_books() in lead, f"{lg} intro names the books from the book table")
         man = json.loads((data / "pages.json").read_text())
         meta2 = json.loads((data / "meta.json").read_text())
         check(meta2.get("pages", {}).get("count") == st["pages"] and "previews" not in meta2, "meta.json: pages count, no previews block")

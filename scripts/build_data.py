@@ -13,7 +13,7 @@ Every pull is persisted in --odds-cache-dir and merged into every build, so keyl
 pull time). See docs/odds_api_budget.md for the cadence and credit math.
 
 Usage:
-    python3 scripts/build_data.py                 # all leagues
+    python3 scripts/build_data.py                 # all leagues (today ET + ahead, plus the previous ET date for games still live)
     python3 scripts/build_data.py --leagues nfl,nba --days 7
     ODDS_API_KEY=xxxx python3 scripts/build_data.py
 
@@ -88,6 +88,75 @@ def get(url, tries=3):
 
 def getj(url):
     return get(url)[0]
+
+# Typical length of a game, matching site/assets/livetab-core.js DUR. A final from the
+# previous ET scoreboard stays in the file only while the Live tab would still call it
+# "just finished" (that length, plus RECENT_MS of one hour).
+PRIOR_DUR_H = {"nfl": 3.25, "ncaaf": 3.5, "nba": 2.4, "ncaab": 2.1, "nhl": 2.6, "mlb": 3.0,
+               "epl": 1.9, "mls": 1.9, "ucl": 1.9, "ufc": 0.4}
+PRIOR_RECENT_H = 1.0     # livetab-core.js RECENT_MS
+PRIOR_PRE_GRACE_H = 4.0  # a "pre" game this far past its listed start is not still waiting to begin
+
+
+def scoreboard_dates(today, days):
+    """YYYYMMDD dates to request: the previous ET date, then ``days`` dates from today.
+
+    ESPN files each game on the scoreboard for the US Eastern day it starts. The
+    forward window (``--days``, including today) is unchanged. The extra date is
+    required after midnight ET: a 10:00 PM ET tip is only on yesterday's board,
+    and west-coast NBA games and late kickoffs are often still in progress.
+    Checked 12:21 AM ET on 2026-10-31: LAL @ GS and DEN @ PHX (4th quarter) and
+    Kent State @ Sacramento State (halftime) were on ``dates=20261030`` and absent
+    from ``dates=20261031``.
+    """
+    n = max(int(days), 1)
+    start = today - dt.timedelta(days=1)
+    return [(start + dt.timedelta(days=i)).strftime("%Y%m%d") for i in range(n + 1)]
+
+
+def _event_state(e):
+    comp = (e.get("competitions") or [None])[0] or {}
+    st = (e.get("status") or comp.get("status") or {}).get("type") or {}
+    return st.get("state") or "", (st.get("shortDetail") or st.get("detail") or "")
+
+
+def _event_start(e):
+    raw = e.get("date")
+    if not raw:
+        return None
+    try:
+        t = dt.datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
+
+
+def keep_prior_day_event(e, lg, now):
+    """A game ESPN returned only on the previous ET date.
+
+    Keep it when the Live tab can still show it: in progress (including a delay),
+    not yet started or only recently past the listed start, or final within the
+    last hour by typical length. Drop the rest of yesterday's finals so the
+    league page does not fill up with games that ended in the afternoon.
+    """
+    key = lg.get("key") if isinstance(lg, dict) else str(lg or "")
+    state, detail = _event_state(e)
+    if state == "in":
+        return True
+    if state == "post" and re.search(r"postpon|cancel|suspend|delay", detail or "", re.I):
+        return False
+    start = _event_start(e)
+    if start is None or now is None:
+        return False
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=ET)
+    age_h = (now - start).total_seconds() / 3600.0
+    if state == "pre":
+        return age_h <= PRIOR_PRE_GRACE_H
+    if state == "post":
+        return 0 <= age_h <= PRIOR_DUR_H.get(key, 3.0) + PRIOR_RECENT_H
+    return False
+
 
 def fetch_scoreboard(lg, ymd, fetch=None):
     """One date's public ESPN scoreboard.
@@ -183,16 +252,29 @@ def book_key_for(provider):
     return None
 
 # ---------------------------------------------------------------- per-league fetch
-def fetch_scoreboards(lg, days):
-    today = dt.datetime.now(ET).date()
+def fetch_scoreboards(lg, days, now=None, fetch=None):
+    """Scoreboards for the forward window plus the previous ET date.
+
+    Events from the previous date pass through ``keep_prior_day_event``. Events
+    from today onward are kept as ESPN returned them (including today's finals).
+    ``now`` is a timezone-aware datetime (tests); default is the current ET time.
+    """
+    now = now or dt.datetime.now(ET)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=ET)
+    now = now.astimezone(ET)
+    dates = scoreboard_dates(now.date(), days)
+    prior = dates[0]
     events, ok_days, err = {}, 0, []
-    for i in range(days):
-        d = (today + dt.timedelta(days=i)).strftime("%Y%m%d")
+    for ymd in dates:
         try:
-            sb = fetch_scoreboard(lg, d); ok_days += 1
-            for e in sb.get("events", []) or []: events[e["id"]] = e
+            sb = fetch_scoreboard(lg, ymd, fetch); ok_days += 1
+            for e in sb.get("events", []) or []:
+                if ymd == prior and not keep_prior_day_event(e, lg, now):
+                    continue
+                events[e["id"]] = e
         except Exception as ex:
-            err.append(f"{d}: {ex}")
+            err.append(f"{ymd}: {ex}")
     return list(events.values()), ok_days, err
 
 def game_from_event(e, lg=None):
@@ -612,16 +694,18 @@ def _err_tail(errs):
     """'20261027: HTTP Error 403: Forbidden' -> 'HTTP Error 403: Forbidden' (first error only)."""
     return (errs[0].split(": ", 1)[-1] if errs else "")[:80]
 
-def lastgood_games(lg, games, ok_days, errs, days, lgsrc, now):
+def lastgood_games(lg, games, ok_days, errs, days, lgsrc, now, tried=None):
     """Decide whether this league's scoreboard fetch failed and, if so, which last good games to carry over.
-    Returns (restored games marked stale, fallback info or None, last good index or None)."""
+    Returns (restored games marked stale, fallback info or None, last good index or None).
+    ``tried`` is how many dates were requested (the forward window plus the previous ET date)."""
     if not lgsrc: return [], None, None
     fresh_ids = {str(g["id"]) for g in games}
     reason, only_days = None, None
+    n_tried = days if tried is None else tried
     if errs and ok_days == 0:
         reason = f"ESPN scoreboard failed ({_err_tail(errs)})"
     elif errs:
-        reason = f"ESPN scoreboard failed for {len(errs)} of {days} days ({_err_tail(errs)})"
+        reason = f"ESPN scoreboard failed for {len(errs)} of {n_tried} days ({_err_tail(errs)})"
         only_days = {e.split(":", 1)[0] for e in errs}
     elif not games:
         n = LG.suspicious_empty(lgsrc.index(lg["key"]), now, days)
@@ -639,10 +723,11 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
     t0 = time.time()
     report = dict(league=lg["key"], endpoints={})
     events, ok_days, errs = fetch_scoreboards(lg, days)
-    report["endpoints"]["scoreboard"] = f"ok {ok_days}/{days} days" + (f"; errors: {errs[:2]}" if errs else "")
+    n_dates = len(scoreboard_dates(dt.datetime.now(ET).date(), days))
+    report["endpoints"]["scoreboard"] = f"ok {ok_days}/{n_dates} dates" + (f"; errors: {errs[:2]}" if errs else "")
     games = sorted((game_from_event(e, lg) for e in events), key=lambda g: g["date"])
     # ESPN failed (or came back suspiciously empty): carry over the last good games (marked stale) instead of showing none
-    restored, fb, idx0 = lastgood_games(lg, games, ok_days, errs, days, lgsrc, dt.datetime.now(dt.timezone.utc))
+    restored, fb, idx0 = lastgood_games(lg, games, ok_days, errs, days, lgsrc, dt.datetime.now(dt.timezone.utc), tried=n_dates)
     if fb: report["fallback"] = fb
     lg_docs = LG.game_docs(lgsrc, lg["key"], restored) if restored else {}
     # summaries
@@ -787,7 +872,7 @@ def _refresh_rankings(a, log=print):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--leagues", default=",".join(l["key"] for l in LEAGUES))
-    ap.add_argument("--days", type=int, default=10, help="days ahead (including today, ET) to include")
+    ap.add_argument("--days", type=int, default=10, help="days ahead (including today, ET) to include; the previous ET date is also read for games still in progress")
     ap.add_argument("--history-dir", default=os.environ.get("LINE_HISTORY_DIR") or None,
                     help="dir with <league>.json line history (data-history branch checkout); omit to skip persistence")
     ap.add_argument("--snap-dir", default=os.environ.get("LINE_SNAP_DIR") or None,

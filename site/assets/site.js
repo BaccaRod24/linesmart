@@ -104,15 +104,33 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    let reg = null;
+    const showUpdateBanner = () => {
+      if (document.getElementById("lsUpdate")) return;
+      const b = document.createElement("button");
+      b.type = "button";
+      b.id = "lsUpdate";
+      b.className = "ls-update";
+      b.textContent = "Update ready - tap to refresh";
+      b.addEventListener("click", () => location.reload());
+      (document.body || document.documentElement).appendChild(b);
+    };
     window.addEventListener("load", () => {
       const had = !!navigator.serviceWorker.controller;
       let once = false;
       navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (!had || once) return;   // first install has nothing to replace; an update reloads once
+        if (!had || once) return;   // first install has nothing to replace; an update asks once
         once = true;
-        location.reload();
+        showUpdateBanner();
       });
-      navigator.serviceWorker.register("sw.js", { scope: "./", updateViaCache: "none" }).catch(e => console.warn("SW registration failed", e));
+      navigator.serviceWorker.register("sw.js", { scope: "./", updateViaCache: "none" }).then(r => { reg = r; }).catch(e => console.warn("SW registration failed", e));
+    });
+    // iOS standalone resumes a frozen page without a new navigation, so the browser may not
+    // check sw.js until the next full load. Ask when the app comes back to the foreground.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") return;
+      const ready = reg ? Promise.resolve(reg) : navigator.serviceWorker.getRegistration();
+      ready.then(r => { if (r && r.update) return r.update(); }).catch(() => {});
     });
   }
 })();

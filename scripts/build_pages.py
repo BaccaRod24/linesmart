@@ -85,6 +85,7 @@ FOOTER = f"""<footer class="footer" id="siteFooter">
     {state_footer_links()}
     <nav class="tool-links" aria-label="Tools">{" ".join(f'<a href="{f}">{n}</a>' for f, n in TOOLS)}</nav>
     <p class="src">Data: ESPN public endpoints (schedules, stats, DraftKings opening lines and fallback lines); Hard Rock Bet, FanDuel and DraftKings lines and props via The Odds API; weather by Open-Meteo. Independent: not owned by or affiliated with any league or sportsbook. Times shown in US Eastern (ET).</p>
+    <p class="ls-build" data-ls-build>Build dev</p>
   </div>
 </footer>"""
 
@@ -95,6 +96,7 @@ def page(file, title, desc, body, noindex=False, news_page=""):
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#050b1c">
+<meta name="ls-build-label" content="dev">
 <title>{title} · LineSmart</title>
 <meta name="description" content="{desc}">{'\n<meta name="robots" content="noindex">' if noindex else ""}
 <link rel="canonical" href="{BASE_URL}{file}">

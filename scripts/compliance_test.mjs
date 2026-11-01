@@ -42,8 +42,25 @@ for (const f of FOOTER_PAGES) {
 // promo wording: none of the restricted phrases in site copy, templates or emails (disclaimers like "not a guarantee" are fine;
 // slip-core.js's parser still recognises what a sportsbook prints on the user's own slip)
 const PROMO = /\b(free bets?|risk[- ]free|no[- ]risk|guaranteed|bonus bets?|no[- ]sweat|free plays?)\b/i;
+// "Bonus bet" is a bet-type label inside the tracker only (the visitor's own token). Nowhere else.
+const TRACKER_LABEL_FILES = new Set(["assets/bets.js", "assets/bets-core.js"]);
+const BONUS_LABEL = /\bBonus bets?\b/g;
 const copyFiles = [...fs.readdirSync("site").filter(f => f.endsWith(".html")), ...fs.readdirSync("site/assets").filter(f => f.endsWith(".js") && f !== "slip-core.js").map(f => "assets/" + f)];
-for (const f of copyFiles) { const m = read(f).match(PROMO); check(!m, `${f}: no promo wording (${m && m[0]})`); }
+check(read("assets/bets-core.js").includes('const BONUS_LABEL = "Bonus bet"'), "bets-core.js: Bonus bet is the tracker label constant");
+check(read("assets/bets.js").includes("BONUS_LABEL"), "bets.js: review and list use the Bonus bet label");
+for (const f of copyFiles) {
+  let src = read(f);
+  if (TRACKER_LABEL_FILES.has(f)) {
+    const promoHits = src.match(PROMO) || [];
+    check(promoHits.every(h => /^Bonus bets?$/.test(h)), `${f}: the only promo phrase allowed is the Bonus bet label (${promoHits.join(", ") || "none"})`);
+    src = src.replace(BONUS_LABEL, "");
+    const m = src.match(PROMO);
+    check(!m, `${f}: no promo wording besides the Bonus bet label (${m && m[0]})`);
+  } else {
+    const m = src.match(PROMO);
+    check(!m, `${f}: no promo wording (${m && m[0]})`);
+  }
+}
 for (const f of ["scripts/newsletter_lib.mjs", "scripts/build_pages.py", "scripts/previews.py", "scripts/seo_pages.py", ...fs.readdirSync("supabase/migrations").map(f => "supabase/migrations/" + f)]) {
   const t = fs.readFileSync(f, "utf8").split("\n").filter(l => !/BANNED|FORBIDDEN|PROMO/.test(l)).join("\n"), m = t.match(PROMO);
   check(!m, `${f}: no promo wording (${m && m[0]})`);

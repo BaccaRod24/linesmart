@@ -482,11 +482,11 @@
     const review = rv ? `<div class="bt-review" role="note"><b>Needs review</b> ${esc(b.review ? b.review.reason : "A leg couldn't be graded from the box score.")}
       ${b.type === "parlay" ? `<span class="bt-rv-btns"><button type="button" class="chip" data-settle="${esc(b.id)}">Grade legs</button></span>` : ""}</div>` : "";
     const meta = [b.date, bookName(b), b.type === "parlay" ? null : lgName(b.league || ""), C.TYPES[b.type]].filter(Boolean).join(" · ");
-    const res = pend ? `<span class="na">to win</span> <b>${money(C.toWin(b))}</b>` : b.status === "void" ? `<b class="na">stake returned</b>` : `<b class="${cls(net)}">${money(net, true)}</b>`;
+    const res = pend ? `<span class="na">to win</span> <b>${money(C.toWin(b))}</b>` : b.status === "void" ? (b.bonus ? `<b class="na">$0</b>` : `<b class="na">stake returned</b>`) : `<b class="${cls(net)}">${money(net, true)}</b>`;
     return `<article class="bt-card st-${esc(b.status)}" id="bet-${esc(b.id)}">
       <div class="bt-top">${badge(b.status)}${rv ? `<span class="bs bs-review">Needs review</span>` : ""}${b.settledBy === "auto" && !pend ? `<span class="bt-auto" title="${b.prop ? "Settled automatically from the ESPN box score" : "Settled automatically from the ESPN final score"}">auto${fin}</span>` : ""}<span class="bt-meta">${esc(meta)}</span></div>
       <div class="bt-main"><div class="bt-sel"><b>${esc(describe(b))}</b><span class="na">${esc(eventLabel(b))}</span></div>
-        <div class="bt-px"><span class="oc"><b>${esc(price || "—")}</b><small>${money(b.stake)}</small></span></div></div>
+        <div class="bt-px"><span class="oc"><b>${esc(price || "—")}</b><small>${b.bonus ? esc(C.BONUS_LABEL) + " · " : ""}${money(b.stake)}</small></span></div></div>
       ${legs}${review}${pend ? quickBtns(b) : ""}${b.notes ? `<div class="bt-notes">${esc(b.notes)}</div>` : ""}
       <div class="bt-foot"><span class="bt-res">${res}</span>
         <span class="bt-act"><button type="button" class="chip" data-settle="${esc(b.id)}">${pend ? "Settle" : "Change result"}</button><a class="chip" href="#/bets/edit/${encodeURIComponent(b.id)}">Edit</a><button type="button" class="chip bt-del" data-del="${esc(b.id)}" aria-label="Delete bet">Delete</button></span></div></article>`;
@@ -643,7 +643,7 @@
           side: (pr ? pr.side : s.side) || "", line: (pr ? pr.line : s.line) ?? "", odds: s.odds ?? "", selection: s.selection || "", result: s.result,
           // older free-text props on a game keep their text ("Something else"); structured props reopen in the picker
           pid: pr && pr.pid ? String(pr.pid) : "", player: pr ? pr.player || "" : "", pmk: pr ? pr.mk : (s.type === "prop" && s.event ? "other" : ""), custom: !!(pr ? !pr.pid : s.type === "prop" && s.event) }; };
-      F = { id: ex.id, book: ex.book, bookOther: ex.bookOther || "", type: ex.type, date: ex.date || today(), stake: ex.stake, odds: ex.odds ?? "", oddsManual: !!ex.oddsManual, notes: ex.notes || "",
+      F = { id: ex.id, book: ex.book, bookOther: ex.bookOther || "", type: ex.type, date: ex.date || today(), stake: ex.stake, bonus: !!ex.bonus, odds: ex.odds ?? "", oddsManual: !!ex.oddsManual, notes: ex.notes || "",
         legs: ex.type === "parlay" ? ex.legs.map(l => ({ ...toLeg(l), mk: l.type || "ml" })) : [toLeg(ex)],
         status: ex.status === "pending" ? "" : ex.status, cashout: ex.cashout ?? "", statusPicked: ex.status !== "pending" };
     } else {
@@ -820,7 +820,7 @@
       <label class="bt-chk"><input type="checkbox" data-f="oddsManual"${F.oddsManual ? " checked" : ""}> Use the odds on my ticket instead (boosts, same-game parlays)</label>`;
     const showOdds = !parlay || F.oddsManual;
     h += `<div class="bt-row">${showOdds ? `<label class="bt-f"><span class="bt-lbl">Odds (American)</span><input data-f="odds" type="text" inputmode="numeric" value="${esc(F.odds)}" placeholder="-110 or +150"></label>` : ""}
-      <label class="bt-f"><span class="bt-lbl">Stake ($)</span><input data-f="stake" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(F.stake)}" placeholder="10.00"></label>
+      <label class="bt-f"><span class="bt-lbl">${F.bonus ? esc(C.BONUS_LABEL) + " ($)" : "Stake ($)"}</span><input data-f="stake" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(F.stake)}" placeholder="10.00"></label>
       <label class="bt-f"><span class="bt-lbl">Date placed</span><input data-f="date" type="date" max="${today()}" value="${esc(F.date)}"></label></div>
       ${R ? "" : resultBlock(parlay)}
       <div class="bt-towin" aria-live="polite"></div>
@@ -856,6 +856,18 @@
       else if (a === "lres") { l.result = v === "pending" ? undefined : v; delete l.review; legsToStatus(); }
       else if (a === "pastretry") delete PAST[`${l.league}|${l.pastDay}`];
       else if (a === "past") { const g = (PAST[`${l.league}|${l.pastDay}`] || {}).games?.find(x => String(x.id) === v); if (g) { Object.assign(l, { manual: false, eventId: String(g.id), event: evOf(g, l.league), eventText: "" }); clearProp(l); } }
+      else if (a === "pickgame") {
+        const choice = ((l.review && l.review.choices) || []).find(c => String(c.id) === String(v));
+        l.league = b.dataset.lg || l.league;
+        l.manual = false; l.eventId = v;
+        if (choice) l.event = { id: String(choice.id), lg: l.league, date: choice.date || "", name: `${choice.away.abbr} @ ${choice.home.abbr}`, home: choice.home, away: choice.away };
+        if (l.review) { l.review.status = "matched"; l.review.why = "You picked this game."; l.review.choices = []; }
+        return Promise.all([gamesFor(l.league), propsFor(l.league)]).then(() => {
+          const g = ((GAMES[l.league] || {}).games || []).find(x => String(x.id) === String(v));
+          if (g) l.event = evOf(g, l.league);
+          drawForm(app);
+        });
+      }
       drawForm(app);
     });
     form.addEventListener("change", e => {
@@ -905,12 +917,13 @@
   function updateToWin(form) {
     const o = currentOdds(), s = parseFloat(F.stake), el = $(".bt-towin", form);
     const w = isNum(s) && s > 0 && C.validAmerican(o) ? C.winProfit(s, o) : null;
+    if (F.bonus && w !== null) { el.innerHTML = `${esc(C.BONUS_LABEL)}. To win <b>${money(w)}</b> <span class="na">· cash at risk $0 · a loss is $0</span>`; return; }
     el.innerHTML = w === null ? `<span class="na">Enter odds and stake to see the potential payout.</span>` : `To win <b>${money(w)}</b> <span class="na">· total payout ${money(w + s)} · implied ${(C.impliedProb(o) * 100).toFixed(1)}%</span>`;
   }
   function submit(form) {
     const err = msg => { const e = $(".bt-err", form); e.textContent = msg; e.scrollIntoView({ block: "center", behavior: "smooth" }); return false; };
     const stake = parseFloat(F.stake);
-    if (!isNum(stake) || stake <= 0) return err("Enter the amount you staked.");
+    if (!isNum(stake) || stake <= 0) return err(F.bonus ? "Enter the " + C.BONUS_LABEL + " amount." : "Enter the amount you staked.");
     if (F.book === "other" && !F.bookOther.trim()) return err("Enter the sportsbook name.");
     const parlay = F.type === "parlay";
     const legs = [];
@@ -952,7 +965,7 @@
     let co = null;
     if (chosen === "cashout") { co = parseFloat(F.cashout); if (!isNum(co) || co < 0) return err("Enter the cash-out amount you received."); co = Math.round(co * 100) / 100; }
     const base = { id: F.id || C.uid(), createdAt: prev ? prev.createdAt : new Date().toISOString(), date: F.date || today(), book: F.book, bookOther: F.book === "other" ? F.bookOther.trim() : undefined,
-      type: F.type, odds, stake: Math.round(stake * 100) / 100, notes: F.notes.trim() || undefined, status: prev ? prev.status : "pending" };
+      type: F.type, odds, stake: Math.round(stake * 100) / 100, bonus: F.bonus ? true : undefined, notes: F.notes.trim() || undefined, status: prev ? prev.status : "pending" };
     if (prev) for (const k of ["settledAt", "settledBy", "manual", "cashout", "final", "slipRef", "source"]) if (prev[k] !== undefined) base[k] = prev[k];
     if (R) {   // imported from a bet slip: remember its ID (duplicate check) and a result the slip already showed
       base.source = "slip"; if (F.ref) base.slipRef = F.ref;
@@ -1063,7 +1076,7 @@
         const D = SC().toDraft(t, { defaultBook: defaultBook(), defaultLeague: prefs().lg, today: today() });
         if (D.book === "other" && !D.bookOther) D.bookOther = prefs().bookOther || "";
         D.review = { warnings: t.warnings || [], bookFromSlip: !!t.book, bookName: t.bookName || "", text: (t.lines || []).join("\n"),
-          sum: { stake: t.stake, odds: t.odds, toWin: t.toWin, payout: t.payout, ref: t.ref, placed: t.placed ? t.placed.date : "", status: t.status, cashout: t.cashout, parlay: !!t.parlay, legs: t.legs.length } };
+          sum: { stake: t.stake, odds: t.odds, toWin: t.toWin, payout: t.payout, ref: t.ref, placed: t.placed ? t.placed.date : "", status: t.status, cashout: t.cashout, parlay: !!t.parlay, legs: t.legs.length, bonus: !!t.bonus, stakeEstimated: !!t.stakeEstimated, payoutEstimated: !!t.payoutEstimated, oddsEstimated: !!t.oddsEstimated } };
         D.ticket = slimTicket(t);
         return D;
       });
@@ -1184,7 +1197,8 @@
   function legReview(r) {
     const [cls, ic, label] = REV_ST[r.status] || REV_ST.manual;
     const why = r.why || (r.status === "matched" ? "Linked to this game: settles automatically." : r.status === "manual" ? "Pick the game below to auto-settle, or leave “Not listed” and settle it yourself." : "");
-    return `<div class="bt-from rv-${cls}"><span class="bt-rvb"><i aria-hidden="true">${ic}</i>${label}</span><span class="bt-from-t">From slip: <q>${esc(r.text || "—")}</q></span>${why ? `<span class="bt-from-why">${esc(why)}</span>` : ""}</div>`;
+    const picks = (r.choices || []).map(c => `<button type="button" class="chip" data-a="pickgame" data-v="${esc(c.id)}" data-lg="${esc(c.lg)}">${esc(c.name)}</button>`).join("");
+    return `<div class="bt-from rv-${cls}"><span class="bt-rvb"><i aria-hidden="true">${ic}</i>${label}</span><span class="bt-from-t">From slip: <q>${esc(r.text || "—")}</q></span>${why ? `<span class="bt-from-why">${esc(why)}</span>` : ""}${picks ? `<span class="bt-rv-picks">${picks}</span>` : ""}</div>`;
   }
   /** Result select shared by the add / edit form and the slip review (Open = not settled yet); cash-out asks for the amount */
   function resultSel(suffix = "") {
@@ -1192,14 +1206,19 @@
   }
   function reviewPanel() {
     const R = F.review, s = R.sum || {};
-    const cells = [["Stake", isNum(s.stake) ? money(s.stake) : "—"], ["Odds", isNum(s.odds) ? am(s.odds) : "—"], [isNum(s.payout) ? "Payout" : "To win", isNum(s.payout) ? money(s.payout) : isNum(s.toWin) ? money(s.toWin) : "—"], ["Bet ID", s.ref || "—"]];
+    const cells = [
+      [s.bonus ? C.BONUS_LABEL : "Stake", isNum(s.stake) ? money(s.stake) : "—", !!s.stakeEstimated],
+      ["Odds", isNum(s.odds) ? am(s.odds) : "—", !!s.oddsEstimated],
+      [isNum(s.payout) ? "Payout" : "To win", isNum(s.payout) ? money(s.payout) : isNum(s.toWin) ? money(s.toWin) : "—", !!s.payoutEstimated && isNum(s.payout)],
+      ["Bet ID", s.ref || "—", false],
+    ];
     const counts = {}; for (const l of F.legs) if (l.review) counts[l.review.status] = (counts[l.review.status] || 0) + 1;
     const book = R.bookFromSlip || R.bookTouched ? "" : `<li>Sportsbook isn't on the slip: set to ${esc(C.BOOKS[F.book] || F.book)}. Change it below if needed.</li>`;
     const warn = [...(R.warnings || []).map(w => `<li>${esc(w)}</li>`), book].filter(Boolean).join("");
     const resSel = resultSel(s.status ? " (from the slip)" : "");
     return `<div class="bt-rv" role="region" aria-label="What we read from your slip">
       <div class="bt-rv-h"><span class="bt-rv-tag">${R.bookFromSlip ? esc(R.bookName || C.BOOKS[F.book] || "Sportsbook") + " slip" : "Bet slip"}</span><span class="na">Nothing is saved until you tap Save. Fix anything that looks off.</span></div>
-      <div class="bt-rv-sum">${cells.map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join("")}</div>
+      <div class="bt-rv-sum">${cells.map(([k, v, est]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b>${est ? `<small>estimated, check this</small>` : ""}</div>`).join("")}</div>
       <div class="bt-rv-legs">${Object.entries(REV_ST).filter(([k]) => counts[k]).map(([k, [cls, ic, label]]) => `<span class="bt-rvb rv-${cls}"><i aria-hidden="true">${ic}</i>${counts[k]} ${label.toLowerCase()}</span>`).join("")}</div>
       ${R.dup ? `<div class="bt-rv-dup" role="alert"><b>Already tracked?</b> A bet with this bet ID (${esc(F.ref)}) was saved${R.dup.date ? ` on ${esc(R.dup.date)}` : ""}: ${esc(R.dup.what)}. ${R.n > 1 ? "Skip it" : "Go back"} unless it's a different bet.</div>` : ""}
       ${warn ? `<ul class="bt-rv-warn">${warn}</ul>` : ""}
@@ -1235,7 +1254,7 @@
       return { type: "prop", league: lg, odds: isNum(l.odds) ? Number(l.odds) : null, result: l.result || undefined, statValue: isNum(l.statValue) ? l.statValue : undefined, prop, selection: prop ? undefined : (l.text || "") };
     });
     const parlay = legs.length > 1;
-    const base = { id: C.uid(), createdAt: new Date().toISOString(), date: today(), book: t.book || "hardrock", type: parlay ? "parlay" : "prop", odds: isNum(t.odds) ? Number(t.odds) : undefined, oddsManual: parlay, stake: Number(t.stake) || 0, status: "pending", source: "slip", slipRef: t.ref || undefined, notes: t.ref ? `Bet ID ${t.ref}` : undefined };
+    const base = { id: C.uid(), createdAt: new Date().toISOString(), date: today(), book: t.book || "hardrock", type: parlay ? "parlay" : "prop", odds: isNum(t.odds) ? Number(t.odds) : undefined, oddsManual: parlay, stake: Number(t.stake) || 0, bonus: t.bonus ? true : undefined, status: "pending", source: "slip", slipRef: t.ref || undefined, notes: t.ref ? `Bet ID ${t.ref}` : undefined };
     let bet = C.normalizeBet(parlay ? { ...base, legs } : { ...base, ...(legs[0] || {}), type: "prop" });
     if (!bet) return null;
     return C.manualSettle(bet, t.status || "won", { paid: t.status === "won" ? t.payout : null, cashout: t.status === "cashout" ? (isNum(t.cashout) ? t.cashout : t.payout) : null, today: today(), by: "slip" });

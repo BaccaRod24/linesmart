@@ -9,6 +9,9 @@
   const r2 = v => Math.round(v * 100) / 100;
 
   const BOOKS = { draftkings: "DraftKings", fanduel: "FanDuel", hardrock: "Hard Rock Bet", other: "Other" };
+  /** Tracker label for a token the bettor already had. Not marketing copy. */
+  const BONUS_LABEL = "Bonus bet";
+  const isBonus = b => !!(b && b.bonus);
   const TYPES = { ml: "Moneyline", spread: "Spread", total: "Total (O/U)", prop: "Player prop / other", parlay: "Parlay" };
   const STATUS = { pending: "Pending", won: "Won", lost: "Lost", push: "Push", void: "Void", cashout: "Cashed out" };
   const SOCCER = new Set(["epl", "mls", "ucl"]);
@@ -63,9 +66,21 @@
     return toDecimal(bet.odds);
   }
 
-  /** net profit/loss of a bet in currency; 0 while pending */
+  /** net profit/loss of a bet in currency; 0 while pending.
+   *  A bonus flag means no cash was risked and the stake is not returned: a win's profit is the
+   *  whole payout, a loss is $0. */
   function netResult(bet) {
     const stake = Number(bet.stake) || 0;
+    if (isBonus(bet)) {
+      switch (bet.status) {
+        case "won": {
+          if (isNum(bet.paid)) return r2(Number(bet.paid));
+          const d = effectiveDecimal(bet); return d === null ? 0 : r2(stake * (d - 1));
+        }
+        case "cashout": return r2(Number(bet.cashout) || 0);
+        default: return 0; // lost, pending, push, void: no cash
+      }
+    }
     switch (bet.status) {
       case "won": {
         if (isNum(bet.paid)) return r2(Number(bet.paid) - stake);
@@ -76,8 +91,16 @@
       default: return 0; // pending, push, void
     }
   }
-  /** amount returned to the bettor (stake + profit) */
+  /** amount returned to the bettor (stake + profit). A bonus win returns only the profit. */
   function payout(bet) {
+    if (isBonus(bet)) {
+      if (bet.status === "won") {
+        if (isNum(bet.paid)) return r2(Number(bet.paid));
+        const d = effectiveDecimal(bet); return d === null ? 0 : r2((Number(bet.stake) || 0) * (d - 1));
+      }
+      if (bet.status === "cashout") return r2(Number(bet.cashout) || 0);
+      return 0;
+    }
     if (bet.status === "pending" || bet.status === "lost") return 0;
     if (bet.status === "won" && isNum(bet.paid)) return r2(Number(bet.paid));
     if (bet.status === "push" || bet.status === "void") return Number(bet.stake) || 0;
@@ -361,10 +384,10 @@
   function summarize(bets) {
     const s = { n: bets.length, won: 0, lost: 0, push: 0, void: 0, cashout: 0, pending: 0, staked: 0, net: 0, exposure: 0, toWinPending: 0, decSum: 0, decN: 0 };
     for (const b of bets) {
-      const st = b.status || "pending", stake = Number(b.stake) || 0;
+      const st = b.status || "pending", stake = Number(b.stake) || 0, cash = b.bonus ? 0 : stake;
       s[st] = (s[st] || 0) + 1;
-      if (st === "pending") { s.exposure += stake; s.toWinPending += toWin(b) || 0; }
-      else if (st !== "void") { s.staked += stake; s.net += netResult(b); }
+      if (st === "pending") { s.exposure += cash; s.toWinPending += toWin(b) || 0; }
+      else if (st !== "void") { s.staked += cash; s.net += netResult(b); }
       if (st !== "void") { const d = b.type === "parlay" && !validAmerican(b.odds) ? parlayDecimal(b.legs, { ignoreResults: true }) : toDecimal(b.odds); if (d) { s.decSum += d; s.decN++; } }
     }
     s.staked = r2(s.staked); s.net = r2(s.net); s.exposure = r2(s.exposure); s.toWinPending = r2(s.toWinPending);
@@ -392,7 +415,9 @@
   // ---------- deeper stats (Overview "Stats" sections). Pure + unit-tested in scripts/bets_test.mjs.
   // Conventions: pending bets never count toward results; void bets are refunded and ignored everywhere (not staked, not in
   // the record, no streak effect); pushes count as staked with $0 profit, show in W-L-P, and neither extend nor break a streak.
-  // Cash-outs count by their actual profit/loss but aren't a W or L. Parlays are one bet: settled from their legs
+  // Cash-outs count by their actual profit/loss but aren't a W or L. A bonus flag risks no cash (left out of
+  // staked and exposure); a win adds the payout as profit and a loss adds $0, and it still counts in the W-L record.
+  // Parlays are one bet: settled from their legs
   // (pushed / void legs re-price the ticket, see effectiveDecimal), and never split across sports or prop markets.
   const SPORT_OF = { nfl: "football", ncaaf: "football", nba: "basketball", ncaab: "basketball", wnba: "basketball", nhl: "hockey", mlb: "baseball", epl: "soccer", mls: "soccer", ucl: "soccer", ufc: "mma" };
   const SPORTS = { football: "Football", basketball: "Basketball", baseball: "Baseball", hockey: "Hockey", soccer: "Soccer", mma: "MMA", multi: "Multi-sport parlay", other: "Other" };
@@ -515,6 +540,7 @@
     const stake = Number(b.stake);
     if (!isNum(stake) || stake < 0) return null;
     const out = { ...b, stake, id: String(b.id || uid()), status: STATUS[b.status] ? b.status : "pending", type: TYPES[b.type] ? b.type : "prop", book: b.book || "other" };
+    if (out.bonus) out.bonus = true; else delete out.bonus;
     if (isNum(b.odds)) out.odds = Number(b.odds); else delete out.odds;
     if (out.type === "parlay") out.legs = Array.isArray(b.legs) ? b.legs.map(l => ({ ...l, odds: isNum(l.odds) ? Number(l.odds) : null })) : [];
     return out;
@@ -541,7 +567,7 @@
   }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
-  return { PROP_MARKETS, YESNO, propLabel, normName, boxScore, findPlayer, gradeProp, isPropSel, describeProp, propQuote, FEED_KEY, needsReview, BOOKS, TYPES, STATUS, SOCCER, MMA, KEY, isNum, toDecimal, toAmerican, validAmerican, winProfit, impliedProb, parlayDecimal, parlayAmerican, parlayStatus,
+  return { PROP_MARKETS, YESNO, propLabel, normName, boxScore, findPlayer, gradeProp, isPropSel, describeProp, propQuote, FEED_KEY, needsReview, BOOKS, BONUS_LABEL, TYPES, STATUS, SOCCER, MMA, KEY, isNum, toDecimal, toAmerican, validAmerican, winProfit, impliedProb, parlayDecimal, parlayAmerican, parlayStatus,
     effectiveDecimal, netResult, payout, toWin, gradeSelection, canAutoSettle, autoSettle, pendingEvents, inRange, seasonStart, filterBets, betLeagues,
     summarize, roi, groupBy, cumulative, SPORT_OF, SPORTS, settleDay, settledOrder, sportOf, propMarket, propMarketLabel, streaks, stats, dayInRange, dailySeries, drawdown, byWeekday, byDay, toUnits, sortRows, normalizeBet, parseImport, mergeBets, toCSV, uid,
     RESULTS, LEG_RESULTS, parlayResult, manualSettle, scoreboardGames };

@@ -245,5 +245,22 @@ check(G({ type: "prop", side: "home" }, F(1, 0)) === null, "props are never auto
   check(C.scoreboardGames(null).length === 0 && C.scoreboardGames({ events: [{ id: 1 }] }).length === 0, "empty / malformed scoreboard -> []", T);
 }
 
+// ---------- token stake: cash at risk is $0, the payout is the profit, a loss is $0
+{
+  const win = bet({ bonus: true, stake: 25, odds: 300, status: "won" });
+  check(C.netResult(win) === 75 && C.payout(win) === 75, "token +300 $25 wins $75 (stake not returned)", "bonus");
+  const paid = bet({ bonus: true, stake: 25, odds: 300, status: "won", paid: 75 });
+  check(C.netResult(paid) === 75 && C.payout(paid) === 75, "token win uses the slip payout as profit, not payout minus stake", "bonus");
+  const lost = bet({ bonus: true, stake: 25, odds: 300, status: "lost" });
+  check(C.netResult(lost) === 0 && C.payout(lost) === 0, "token loss is $0", "bonus");
+  check(C.netResult(bet({ bonus: true, stake: 25, odds: 300, status: "push" })) === 0 && C.payout(bet({ bonus: true, stake: 25, odds: 300, status: "push" })) === 0, "token push returns no cash", "bonus");
+  const s = C.summarize([win, lost, bet({ status: "won", odds: 100, stake: 100 })]);
+  check(s.staked === 100 && s.net === 175 && near(s.roi, 1.75) && s.won === 2 && s.lost === 1, `token left out of cash staked; still in the W-L (staked ${s.staked}, net ${s.net}, roi ${s.roi})`, "bonus");
+  const pend = C.summarize([bet({ bonus: true, stake: 25, odds: 300, status: "pending" })]);
+  check(pend.exposure === 0 && pend.toWinPending === 75, "open token: no cash exposure, to-win is the profit", "bonus");
+  check(C.normalizeBet({ id: "b", stake: 25, odds: 300, bonus: 1 }).bonus === true, "normalize keeps the bonus flag", "bonus");
+  check(C.BONUS_LABEL === "Bonus bet", "tracker label is Bonus bet", "bonus");
+}
+
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall bet-tracker unit tests passed");
 process.exit(fails.length ? 1 : 0);

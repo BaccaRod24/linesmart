@@ -428,5 +428,264 @@ BAM ADEBAYO - REBOUNDS`);
   check(t.ref === "HRB-TEST-1001" && !JSON.stringify(ocr).match(/\d{8,}/), "photo fixture uses the fake bet ID only", "photo");
 }
 
+// ---------- 19. DraftKings OCR: light, dark, stake math, token stake, bet id, forgiving match
+{
+  const tag = "dkocr";
+  const FAKE_DK = ["DK", "0000", "0000", "0000", "1234"].join("");
+  const FAKE_NUM = ["6000", "0000", "0000", "1234"].join("");
+  const maskId = s => "****" + String(s || "").replace(/\s+/g, "").slice(-4);
+  const noStakeWarn = t => (t.warnings || []).some(w => /No stake found/.test(w));
+  const estWarn = t => (t.warnings || []).some(w => /estimated, check this/.test(w));
+
+  // Light single: labels above the amounts, bet id on the next line.
+  {
+    const [t] = run(`DraftKings Sportsbook
+Green Bay Packers
+-150
+Moneyline
+CAR Panthers @ GB Packers
+Sun 8:20 PM
+Wager
+$15.00
+To Pay
+$25.00
+Bet ID
+${FAKE_DK}`);
+    check(t.book === "draftkings" && t.stake === 15 && t.payout === 25 && t.odds === -150 && !t.stakeEstimated, "DK light single: stake, to pay, odds", tag);
+    check(t.ref === FAKE_DK && maskId(t.ref) === "****1234", `DK light single: bet id ${maskId(t.ref)}`, tag);
+    check(t.legs[0].m.game && t.legs[0].m.game.id === "402" && t.legs[0].m.side === "home", "DK light single: Packers matched", tag);
+  }
+
+  // Dark single: S for $, O for 0, "Bet lD" with the digits split.
+  {
+    const [t] = run(`DraftKings
+Green Bay Packers -15O
+Moneyline
+CAR Panthers @ GB Packers
+Wager S15.OO
+To Pay S25.OO
+Bet lD: ${FAKE_NUM.replace(/(.{4})/g, "$1 ").trim()}`);
+    check(t.book === "draftkings" && t.stake === 15 && t.payout === 25 && t.odds === -150, `DK dark single: S/$ and O/0 (stake ${t.stake}, pay ${t.payout}, odds ${t.odds})`, tag);
+    check(t.ref === FAKE_NUM && maskId(t.ref) === "****1234", `DK dark single: spaced id ${maskId(t.ref)}`, tag);
+    check(t.legs[0].m.game && t.legs[0].m.game.id === "402", "DK dark single: game matched", tag);
+  }
+
+  // Cash parlay: payout includes the stake. $75 at +300 → $18.75.
+  {
+    const [t] = run(`4 Pick Parlay
++300
+Philadelphia Eagles -3.5
+-110
+Dallas Cowboys @ Philadelphia Eagles
+Green Bay Packers
+Moneyline
+Carolina Panthers @ Green Bay Packers
+Over 47.5
+-110
+Dallas Cowboys @ Philadelphia Eagles
+Los Angeles Lakers +4.5
+-110
+Golden State Warriors @ Los Angeles Lakers
+Potential Payout
+$75.00`);
+    check(t.parlay && t.legs.length === 4 && t.odds === 300 && !t.bonus, `DK parlay: 4 legs at +300 (got ${t.legs.length})`, tag);
+    check(t.stake === 18.75 && t.stakeEstimated && t.payout === 75 && !noStakeWarn(t) && estWarn(t), `DK parlay: stake derived $18.75 from payout (got ${t.stake}, est ${t.stakeEstimated})`, tag);
+    const F = draft(t);
+    check(F.stake === 18.75 && F.stakeEstimated && F.legs.every(l => l.review.status === "matched"), "DK parlay: draft stake estimated, every leg matched", tag);
+  }
+
+  // To Win is profit only. $75 to win at +300 → $25 stake, payout $100.
+  {
+    const [t] = run(`Philadelphia Eagles
++300
+Moneyline
+Dallas Cowboys @ Philadelphia Eagles
+To Win
+$75.00`);
+    check(t.stake === 25 && t.stakeEstimated && t.toWin === 75 && t.payout === 100 && t.payoutEstimated && !t.bonus, `DK to-win: stake $25, payout $100 (got ${t.stake}, ${t.payout})`, tag);
+    check(t.legs[0].m.game && t.legs[0].m.game.id === "401" && t.legs[0].m.side === "home", "DK to-win: Eagles ML matched", tag);
+  }
+
+  // The reported slip: token, payout $75, +300, no stake printed. Amount = 75 / (4 − 1) = $25.
+  {
+    const [t] = run(`DraftKings
+Green Bay Packers
++300
+Moneyline
+CAR Panthers @ GB Packers
+Bonus Bet
+Payout
+$75.00
+#${FAKE_NUM}`);
+    check(t.bonus && t.stake === 25 && t.stakeEstimated && t.payout === 75 && t.toWin === 75 && t.odds === 300, `DK token single: amount $25 from payout (got bonus ${t.bonus}, stake ${t.stake}, pay ${t.payout})`, tag);
+    check(!noStakeWarn(t) && estWarn(t) && (t.warnings || []).some(w => /Cash at risk is \$0/.test(w)), "DK token single: no missing-stake warning, cash at risk called out", tag);
+    check(t.ref === FAKE_NUM && maskId(t.ref) === "****1234", `DK token single: hash id ${maskId(t.ref)}`, tag);
+    const F = draft(t);
+    check(F.bonus && F.stake === 25 && F.book === "draftkings" && F.legs[0].eventId === "402" && F.legs[0].side === "home" && F.legs[0].review.status === "matched", "DK token single: draft, Packers matched", tag);
+    const saved = C.normalizeBet({ ...toBet(F), bonus: true, status: "won", paid: 75 });
+    check(C.netResult(saved) === 75 && C.netResult({ ...saved, status: "lost", paid: undefined }) === 0, "DK token single: win profit is the payout, loss is $0", tag);
+  }
+
+  // Token amount is on the slip, so it is not estimated.
+  {
+    const [t] = run(`$25.00 Bonus Bet
+Payout $75.00
++300
+Philadelphia Eagles ML
+Dallas Cowboys @ Philadelphia Eagles`);
+    check(t.bonus && t.stake === 25 && !t.stakeEstimated && t.payout === 75 && t.odds === 300 && !noStakeWarn(t), `DK token with amount printed: $25 not estimated (est ${t.stakeEstimated})`, tag);
+    check(t.legs[0].m.game && t.legs[0].m.game.id === "401", "DK token with amount: game matched", tag);
+  }
+
+  // Token player prop, clean name.
+  {
+    const [t] = run(`Bonus Bet
+Stephen Curry
+Over 26.5
+Points
++300
+Golden State Warriors @ Los Angeles Lakers
+Payout
+$75.00`);
+    const l = t.legs[0];
+    check(t.bonus && t.stake === 25 && t.odds === 300 && l.kind === "prop" && l.pmk === "points" && l.line === 26.5, `DK token prop: Curry points, amount $25 (got ${l.kind}/${l.pmk})`, tag);
+    check(l.m.game && l.m.game.id === "501" && l.m.pid === "3975" && !noStakeWarn(t), "DK token prop: matched by the player's team", tag);
+  }
+
+  // Token prop, OCR typo in the last name, no matchup line: still the player's team.
+  {
+    const [t] = run(`Saquon Barkly
+Over 89.5 Rushing Yards
+-115
+Free Bet
+Payout $17.39`);
+    const l = t.legs[0];
+    check(t.bonus && l.player === "Saquon Barkly" && l.m.game && l.m.game.id === "401" && l.m.player === "Saquon Barkley", `DK token prop typo: Barkly -> Barkley on ${l.m.game && l.m.game.id}`, tag);
+    check(t.stake === 20 && t.stakeEstimated, `DK token prop: $20 from -115 and $17.39 payout (got ${t.stake})`, tag);
+  }
+
+  // Four-leg token parlay with nickname typos. None should stay "no game found".
+  {
+    const [t] = run(`4 Leg Parlay
++300
+Eagels -3.5
+-110
+Cowboys @ Eagles
+Packres ML
+-150
+Panthers at Packers
+Over 47.5
+-110
+DAL @ PHI
+Lakers +4.5
+-110
+Warriors @ Lakers
+Bonus Bets
+Payout
+$75.00`);
+    const F = draft(t);
+    check(t.bonus && t.parlay && t.legs.length === 4 && t.stake === 25 && t.odds === 300 && !noStakeWarn(t), `DK token parlay: 4 legs, $25, +300 (got ${t.legs.length}, ${t.stake})`, tag);
+    check(F.legs.every(l => l.review.status !== "manual" && l.eventId), `DK token parlay: no "no game found" (${F.legs.map(l => l.review.status + ":" + l.eventId).join(", ")})`, tag);
+    check(t.legs[0].m.game && t.legs[0].m.game.id === "401", "DK token parlay: Eagels leg uses the matchup line", tag);
+    const [fuzzy] = run(`Eagels -3.5 -110\nWager $10\nTo Pay $19.09`);
+    check(fuzzy.legs[0].m.game && fuzzy.legs[0].m.game.id === "401" && fuzzy.legs[0].m.unsure && draft(fuzzy).legs[0].review.status === "check", "OCR Eagels: linked and marked to check", tag);
+    check(t.legs[1].m.game && t.legs[1].m.game.id === "402", "DK token parlay: fuzzy Packres linked", tag);
+  }
+
+  // Amounts printed above the words (OCR column order).
+  {
+    const [t] = run(`Eagles -3.5 -110
+Cowboys @ Eagles
+$10.00
+Wager
+$19.09
+Payout`);
+    check(t.stake === 10 && t.payout === 19.09 && !t.stakeEstimated, `DK amounts above labels: $10 and $19.09 (got ${t.stake}, ${t.payout})`, tag);
+  }
+
+  // Stake present, payout missing → derive the payout.
+  {
+    const [t] = run(`Philadelphia Eagles ML +300
+Dallas Cowboys @ Philadelphia Eagles
+Wager $25.00`);
+    check(t.stake === 25 && !t.stakeEstimated && t.payout === 100 && t.payoutEstimated && t.toWin === 75, `DK reverse: payout $100 from $25 at +300 (got ${t.payout})`, tag);
+  }
+
+  // Nickname, bare cents, comma.
+  {
+    const [t] = run(`Philly -3.5 -110
+Cowboys @ Eagles
+Wager
+1,250.00
+To Pay
+$2,386.36`);
+    check(t.stake === 1250 && t.legs[0].m.game && t.legs[0].m.game.id === "401" && t.legs[0].m.side === "home", "DK nickname Philly + comma stake", tag);
+  }
+
+  // Other books, one realistic OCR shape each. Florida copy is unchanged; these are just slip text.
+  {
+    const [hr] = run(`Hard Rock Bet
+Philadelphia Eagles −3.5 -11O
+Point Spread
+Dallas Cowboys @ Philadelphia Eagles
+Stake
+S1O.OO
+Potential Return
+19.09`);
+    check(hr.book === "hardrock" && hr.stake === 10 && hr.odds === -110 && hr.payout === 19.09, `HR dark: S/$ O/0 (got ${hr.stake}, ${hr.odds}, ${hr.payout})`, "books");
+    const [fd] = run(`FanDuel
+Eagles -3.5 (-110) | DAL @ PHI
+WAGER
+20.00
+TO WIN
+18.18`);
+    check(fd.book === "fanduel" && fd.stake === 20 && fd.toWin === 18.18 && fd.payout === 38.18 && fd.legs[0].m.game.id === "401", "FD: wager then to-win on their own lines", "books");
+    const [mgm] = run(`BetMGM
+Eagles ML +300
+Dallas Cowboys @ Philadelphia Eagles
+Bet Amount $18.75
+Payout $75.00`);
+    check(mgm.bookName === "BetMGM" && mgm.stake === 18.75 && mgm.payout === 75 && !mgm.stakeEstimated && mgm.legs[0].m.game.id === "401", "BetMGM: bet amount + payout, stake not estimated", "books");
+    const [cz] = run(`Caesars Sportsbook
+Packers ML -150
+CAR Panthers @ GB Packers
+Total Wager $15.00
+Total Payout $25.00`);
+    check(cz.bookName === "Caesars Sportsbook" && cz.stake === 15 && cz.payout === 25 && cz.legs[0].m.game.id === "402", "Caesars: total wager / total payout", "books");
+    const [fan] = run(`Fanatics Sportsbook
+Eagles -3.5 -110
+Cowboys at Eagles
+Risk $10.00
+Returns $19.09`);
+    check(fan.bookName === "Fanatics Sportsbook" && fan.stake === 10 && fan.payout === 19.09 && fan.legs[0].m.side === "home", "Fanatics: risk / returns, 'at' matchup", "books");
+  }
+}
+
+// ---------- 20. Close games when the name is ambiguous, and yesterday's ET date
+{
+  const tm = (id, abbr, name, short) => ({ id, abbr, name, short });
+  const game = (id, date, away, home, state = "pre") => ({ id, date, state, away, home });
+  const NYG = tm("19", "NYG", "New York Giants", "Giants"), NYJ = tm("20", "NYJ", "New York Jets", "Jets");
+  const idx = S.buildIndex({ games: { nfl: [
+    game("g1", "2026-10-26T17:00:00Z", NYG, T.PHI),
+    game("j1", "2026-10-26T17:00:00Z", NYJ, T.DAL),
+  ] } });
+  const [amb] = S.parseSlip(`New York -3.5 -110\nWager $10`, idx, { now: NOW }).tickets;
+  S.matchTicket(amb, idx, { now: NOW });
+  const choices = amb.legs[0].m.choices || [];
+  check(amb.legs[0].m.unsure && choices.length >= 2, `city-only New York lists choices (${choices.map(c => c.name).join(" | ")})`, "match");
+  const F = S.toDraft(amb, { defaultBook: "draftkings", today: "2026-10-26" });
+  check(F.legs[0].review.status === "check" && (F.legs[0].review.choices || []).length >= 2, "city-only: review says check and offers games, not no-game-found", "match");
+
+  const late = Date.parse("2026-11-01T04:30:00Z"); // 12:30 AM ET Nov 1
+  const idx2 = S.buildIndex({ games: { nfl: [
+    game("old", "2026-09-01T17:00:00Z", T.DAL, T.PHI, "post"),
+    game("yest", "2026-10-31T23:15:00Z", T.DAL, T.PHI, "post"),
+  ] } });
+  const [near] = S.parseSlip(`Eagles -3.5 -110\nCowboys @ Eagles\nWager $10`, idx2, { now: late }).tickets;
+  S.matchTicket(near, idx2, { now: late });
+  check(near.legs[0].m.game && near.legs[0].m.game.id === "yest", `previous ET date wins over a September game (got ${near.legs[0].m.game && near.legs[0].m.game.id})`, "match");
+}
+
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall slip import tests passed");
 process.exit(fails.length ? 1 : 0);

@@ -687,5 +687,65 @@ Returns $19.09`);
   check(near.legs[0].m.game && near.legs[0].m.game.id === "yest", `previous ET date wins over a September game (got ${near.legs[0].m.game && near.legs[0].m.game.id})`, "match");
 }
 
+// ---------- 21. The live DraftKings token parlay, verbatim from "Text read from the slip"
+{
+  const tag = "live";
+  const LIVE = `4 Pick Parlay | +300 @ Open
+35+, 7+, 11+, 25+
+$
+Wager: ® $25.00 | To Pay: $75.00
+oO a 35+
+Aa, Victor Wembanyama Points + Rebounds + Assists
+& 7
+Oo ar LaMelo Ball Assists
+Oo & 11+
+Aa, Victor Wembanyama Rebounds
+Fy 25+
+Oo ar LaMelo Ball Points + Rebounds + Assists
+@ MIN Today 8:10 PM SAS`;
+  const nba = JSON.parse(fs.readFileSync(new URL("../site/data/nba/index.json", import.meta.url)));
+  const liveIdx = S.buildIndex({
+    games: { nba: nba.games },
+    search: { nba: { teams: [["24", "San Antonio Spurs", "SA", "Spurs"], ["30", "Charlotte Hornets", "CHA", "Hornets"]], players: [["w1", "Victor Wembanyama", 0], ["l1", "LaMelo Ball", 1]] } },
+  });
+  const now = Date.parse("2026-11-01T00:39:00Z"); // 8:39 PM ET on Oct 31
+  const [t] = S.parseSlip(LIVE, liveIdx, { now }).tickets;
+  S.matchTicket(t, liveIdx, { now });
+  const F = S.toDraft(t, { defaultBook: "hardrock", today: "2026-10-31" });
+  check(t.book === "draftkings" && t.bonus && t.stake === 25 && t.stakeFromSlip && !t.stakeEstimated && t.odds === 300 && t.payout === 75 && t.toWin === 75 && !t.ref, `live slip: DK token $25 (printed) +300 to pay $75 (got stake ${t.stake} est ${t.stakeEstimated} book ${t.book} bonus ${t.bonus})`, tag);
+  check(!(t.warnings || []).some(w => /No stake found|estimated, check this/.test(w)) && (t.warnings || []).some(w => /Cash at risk is \$0/.test(w)), "live slip: printed stake, cash at risk $0, not estimated", tag);
+  check(t.legs.length === 4, `live slip: 4 prop legs (got ${t.legs.length})`, tag);
+  const [a, b, c, d] = t.legs;
+  check(a.player === "Victor Wembanyama" && a.pmk === "pra" && a.ou === "over" && a.line === 34.5 && a.m.game && a.m.game.id === "401909901", "live leg 1: Wembanyama 35+ PRA → MIN @ SA", tag);
+  check(b.player === "LaMelo Ball" && b.pmk === "assists" && b.ou === "over" && b.line === 6.5 && b.m.game && b.m.game.id === "401909897", "live leg 2: LaMelo 7+ assists → PHI @ CHA", tag);
+  check(c.player === "Victor Wembanyama" && c.pmk === "rebounds" && c.ou === "over" && c.line === 10.5 && c.m.game && c.m.game.id === "401909901", "live leg 3: Wembanyama 11+ rebounds → MIN @ SA", tag);
+  check(d.player === "LaMelo Ball" && d.pmk === "pra" && d.ou === "over" && d.line === 24.5 && d.m.game && d.m.game.id === "401909897", "live leg 4: LaMelo 25+ PRA → PHI @ CHA", tag);
+  check(F.legs.every(l => l.review.status === "matched" && l.eventId), `live slip: no "no game found" (${F.legs.map(l => l.review.status).join(",")})`, tag);
+  check(t.gameHint && t.gameHint.abbrs.join(",") === "MIN,SAS" && t.gameHint.when.date === "2026-10-31", "live footer: MIN / SAS on Oct 31 ET", tag);
+
+  // Same money with the token flag and no printed stake must not use the cash formula ($75 / 4 = $18.75).
+  const [miss] = run(`Philadelphia Eagles ML
++300
+Bonus Bet
+Payout $75.00
+Dallas Cowboys @ Philadelphia Eagles`);
+  check(miss.bonus && miss.stake === 25 && miss.stakeEstimated && miss.payout === 75 && miss.odds === 300, `bonus without a printed amount: $25 not $18.75 (got ${miss.stake})`, tag);
+
+  // Two OCR passes: one derives the cash stake, the other only sees the token icon.
+  const merged = S.bestOcrTicket([
+    `4 Pick Parlay | +300 @ Open\nPayout\n$75.00\nEagles -3.5\nCowboys @ Eagles`,
+    `Wager: ®\nEagles -3.5`,
+  ]);
+  check(merged && merged.bonus && merged.stake === 25 && merged.stakeEstimated && merged.odds === 300, `merged OCR passes recompute the token amount to $25 (got ${merged && merged.stake} bonus ${merged && merged.bonus})`, tag);
+
+  const fake = "DK" + "6380" + "0000" + "0000" + "1234";
+  const [id] = run(`Eagles -3.5 -110\nCowboys @ Eagles\nWager $10\nTo Pay $19.09\nID: ${fake}`);
+  const maskId = s => "****" + String(s || "").slice(-4);
+  check(id.ref === fake && maskId(id.ref) === "****1234" && id.book === "draftkings", `DK id anywhere: ${maskId(id.ref)}`, tag);
+
+  const [none] = run(`Somebody Else Over 25.5 Points\n+300\nWager $10`);
+  check(none.legs.length === 1 && !none.legs[0].m.game && (none.warnings || []).some(w => /Legs read from the slip:/.test(w) && /Somebody Else/.test(w)), "unmatched leg names are shown", tag);
+}
+
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall slip import tests passed");
 process.exit(fails.length ? 1 : 0);

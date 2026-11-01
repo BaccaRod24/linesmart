@@ -31,6 +31,11 @@
   function detectBook(text) {
     for (const [key, name, rx] of BOOK_RX) if (rx.source !== "^$" && rx.test(text)) return { key, name };
     if (/\bO\/\d{5,}\/\d{3,}/.test(text)) return { key: "fanduel", name: "FanDuel" };   // FanDuel bet IDs look like O/0123456/0001234
+    if (/\bDK\d{8,22}\b/.test(text)) return { key: "draftkings", name: "DraftKings" };
+    // DraftKings slip chrome that survives when the logo is a picture: "4 Pick Parlay", "@ Open", "To Pay" on a parlay.
+    if (/\b\d+\s*-?\s*pick\s+parlays?\b/i.test(text)) return { key: "draftkings", name: "DraftKings" };
+    if (/@\s*open\b/i.test(text) && /\b(parlay|pick)\b/i.test(text)) return { key: "draftkings", name: "DraftKings" };
+    if (/\bto\s+pay\b/i.test(text) && /\b(\d+\s*-?\s*pick|parlay)\b/i.test(text)) return { key: "draftkings", name: "DraftKings" };
     return null;
   }
 
@@ -221,14 +226,29 @@
     return { rest, when };
   }
 
+  /** Drop OCR junk glued in front of a player or a milestone ("Aa, Victor…", "Oo ar LaMelo…", "Fy 25+", "oO a 35+"). */
+  function peelJunk(s) {
+    let t = String(s || "").replace(/\s+/g, " ").trim();
+    for (let i = 0; i < 5; i++) {
+      const n = t.replace(/^[o0]{1,2}\s+(?:ar|a|or|&)\s+/i, "").replace(/^(?:aa|oo|fy)\b[, ]+/i, "").replace(/^&\s*/, "").trim();
+      if (n === t) break;
+      t = n;
+    }
+    return t;
+  }
   /** classify one cleaned line -> list of tokens */
   function classify(line, idx, now) {
     const out = [];
     const checked = /[✓✔☑]/.test(String(line).slice(0, 8));
     let s = line.replace(/^(leg\s*\d+\s*[:.)-]?|\d{1,2}[.)]\s|[•·*>✓✔☑]\s*)/i, "").trim();
     // dark-mode OCR turns the green check into © or @ glued to "Under 9.5"
-    s = s.replace(/^[\s©@•·*✓✔☑#\[\]<>~]+/, "").replace(/^["“”'`]+/, "").replace(/^[A-Za-z]\s+(?=(?:over|under)\b)/i, "").trim();
+    // A leading @ is a game line ("@ MIN Today 8:10 PM SAS"), not the dark-mode check glued to Over/Under.
+    s = s.replace(/^[\s©•·*✓✔☑#\[\]<>~]+/, "").replace(/^@\s+(?=over\b|under\b)/i, "").replace(/^["“”'`]+/, "").replace(/^[A-Za-z]\s+(?=(?:over|under)\b)/i, "").trim();
     if (!s) return out;
+    if (/^[S$®©Ⓡ]+$/.test(s)) return out;
+    // The token icon on a DraftKings slip OCRs as ® or © between "Wager" and the amount.
+    if (/[®©Ⓡ]/.test(s) && /\b(wager|stake|risk|bet\s*amount)\b/i.test(s)) out.push({ k: "bonus" });
+    if (/[®©Ⓡ]/.test(s)) s = s.replace(/[®©Ⓡ]/g, " ").replace(/\s+/g, " ").trim();
     const low = s.toLowerCase();
     const book = detectBook(s);
     const winnerLine = winnerBanner(s) || (book && /\bwinner\b/i.test(s) && s.replace(/\b(winner|h[ae]rd\s*rock(\s*bet)?|sportsbook|bet)\b/gi, "").replace(/[^a-z]/gi, "").length < 8);
@@ -240,7 +260,8 @@
     if (/^(hide|show)\s+selections?\b/i.test(s)) return out;
     // "Under 9.5, Over 25.5, Under 9.5" is the parlay subtitle, not a game total
     if ((s.match(/\b(?:over|under)\s*\d/gi) || []).length >= 2 && !/\$/.test(s)) return out;
-    if (book && s.replace(/hard\s*rock(\s*bet)?|draft\s*kings|fan\s*duel|sportsbook|bet\s*mgm|caesars|espn\s*bet|fanatics|bet\s*365|bet\s*rivers|bally\s*bet|casino|[^a-z]/gi, "").length < 4) { out.push({ k: "book", book }); return out; }
+    const idOnly = /\bDK\d{8,22}\b/i.test(s) && s.replace(/\bDK\d{8,22}\b/gi, "").replace(/[^a-z]/gi, "").length < 3;
+    if (book && !idOnly && s.replace(/hard\s*rock(\s*bet)?|draft\s*kings|fan\s*duel|sportsbook|bet\s*mgm|caesars|espn\s*bet|fanatics|bet\s*365|bet\s*rivers|bally\s*bet|casino|[^a-z]/gi, "").length < 4) { out.push({ k: "book", book }); return out; }
     if (book) out.push({ k: "book", book });
     const bn = lineBonus(s);
     if (bn) {
@@ -258,6 +279,14 @@
     }
     // bet reference / placed date (label and digits may be split; OCR spaces the digits)
     const rf = !/\b(over|under)\b/i.test(s) ? refFrom(s) : null;
+    if (rf === null && !/\b(over|under)\b/i.test(s)) {
+      const emb = s.match(/\b(DK\d{8,22})\b/i) || s.match(/(?:^|\D)(\d{12,22})(?!\d)/);
+      if (emb) {
+        const id = /^dk/i.test(emb[1]) ? "DK" + emb[1].replace(/\D/g, "") : emb[1];
+        out.push({ k: "ref", ref: id });
+        if (s.replace(emb[0], " ").replace(/[^a-z]/gi, "").length < 4) return out;
+      }
+    }
     if (rf !== null) {
       if (rf === "") out.push({ k: "label", key: "ref" });
       else {
@@ -299,6 +328,27 @@
     if (/[S$]/.test(s) && !/[a-z]{3,}/i.test(s.replace(/[$S\d.,\s]/g, ""))) {
       const amounts = [...s.matchAll(/[$S]\s?(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)/g)].map(m => money(m[1])).filter(v => v !== null);
       if (amounts.length) { amounts.forEach(v => out.push({ k: "amount", v })); return out; }
+    }
+    // "35+, 7+, 11+, 25+" is the parlay's line list, not four selections
+    {
+      const pluses = [...s.matchAll(/\b(\d{1,3})\+/g)].map(m => +m[1]);
+      if (pluses.length >= 2 && !/[a-z]{4,}/i.test(s)) { out.push({ k: "miles", ns: pluses }); return out; }
+    }
+    // "@ MIN Today 8:10 PM SAS" — two abbreviations and a time, order not reliable
+    {
+      const foot = s.match(/^@\s*([A-Za-z]{2,4})\b(.*)\b([A-Za-z]{2,4})\s*$/);
+      if (foot && /today|tonight|\d{1,2}:\d{2}/i.test(s)) {
+        const when = { date: /today|tonight/i.test(s) ? etDay(now) : ((parseDate(s, now) || {}).date || null), time: null };
+        const tm = s.match(TIME_RX);
+        if (tm) { let h = +tm[1]; const ap = (tm[3] || "").toLowerCase(); if (ap.startsWith("p") && h < 12) h += 12; if (ap.startsWith("a") && h === 12) h = 0; if (h < 24) when.time = `${pad(h)}:${tm[2]}`; }
+        out.push({ k: "hint", abbrs: [foot[1].toUpperCase(), foot[3].toUpperCase()], when });
+        return out;
+      }
+    }
+    {
+      const peeled = peelJunk(s);
+      if (peeled && peeled !== s) s = peeled;
+      if (/^\d{1,3}\+$/.test(s)) { out.push({ k: "mile", n: parseInt(s, 10), text: s }); return out; }
     }
     // ticket header: "3 Leg Parlay +596", "SGP +1200", "Same Game Parlay", "Single"
     const pm = s.match(PARLAY_RX);
@@ -418,7 +468,11 @@
     if (/^(draw|tie|the draw|match drawn|x)$/i.test(s)) return { k: "sel", kind: "ml", text: s, draw: true, period };
     // a player name next to a stat word ("Stephen Curry Points") is a market+name combo whose line is elsewhere
     const stat = findStat(low);
-    if (stat && !stat.other && /^[A-Za-z.'’\- ]+$/.test(s)) { const name = stripStat(s); if (name && name.split(" ").length >= 2) return { k: "sel", kind: "prop", text: s, player: name, pmk: stat.mk, slg: stat.lg, period }; }
+    if (stat && !stat.other) {
+      const name = stripStat(s);
+      const words = name.split(" ").filter(Boolean);
+      if (words.length >= 2 && words.length <= 5 && !/\d/.test(name)) return { k: "sel", kind: "prop", text: s, player: name, pmk: stat.mk, slg: stat.lg, period };
+    }
     return null;
   }
   function stripStat(pre) {
@@ -436,14 +490,20 @@
     const book = detectBook(lines.join("\n"));
     const tickets = [];
     let T = null, L = null, P = null, labels = [];
-    const newTicket = () => ({ book: book ? book.key : null, bookName: book ? book.name : null, header: null, legs: [], stake: null, toWin: null, payout: null, odds: null, ref: null, placed: null, status: null, cashout: null, boost: false, bonus: false, credit: false, stakeEstimated: false, payoutEstimated: false, oddsEstimated: false, inSum: false, lines: [] });
+    const newTicket = () => ({ book: book ? book.key : null, bookName: book ? book.name : null, header: null, legs: [], stake: null, toWin: null, payout: null, odds: null, ref: null, placed: null, status: null, cashout: null, boost: false, bonus: false, credit: false, stakeFromSlip: false, stakeEstimated: false, payoutEstimated: false, oddsEstimated: false, gameHint: null, inSum: false, lines: [] });
     const newP = () => ({ event: null, market: null, when: null, league: null, texts: [] });
     T = newTicket(); P = newP();
-    let pendingAmounts = [], bonusWants = false;
+    let pendingAmounts = [], bonusWants = false, mileSet = new Set();
     const applyMoney = (key, v) => {
       if (key === "cashout") { T.status = "cashout"; T.cashout = v; }
-      else if (T[key] == null) T[key] = v;
+      else if (T[key] == null) { T[key] = v; if (key === "stake") T.stakeFromSlip = true; }
       T.inSum = true;
+    };
+    const attachMile = (leg, n) => {
+      if (!leg || isNum(leg.line) || !isNum(n)) return;
+      if (leg.kind === "name" && !leg.isTeamName) { leg.kind = "prop"; leg.player = leg.player || leg.name; }
+      if (leg.kind !== "prop") return;
+      leg.ou = leg.ou || "over"; leg.line = n - 0.5; leg.text = `${leg.text || ""} ${n}+`.trim();
     };
     const finish = () => {
       if (L) { T.legs.push(L); L = null; }
@@ -476,8 +536,8 @@
             break;
           case "bonus":
             T.bonus = true;
-            if (isNum(tok.v)) { if (T.stake == null) T.stake = tok.v; T.inSum = true; bonusWants = false; }
-            else if (pendingAmounts.length && T.stake == null) { T.stake = pendingAmounts.shift(); T.inSum = true; bonusWants = false; }
+            if (isNum(tok.v)) { if (T.stake == null) { T.stake = tok.v; T.stakeFromSlip = true; } T.inSum = true; bonusWants = false; }
+            else if (pendingAmounts.length && T.stake == null) { T.stake = pendingAmounts.shift(); T.stakeFromSlip = true; T.inSum = true; bonusWants = false; }
             else bonusWants = T.stake == null;
             break;
           case "credit": T.credit = true; break;
@@ -497,8 +557,13 @@
           case "placed": T.placed = T.placed || { date: tok.date, time: tok.time }; break;
           case "status": T.status = tok.status; if (tok.amount !== null && tok.status === "cashout") T.cashout = tok.amount; break;
           case "boost": T.boost = true; break;
-          case "bonus": T.bonus = true; break;
           case "todds": T.odds = tok.v; break;
+          case "miles": for (const n of tok.ns || []) mileSet.add(n); break;
+          case "hint": T.gameHint = { abbrs: tok.abbrs || [], when: tok.when || null }; break;
+          case "mile":
+            if (L && !isNum(L.line) && !P.event) attachMile(L, tok.n);
+            else P.mile = { n: tok.n };
+            break;
           case "header":
             // a header starts a new ticket only after a finished one (stake shown) or a second header; "Parlay (2 legs)" may also come after the legs
             if (((T.legs.length || L) && (T.inSum || T.header)) || (!T.legs.length && !L && T.inSum && T.stake !== null && T.header)) finish();
@@ -514,6 +579,12 @@
             else if (T.inSum || (L && L.odds !== null)) { if (T.odds === null) T.odds = tok.v; }
             break;
           case "text": {
+            const bareN = String(tok.text || "").trim().match(/^(\d{1,3})$/);
+            if (bareN && mileSet.has(+bareN[1])) {
+              if (L && !isNum(L.line) && !P.event) attachMile(L, +bareN[1]);
+              else P.mile = { n: +bareN[1] };
+              break;
+            }
             const numOnly = /^[\d]+(?:\.\d+)?$/.test(String(tok.text || "").trim());
             if (L && numOnly && isNum(L.line) && L.statValue == null) {
               const n = parseFloat(tok.text), ln = Number(L.line);
@@ -526,6 +597,7 @@
           }
           case "sel": {
             pendingAmounts = [];
+            if (P.mile && tok.kind === "prop" && !isNum(tok.line)) { tok.ou = tok.ou || "over"; tok.line = P.mile.n - 0.5; tok.text = `${tok.text || ""} ${P.mile.n}+`.trim(); P.mile = null; }
             // Hard Rock settled props: "Under 9.5 -130" then "CADE CUNNINGHAM - ASSISTS"
             if (L && !L.player && tok.kind === "prop" && tok.player && !tok.ou && (L.kind === "total" || L.kind === "prop") && !P.event && !P.market) {
               Object.assign(L, { kind: "prop", player: tok.player, pmk: tok.pmk || L.pmk, slg: tok.slg || L.slg, otherStat: !!(L.otherStat || tok.otherStat), checked: L.checked || !!tok.checked, text: `${L.text} ${tok.text}`.trim() });
@@ -671,6 +743,31 @@
     if (!T.legs.length) warnings.push("No selection recognized. Fill in the bet below.");
     if (T.legs.some(l => l.period)) warnings.push("Half / quarter / period bets can't be graded from the final score; they're saved for you to settle.");
     T.warnings = warnings;
+    applyBonusMoney(T);
+    return T;
+  }
+  /** A token's printed payout is profit. A stake read off the slip stays; a missing one is payout / (decimal − 1). */
+  function applyBonusMoney(T) {
+    if (!T || !T.bonus) return T;
+    const d = isNum(T.odds) ? toDecimal(T.odds) : null;
+    const profit = T.payout > 0 ? Number(T.payout) : (T.toWin > 0 ? Number(T.toWin) : null);
+    if (T.stakeFromSlip && T.stake > 0) {
+      T.stakeEstimated = false;
+      if (profit > 0) { T.payout = r2(profit); T.toWin = r2(profit); }
+    } else if (profit > 0 && d && d > 1) {
+      const next = r2(profit / (d - 1));
+      if (!(T.stake > 0) || T.stakeEstimated || Math.abs(Number(T.stake) - next) > 0.02) {
+        T.stake = next;
+        T.stakeEstimated = true;
+      }
+      T.payout = r2(profit);
+      T.toWin = r2(profit);
+    }
+    T.warnings = (T.warnings || []).filter(w => !/No stake found/.test(w) && !/Enter the token amount/.test(w));
+    if (T.stakeEstimated) {
+      if (!(T.warnings || []).some(w => /Amount worked out/.test(w))) T.warnings.push("Amount worked out from the odds and payout, estimated, check this.");
+    } else T.warnings = (T.warnings || []).filter(w => !/Amount worked out from the odds and payout/.test(w));
+    if (!(T.warnings || []).some(w => /Cash at risk is \$0/.test(w))) T.warnings.push("Cash at risk is $0. A win adds the payout as profit. A loss is $0.");
     return T;
   }
 
@@ -798,6 +895,12 @@
           const gameDay = etDay(c.gi.t || refMs);
           const inWindow = Math.abs(dayDiff(gameDay, refDay)) <= 5 || (!explicit && (gameDay === prevEt || gameDay === todayEt));
           if (!inWindow) d += 8000;
+          const hint = T.gameHint;
+          if (hint && hint.abbrs && hint.abbrs.length) {
+            const ids = [String(c.gi.g.home.id), String(c.gi.g.away.id)];
+            const sides = idx.teams.filter(t => t.lg === c.gi.lg && ids.includes(t.id));
+            if (hint.abbrs.some(ab => sides.some(t => teamScore(ab, t) >= 70))) d -= 36;
+          }
           if (placedMs && c.gi.t < placedMs - 6 * 36e5) d += 5000;
           if (!l.when && !placedMs && c.gi.g.state === "post" && now - c.gi.t > 36 * 36e5) d += 200;
           if (hintLg && c.gi.lg !== hintLg) d += 10000;
@@ -814,14 +917,14 @@
           if (!tA || !tH) continue;
           const s1 = Math.min(teamScore(ev.a, tA), teamScore(ev.b, tH)), s2 = Math.min(teamScore(ev.a, tH), teamScore(ev.b, tA));
           const sc = Math.max(s1, s2);
-          if (sc >= 60) cands.push({ gi, sc: sc >= 70 ? sc + 10 : sc });
+          if (sc >= 45) cands.push({ gi, sc: sc >= 70 ? sc + 10 : sc });
         }
       }
       const teamText = l.draw ? null : l.team || (l.kind === "ml" ? l.text : null);
       if (!cands.length && teamText) {
         for (const gi of idx.games) {
           const { g, lg } = gi;
-          for (const side of ["home", "away"]) { const t = idx.teams.find(x => x.lg === lg && x.id === String(g[side].id)); const sc = t ? teamScore(teamText, t) : 0; if (sc >= 60) cands.push({ gi, sc }); }
+          for (const side of ["home", "away"]) { const t = idx.teams.find(x => x.lg === lg && x.id === String(g[side].id)); const sc = t ? teamScore(teamText, t) : 0; if (sc >= 45) cands.push({ gi, sc }); }
         }
       }
       // player props: the player's team (rosters) or the props feed tells us the game
@@ -837,7 +940,7 @@
       l.m.choices = [];
       for (const c of r) {
         const id = String(c.gi.g.id);
-        if (seenG.has(id) || c.sc < 60) continue;
+        if (seenG.has(id) || c.sc < 45) continue;
         seenG.add(id);
         const gg = c.gi.g, day = String(gg.date || "").slice(0, 10);
         l.m.choices.push({ id, lg: c.gi.lg, score: c.sc, date: gg.date || "", name: `${day.slice(5)} ${gg.away.abbr} @ ${gg.home.abbr}`.trim(),
@@ -845,9 +948,9 @@
           home: { id: gg.home.id, abbr: gg.home.abbr, name: gg.home.name, short: gg.home.short } });
         if (l.m.choices.length >= 3) break;
       }
-      if (best.sc < 64) { l.m.unsure = true; continue; }
+      if (best.sc < 50) { l.m.unsure = true; continue; }
       const amb = r.find(c => c.gi !== best.gi && c.sc === best.sc && Math.abs(c.d - best.d) < 1 && c.gi.g.id !== best.gi.g.id);
-      const rival = r.find(c => String(c.gi.g.id) !== String(best.gi.g.id) && c.sc >= 70 && c.sc >= best.sc - 4 && c.d < best.d + 500);
+      const rival = r.find(c => String(c.gi.g.id) !== String(best.gi.g.id) && c.sc >= 70 && c.sc >= best.sc - 4 && c.d < best.d + 18);
       const g = best.gi.g, lg = best.gi.lg;
       Object.assign(l.m, { lg, game: g, score: best.sc, how: ev ? "event" : teamText ? "team" : "player", ambiguous: !!amb });
       if (!best.inWindow) l.m.far = true;
@@ -873,6 +976,13 @@
         const doc = idx.props[lg], rows = doc && doc.games && doc.games[String(g.id)] ? doc.games[String(g.id)].props || [] : [];
         const fp = p && rows.some(rw => String(rw[0]) === p.pid) ? p.pid : null;
         l.m.pid = fp; l.m.rosterPid = p ? p.pid : null;
+      }
+    }
+    if (T.legs.length && T.legs.every(l => !l.m || !l.m.game)) {
+      const names = T.legs.map(l => l.player || l.team || l.text).filter(Boolean);
+      if (names.length) {
+        T.warnings = T.warnings || [];
+        T.warnings.push("Legs read from the slip: " + names.join("; ") + ".");
       }
     }
     return T;
@@ -1028,10 +1138,11 @@
       return { ...l, statValue: isNum(statValue) ? statValue : null, result };
     });
     if (other.bonus) out.bonus = true;
+    if (other.stakeFromSlip && !out.stakeFromSlip) { out.stake = other.stake; out.stakeFromSlip = true; out.stakeEstimated = false; }
     if ((out.legs || []).length > 1) out.parlay = true;
     if (out.status === "won") out.legs = (out.legs || []).map(l => (l.result ? l : { ...l, result: "won" }));
     if (isNum(out.payout) && isNum(out.stake) && !isNum(out.toWin)) out.toWin = out.bonus ? r2(out.payout) : r2(Number(out.payout) - Number(out.stake));
-    return out;
+    return applyBonusMoney(out);
   }
   /** Several OCR readings of one photo (raw, inverted, header band). Returns the merged ticket. */
   function bestOcrTicket(texts) {

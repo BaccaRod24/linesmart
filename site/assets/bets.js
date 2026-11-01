@@ -1195,7 +1195,8 @@
   }
   const REV_ST = { matched: ["ok", "✓", "Matched"], check: ["chk", "!", "Check"], settle: ["set", "✎", "You settle"], manual: ["man", "?", "No game found"] };
   function legReview(r) {
-    const [cls, ic, label] = REV_ST[r.status] || REV_ST.manual;
+    let [cls, ic, label] = REV_ST[r.status] || REV_ST.manual;
+    if (r.choices && r.choices.length && r.status !== "matched" && r.status !== "settle") { label = "Pick the game"; cls = "chk"; }
     const why = r.why || (r.status === "matched" ? "Linked to this game: settles automatically." : r.status === "manual" ? "Pick the game below to auto-settle, or leave “Not listed” and settle it yourself." : "");
     const picks = (r.choices || []).map(c => `<button type="button" class="chip" data-a="pickgame" data-v="${esc(c.id)}" data-lg="${esc(c.lg)}">${esc(c.name)}</button>`).join("");
     return `<div class="bt-from rv-${cls}"><span class="bt-rvb"><i aria-hidden="true">${ic}</i>${label}</span><span class="bt-from-t">From slip: <q>${esc(r.text || "—")}</q></span>${why ? `<span class="bt-from-why">${esc(why)}</span>` : ""}${picks ? `<span class="bt-rv-picks">${picks}</span>` : ""}</div>`;

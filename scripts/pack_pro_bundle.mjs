@@ -26,5 +26,7 @@ fs.writeFileSync(out, "window.__PRO_BUILD=" + JSON.stringify(id) + ";\n" + body)
 const packed = fs.readFileSync(out, "utf8");
 if (!packed.includes("window.LSProApp")) throw new Error("bundle missing LSProApp");
 if (!packed.includes("root.Rankings")) throw new Error("bundle missing Rankings");
+if (!packed.includes("loadRankPack")) throw new Error("bundle missing loadRankPack");
+if (!packed.includes('"rankings.json"')) throw new Error('bundle missing "rankings.json"');
 if (!packed.includes("window.__PRO_BUILD=" + JSON.stringify(id))) throw new Error("bundle missing build id");
 console.log("wrote", out, fs.statSync(out).size, "bytes", id);

@@ -5,6 +5,7 @@ import { spawnSync } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { fileURLToPath } from "url";
 
 const require = createRequire(import.meta.url);
 const R = require("../pro/rankings-core.js");
@@ -191,6 +192,28 @@ check(R.basisLabel("season") === "This season vs the current line", "a season ta
   const refused = spawnSync(process.execPath, ["scripts/build_rankings.mjs", "--matchups", match, "--rosters", ros, "--site", path.join(dir, "site"), "--out", path.join(dir, "ignored.js"), "--json", banned], { encoding: "utf8" });
   check(refused.status === 1 && /refusing to write the snapshot under site/.test(refused.stderr + refused.stdout) && !fs.existsSync(banned), "the builder will not write the snapshot under site/");
   fs.rmSync(banned, { force: true });
+}
+
+{
+  // Compare the committed bundle to a fresh pack, then put the committed bytes back.
+  const distUrl = new URL("../pro/dist/pro-app.js", import.meta.url);
+  const before = fs.readFileSync(distUrl);
+  const env = { ...process.env };
+  delete env.ODDS_API_KEY;
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  let packed = null;
+  let fresh = Buffer.alloc(0);
+  try {
+    packed = spawnSync(process.execPath, [path.join(root, "scripts/pack_pro_bundle.mjs")], { encoding: "utf8", env, cwd: root });
+    fresh = fs.readFileSync(distUrl);
+  } finally {
+    fs.writeFileSync(distUrl, before);
+  }
+  const norm = (buf) => buf.toString("utf8").replace(/^(window\.__PRO_BUILD="[0-9a-f]{10}-)[^"]+(";)/, "$1TIMESTAMP$2");
+  const committed = before.toString("utf8");
+  check(committed.includes("loadRankPack") && committed.includes('"rankings.json"'), "committed bundle contains loadRankPack and rankings.json");
+  const packErr = packed && packed.status !== 0 ? ` (${(packed.stderr || packed.stdout || "").slice(0, 160)})` : "";
+  check(packed && packed.status === 0 && norm(before) === norm(fresh), "committed pro/dist/pro-app.js matches a fresh pack aside from the build time" + packErr);
 }
 
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall passed");

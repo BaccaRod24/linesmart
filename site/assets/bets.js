@@ -1155,10 +1155,46 @@
       else if (/load|initiali/i.test(m.status || "")) status("Loading the screenshot reader (first time only)…");
     } });
     const read = async canvas => { const r = await worker.recognize(canvas); return (r && r.data && r.data.text) || ""; };
+    const fitCanvas = (source, maxH) => {
+      if (!source || source.height <= maxH) return source;
+      const k = maxH / source.height;
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(source.width * k));
+      c.height = Math.max(1, Math.round(source.height * k));
+      const g = c.getContext("2d");
+      g.imageSmoothingQuality = "high";
+      g.drawImage(source, 0, 0, c.width, c.height);
+      return c;
+    };
+    const tileJoin = async canvas => {
+      const w = canvas.width, h = canvas.height;
+      if (h < 1700) return "";
+      const bandH = Math.min(1300, Math.round(h * 0.42)), overlap = 200;
+      const parts = [];
+      for (let y = 0; y < h && parts.length < 8; y += Math.max(400, bandH - overlap)) {
+        const hh = Math.min(bandH, h - y);
+        if (hh < 100) break;
+        const c = document.createElement("canvas"); c.width = w; c.height = hh;
+        c.getContext("2d").drawImage(canvas, 0, y, w, hh, 0, 0, w, hh);
+        parts.push(await read(c));
+        if (y + hh >= h) break;
+      }
+      return parts.join("\n");
+    };
     try {
       await worker.setParameters({ preserve_interword_spaces: "1" });
-      const texts = [await read(raw), await read(prep)];
+      const tall = Math.max(raw.height, prep.height) > 2600;
+      const texts = [await read(tall ? fitCanvas(raw, 2200) : raw), await read(tall ? fitCanvas(prep, 2200) : prep)];
       if (band) texts.push(await read(band));
+      const headH = Math.min(prep.height, Math.max(420, Math.round(prep.height * 0.32)));
+      if (headH < prep.height - 80) {
+        const head = document.createElement("canvas");
+        head.width = prep.width; head.height = headH;
+        head.getContext("2d").drawImage(prep, 0, 0, prep.width, headH, 0, 0, prep.width, headH);
+        texts.push(await read(head));
+      }
+      const tiled = await tileJoin(prep.height > raw.height ? prep : raw);
+      if (tiled.trim()) texts.push(tiled.trim());
       return texts.map(t => t.trim()).filter(Boolean);
     } finally { worker.terminate(); }
   }
@@ -1211,7 +1247,7 @@
       [s.bonus ? C.BONUS_LABEL : "Stake", isNum(s.stake) ? money(s.stake) : "—", !!s.stakeEstimated],
       ["Odds", isNum(s.odds) ? am(s.odds) : "—", !!s.oddsEstimated],
       [isNum(s.payout) ? "Payout" : "To win", isNum(s.payout) ? money(s.payout) : isNum(s.toWin) ? money(s.toWin) : "—", !!s.payoutEstimated && isNum(s.payout)],
-      ["Bet ID", s.ref || "—", false],
+      ["Bet ID", s.ref ? maskRef(s.ref) : "—", false],
     ];
     const counts = {}; for (const l of F.legs) if (l.review) counts[l.review.status] = (counts[l.review.status] || 0) + 1;
     const book = R.bookFromSlip || R.bookTouched ? "" : `<li>Sportsbook isn't on the slip: set to ${esc(C.BOOKS[F.book] || F.book)}. Change it below if needed.</li>`;
@@ -1221,10 +1257,10 @@
       <div class="bt-rv-h"><span class="bt-rv-tag">${R.bookFromSlip ? esc(R.bookName || C.BOOKS[F.book] || "Sportsbook") + " slip" : "Bet slip"}</span><span class="na">Nothing is saved until you tap Save. Fix anything that looks off.</span></div>
       <div class="bt-rv-sum">${cells.map(([k, v, est]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b>${est ? `<small>estimated, check this</small>` : ""}</div>`).join("")}</div>
       <div class="bt-rv-legs">${Object.entries(REV_ST).filter(([k]) => counts[k]).map(([k, [cls, ic, label]]) => `<span class="bt-rvb rv-${cls}"><i aria-hidden="true">${ic}</i>${counts[k]} ${label.toLowerCase()}</span>`).join("")}</div>
-      ${R.dup ? `<div class="bt-rv-dup" role="alert"><b>Already tracked?</b> A bet with this bet ID (${esc(F.ref)}) was saved${R.dup.date ? ` on ${esc(R.dup.date)}` : ""}: ${esc(R.dup.what)}. ${R.n > 1 ? "Skip it" : "Go back"} unless it's a different bet.</div>` : ""}
+      ${R.dup ? `<div class="bt-rv-dup" role="alert"><b>Already tracked?</b> A bet with this bet ID (${esc(maskRef(F.ref))}) was saved${R.dup.date ? ` on ${esc(R.dup.date)}` : ""}: ${esc(R.dup.what)}. ${R.n > 1 ? "Skip it" : "Go back"} unless it's a different bet.</div>` : ""}
       ${warn ? `<ul class="bt-rv-warn">${warn}</ul>` : ""}
       <div class="bt-row">${resSel}</div>
-      ${R.text ? `<details class="bt-rv-raw"><summary>Text read from the slip</summary><pre>${esc(R.text)}</pre></details>` : ""}
+      ${R.text ? `<details class="bt-rv-raw"><summary>Text read from the slip</summary><pre>${esc(String(R.text).replace(/\b\d{8,22}\b/g, m => "••••" + m.slice(-4)))}</pre></details>` : ""}
     </div>`;
   }
 

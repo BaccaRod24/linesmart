@@ -747,5 +747,170 @@ Dallas Cowboys @ Philadelphia Eagles`);
   check(none.legs.length === 1 && !none.legs[0].m.game && (none.warnings || []).some(w => /Legs read from the slip:/.test(w) && /Somebody Else/.test(w)), "unmatched leg names are shown", tag);
 }
 
+// ---------- 22. Hard Rock SGPMax open parlays (wager/payout include stake; cash-out button is not a result)
+{
+  const tag = "sgp";
+  const nfl = JSON.parse(fs.readFileSync(new URL("../site/data/nfl/index.json", import.meta.url)));
+  const teams = [["33", "Baltimore Ravens", "BAL", "Ravens"], ["2", "Buffalo Bills", "BUF", "Bills"], ["13", "Las Vegas Raiders", "LV", "Raiders"], ["20", "New York Jets", "NYJ", "Jets"], ["5", "Cleveland Browns", "CLE", "Browns"], ["23", "Pittsburgh Steelers", "PIT", "Steelers"], ["1", "Atlanta Falcons", "ATL", "Falcons"], ["27", "Tampa Bay Buccaneers", "TB", "Buccaneers"]];
+  const players = [["p1", "Lamar Jackson", 0], ["p2", "Josh Allen", 1], ["p3", "Kirk Cousins", 2], ["p4", "Geno Smith", 3], ["p5", "Deshaun Watson", 4], ["p6", "Aaron Rodgers", 5], ["p7", "Michael Penix Jr.", 6], ["p8", "Baker Mayfield", 7]];
+  const idx = S.buildIndex({ games: { nfl: nfl.games }, search: { nfl: { teams, players } } });
+  const now = Date.parse("2026-11-01T18:30:00Z");
+  const eight = `Hard Rock Bet
+SGPMAX
+8-Bet Parlay +239
+Wager
+$150
+Payout
+$508
+SGP Ravens @ Bills -428
+Today, 1:00pm EST
+Over 0.5
+LAMAR JACKSON - TO RECORD 1+ PASSING TDS
+Over 0.5
+JOSH ALLEN - TO RECORD 1+ PASSING TDS
+SGP Raiders @ Jets -415
+Today, 1:00pm EST
+Over 0.5
+KIRK COUSINS - TO RECORD 1+ PASSING TDS
+Over 0.5
+GENO SMITH - TO RECORD 1+ PASSING TDS
+SGP Browns @ Steelers -173
+Today, 1:00pm EST
+Over 0.5
+DESHAUN WATSON - TO RECORD 1+ PASSING TDS
+Over 0.5
+AARON RODGERS - TO RECORD 1+ PASSING TDS
+SGP Falcons @ Buccaneers -249
+Today, 1:00pm EST
+Over 0.5
+MICHAEL PENIX JR. - TO RECORD 1+ PASSING TDS
+Over 0.5
+BAKER MAYFIELD - TO RECORD 1+ PASSING TDS`;
+  const t8 = S.parseSlip(eight, idx, { now }).tickets[0];
+  S.matchTicket(t8, idx, { now });
+  check(S.parseSlip(eight, idx, { now }).tickets.length === 1 && t8.parlay && t8.sgp && t8.legs.length === 8 && t8.book === "hardrock" && t8.stake === 150 && t8.odds === 239 && t8.payout === 508 && !t8.status && !t8.bonus, `HR 8-bet SGPMax: one open parlay $150 +239 pay $508 (legs ${t8.legs.length}, odds ${t8.odds}, status ${t8.status})`, tag);
+  const ids8 = t8.legs.map(l => l.m.game && l.m.game.id);
+  check(t8.legs.every(l => l.pmk === "pass_tds" && l.ou === "over" && l.line === 0.5) && ids8.join(",") === "401873026,401873026,401873029,401873029,401873027,401873027,401873025,401873025", `HR 8-bet legs match the four 1:00pm games (${ids8.join(",")})`, tag);
+
+  const four = `Hard Rock Bet
+SGPMAX 4-Bet Parlay +993
+Over 1.5, Over 1.5, Over 1.5, Over 1.5
+Wager $150
+Payout $1,640.10
+SGP Raiders @ Jets +204
+Today, 1:00pm EST
+Over 1.5
+GENO SMITH - PASSING TDS
+Over 1.5
+KIRK COUSINS - PASSING TDS
+Over 1.5 +110
+BAKER MAYFIELD - TO RECORD 2+ PASSING TDS
+Falcons @ Buccaneers
+Today, 1:00pm EST
+Over 1.5 -140
+JOSH ALLEN - PASSING TDS
+Ravens @ Bills
+Today, 1:00pm EST
+Cash-out $150.00
+Track`;
+  const ts4 = S.parseSlip(four, idx, { now }).tickets;
+  const t4 = ts4[0];
+  S.matchTicket(t4, idx, { now });
+  check(ts4.length === 1 && t4.legs.length === 4 && t4.stake === 150 && t4.odds === 993 && t4.payout === 1640.1 && !t4.status && t4.cashout == null, `HR 4-bet: $150 +993 pay $1,640.10, still open (status ${t4.status}, cash ${t4.cashout})`, tag);
+  check(t4.legs[0].player === "GENO SMITH" && t4.legs[0].line === 1.5 && t4.legs[0].m.game.id === "401873029"
+    && t4.legs[1].player === "KIRK COUSINS" && t4.legs[1].m.game.id === "401873029"
+    && t4.legs[2].player === "BAKER MAYFIELD" && t4.legs[2].line === 1.5 && t4.legs[2].odds === 110 && t4.legs[2].m.game.id === "401873025"
+    && t4.legs[3].player === "JOSH ALLEN" && t4.legs[3].odds === -140 && t4.legs[3].m.game.id === "401873026", "HR 4-bet legs: Geno/Kirk Jets, Baker Bucs +110, Josh Bills -140", tag);
+
+  const [won] = S.parseSlip(`Hard Rock Bet
+WINNER
+3-Bet Parlay +531
+Wager $20
+Paid $126.29
+ID: HRB-TEST-1234
+Under 9.5 -130
+CADE CUNNINGHAM - ASSISTS
+Over 25.5 -110
+TYRESE MAXEY - POINTS
+Under 9.5 -115
+BAM ADEBAYO - REBOUNDS`, idx, { now }).tickets;
+  check(won && won.status === "won" && won.stake === 20 && won.payout === 126.29 && won.odds === 531 && won.legs.length === 3 && won.ref === "HRB-TEST-1234", "HR settled winner: paid $126.29, open result Won, fixture id HRB-TEST-1234", tag);
+
+  // A tall screenshot is read in overlapping bands, so the same lines come back twice, plus a stray team name.
+  const echoed = S.bestOcrTicket([eight + "\n" + eight + "\nRavens\nOver 0.5"]);
+  S.matchTicket(echoed, idx, { now });
+  check(echoed && echoed.legs.length === 8 && echoed.odds === 239 && echoed.stake === 150 && echoed.payout === 508 && !echoed.status, `tiled repeat of the 8-bet stays one open parlay (legs ${echoed && echoed.legs.length}, odds ${echoed && echoed.odds})`, tag);
+  check(echoed.legs.every(l => l.pmk === "pass_tds" && l.line === 0.5), "tiled repeat: every leg is still a passing-TD prop", tag);
+
+  const split = `Hard Rock Bet
+8-Bet Parlay +239
+Wager
+150
+Payout
+508
+SGP Ravens @ Bills
+-428
+Today, 1:00pm EST
+Over 0.5
+LAMAR JACKSON - TO RECORD 1+ PASSING TDS
+Over 0.5
+JOSH ALLEN - TO RECORD 1+ PASSING TDS
+SGP Raiders @ Jets
+-415
+Over 0.5
+KIRK COUSINS - TO RECORD 1+ PASSING TDS`;
+  const ts = S.parseSlip(split, idx, { now }).tickets[0];
+  check(ts && ts.stake === 150 && ts.payout === 508 && ts.odds === 239 && ts.legs.length === 3 && ts.legs.every(l => l.odds == null), `group price on its own line is not a leg price (stake ${ts && ts.stake}, leg odds ${(ts && ts.legs || []).map(l => l.odds).join(",")})`, tag);
+
+  const badge = S.parseSlip(`S6PMAX 4-Bet Parlay +993
+888 Ravens @ Bills -428
+Over 0.5
+LAMAR JACKSON - TO RECORD 1+ PASSING TDS
+[8 Falcons @ Buccaneers -249
+Over 0.5
+BAKER MAYFIELD - TO RECORD 1+ PASSING TDS`, idx, { now }).tickets[0];
+  check(badge && badge.book === "hardrock" && badge.odds === 993 && badge.legs.length === 2 && badge.legs.every(l => l.pmk === "pass_tds" && l.odds == null), `OCR badge in front of a group header is not an extra leg (book ${badge && badge.book}, legs ${badge && badge.legs.length})`, tag);
+
+  const withFinal = S.bestOcrTicket([
+    `Hard Rock Bet\nWINNER\n3-Bet Parlay +531\nUnder 9.5 -130\nCADE CUNNINGHAM - ASSISTS\n9.5`,
+    `Under 9.5 -130\nCADE CUNNINGHAM - ASSISTS\n4`,
+  ]);
+  check(withFinal && withFinal.legs.length === 1 && withFinal.legs[0].statValue === 4 && withFinal.legs[0].result === "won", `a second OCR pass keeps the printed final (got ${withFinal && withFinal.legs[0] && withFinal.legs[0].statValue})`, tag);
+  const noFin = S.parseSlip(`Over 0.5\nJOSH ALLEN - TO RECORD 1+ PASSING TDS\n9 Today, 1:00pm EST`, idx, { now }).tickets[0];
+  check(noFin && noFin.legs.length === 1 && noFin.legs[0].statValue == null && !noFin.status, "a digit glued to Today is not a final", tag);
+  const twice = S.parseSlip(`Under 9.5 -130
+CADE CUNNINGHAM - ASSISTS
+9.5
+Over 25.5 -110
+TYRESE MAXEY - POINTS
+25.5
+Under 9.5 -115
+BAM ADEBAYO - REBOUNDS
+9.5
+Under 9.5 -130
+CADE CUNNINGHAM - ASSISTS
+4
+Over 25.5 -110
+TYRESE MAXEY - POINTS
+27
+Under 9.5 -115
+BAM ADEBAYO - REBOUNDS
+9`).tickets[0];
+  check(twice && twice.legs.length === 3 && twice.legs.map(l => l.statValue).join(",") === "4,27,9", `repeated legs keep the printed finals (got ${twice && twice.legs.map(l => l.statValue).join(",")})`, tag);
+  const junk = S.parseSlip(`3-Bet Parlay +531
+Under 9.5 -130
+CADE CUNNINGHAM - ASSISTS
+4
+CEE
+Over 25.5 -110
+TYRESE MAXEY - POINTS
+27
+EEE
+Under 9.5 -115
+BAM ADEBAYO - REBOUNDS
+9`).tickets[0];
+  check(junk && junk.legs.length === 3 && junk.legs.map(l => l.statValue).join(",") === "4,27,9", `OCR junk between legs does not steal the line (got ${junk && junk.legs.map(l => l.player + ":" + l.statValue).join(",")})`, tag);
+}
+
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall slip import tests passed");
 process.exit(fails.length ? 1 : 0);

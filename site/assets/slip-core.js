@@ -36,6 +36,8 @@
     if (/\b\d+\s*-?\s*pick\s+parlays?\b/i.test(text)) return { key: "draftkings", name: "DraftKings" };
     if (/@\s*open\b/i.test(text) && /\b(parlay|pick)\b/i.test(text)) return { key: "draftkings", name: "DraftKings" };
     if (/\bto\s+pay\b/i.test(text) && /\b(\d+\s*-?\s*pick|parlay)\b/i.test(text)) return { key: "draftkings", name: "DraftKings" };
+    // Hard Rock chrome when the logo is a picture: "SGPMAX" / "4-Bet Parlay" (DraftKings says "4 Pick Parlay").
+    if (/\b\d+\s*-?\s*bet\s+parlays?\b/i.test(text) || /s[g6]p\s*m[a@]x/i.test(text)) return { key: "hardrock", name: "Hard Rock Bet" };
     return null;
   }
 
@@ -133,7 +135,7 @@
     spread: /\b(point\s*spread|spread|run\s*line|puck\s*line|goal\s*line|handicap|alt(ernate)?\s*(spread|lines?))\b/i,
     total: /\b(total|totals|over\s*\/\s*under|o\s*\/\s*u|game total|total (points|runs|goals|rounds)|alt(ernate)?\s*total)\b/i,
   };
-  const PARLAY_RX = /\b(\d+)\s*-?\s*(leg|pick|team|selection|fold)s?\b|\bparlay\b|\bsgp\b|\bsgpx\b|same\s*game\s*(parlay|multi)|\bmulti\b|\baccumulator\b|\bacca\b|\bteaser\b|\bround robin\b/i;
+  const PARLAY_RX = /\b(\d+)\s*-?\s*(leg|pick|team|selection|fold|bet)s?\b|\bparlay\b|\bsgp\s*max\b|\bsgpx\b|\bsgp\b|same\s*game\s*(parlay|multi)|\bmulti\b|\baccumulator\b|\bacca\b|\bteaser\b|\bround robin\b/i;
 
   // ---------- line classification
   const ODDS_TOKEN = /(^|[\s(@:/])([+-]\d{3,5})(?=$|[\s),|])|(^|[\s(@:])(even|ev)(?=$|[\s)])/gi;
@@ -204,6 +206,13 @@
   const isTeam = (idx, s) => !!(idx && teamHits(idx, s).length);
   const isPlayer = (idx, s) => !!(idx && playerHits(idx, s).length);
 
+  /** "SGP Ravens @ Bills -428" is a game, not a parlay header. Group price is not the ticket odds. */
+  function gameLine(s) {
+    let t = String(s || "").replace(/^(?:sgp\s*max|sgpx|sgp)\b[:\s-]*/i, "").replace(/^\([^)]{1,12}\)\s*/, "").replace(/^[A-Za-z0-9$]{1,6}\)\s+/, "").replace(/^\[[^\]]{0,8}\]?\s*/, "").replace(/^(?:[A-Za-z]?\d{1,4})\s+/, "").trim();
+    t = t.replace(/\s+[+-]\d{3,5}\s*$/, "").trim();
+    const ev = splitEvent(t);
+    return ev;
+  }
   function splitEvent(s) {
     const m = String(s).match(/^(.{2,}?)\s*(?:@|\bat\b|vs\.?|\bv\.?\b|versus)\s*(.{2,}?)$/i);
     if (!m) return null;
@@ -246,6 +255,9 @@
     s = s.replace(/^[\s©•·*✓✔☑#\[\]<>~]+/, "").replace(/^@\s+(?=over\b|under\b)/i, "").replace(/^["“”'`]+/, "").replace(/^[A-Za-z]\s+(?=(?:over|under)\b)/i, "").trim();
     if (!s) return out;
     if (/^[S$®©Ⓡ]+$/.test(s)) return out;
+    // "Cash-out $150" on an open slip is a button, not a settled result. "Cashed out" still counts.
+    if (/\bcash-?\s*out\b/i.test(s) && !/\bcashed\b/i.test(s)) return out;
+    if (/^track$/i.test(s)) return out;
     // The token icon on a DraftKings slip OCRs as ® or © between "Wager" and the amount.
     if (/[®©Ⓡ]/.test(s) && /\b(wager|stake|risk|bet\s*amount)\b/i.test(s)) out.push({ k: "bonus" });
     if (/[®©Ⓡ]/.test(s)) s = s.replace(/[®©Ⓡ]/g, " ").replace(/\s+/g, " ").trim();
@@ -351,8 +363,16 @@
       if (/^\d{1,3}\+$/.test(s)) { out.push({ k: "mile", n: parseInt(s, 10), text: s }); return out; }
     }
     // ticket header: "3 Leg Parlay +596", "SGP +1200", "Same Game Parlay", "Single"
+    const gl = gameLine(s);
+    if (gl && (/\bsgp/i.test(s) || /@/.test(s) || /\b(?:vs\.?|at)\b/i.test(s))) {
+      const groupPrice = /\s[+-]\d{3,5}\s*$/.test(s);
+      out.push({ k: "event", ...gl, sgp: /\bsgp/i.test(s) || groupPrice });
+      const go = oddsIn(s);
+      if (go.length) out.push({ k: "godds", v: go[go.length - 1] });
+      return out;
+    }
     const pm = s.match(PARLAY_RX);
-    if (pm && !/\b(over|under)\s*\d/i.test(s) && !/\b(o|u)\s?\d+(\.\d)?\b/i.test(s) && !(pm[2] && /team/i.test(pm[2]) && /total/i.test(s))) {
+    if (pm && !gl && !/\b(over|under)\s*\d/i.test(s) && !/\b(o|u)\s?\d+(\.\d)?\b/i.test(s) && !(pm[2] && /team/i.test(pm[2]) && /total/i.test(s))) {
       const n = pm[1] ? +pm[1] : null, o = oddsIn(s);
       out.push({ k: "header", parlay: true, n, teaser: /teaser/i.test(s), rr: /round robin/i.test(s), sgp: /sgp|same\s*game/i.test(s), odds: o.length ? o[o.length - 1] : null, boost: /boost/i.test(s) });
       return out;
@@ -477,7 +497,7 @@
   }
   function stripStat(pre) {
     let s = String(pre || "");
-    s = s.replace(/\b(player|alt(ernate)?|to record|to have|to score|o\/u|over\/under)\b/gi, " ");
+    s = s.replace(/\b(player|alt(ernate)?|to record|to have|to score|o\/u|over\/under)\b/gi, " ").replace(/\b\d{1,3}\+/g, " ");
     for (const [, , rx] of STATS) s = s.replace(new RegExp(rx.source, "gi"), " ");
     s = s.replace(new RegExp(OTHER_STAT.source, "gi"), " ").replace(/\b(total|made|yds|yards|milestones?|props?)\b/gi, " ");
     return s.replace(/[-:,|+()]+/g, " ").replace(/\s+/g, " ").trim();
@@ -493,7 +513,7 @@
     const newTicket = () => ({ book: book ? book.key : null, bookName: book ? book.name : null, header: null, legs: [], stake: null, toWin: null, payout: null, odds: null, ref: null, placed: null, status: null, cashout: null, boost: false, bonus: false, credit: false, stakeFromSlip: false, stakeEstimated: false, payoutEstimated: false, oddsEstimated: false, gameHint: null, inSum: false, lines: [] });
     const newP = () => ({ event: null, market: null, when: null, league: null, texts: [] });
     T = newTicket(); P = newP();
-    let pendingAmounts = [], bonusWants = false, mileSet = new Set();
+    let pendingAmounts = [], bonusWants = false, mileSet = new Set(), curEvent = null, curWhen = null, afterSgp = false;
     const applyMoney = (key, v) => {
       if (key === "cashout") { T.status = "cashout"; T.cashout = v; }
       else if (T[key] == null) { T[key] = v; if (key === "stake") T.stakeFromSlip = true; }
@@ -519,15 +539,28 @@
         player: tok.player || null, pmk: tok.pmk || null, slg: tok.slg || null, otherStat: !!tok.otherStat, teamTotal: !!tok.teamTotal, period: !!tok.period, name: tok.name || null,
         isTeamName: !!tok.team && tok.kind === "name", isPlayerName: tok.kind === "name" && !!tok.player,
         checked: !!tok.checked, statValue: null, result: null,
-        event: P.event, market: P.market, when: P.when, league: P.league, extra: [] };
+        event: P.event || curEvent, eventSticky: !P.event && !!curEvent, market: P.market, when: P.when || curWhen, league: P.league, extra: [] };
       if (L.isTeamName) L.team = tok.text;
       P = newP();
     };
     const wants = (key) => L && L[key] === null && !(P.event || P.market || P.when);
+    const mentions = (ev, teamText) => {
+      if (!ev || !teamText) return false;
+      const blob = `${ev.a} ${ev.b}`.toLowerCase(), t = String(teamText).toLowerCase();
+      if (blob.includes(t) || t.includes(String(ev.a).toLowerCase()) || t.includes(String(ev.b).toLowerCase())) return true;
+      const last = t.split(" ").pop();
+      return [ev.a, ev.b].some(side => {
+        const w = String(side).toLowerCase().split(" ").pop();
+        return last && w && last.length >= 5 && w.length >= 5 && editDist(last, w) <= 2 && last.slice(0, 3) === w.slice(0, 3);
+      });
+    };
     for (const line of lines) {
       const toks = classify(line, idx, now), Tline = T;
+      let selThisLine = false;
       for (const tok of toks) {
-        if (tok.k !== "amount" && tok.k !== "label") labels = [];
+        const bareMoney = tok.k === "text" && /^\$?\d{1,5}(?:,\d{3})*(?:\.\d{1,2})?$/.test(String(tok.text || "").trim());
+        if (tok.k !== "amount" && tok.k !== "label" && !bareMoney) labels = [];
+        if (tok.k !== "event" && tok.k !== "godds" && tok.k !== "when" && tok.k !== "league") afterSgp = tok.k === "odds" ? afterSgp : false;
         switch (tok.k) {
           case "book": break;
           case "sum":
@@ -567,18 +600,46 @@
           case "header":
             // a header starts a new ticket only after a finished one (stake shown) or a second header; "Parlay (2 legs)" may also come after the legs
             if (((T.legs.length || L) && (T.inSum || T.header)) || (!T.legs.length && !L && T.inSum && T.stake !== null && T.header)) finish();
-            T.header = tok; if (isNum(tok.odds)) T.odds = tok.odds; if (tok.boost) T.boost = true; break;
+            const prev = T.header;
+            T.header = { ...tok, sgp: !!(tok.sgp || (prev && prev.sgp)), n: tok.n || (prev && prev.n) || null, odds: isNum(tok.odds) ? tok.odds : (prev && isNum(prev.odds) ? prev.odds : null) };
+            if (isNum(T.header.odds)) T.odds = T.header.odds; if (tok.boost || (prev && prev.boost)) T.boost = true; break;
           case "league": if (wants("league")) L.league = tok.lg; else P.league = tok.lg; break;
-          case "when": if (L && !L.when && !(P.event || P.market)) L.when = tok; else P.when = tok; break;
-          case "event": if (L && !L.event && !(P.market || P.when || P.event)) L.event = tok; else P.event = tok; break;
+          case "when":
+            if (/today|tonight/i.test(line) && !tok.date) tok.date = etDay(now);
+            curWhen = tok;
+            if (L && !L.when && !(P.event || P.market)) L.when = tok; else P.when = tok;
+            break;
+          case "event":
+            curEvent = tok;
+            afterSgp = !!tok.sgp;
+            {
+              const teamTxt = L && (L.team || L.name);
+              const better = L && teamTxt && !mentions(L.event, teamTxt) && mentions(tok, teamTxt);
+              // "SGP Team @ Team" is the next group's header. "Falcons @ Buccaneers" under a prop belongs to that prop.
+              const underProp = L && L.player && !tok.sgp && (L.eventSticky || !L.event);
+              if (selThisLine && L) L.event = tok;
+              else if (better) L.event = tok;
+              else if (underProp) { L.event = tok; L.eventSticky = false; }
+              else if (L && !L.player && !L.team && (L.kind === "total" || !L.event)) L.event = tok;
+              else if (L && !L.event && !(P.market || P.when || P.event)) L.event = tok;
+              else P.event = tok;
+            }
+            break;
+          case "godds": break;
           case "market": if (L && !L.market && !(P.event || P.when || P.market)) L.market = tok; else P.market = tok; break;
           case "odds":
+            if (afterSgp) { afterSgp = false; break; }
             if (L && L.odds === null) L.odds = tok.v;
             else if (!L && !T.legs.length && T.header && T.header.parlay && T.odds === null) T.odds = tok.v;
             else if (P.texts.length) { startLeg({ kind: "name", text: P.texts.pop(), odds: tok.v }); }
             else if (T.inSum || (L && L.odds !== null)) { if (T.odds === null) T.odds = tok.v; }
             break;
           case "text": {
+            const moneyLine = String(tok.text || "").trim();
+            if (labels.length && /^\$?\d{1,5}(?:,\d{3})*(?:\.\d{1,2})?$/.test(moneyLine)) {
+              applyMoney(labels.shift(), money(moneyLine));
+              break;
+            }
             const bareN = String(tok.text || "").trim().match(/^(\d{1,3})$/);
             if (bareN && mileSet.has(+bareN[1])) {
               if (L && !isNum(L.line) && !P.event) attachMile(L, +bareN[1]);
@@ -586,6 +647,7 @@
               break;
             }
             const numOnly = /^[\d]+(?:\.\d+)?$/.test(String(tok.text || "").trim());
+            if (numOnly && /today|tonight|\d{1,2}:\d{2}/i.test(line)) break;
             if (L && numOnly && isNum(L.line) && L.statValue == null) {
               const n = parseFloat(tok.text), ln = Number(L.line);
               const echo = Math.abs(n - ln) < 1e-6 || Math.abs(n - ln * 10) < 0.2;
@@ -599,8 +661,8 @@
             pendingAmounts = [];
             if (P.mile && tok.kind === "prop" && !isNum(tok.line)) { tok.ou = tok.ou || "over"; tok.line = P.mile.n - 0.5; tok.text = `${tok.text || ""} ${P.mile.n}+`.trim(); P.mile = null; }
             // Hard Rock settled props: "Under 9.5 -130" then "CADE CUNNINGHAM - ASSISTS"
-            if (L && !L.player && tok.kind === "prop" && tok.player && !tok.ou && (L.kind === "total" || L.kind === "prop") && !P.event && !P.market) {
-              Object.assign(L, { kind: "prop", player: tok.player, pmk: tok.pmk || L.pmk, slg: tok.slg || L.slg, otherStat: !!(L.otherStat || tok.otherStat), checked: L.checked || !!tok.checked, text: `${L.text} ${tok.text}`.trim() });
+            if (L && !L.player && tok.kind === "prop" && tok.player && (L.kind === "total" || L.kind === "prop") && !P.event && !P.market && !(isNum(L.line) && isNum(tok.line) && Math.abs(L.line - tok.line) > 0.01)) {
+              Object.assign(L, { kind: "prop", player: tok.player, pmk: tok.pmk || L.pmk, slg: tok.slg || L.slg, otherStat: !!(L.otherStat || tok.otherStat), checked: L.checked || !!tok.checked, ou: L.ou || tok.ou || null, line: isNum(L.line) ? L.line : tok.line, text: `${L.text} ${tok.text}`.trim() });
               break;
             }
             // A parlay header already on this ticket keeps later legs here. Stake-above-legs share cards would otherwise split one parlay into many tickets.
@@ -609,10 +671,12 @@
             if (L && L.kind === "prop" && !L.ou && L.odds === null && tok.kind === "total" && !P.event && !P.market) { Object.assign(L, { ou: tok.ou, line: tok.line, odds: isNum(tok.odds) ? tok.odds : null, text: `${L.text} ${tok.text}` }); break; }
             // two-line selections: a bare name followed by "Over 26.5 Points" / "-3.5" belongs to the same leg
             if (L && L.kind === "name" && !L.ou && !L.market && !L.event && !P.event && !P.market && (L.odds === null || !isNum(tok.odds))) {
-              if ((tok.kind === "total" || (tok.kind === "prop" && !tok.player)) && !L.isTeamName) { Object.assign(L, { kind: "prop", player: L.name, ou: tok.ou, line: tok.line, pmk: tok.pmk || null, slg: tok.slg || null, odds: isNum(tok.odds) ? tok.odds : L.odds, text: `${L.text} ${tok.text}` }); break; }
+              const nw = String(L.name || "").split(" ").filter(Boolean);
+              const nameOk = nw.length >= 2 || (nw.length === 1 && nw[0].length >= 4);
+              if (nameOk && (tok.kind === "total" || (tok.kind === "prop" && !tok.player)) && !L.isTeamName) { Object.assign(L, { kind: "prop", player: L.name, ou: tok.ou, line: tok.line, pmk: tok.pmk || null, slg: tok.slg || null, odds: isNum(tok.odds) ? tok.odds : L.odds, text: `${L.text} ${tok.text}` }); break; }
               if (tok.kind === "total" && L.isTeamName) { Object.assign(L, { kind: "other", teamTotal: true, ou: tok.ou, line: tok.line, odds: isNum(tok.odds) ? tok.odds : null, text: `${L.text} ${tok.text}` }); break; }
             }
-            startLeg(tok); break;
+            startLeg(tok); selThisLine = true; break;
           }
           default: break;
         }
@@ -660,6 +724,7 @@
       if (graded) l.result = graded;
       else if (l.checked && !l.result) l.result = "won";
     }
+    collapseLegs(T);
     if (!T.status && T.legs.length && T.legs.every(l => l.result && l.result !== "pending")) {
       if (T.legs.some(l => l.result === "lost")) T.status = "lost";
       else if (T.legs.every(l => l.result === "push" || l.result === "void")) T.status = "push";
@@ -667,7 +732,7 @@
     }
     const h = T.header || {};
     T.parlay = !!h.parlay || T.legs.length > 1;
-    T.teaser = !!h.teaser; T.roundRobin = !!h.rr; T.sgp = !!h.sgp;
+    T.teaser = !!h.teaser; T.roundRobin = !!h.rr; T.sgp = !!h.sgp || T.legs.some(l => l.event && l.event.sgp);
     if (T.roundRobin) warnings.push("Round robins are several parlays in one; this imports one parlay with every leg. Split it by hand if needed.");
     if (T.teaser) warnings.push("Teaser: check that each leg's line is the teased line on your ticket.");
     if (T.legs.length > 1 && !h.parlay) warnings.push("Several selections with one stake: imported as a parlay. If these were separate bets, import them one at a time.");
@@ -737,14 +802,65 @@
     if (T.bonus) warnings.push("Cash at risk is $0. A win adds the payout as profit. A loss is $0.");
     if (T.credit) warnings.push("Paid with sportsbook site credit: the tracker counts the stake as money risked. Edit the stake if you'd rather log it as $0.");
     if (T.boost) warnings.push("Boosted odds: saved at the odds on your ticket.");
-    if (T.stake == null && !T.bonus) warnings.push("No stake found on the slip. Enter it below.");
-    if (T.stake == null && T.bonus) warnings.push("Enter the token amount below.");
-    if (!isNum(T.odds)) warnings.push("No odds found on the slip. Enter them below.");
-    if (!T.legs.length) warnings.push("No selection recognized. Fill in the bet below.");
+    if (T.stake == null && !T.bonus) warnings.push("Couldn't read the stake. No stake found on the slip. Enter it below.");
+    if (T.stake == null && T.bonus) warnings.push("Couldn't read the token amount. Enter it below.");
+    if (!isNum(T.odds)) warnings.push("Couldn't read the odds. No odds found on the slip. Enter them below.");
+    if (T.payout == null && T.toWin == null && !T.status) warnings.push("Couldn't read the payout. Type it in if you want it saved.");
+    if (!T.legs.length) warnings.push("Couldn't read any selections. Type the bet below.");
     if (T.legs.some(l => l.period)) warnings.push("Half / quarter / period bets can't be graded from the final score; they're saved for you to settle.");
     T.warnings = warnings;
     applyBonusMoney(T);
     return T;
+  }
+  /** Same player prop read twice (overlapping OCR tiles). */
+  function sameProp(a, b) {
+    if (!a || !b || !a.player || !b.player) return false;
+    if (normName(a.player) !== normName(b.player)) return false;
+    if ((a.ou || "") !== (b.ou || "")) return false;
+    if (isNum(a.line) && isNum(b.line) && Math.abs(Number(a.line) - Number(b.line)) > 0.011) return false;
+    if (a.pmk && b.pmk && a.pmk !== b.pmk) return false;
+    return true;
+  }
+  /** Drop group-header echoes and repeated props. An "8-Bet" line is the leg count, not a reason to delete a different player. */
+  function collapseLegs(T) {
+    const kept = [];
+    for (const l of T.legs || []) {
+      const prev = kept.find(x => sameProp(x, l));
+      if (prev) {
+        const oddsOnLine = isNum(l.odds) && new RegExp("(?<![\\d])" + Math.abs(Number(l.odds)) + "(?![\\d])").test(String(l.text || ""));
+        if (!isNum(prev.odds) && oddsOnLine) prev.odds = l.odds;
+        if (!prev.event && l.event) prev.event = l.event;
+        if (!prev.when && l.when) prev.when = l.when;
+        if (!prev.pmk && l.pmk) prev.pmk = l.pmk;
+        if (!isNum(prev.line) && isNum(l.line)) prev.line = l.line;
+        if (!prev.ou && l.ou) prev.ou = l.ou;
+        if (!isNum(prev.statValue) && isNum(l.statValue)) {
+          prev.statValue = l.statValue;
+          prev.result = gradeStat(prev.ou, prev.line, l.statValue) || prev.result;
+        }
+        continue;
+      }
+      kept.push(l);
+    }
+    T.legs = kept.filter(l => {
+      const raw = String(l.text || "").replace(/^(?:sgp\s*max|sgpx|sgp)\b[:\s-]*/i, "").trim();
+      if (gameLine(raw) && !(l.player && l.ou && isNum(l.line))) return false;
+      return true;
+    });
+    T.legs = T.legs.filter(l => {
+      if (l.kind !== "total" || l.player) return true;
+      return !T.legs.some(n => n !== l && n.kind === "prop" && n.player && n.ou === l.ou && isNum(n.line) && isNum(l.line) && Math.abs(Number(n.line) - Number(l.line)) < 0.011);
+    });
+    const want = T.header && T.header.n;
+    const props = T.legs.filter(l => l.kind === "prop" && l.player && l.ou && isNum(l.line));
+    if (want && props.length >= want) {
+      T.legs = T.legs.filter(l => {
+        if (l.kind === "prop" && l.player) return true;
+        if ((l.kind === "ml" || l.kind === "name") && !isNum(l.line)) return false;
+        if (l.kind === "total" && !l.player) return false;
+        return true;
+      });
+    }
   }
   /** A token's printed payout is profit. A stake read off the slip stays; a missing one is payout / (decimal − 1). */
   function applyBonusMoney(T) {
@@ -933,6 +1049,14 @@
         ph = playerHits(idx, l.player);
         if (l.slg) { const f = ph.filter(p => p.lg === l.slg); if (f.length) ph = f; }
         if (!cands.length) for (const p of ph) for (const gi of idx.games) if (gi.lg === p.lg && (String(gi.g.home.id) === p.tid || String(gi.g.away.id) === p.tid || (idx.props[p.lg] && idx.props[p.lg].games && (idx.props[p.lg].games[gi.g.id] || {}).props && idx.props[p.lg].games[gi.g.id].props.some(r => String(r[0]) === p.pid)))) cands.push({ gi, sc: 80 });
+        if (ph.length && cands.length) {
+          const tids = new Set(ph.map(p => p.tid).filter(Boolean));
+          const fits = cands.filter(c => tids.has(String(c.gi.g.home.id)) || tids.has(String(c.gi.g.away.id)));
+          if (!fits.length && tids.size) {
+            cands = [];
+            for (const p of ph) for (const gi of idx.games) if (gi.lg === p.lg && (String(gi.g.home.id) === p.tid || String(gi.g.away.id) === p.tid)) cands.push({ gi, sc: 84 });
+          }
+        }
       }
       if (!cands.length) continue;
       const r = rank(cands), best = r[0];
@@ -1113,8 +1237,11 @@
     if (isNum(t.odds)) s += 2;
     if (isNum(t.payout) && t.payout > 0) s += 4;
     const legs = t.legs || [];
-    s += legs.filter(legGood).length * 3;
-    s -= Math.max(0, legs.length - legs.filter(legGood).length) * 2;
+    const good = legs.filter(legGood).length;
+    s += good * 3;
+    s -= Math.max(0, legs.length - good) * 2;
+    const want = t.header && t.header.n;
+    if (want && good) s += good === want ? 8 : -Math.abs(good - want) * 3;
     return s;
   }
   /** Fill gaps: one OCR pass may see the green header (stake, Paid, Winner) and another the dark legs. */
@@ -1128,7 +1255,31 @@
       if ((out[k] === null || out[k] === undefined || out[k] === "") && other[k] !== null && other[k] !== undefined && other[k] !== "") out[k] = other[k];
     }
     const nGood = legs => (legs || []).filter(legGood).length;
-    if (nGood(other.legs) > nGood(out.legs)) out.legs = other.legs.filter(legGood);
+    const moneyAgrees = (!isNum(out.stake) || !isNum(other.stake) || Math.abs(Number(out.stake) - Number(other.stake)) < 0.05)
+      && (!isNum(out.odds) || !isNum(other.odds) || Number(out.odds) === Number(other.odds));
+    if (moneyAgrees && nGood(other.legs) && nGood(out.legs)) {
+      const merged = (out.legs || []).map(l => ({ ...l }));
+      for (const l of other.legs || []) {
+        const words = normName(l && l.player).split(" ").filter(w => w.length >= 2);
+        if (!(l && legGood(l) && l.pmk && words.length >= 2)) continue;
+        const prev = merged.find(x => sameProp(x, l) || (normName(x.player) === normName(l.player) && x.pmk === l.pmk));
+        if (prev) {
+          const oddsOnLine = isNum(l.odds) && new RegExp("(?<![\\d])" + Math.abs(Number(l.odds)) + "(?![\\d])").test(String(l.text || ""));
+          if (!isNum(prev.odds) && oddsOnLine) prev.odds = l.odds;
+          if (!prev.event && l.event) prev.event = l.event;
+          if (!prev.when && l.when) prev.when = l.when;
+          if (!isNum(prev.line) && isNum(l.line)) prev.line = l.line;
+          if (!prev.ou && l.ou) prev.ou = l.ou;
+          if (!isNum(prev.statValue) && isNum(l.statValue)) {
+            prev.statValue = l.statValue;
+            prev.result = gradeStat(prev.ou, prev.line, l.statValue) || prev.result;
+          }
+          continue;
+        }
+        merged.push({ ...l });
+      }
+      out.legs = merged;
+    } else if (nGood(other.legs) > nGood(out.legs)) out.legs = other.legs.filter(legGood);
     else out.legs = (out.legs || []).map(l => {
       if (!legGood(l)) return l;
       const o = (other.legs || []).find(x => normName(x.player) === normName(l.player));
@@ -1142,14 +1293,36 @@
     if ((out.legs || []).length > 1) out.parlay = true;
     if (out.status === "won") out.legs = (out.legs || []).map(l => (l.result ? l : { ...l, result: "won" }));
     if (isNum(out.payout) && isNum(out.stake) && !isNum(out.toWin)) out.toWin = out.bonus ? r2(out.payout) : r2(Number(out.payout) - Number(out.stake));
-    return applyBonusMoney(out);
+    applyBonusMoney(out);
+    out.warnings = (out.warnings || []).filter(w => {
+      if (/couldn't read the stake|no stake found|token amount/i.test(w) && out.stake > 0) return false;
+      if (/couldn't read the payout/i.test(w) && (out.payout > 0 || out.toWin > 0)) return false;
+      if (/couldn't read the odds|no odds found/i.test(w) && isNum(out.odds)) return false;
+      if (/couldn't read any selections/i.test(w) && out.legs && out.legs.length) return false;
+      return true;
+    });
+    return out;
   }
-  /** Several OCR readings of one photo (raw, inverted, header band). Returns the merged ticket. */
+  /** Overlapping tiles repeat a long line. Short lines ("Over 0.5") stay, because each leg has its own. */
+  function foldRepeatLines(text) {
+    const seen = new Set();
+    return String(text || "").split(/\n/).filter(line => {
+      const k = line.replace(/\s+/g, " ").trim().toLowerCase();
+      if (!k) return false;
+      const keepOnce = k.length >= 22 || PARLAY_RX.test(line) || /\b(wager|payout|paid|stake|to pay)\b/i.test(line);
+      if (!keepOnce) return true;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }).join("\n");
+  }
+  /** Several OCR readings of one photo (raw, inverted, header band, tiles). Returns the merged ticket. */
   function bestOcrTicket(texts) {
     let acc = null;
     for (const text of texts || []) {
-      if (!String(text || "").trim()) continue;
-      for (const t of parseSlip(text).tickets) acc = richer(acc, t);
+      const folded = foldRepeatLines(text);
+      if (!folded.trim()) continue;
+      for (const t of parseSlip(folded).tickets) acc = richer(acc, t);
     }
     return acc;
   }

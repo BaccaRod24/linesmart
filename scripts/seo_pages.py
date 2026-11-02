@@ -366,7 +366,8 @@ def weekday_long(dt):
 # ---------------------------------------------------------------- archive
 class Archive:
     """games-<lg>.json {id: game} (compact, with "closing" lines), players-<lg>.json {pid: snapshot}, state.json
-    {"paths": {lg: {id: [path, old...]}}, "slugs": {lg: {pid: slug}}, "lastmod": {path: [hash, iso]}}."""
+    {"paths": {lg: {id: [path, old...]}}, "slugs": {lg: {pid: slug}}, "lastmod": {path: [hash, iso]},
+    "published": {path: iso}}."""
 
     def __init__(self, d: Path | None):
         self.dir = Path(d) if d else None
@@ -660,25 +661,37 @@ def crumbs_ld(base_url, items):
 
 
 # ---------------------------------------------------------------- SportsEvent JSON-LD (Google Event structured data)
-# Search Console "Events" recommended fields: endDate, performer, organizer.url (offers is deliberately left out: LineSmart
-# sells no tickets, and Google wants offers.url to be a page that predominantly sells tickets to that event, so a ticket
-# offer here would be invented; sportsbook links are not ticket offers either).
-EVENT_HOURS = {"nfl": 3.5, "ncaaf": 3.5, "nba": 2.5, "ncaab": 2.5, "nhl": 2.5, "mlb": 3, "ufc": 3}   # estimated length (UFC: one card segment)
-UFC_CARD_TAIL_H = 3      # a UFC event page ends about this long after its last segment (main card) starts
-ORGANIZER = {
-    "nfl": ("National Football League", "NFL", "https://www.nfl.com/"),
-    "nba": ("National Basketball Association", "NBA", "https://www.nba.com/"),
-    "mlb": ("Major League Baseball", "MLB", "https://www.mlb.com/"),
-    "nhl": ("National Hockey League", "NHL", "https://www.nhl.com/"),
-    "ncaaf": ("National Collegiate Athletic Association", "NCAA", "https://www.ncaa.org/"),
-    "ncaab": ("National Collegiate Athletic Association", "NCAA", "https://www.ncaa.org/"),
-    "ufc": ("Ultimate Fighting Championship", "UFC", "https://www.ufc.com/"),
-}
+# endDate, performer, and organizer (name + official site) are filled on every event. offers is free access to this
+# odds and stats page (price 0, url = the canonical page). It is not a ticket and not a sportsbook offer.
+EVENT_HOURS = pv.EVENT_HOURS   # estimated length of one game (UFC: one bout, not the whole card)
+UFC_CARD_TAIL_H = 3            # a UFC event page ends about this long after its last segment (main card) starts
+ORGANIZER = pv.ORGANIZER
 
 
 def organizer_ld(lg):
     name, alt, url = ORGANIZER[lg]
     return {"@type": "SportsOrganization", "name": name, "alternateName": alt, "url": url}
+
+
+def published_iso(L, path):
+    """When this URL was first built, ISO with a numeric offset. Reused from the archive so a later refresh does not
+    move offers.validFrom. A URL that already has a lastmod keeps that time (the page has been up); a new URL uses
+    this build."""
+    stamp = et(L.now).isoformat(timespec="minutes")
+    arch = getattr(L, "arch", None)
+    if arch is None or not arch.dir or not path:
+        return stamp
+    pub = arch.state.setdefault("published", {})
+    prev = pub.get(path)
+    if isinstance(prev, str) and prev:
+        return prev
+    old = (arch.state.get("lastmod") or {}).get(path)
+    if isinstance(old, (list, tuple)) and len(old) >= 2:
+        seen = parse_dt(old[1])
+        if seen:
+            stamp = et(seen).isoformat(timespec="minutes")
+    pub[path] = stamp
+    return stamp
 
 
 def event_status(g):
@@ -706,27 +719,67 @@ def end_iso(start, hours):
     return et(start + timedelta(hours=hours)).isoformat(timespec="minutes")
 
 
-def game_event_ld(L: League, g, ev):
-    """Fill in the SportsEvent from previews.jsonld(): endDate, performer, organizer (name + url), eventStatus, linked
-    teams/fighters, and a location without placeholder values. Only the JSON-LD changes, never the visible page."""
+def game_event_ld(L: League, g, ev, path=None):
+    """Fill in the SportsEvent from previews.jsonld(): endDate, performer, organizer (name + url), a free page offer,
+    eventStatus, linked teams/fighters, and a location without placeholder values. Only the JSON-LD changes, never
+    the visible page."""
     a, h = g["away"], g["home"]
     dt = parse_dt(g["date"])
+    if not path and str(ev.get("url") or "").startswith(L.base_url):
+        path = ev["url"][len(L.base_url):]
     ev["endDate"] = end_iso(dt, EVENT_HOURS.get(L.lg, 3))
     ev["eventStatus"] = event_status(g)
     ev["eventAttendanceMode"] = "https://schema.org/OfflineEventAttendanceMode"
     ev["organizer"] = organizer_ld(L.lg)
     ev["competitor"] = [side_ld(L, a), side_ld(L, h)]
     ev["performer"] = [side_ld(L, a), side_ld(L, h)]
+    ev["offers"] = pv.offer_ld(ev.get("url"), published_iso(L, path))
     if L.lg != "ufc":
         ev["homeTeam"], ev["awayTeam"] = side_ld(L, h), side_ld(L, a)
     ev["location"] = place_ld(g)
     if L.lg == "ufc":
         e = L.ev.get(str((g.get("event") or {}).get("id"))) if hasattr(L, "ev") else None
         if e and e.get("path"):
-            ev["superEvent"] = {"@type": "SportsEvent", "name": e["name"], "url": L.base_url + e["path"]}
+            ev["superEvent"] = card_event_ld(L, e)
     order = ["@context", "@type", "name", "description", "url", "startDate", "endDate", "eventStatus", "eventAttendanceMode", "sport", "image",
-             "location", "organizer", "performer", "competitor", "homeTeam", "awayTeam", "superEvent"]
+             "location", "organizer", "performer", "offers", "competitor", "homeTeam", "awayTeam", "superEvent"]
     return {k: ev[k] for k in order if k in ev} | {k: v for k, v in ev.items() if k not in order}
+
+
+def card_event_ld(L: League, e, desc=None):
+    """SportsEvent for a UFC card. Used on the event page and as superEvent on each fight (same fields, same URL)."""
+    path = e["path"]
+    url = L.base_url + path
+    dt = parse_dt(e.get("date"))
+    bouts = sorted((L.games[b] for b in (e.get("bouts") or []) if b in L.games), key=lambda g: (g.get("matchNo") or 99))
+    fighters = {}
+    for g in bouts:
+        for s in ("away", "home"):
+            side = g.get(s) or {}
+            fighters.setdefault(str(side.get("id") or tname(side)), side_ld(L, side))
+    starts = [parse_dt(g.get("date")) for g in bouts]
+    starts += [parse_dt(s.get("start")) for s in (e.get("segments") or []) if isinstance(s, dict)]
+    starts = [x for x in starts if x]
+    last = max([x for x in starts if dt and x >= dt] or ([dt] if dt else starts))
+    cancelled = bool(bouts) and all(event_status(g).endswith("Cancelled") for g in bouts)
+    ev = {
+        "@type": "SportsEvent",
+        "name": e.get("name") or "UFC",
+        "url": url,
+        "startDate": et(dt).isoformat(timespec="minutes"),
+        "endDate": end_iso(last, UFC_CARD_TAIL_H),
+        "eventStatus": "https://schema.org/EventCancelled" if cancelled else "https://schema.org/EventScheduled",
+        "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+        "sport": "Mixed martial arts",
+        "location": place_ld(e),
+        "organizer": organizer_ld("ufc"),
+        "performer": list(fighters.values()),
+        "offers": pv.offer_ld(url, published_iso(L, path)),
+        "image": [L.base_url + "assets/brand/og-image.png"],
+    }
+    if desc:
+        ev["description"] = desc
+    return ev
 
 
 def place_ld(x):
@@ -1988,7 +2041,7 @@ def game_page(L: League, sh: Shell, gid):
         section("sameday", "Same card" if L.lg == "ufc" else f"Other {esc(SHORT[L.lg])} games on {esc(short_day(dt, False))}", link_list(sd)),
     ] if x)
     ld = pv.jsonld(L.lg, L.name, L.kind, g, L.base_url + path, desc, L.base_url)
-    ld[0] = game_event_ld(L, g, ld[0])
+    ld[0] = game_event_ld(L, g, ld[0], path)
     ld[1] = crumbs_ld(L.base_url, [(L.hub, NAMES[L.lg]), (path, mtch)])
     route = f"g/{L.lg}/{gid}" if cur and not final else ""
     if cur and final and L.lg != "ufc":
@@ -2209,18 +2262,8 @@ def event_page(L: League, sh: Shell, eid):
 </article>"""
     others = sorted([(x["path"], x["name"], short_day(parse_dt(x["date"]), False)) for k, x in L.ev.items() if k != eid], key=lambda x: x[2])
     more = section("events", "More UFC events", link_list(others + [(L.hub, "All UFC odds", "")]))
-    fighters = {}
-    for g in bouts:
-        for s in ("away", "home"):
-            fighters.setdefault(str(g[s].get("id") or tname(g[s])), side_ld(L, g[s]))
-    starts = [parse_dt(g.get("date")) for g in bouts if parse_dt(g.get("date"))] + [parse_dt(s.get("start")) for s in (e.get("segments") or []) if parse_dt(s.get("start"))]
-    last = max([x for x in starts if x >= dt] or [dt])
-    st = "https://schema.org/EventCancelled" if bouts and all(event_status(g).endswith("Cancelled") for g in bouts) else "https://schema.org/EventScheduled"
-    ld = [{"@context": "https://schema.org", "@type": "SportsEvent", "name": e["name"], "url": L.base_url + path, "description": desc, "sport": "Mixed martial arts",
-           "startDate": et(dt).isoformat(timespec="minutes"), "endDate": end_iso(last, UFC_CARD_TAIL_H), "eventStatus": st,
-           "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode", "location": place_ld(e),
-           "organizer": organizer_ld("ufc"), "performer": list(fighters.values()), "image": [L.base_url + "assets/brand/og-image.png"]},
-          crumbs_ld(L.base_url, [(L.hub, "UFC"), (path, e["name"])])]
+    card = {"@context": "https://schema.org", **card_event_ld(L, e, desc)}
+    ld = [card, crumbs_ld(L.base_url, [(L.hub, "UFC"), (path, e["name"])])]
     return sh.page(path, title, desc, main, more, kind="event", lg="ufc", ld=ld), title
 
 
@@ -3627,6 +3670,10 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
             del lm_state[p]
         for p in [p for p in list(finals) if p not in pages]:
             del finals[p]
+        pub = arch.state.get("published")
+        if isinstance(pub, dict):
+            for p in [p for p in pub if p not in pages]:
+                del pub[p]
     # write: build in .seo.tmp, then swap each top-level dir
     for path, html in pages.items():
         f = tmp / path / "index.html"

@@ -381,20 +381,39 @@
   }
   function betLeagues(b) { return b.type === "parlay" ? [...new Set((b.legs || []).map(l => l.league).filter(Boolean))].concat(b.league ? [b.league] : []) : [b.league].filter(Boolean); }
 
+  /** Decimal price of one non-void bet, or null. A parlay with no ticket price uses the leg product.
+   *  Only decimals that convert to American odds count (d > 1). */
+  function betPriceDecimal(b) {
+    if ((b.status || "pending") === "void") return null;
+    const d = b.type === "parlay" && !validAmerican(b.odds) ? parlayDecimal(b.legs, { ignoreResults: true }) : toDecimal(b.odds);
+    return d && d > 1 ? d : null;
+  }
+  /** Median American price. A mean of decimal prices is wrecked by a few long-shot parlays
+   *  (+4,000,000 next to a stack of -110s), so the displayed odds are the median instead.
+   *  An even count averages the two central decimals, then that median converts back to American. */
+  function medianAmerican(decs) {
+    if (!decs.length) return null;
+    const a = decs.slice().sort((x, y) => x - y);
+    const i = a.length >> 1;
+    const med = a.length % 2 ? a[i] : (a[i - 1] + a[i]) / 2;
+    return toAmerican(med);
+  }
   function summarize(bets) {
-    const s = { n: bets.length, won: 0, lost: 0, push: 0, void: 0, cashout: 0, pending: 0, staked: 0, net: 0, exposure: 0, toWinPending: 0, decSum: 0, decN: 0 };
+    const s = { n: bets.length, won: 0, lost: 0, push: 0, void: 0, cashout: 0, pending: 0, staked: 0, net: 0, exposure: 0, toWinPending: 0 };
+    const decs = [];
     for (const b of bets) {
       const st = b.status || "pending", stake = Number(b.stake) || 0, cash = b.bonus ? 0 : stake;
       s[st] = (s[st] || 0) + 1;
       if (st === "pending") { s.exposure += cash; s.toWinPending += toWin(b) || 0; }
       else if (st !== "void") { s.staked += cash; s.net += netResult(b); }
-      if (st !== "void") { const d = b.type === "parlay" && !validAmerican(b.odds) ? parlayDecimal(b.legs, { ignoreResults: true }) : toDecimal(b.odds); if (d) { s.decSum += d; s.decN++; } }
+      const d = betPriceDecimal(b);
+      if (d) decs.push(d);
     }
     s.staked = r2(s.staked); s.net = r2(s.net); s.exposure = r2(s.exposure); s.toWinPending = r2(s.toWinPending);
     s.settled = s.won + s.lost + s.push + s.cashout;
     s.winRate = s.won + s.lost ? s.won / (s.won + s.lost) : null;   // pushes and cash-outs excluded
     s.roi = s.staked ? s.net / s.staked : null;
-    s.avgOdds = s.decN ? toAmerican(s.decSum / s.decN) : null;     // average of decimal prices, shown as American
+    s.medianOdds = medianAmerican(decs);   // typical price, non-void; not a mean
     return s;
   }
   const roi = (net, staked) => (staked ? net / staked : null);

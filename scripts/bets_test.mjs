@@ -1,5 +1,5 @@
 // Unit tests for the My Bets tracker math (site/assets/bets-core.js). No browser needed.
-// Usage: node scripts/bets_test.mjs
+// Usage: env -u ODDS_API_KEY node scripts/bets_test.mjs
 import { createRequire } from "module";
 import fs from "fs";
 const require = createRequire(import.meta.url);
@@ -114,7 +114,12 @@ check(G({ type: "prop", side: "home" }, F(1, 0)) === null, "props are never auto
   check(s.exposure === 40 && s.toWinPending === 60 && s.pending === 1, "pending exposure $40, to win $60", "roi");
   check(near(s.winRate, 2 / 3, 1e-9), "win rate 2/3", "roi");
   check(C.roi(-50, 200) === -0.25 && C.roi(10, 0) === null, "roi helper (negative, zero staked → n/a)", "roi");
-  check(s.avgOdds === C.toAmerican((C.toDecimal(-110) * 2 + 3 + 2.5) / 4), `avg odds from mean decimal price (${s.avgOdds})`, "roi");
+  {
+    const decs = [-110, -110, 200, 150].map(C.toDecimal).sort((a, b) => a - b);
+    const med = C.toAmerican((decs[1] + decs[2]) / 2);
+    check(s.medianOdds === med && med === 120, `median odds +120 from the two central prices (got ${s.medianOdds})`, "roi");
+    check(s.avgOdds === undefined && !("decSum" in s), "the decimal mean (avgOdds) is not reported", "roi");
+  }
   const cum = C.cumulative([{ ...list[0], date: "2026-10-01" }, { ...list[1], date: "2026-10-03" }, { ...list[2], date: "2026-10-02" }, list[3]]);
   check(cum.length === 3 && cum.map(p => p.v).join() === "100,200,90", `cumulative P/L in date order (${cum.map(p => p.v)})`, "roi");
   const g = C.groupBy([{ ...list[0], book: "draftkings" }, { ...list[1], book: "fanduel" }, { ...list[2], book: "draftkings" }], b => b.book);
@@ -123,6 +128,52 @@ check(G({ type: "prop", side: "home" }, F(1, 0)) === null, "props are never auto
   const now = new Date("2026-10-26T12:00:00");
   const dated = [{ ...list[0], date: "2026-10-24" }, { ...list[1], date: "2026-10-05" }, { ...list[2], date: "2026-07-20" }];
   check(C.filterBets(dated, { range: "7d" }, now).length === 1 && C.filterBets(dated, { range: "30d" }, now).length === 2 && C.filterBets(dated, { range: "season" }, now).length === 2 && C.filterBets(dated, { range: "all" }, now).length === 3, "date filters 7d / 30d / season (Aug 1) / all", "roi");
+}
+
+// ---------- median odds: a few long-shot parlays must not set the typical price
+{
+  const T = "median";
+  const meanAm = odds => { const decs = odds.map(C.toDecimal); return C.toAmerican(decs.reduce((a, d) => a + d, 0) / decs.length); };
+  const at = (odds, extra = {}) => bet({ status: "lost", stake: 10, odds, ...extra });
+
+  check(C.summarize([]).medianOdds === null && C.stats([]).medianOdds === null, "empty set → null", T);
+  check(C.summarize([at(4195447, { status: "void" })]).medianOdds === null, "void-only → null", T);
+
+  const oddPrices = [-110, -110, -110, 150, 4195447];
+  const so = C.summarize(oddPrices.map(o => at(o)));
+  check(so.medianOdds === -110, `odd count: median stays -110 beside one +4,195,447 (got ${so.medianOdds})`, T);
+  check(meanAm(oddPrices) === 839174, "decimal mean of that set is +839174", T);
+
+  const evenPrices = [-110, -110, -110, 150, 150, 4195447];
+  const se = C.summarize(evenPrices.map(o => at(o)));
+  check(se.medianOdds === 120, `even count: two central prices (-110 and +150) → +120 (got ${se.medianOdds})`, T);
+  check(meanAm(evenPrices) === 699337, "decimal mean of that set is +699337", T);
+  check(C.summarize([at(150)]).medianOdds === 150, "one price → that price", T);
+  check(C.summarize([at(-110), at(-110)]).medianOdds === -110, "even count of one price → that price", T);
+
+  check(C.summarize([at(4195447, { status: "void" }), at(-110), at(150)]).medianOdds === 120, "a void long shot is left out of the median", T);
+  const pend = C.summarize([at(-110, { status: "pending" }), at(150), at(4195447)]);
+  check(pend.medianOdds === 150 && pend.exposure === 10 && pend.net === -20 && pend.pending === 1, "pending prices count toward the median; P/L does not include them", T);
+
+  const legs = [{ odds: -110 }, { odds: -110 }];
+  const openParlay = { type: "parlay", stake: 5, status: "lost", legs };
+  check(C.parlayAmerican(legs) === 264 && C.summarize([at(-110), openParlay, at(4195447)]).medianOdds === 264, "parlay with no ticket price uses the leg product (+264)", T);
+  check(C.summarize([at(-110), { ...openParlay, odds: 4195447 }, at(150)]).medianOdds === 150, "a ticket price is used instead of the legs", T);
+
+  // Lost stake is the loss either way. The long-shot price must not change net, ROI, or the record.
+  const book = [bet({ status: "won", odds: -110, stake: 110 }), bet({ status: "lost", odds: -110, stake: 110 }), bet({ status: "lost", odds: 4195447, stake: 5, type: "parlay" })];
+  const sb = C.summarize(book);
+  check(C.netResult(book[2]) === C.netResult(bet({ status: "lost", odds: -110, stake: 5 })) && sb.net === -15 && sb.staked === 225, `profit unchanged by the long-shot price (net ${sb.net} on ${sb.staked})`, T);
+  check(sb.won === 1 && sb.lost === 2 && sb.push === 0 && sb.winRate === 1 / 3 && near(sb.roi, -15 / 225, 1e-9) && sb.medianOdds === -110, "record 1-2-0, ROI -15/225, median -110", T);
+  const st = C.stats(book);
+  check(st.medianOdds === -110 && st.net === sb.net && st.roi === sb.roi && st.won === sb.won && st.lost === sb.lost, "stats() keeps the same median and the same P/L", T);
+  const grouped = C.groupBy(book, () => "all");
+  check(grouped.length === 1 && grouped[0].medianOdds === -110 && grouped[0].net === -15 && grouped[0].roi === sb.roi, "breakdown rows use the same median and P/L", T);
+
+  const csv = C.toCSV(book, b => "");
+  const lines = csv.split("\r\n").filter(Boolean);
+  check(lines.length === book.length + 1 && lines[0].split(",")[7] === "odds" && !/median|avg odds/i.test(lines[0]), "CSV stays one row per bet; no median summary column", T);
+  check(lines[3].split(",")[7] === "4195447", "CSV odds column is that bet's ticket price", T);
 }
 
 // ---------- storage / import / export

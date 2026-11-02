@@ -228,7 +228,7 @@
       ${statBox("Win rate", pct(s.winRate), "pushes excluded")}
       ${statBox("Record (W-L-P)", rec, recSub)}
       ${statBox("Total staked", mv(s.staked), "settled, voids excluded")}
-      ${statBox("Avg odds", s.avgOdds === null ? "—" : am(s.avgOdds), "mean price, non-void")}
+      ${statBox("Median odds", s.medianOdds === null ? "—" : am(s.medianOdds), "typical price, non-void")}
       ${statBox("Biggest win", bw ? mv(bw.net, true) : "—", bw ? esc(describe(bw.bet)) : "no wins yet", bw ? "pos" : "")}
       ${statBox("Streak", streakTxt(s), `longest W${s.longestWin} · L${s.longestLoss}`, curCls)}
       ${statBox("Pending", mv(s.exposure), `${s.pending} open · to win ${mv(s.toWinPending)}`)}

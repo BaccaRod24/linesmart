@@ -348,6 +348,7 @@ async function quiet(page) {
   let ui = await quiet(page);
   check(!ui.pro && !ui.hot && !ui.nav && !ui.bundle, "signed out, even with flags: no Pro UI");
   check(!calls.some(c => c.includes("pro-app")), "signed out: the bundle is not fetched");
+  check(!calls.some(c => c.includes("rankings.json")), "signed out: the rankings snapshot is not requested");
   check(!calls.some(c => c.includes("is_pro")), "signed out: is_pro is not called");
   await page.goto(BASE + "#/g/nfl/401873026", { waitUntil: "domcontentloaded" });
   await page.waitForSelector(".match, .empty", { timeout: 15000 });
@@ -363,6 +364,7 @@ async function quiet(page) {
   await page.goto(BASE + "#/pro/rankings?lg=nfl&view=hit", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#proForm, .pro-head", { timeout: 15000 });
   check(await page.locator("#proRankings").count() === 0 && !/Prop hit rate/.test(await page.locator("#app").innerText()), "signed-out #/pro/rankings stays the waitlist");
+  check(!calls.some(c => c.includes("rankings.json")), "signed-out rankings page does not request the private snapshot");
   check(!errors.length, `signed out: no page errors ${errors.join(" | ")}`);
   await ctx.close();
 }

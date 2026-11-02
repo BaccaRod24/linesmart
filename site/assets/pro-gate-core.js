@@ -136,12 +136,18 @@
   // ignores an ordinary query string. cacheNonce is the parameter it treats as a different object.
   // The value is the site stamp plus a timestamp, so a later upload is fetched even when the stamp
   // has not changed. With no stamp, the timestamp alone is still a new URL.
-  function bundleUrl(base, version, nowMs) {
+  /** Private-bucket object URL. objectName is one file name, not a path. */
+  function storageUrl(base, objectName, version, nowMs) {
+    const name = String(objectName || "");
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) return "";
     const stamp = version == null || version === "" ? "" : String(version);
     const t = String(nowMs == null ? Date.now() : nowMs);
     const nonce = stamp ? stamp + "-" + t : t;
-    return String(base || "").replace(/\/$/, "") + "/storage/v1/object/" + BUCKET + "/" + OBJECT + "?cacheNonce=" + encodeURIComponent(nonce);
+    return String(base || "").replace(/\/$/, "") + "/storage/v1/object/" + BUCKET + "/" + name + "?cacheNonce=" + encodeURIComponent(nonce);
+  }
+  function bundleUrl(base, version, nowMs) {
+    return storageUrl(base, OBJECT, version, nowMs);
   }
 
-  return { ROUTE, BUCKET, OBJECT, RPC, SITE_BUILD, IGNORED_FLAGS, allow, verdict, shouldHide, tokenOf, hasRefresh, expirySec, accessStale, pageContext, idFromPages, isOwnerHash, rpcUrl, bundleUrl };
+  return { ROUTE, BUCKET, OBJECT, RPC, SITE_BUILD, IGNORED_FLAGS, allow, verdict, shouldHide, tokenOf, hasRefresh, expirySec, accessStale, pageContext, idFromPages, isOwnerHash, rpcUrl, storageUrl, bundleUrl };
 });

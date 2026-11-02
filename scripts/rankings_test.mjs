@@ -1,7 +1,10 @@
 // Rankings: season totals and prop hit rate. No network, no Odds API.
 // Usage: env -u ODDS_API_KEY node scripts/rankings_test.mjs
 import { createRequire } from "module";
+import { spawnSync } from "child_process";
 import fs from "fs";
+import os from "os";
+import path from "path";
 
 const require = createRequire(import.meta.url);
 const R = require("../pro/rankings-core.js");
@@ -135,6 +138,17 @@ check(R.basisLabel("season") === "This season vs the current line", "a season ta
   const pub = ["site/index.html", "site/assets/app.js", "site/assets/pro.js", "site/assets/pro-gate.js"].map(f => fs.readFileSync(f, "utf8")).join("\n");
   check(!/fetch\s*\(|the-odds-api|ODDS_API|apiKey/i.test(src), "rankings logic has no network call");
   check(/href\("rankings"\)/.test(ui) && /Prop hit rate/.test(ui) && /Season stats/.test(ui), "the Pro hub links to both views");
+  check(/storageUrl\(AC\.SB_URL, "rankings\.json"/.test(ui) && /Authorization: "Bearer " \+ tok/.test(ui) && !/data\/pro\/rankings/.test(ui), "season stats load the private snapshot with the owner token");
+  const gate = fs.readFileSync(new URL("../site/assets/pro-gate-core.js", import.meta.url), "utf8");
+  const G = require("../site/assets/pro-gate-core.js");
+  const priv = new URL(G.storageUrl("https://example.supabase.co", "rankings.json", "stamp", 1700000000000));
+  check(priv.pathname === "/storage/v1/object/pro-private/rankings.json" && priv.searchParams.get("cacheNonce") === "stamp-1700000000000", "the snapshot URL stays on the private bucket");
+  check(G.storageUrl("https://example.supabase.co", "../site/data/pro/rankings.json", "s", 1) === "", "a path that leaves the bucket is rejected");
+  check(new URL(G.bundleUrl("https://example.supabase.co", "stamp", 1700000000000)).pathname.endsWith("/pro-app.js"), "the bundle URL is unchanged");
+  check(!/data\/pro\/rankings/.test(pub + gate), "public site files do not point at a Pages rankings file");
+  const py = fs.readFileSync(new URL("../scripts/build_data.py", import.meta.url), "utf8");
+  const refresh = py.slice(py.indexOf("def _refresh_rankings"), py.indexOf("\ndef main"));
+  check(refresh.includes('os.path.join(ROOT, "_private", "rankings.json")') && !refresh.includes('os.path.join(OUT, "pro"') && !/the-odds-api|ODDS_API_KEY|odds_api/.test(refresh), "the data refresh writes the snapshot outside site/ and does not call the Odds API");
   check(!/Prop hit rate|data-screen="rankings"|proRankings/.test(pub), "the free site does not render rankings");
   const data = fs.readFileSync(new URL("../pro/rankings-data.js", import.meta.url), "utf8");
   check(!/apiKey|ODDS_API|the-odds-api|copenhaver|@yahoo/i.test(data), "the snapshot has no key and no account");
@@ -153,6 +167,30 @@ check(R.basisLabel("season") === "This season vs the current line", "a season ta
   }
   check(!D.leagues.nhl && !D.leagues.mlb && !D.leagues.ncaaf && !D.leagues.ncaab, "the snapshot does not invent other leagues");
   check(D.leagues.nba.players.some(p => typeof p.tpm === "number" && p.tpm > 0), "the NBA snapshot includes threes made from the box scores");
+}
+
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rk-"));
+  const match = path.join(dir, "matchups");
+  const ros = path.join(dir, "rosters");
+  const site = path.join(dir, "site", "nfl");
+  fs.mkdirSync(match); fs.mkdirSync(ros); fs.mkdirSync(site, { recursive: true });
+  const games = { g: { d: "2026-11-01T18:00Z", h: "1", a: "2", b: { "1": { "10": { py: 250, ptd: 2, att: 30, _c: ["pass"] } } } } };
+  fs.writeFileSync(path.join(match, "nfl.json"), JSON.stringify({ league: "nfl", season: 2026, updated: "2026-11-02T04:45:44Z", games }));
+  fs.writeFileSync(path.join(ros, "nfl.json"), JSON.stringify({ teams: { "1": [["10", "QB One", "QB"]] } }));
+  fs.writeFileSync(path.join(site, "index.json"), JSON.stringify({ games: [{ home: { id: "1", abbr: "AAA" }, away: { id: "2", abbr: "BBB" } }] }));
+  const outJs = path.join(dir, "rankings-data.js");
+  const outJson = path.join(dir, "rankings.json");
+  const built = spawnSync(process.execPath, ["scripts/build_rankings.mjs", "--matchups", match, "--rosters", ros, "--site", path.join(dir, "site"), "--out", outJs, "--json", outJson], { encoding: "utf8" });
+  check(built.status === 0, `builder writes both snapshots (${(built.stderr || "").slice(0, 160)})`);
+  const doc = JSON.parse(fs.readFileSync(outJson, "utf8"));
+  const qb = doc.leagues.nfl.players.find(p => p.id === "10");
+  check(doc.leagues.nfl.boxGames === 1 && doc.leagues.nfl.through === "2026-11-01T18:00Z" && qb && qb.py === 250 && qb.ta === "AAA", "the private snapshot keeps the Sunday box score");
+  check(fs.readFileSync(outJs, "utf8").includes("2026-11-01T18:00Z") && !/the-odds-api|ODDS_API|apiKey/i.test(fs.readFileSync(outJs, "utf8")), "the bundle snapshot matches and has no key");
+  const banned = path.resolve("site/data/pro/rankings-refuse.json");
+  const refused = spawnSync(process.execPath, ["scripts/build_rankings.mjs", "--matchups", match, "--rosters", ros, "--site", path.join(dir, "site"), "--out", path.join(dir, "ignored.js"), "--json", banned], { encoding: "utf8" });
+  check(refused.status === 1 && /refusing to write the snapshot under site/.test(refused.stderr + refused.stdout) && !fs.existsSync(banned), "the builder will not write the snapshot under site/");
+  fs.rmSync(banned, { force: true });
 }
 
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall passed");

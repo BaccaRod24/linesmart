@@ -1,4 +1,4 @@
-window.__PRO_BUILD="820f7955cc-2026-10-30T17:59:40Z";
+window.__PRO_BUILD="820f7955cc-2026-11-02T14:59:33Z";
 /* Hot props for LineSmart Pro. Pure logic: no DOM, no network.
    Input is data/props/<lg>.json (the shape scripts/props.py writes) plus props-core.js.
    Browser: window.HotProps. Node: require("./hot-props-core.js"). */

@@ -34,6 +34,14 @@ with `cacheNonce` set to the deploy stamp plus the current time, which is the qu
 CDN treats as a new object. The `#/owner` hub shows `Pro build … · site …`, and the console
 logs the same build id.
 
+After any change under `pro/`, pack again and replace that object. Do not upload the bundle from CI.
+
+Season rankings read `rankings.json` in the same private bucket, with the same signed-in request
+as the bundle. The 30-minute refresh writes that file outside `site/` and uploads it only when
+the Actions secret `SUPABASE_SERVICE_ROLE` is set. That secret is not in CI today. Until it is
+added in the repo settings (Supabase service role, never committed), the upload skips and the
+page keeps the snapshot packed into the bundle. The file is not published on GitHub Pages.
+
 ## 4. Open Pro
 
 Sign in with the LineSmart account from the statement above, then open `/owner.html`

@@ -254,6 +254,16 @@ jobs:
           grep -q "const VERSION = \"$V\";" site/sw.js && grep -q "const SITE_BUILD = \"$V\";" site/assets/pro-gate-core.js && echo "sw.js VERSION=$V"
           python3 scripts/stamp_build.py --root site --sha "${GITHUB_SHA}"
 
+      # Rankings snapshot for the private bucket. The file lives in _private/, outside the Pages artifact.
+      # SUPABASE_SERVICE_ROLE is not configured today: the script skips and uploads nothing.
+      # It never prints the key. A failed upload does not block the site deploy.
+      - name: Upload private Pro rankings snapshot
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        env:
+          SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+        run: python3 scripts/upload_pro_rankings.py --file _private/rankings.json
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:

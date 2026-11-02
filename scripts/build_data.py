@@ -876,12 +876,18 @@ def write_ncaaf_rankings(fetch, log=print):
         json.dump(body, fh, separators=(",", ":"))
 
 def _refresh_rankings(a, log=print):
-    """Rewrite pro/rankings-data.js from the box-score and props caches already on disk. No odds request."""
+    """Rewrite the rankings snapshot from the box-score and props caches already on disk. No odds request.
+
+    pro/rankings-data.js is the fallback packed into the private bundle. The JSON copy is written
+    outside site/ (_private/rankings.json) for the private-bucket upload. GitHub Pages publishes
+    site/ only, and this file is not part of that artifact.
+    """
     node = shutil.which("node")
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "build_rankings.mjs")
     if not node or not os.path.exists(script) or not a.matchup_cache_dir or not a.roster_cache_dir:
         return
-    cmd = [node, script, "--site", OUT, "--matchups", a.matchup_cache_dir, "--rosters", a.roster_cache_dir]
+    cmd = [node, script, "--site", OUT, "--matchups", a.matchup_cache_dir, "--rosters", a.roster_cache_dir,
+           "--json", os.path.join(ROOT, "_private", "rankings.json")]
     if a.odds_cache_dir:
         cmd += ["--odds", a.odds_cache_dir]
     try:

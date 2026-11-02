@@ -86,6 +86,12 @@ TITLE_MAX = 60
 DESC_MAX = 155
 TITLE_BOOK = {"hardrockbet": "Hard Rock", "draftkings": "DraftKings", "fanduel": "FanDuel"}   # short names for titles/descriptions
 BOOK_TAG = {"hardrockbet": "HR", "draftkings": "DK", "fanduel": "FD"}   # table cells; ties read "DK, FD"
+# Game and player-prop snippets. The description spells the books out. The title uses the short form so the
+# matchup (or player), the date and the comparison still fit in TITLE_MAX. Order matches the way the pages are described.
+COMPARE_BOOKS = "DraftKings, FanDuel and Hard Rock Bet"
+TITLE_BOOKS = "DK, FD & HR"
+# ESPN's short name is longer than the name people search. Used in the <title> and meta description only.
+TITLE_NICK = {"Trail Blazers": "Blazers"}
 BEST_LINES = "best-lines-today/"
 
 # Shared with geo-core.js. The browser file site/assets/books-by-state.js is generated from this JSON.
@@ -251,6 +257,25 @@ def fit(*cands, limit=TITLE_MAX):
         if len(c) <= limit:
             return c
     return clip_words(min(cands, key=len), limit)
+
+
+def prefer_title(cands, limit=TITLE_MAX):
+    """First candidate that fits, in the order given. The brand suffix stays when that candidate still fits with it.
+    A longer readable phrase that fits in `limit` wins over a later shorter one, so a long team name is not swapped
+    for an abbreviation just to keep " | LineSmart"."""
+    cands = [" ".join(str(c).split()) for c in cands if c and str(c).strip()]
+    room = limit - len(SUFFIX)
+    for c in cands:
+        if len(c) <= room:
+            return c + SUFFIX
+        if len(c) <= limit:
+            return c
+    return None
+
+
+def day_in_title(base, day):
+    """True when `day` ('Oct 2') is a date in the title, not the start of a longer day ('Oct 20')."""
+    return bool(day) and re.search(r"(?<!\d)" + re.escape(day) + r"(?!\d)", base or "") is not None
 
 
 def with_extra(base, extra, limit=TITLE_MAX):
@@ -1616,31 +1641,89 @@ def line_desc(L, g, v0, day, books, bnames, mk, has_props):
     return _legacy_line_desc(v0, day, bnames, mk, has_props, L.lg)
 
 
-def upcoming_title_cands(L, g, vs, mk, dt):
-    """Title candidates for an upcoming or live game. Finished games do not use this."""
+def title_side(t):
+    """Short name for a <title> or meta description. 'Trail Blazers' becomes 'Blazers'."""
+    name = pv.side_name(t)
+    return TITLE_NICK.get(name, name)
+
+
+def title_vs(g):
+    """Away vs home for a snippet: nicknames, then abbreviations when the nicknames are too long."""
+    a, h = g["away"], g["home"]
+    sa, shn = title_side(a), title_side(h)
+    if sa == shn:
+        sa, shn = tname(a), tname(h)
+    return f"{sa} vs {shn}", f"{a.get('abbr') or sa} vs {h.get('abbr') or shn}"
+
+
+def _cap_sentence(s):
+    s = " ".join((s or "").split())
+    if not s:
+        return ""
+    if s[-1] not in ".!?":
+        s += "."
+    return s[:1].upper() + s[1:]
+
+
+def _snippet_markets(kind, mk, has_props):
+    """Neutral market list for a meta description. No line numbers, no pick."""
+    if mk:
+        words = list(mk)
+    elif kind == "hockey":
+        words = ["puck line", "total", "moneyline"]
+    elif kind == "baseball":
+        words = ["run line", "total", "moneyline"]
+    elif kind == "mma":
+        words = ["moneyline"]
+    else:
+        words = ["spread", "total", "moneyline"]
+    if has_props and "player props" not in words:
+        words.append("player props")
+    return _cap_sentence(and_list(words)) if words else ""
+
+
+def _line_fact(g, books):
+    """Posted number, stated as a fact: 'Bills -2.5, total 48.5.' Empty when the books disagree on the side."""
+    phrase = spread_phrase(g, books)
+    total = _total_bit(books)
+    bits = [b for b in (phrase, total) if b]
+    return _cap_sentence(", ".join(bits)) if bits else ""
+
+
+def compare_title_cands(g, dt):
+    """Upcoming / live game titles. Matchup, date, and the three-book comparison, longest readable form first."""
     D = short_day(dt, False)
-    if L.lg == "ufc":
-        if pv.has_line(g):
-            return [f"{v} Odds ({D})" for v in vs] + [f"{v} Odds" for v in vs]
-        out = []
-        for v in vs:
-            out += [f"{v} Odds & Preview ({D})", f"{v} Odds ({D})"]
-        return out
-    v0, v1 = _vs_forms(g)
-    if not pv.has_line(g):
-        return [f"{v0} Odds & Preview ({D})", f"{v0} Odds ({D})", f"{v1} Odds & Preview ({D})", f"{v1} Odds ({D})"]
-    M, M1 = title_markets(mk), _market_one(mk)
-    if not M:
-        return [f"{v0} Odds ({D})", f"{v1} Odds ({D})", f"{v0} Odds", f"{v1} Odds"]
-    return [
-        f"{v0} Odds, {M} ({D})",
-        f"{v0} Odds & {M1} ({D})",
-        f"{v0} Odds, {M}",
-        f"{v0} Odds ({D})",
-        f"{v1} Odds, {M} ({D})",
-        f"{v1} Odds ({D})",
-        f"{v1} Odds",
-    ]
+    v0, v1 = title_vs(g)
+    return [f"{v0} Odds: {TITLE_BOOKS} ({D})", f"{v1} Odds: {TITLE_BOOKS} ({D})"]
+
+
+def compare_game_desc(L, g, dt, mk, has_props):
+    """Meta description: matchup, date, and DraftKings, FanDuel and Hard Rock Bet. A posted number is included when it fits."""
+    v0, v1 = title_vs(g)
+    day, clock, lg = title_day(dt), clock_et(dt), SHORT[L.lg]
+    books = posted_books(g, L.lg)
+    fact = _line_fact(g, books) if pv.has_line(g) and books else ""
+    markets = _snippet_markets(L.kind, mk, has_props)
+    extras = [e for e in (fact, markets) if e]
+    for subj in (v0, v1):
+        for when in (f"{day}, {clock}", day):
+            head = f"Compare {subj} {lg} odds for {when} across {COMPARE_BOOKS}."
+            for extra in extras + [""]:
+                text = head if not extra else f"{head} {extra}"
+                if len(text) <= DESC_MAX:
+                    return text
+    return cut(f"Compare {v1} {lg} odds for {day} across {COMPARE_BOOKS}.")
+
+
+def upcoming_title_cands(L, g, vs, mk, dt):
+    """Title candidates for an upcoming or live UFC fight. Team sports use compare_title_cands()."""
+    D = short_day(dt, False)
+    if pv.has_line(g):
+        return [f"{v} Odds ({D})" for v in vs] + [f"{v} Odds" for v in vs]
+    out = []
+    for v in vs:
+        out += [f"{v} Odds & Preview ({D})", f"{v} Odds ({D})"]
+    return out
 
 
 def game_h1(L, g):
@@ -1854,8 +1937,9 @@ def game_intro(L, g, gid):
 
 def game_meta(L: League, g, gid):
     """Search-style <title> and meta description for a game / fight page.
-    Upcoming / live: "Ravens vs Bills Odds, Spread & Total (Nov 1) | LineSmart" (date in ET; books stay in the description).
-    Finished: "Cardinals vs Cowboys Result & Closing Odds (27-20) | LineSmart". UFC: "Fighter vs Fighter Odds (Nov 7)"."""
+    Upcoming / live: "Ravens vs Bills Odds: DK, FD & HR (Nov 1) | LineSmart" and a description that names the matchup,
+    the date, and compares DraftKings, FanDuel and Hard Rock Bet. Long names drop the brand suffix before they drop
+    to abbreviations. UFC stays DraftKings-only. Finished games keep the result title."""
     a, h = g["away"], g["home"]
     dt = parse_dt(g["date"])
     final = L.is_final(g)
@@ -1902,12 +1986,16 @@ def game_meta(L: League, g, gid):
         if len(desc) > DESC_MAX:
             desc = head + (" Closing odds and line movement." if closing else "")
     else:
-        title = fit(*upcoming_title_cands(L, g, vs, mk, dt))
-        v0 = vs[0] if L.lg == "ufc" else _vs_forms(g)[0]
-        if pv.has_line(g):
-            desc = line_desc(L, g, v0, day, posted_books(g, L.lg), bnames, mk, has_props)
+        if L.lg == "ufc":
+            title = fit(*upcoming_title_cands(L, g, vs, mk, dt))
+            v0 = vs[0]
+            if pv.has_line(g):
+                desc = line_desc(L, g, v0, day, posted_books(g, L.lg), bnames, mk, has_props)
+            else:
+                desc = f"{v0} odds for {day}: lines appear here as soon as books post them. Fighter records and recent results."
         else:
-            desc = f"{v0} odds for {day}: lines appear here as soon as books post them." + (" Player props, form and injuries." if has_props else " Records, form and injuries." if L.lg != "ufc" else " Fighter records and recent results.")
+            title = prefer_title(compare_title_cands(g, dt)) or fit(*compare_title_cands(g, dt))
+            desc = compare_game_desc(L, g, dt, mk, has_props)
     return title, cut(desc)
 
 
@@ -1997,6 +2085,99 @@ def game_page(L: League, sh: Shell, gid):
 
 
 # ---------------------------------------------------------------- player props pages
+def _player_dt(L, e):
+    """Date for a prop snippet: the next listed game, or the last time we saw a line."""
+    for gid, _r in e.get("rows") or []:
+        g = L.games.get(gid)
+        if g and parse_dt(g.get("date")):
+            return g, parse_dt(g["date"])
+    return None, parse_dt(e.get("seen"))
+
+
+def _prop_bits(L, rows, n=3):
+    """Factual market phrases, longest list first: 'Rushing yards 68.5', 'anytime TD'."""
+    bits = []
+    for _gid, r in rows or []:
+        if len(bits) >= n:
+            break
+        mk = r[1]
+        label = (L.markets.get(mk) or [str(mk)])[0]
+        if mk == "anytime_td":
+            bits.append("anytime TD")
+        elif len(r) > 2 and isnum(r[2]):
+            bits.append(f"{label} {num(r[2])}")
+        else:
+            bits.append(str(label))
+    return bits
+
+
+def player_meta(L: League, pid):
+    """<title> and meta description for a player-prop page.
+    'Josh Jacobs (GB) Props: DK, FD & HR (Oct 29) | LineSmart'. The description names the player, the date and
+    compares DraftKings, FanDuel and Hard Rock Bet. A long name keeps the date by dropping to the last name."""
+    e = L.players[pid]
+    pl = e["p"]
+    name = " ".join(((pl.get("n") or pid) or "").split()) or pid
+    ta = " ".join(((pl.get("ta") or "")).split())
+    last = short_person(name)
+    nxt, dt = _player_dt(L, e)
+    D = short_day(dt, False) if dt else ""
+    day = title_day(dt) if dt else ""
+    lg = SHORT[L.lg]
+    cands = []
+    if D and ta:
+        cands.append(f"{name} ({ta}) Props: {TITLE_BOOKS} ({D})")
+    if D:
+        cands.append(f"{name} Props: {TITLE_BOOKS} ({D})")
+    if D and last and last != name:
+        if ta:
+            cands.append(f"{last} ({ta}) Props: {TITLE_BOOKS} ({D})")
+        cands.append(f"{last} Props: {TITLE_BOOKS} ({D})")
+    if ta:
+        cands.append(f"{name} ({ta}) Props: {TITLE_BOOKS}")
+    cands.append(f"{name} Props: {TITLE_BOOKS}")
+    if last and last != name:
+        cands.append(f"{last} {lg} Props")
+        cands.append(f"{last} Props")
+    title = prefer_title(cands) or fit(*cands)
+    who = f"{name} ({ta})" if ta else name
+    heads = []
+    if nxt and day:
+        mu = L.matchup(nxt, short=True)
+        a, h = nxt["away"], nxt["home"]
+        mu_abbr = f"{a.get('abbr') or title_side(a)} at {h.get('abbr') or title_side(h)}" if not nxt.get("neutral") else f"{a.get('abbr') or title_side(a)} vs {h.get('abbr') or title_side(h)}"
+        heads += [
+            f"Compare {who} {lg} props for {mu} on {day} across {COMPARE_BOOKS}.",
+            f"Compare {name} {lg} props for {mu} on {day} across {COMPARE_BOOKS}.",
+            f"Compare {who} {lg} props for {mu_abbr} on {day} across {COMPARE_BOOKS}.",
+            f"Compare {name} {lg} props for {day} across {COMPARE_BOOKS}.",
+        ]
+    elif day:
+        heads += [
+            f"Compare {who} {lg} props for {day} across {COMPARE_BOOKS}.",
+            f"Compare {name} {lg} props for {day} across {COMPARE_BOOKS}.",
+        ]
+    else:
+        heads.append(f"Compare {who} {lg} props across {COMPARE_BOOKS}.")
+    if last and last != name and day:
+        heads.append(f"Compare {last} ({ta}) {lg} props for {day} across {COMPARE_BOOKS}." if ta else f"Compare {last} {lg} props for {day} across {COMPARE_BOOKS}.")
+    bits = _prop_bits(L, e.get("rows"))
+    desc = ""
+    for head in heads:
+        if len(head) > DESC_MAX:
+            continue
+        desc = head
+        for k in range(len(bits), 0, -1):
+            tail = _cap_sentence(and_list(bits[:k]))
+            if len(head) + 1 + len(tail) <= DESC_MAX:
+                desc = f"{head} {tail}"
+                break
+        break
+    if not desc:
+        desc = cut(heads[-1] if heads else f"Compare {name} {lg} props across {COMPARE_BOOKS}.")
+    return title, desc
+
+
 def player_page(L: League, sh: Shell, pid):
     e = L.players[pid]
     pl, path = e["p"], e["path"]
@@ -2048,19 +2229,7 @@ def player_page(L: League, sh: Shell, pid):
                + "".join(f"<th>{esc((L.markets.get(m) or [m, m])[1])}</th>" for m in mks) + f"</tr></thead><tbody>{log_rows}</tbody></table></div></div>") if log_rows else ""
     when = f"{L.matchup(nxt, short=True)}, {fmt_et(parse_dt(nxt['date']))}" if nxt else ""
     stale = e.get("archived")
-    last = short_person(name)
-    title = fit(
-        f"{name} Props: Lines & Last-5 Results ({ta})" if ta else "",
-        f"{name} Props: Lines & Last-5 Results",
-        f"{name} Props & Last-5 Results ({SHORT[L.lg]})",
-        f"{name} Props & Last-5 Results",
-        f"{name} Props ({ta})" if ta else "",
-        f"{name} {SHORT[L.lg]} Props",
-        f"{name} Props",
-        f"{last} {SHORT[L.lg]} Props" if last and last != name else "",
-        f"{last} Props" if last else "")
-    mk_txt = ", ".join(f"{(L.markets.get(r[1]) or [r[1]])[1]} {num(r[2])}" if r[1] != "anytime_td" else "anytime TD" for _, r in rows[:3])
-    desc = cut(f"{name} ({pl.get('pos') or ''}, {tname(team)}) player props" + (f" for {when}" if when else "") + f": {mk_txt}. Last-5 results against each line, season over/under counts and game log.")
+    title, desc = player_meta(L, pid)
     note = (f'<p class="sx-stale">No new lines posted for {esc(name)} right now. These are the last lines we saw ({esc(fmt_et(seen, False))}).</p>' if stale and seen else "")
     main = f"""<article class="pv sx-player">
 {crumbs((L.hub, NAMES[L.lg]), (f"{L.hub}#players-s", "Player props"), (None, name))}
@@ -3512,7 +3681,8 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
     pages, titles, stats = {}, {}, {}
     manifest = {"generated": iso(now), "l": {}, "g": {}, "t": {}, "p": {}}
 
-    game_days = {}   # game path -> "Oct 27" (title tie-breaker for series / rematches)
+    game_days = {}    # game path -> "Oct 27" (title tie-breaker for series / rematches)
+    game_clocks = {}  # game path -> "8:00 PM ET" (same-day collisions, once the date is already in the title)
 
     def put(path, html, title, kind, lg):
         pages[path] = html
@@ -3528,6 +3698,7 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
             html, t = game_page(L, sh, gid)
             put(L.paths[gid], html, t, "past" if L.is_final(L.games[gid]) else "game", lg)
             game_days[L.paths[gid]] = short_day(parse_dt(L.games[gid]["date"]), False)
+            game_clocks[L.paths[gid]] = clock_et(parse_dt(L.games[gid]["date"]))
             manifest["g"].setdefault(lg, {})[gid] = L.paths[gid]
         for pid in L.players:
             html, t = player_page(L, sh, pid)
@@ -3554,7 +3725,8 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
     html, t = best_lines_page(Ls, sh, now, base_url)
     put(BEST_LINES, html, t, "core", None)
     # titles must be unique. Same matchup on several dates (series, rematches): every one of those game pages gets its
-    # date; anything still colliding gets the page's own path. og:title / twitter:title follow the <title>.
+    # date. Upcoming titles already carry the date, so a same-day collision (a doubleheader) gets the start time
+    # instead of the date twice. Anything still colliding gets the page's own path. og:title / twitter:title follow the <title>.
     def retitle(p, old, new):
         h = pages[p]
         for a, b in ((f"<title>{esc(old)}</title>", f"<title>{esc(new)}</title>"),
@@ -3569,7 +3741,9 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
         base = bare_title(t)
         for p in ps:
             if len(ps) > 1 and p in game_days:
-                retitle(p, t, with_extra(base, f", {game_days[p]}"))
+                day = game_days[p]
+                extra = ", " + game_clocks.get(p, day) if day_in_title(base, day) else f", {day}"
+                retitle(p, t, with_extra(base, extra))
             else:
                 titles2.setdefault(t, []).append(p)
     # list() so retitle() can add the disambiguated title without changing the dict mid-loop

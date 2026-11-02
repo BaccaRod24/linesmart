@@ -861,6 +861,55 @@ Over 0.5
 KIRK COUSINS - TO RECORD 1+ PASSING TDS`;
   const ts = S.parseSlip(split, idx, { now }).tickets[0];
   check(ts && ts.stake === 150 && ts.payout === 508 && ts.odds === 239 && ts.legs.length === 3 && ts.legs.every(l => l.odds == null), `group price on its own line is not a leg price (stake ${ts && ts.stake}, leg odds ${(ts && ts.legs || []).map(l => l.odds).join(",")})`, tag);
+
+  const badge = S.parseSlip(`S6PMAX 4-Bet Parlay +993
+888 Ravens @ Bills -428
+Over 0.5
+LAMAR JACKSON - TO RECORD 1+ PASSING TDS
+[8 Falcons @ Buccaneers -249
+Over 0.5
+BAKER MAYFIELD - TO RECORD 1+ PASSING TDS`, idx, { now }).tickets[0];
+  check(badge && badge.book === "hardrock" && badge.odds === 993 && badge.legs.length === 2 && badge.legs.every(l => l.pmk === "pass_tds" && l.odds == null), `OCR badge in front of a group header is not an extra leg (book ${badge && badge.book}, legs ${badge && badge.legs.length})`, tag);
+
+  const withFinal = S.bestOcrTicket([
+    `Hard Rock Bet\nWINNER\n3-Bet Parlay +531\nUnder 9.5 -130\nCADE CUNNINGHAM - ASSISTS\n9.5`,
+    `Under 9.5 -130\nCADE CUNNINGHAM - ASSISTS\n4`,
+  ]);
+  check(withFinal && withFinal.legs.length === 1 && withFinal.legs[0].statValue === 4 && withFinal.legs[0].result === "won", `a second OCR pass keeps the printed final (got ${withFinal && withFinal.legs[0] && withFinal.legs[0].statValue})`, tag);
+  const noFin = S.parseSlip(`Over 0.5\nJOSH ALLEN - TO RECORD 1+ PASSING TDS\n9 Today, 1:00pm EST`, idx, { now }).tickets[0];
+  check(noFin && noFin.legs.length === 1 && noFin.legs[0].statValue == null && !noFin.status, "a digit glued to Today is not a final", tag);
+  const twice = S.parseSlip(`Under 9.5 -130
+CADE CUNNINGHAM - ASSISTS
+9.5
+Over 25.5 -110
+TYRESE MAXEY - POINTS
+25.5
+Under 9.5 -115
+BAM ADEBAYO - REBOUNDS
+9.5
+Under 9.5 -130
+CADE CUNNINGHAM - ASSISTS
+4
+Over 25.5 -110
+TYRESE MAXEY - POINTS
+27
+Under 9.5 -115
+BAM ADEBAYO - REBOUNDS
+9`).tickets[0];
+  check(twice && twice.legs.length === 3 && twice.legs.map(l => l.statValue).join(",") === "4,27,9", `repeated legs keep the printed finals (got ${twice && twice.legs.map(l => l.statValue).join(",")})`, tag);
+  const junk = S.parseSlip(`3-Bet Parlay +531
+Under 9.5 -130
+CADE CUNNINGHAM - ASSISTS
+4
+CEE
+Over 25.5 -110
+TYRESE MAXEY - POINTS
+27
+EEE
+Under 9.5 -115
+BAM ADEBAYO - REBOUNDS
+9`).tickets[0];
+  check(junk && junk.legs.length === 3 && junk.legs.map(l => l.statValue).join(",") === "4,27,9", `OCR junk between legs does not steal the line (got ${junk && junk.legs.map(l => l.player + ":" + l.statValue).join(",")})`, tag);
 }
 
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall slip import tests passed");

@@ -36,6 +36,8 @@
     if (/\b\d+\s*-?\s*pick\s+parlays?\b/i.test(text)) return { key: "draftkings", name: "DraftKings" };
     if (/@\s*open\b/i.test(text) && /\b(parlay|pick)\b/i.test(text)) return { key: "draftkings", name: "DraftKings" };
     if (/\bto\s+pay\b/i.test(text) && /\b(\d+\s*-?\s*pick|parlay)\b/i.test(text)) return { key: "draftkings", name: "DraftKings" };
+    // Hard Rock chrome when the logo is a picture: "SGPMAX" / "4-Bet Parlay" (DraftKings says "4 Pick Parlay").
+    if (/\b\d+\s*-?\s*bet\s+parlays?\b/i.test(text) || /s[g6]p\s*m[a@]x/i.test(text)) return { key: "hardrock", name: "Hard Rock Bet" };
     return null;
   }
 
@@ -206,7 +208,7 @@
 
   /** "SGP Ravens @ Bills -428" is a game, not a parlay header. Group price is not the ticket odds. */
   function gameLine(s) {
-    let t = String(s || "").replace(/^(?:sgp\s*max|sgpx|sgp)\b[:\s-]*/i, "").replace(/^\([^)]{1,12}\)\s*/, "").replace(/^[A-Za-z0-9$]{1,6}\)\s+/, "").trim();
+    let t = String(s || "").replace(/^(?:sgp\s*max|sgpx|sgp)\b[:\s-]*/i, "").replace(/^\([^)]{1,12}\)\s*/, "").replace(/^[A-Za-z0-9$]{1,6}\)\s+/, "").replace(/^\[[^\]]{0,8}\]?\s*/, "").replace(/^(?:[A-Za-z]?\d{1,4})\s+/, "").trim();
     t = t.replace(/\s+[+-]\d{3,5}\s*$/, "").trim();
     const ev = splitEvent(t);
     return ev;
@@ -645,6 +647,7 @@
               break;
             }
             const numOnly = /^[\d]+(?:\.\d+)?$/.test(String(tok.text || "").trim());
+            if (numOnly && /today|tonight|\d{1,2}:\d{2}/i.test(line)) break;
             if (L && numOnly && isNum(L.line) && L.statValue == null) {
               const n = parseFloat(tok.text), ln = Number(L.line);
               const echo = Math.abs(n - ln) < 1e-6 || Math.abs(n - ln * 10) < 0.2;
@@ -668,7 +671,9 @@
             if (L && L.kind === "prop" && !L.ou && L.odds === null && tok.kind === "total" && !P.event && !P.market) { Object.assign(L, { ou: tok.ou, line: tok.line, odds: isNum(tok.odds) ? tok.odds : null, text: `${L.text} ${tok.text}` }); break; }
             // two-line selections: a bare name followed by "Over 26.5 Points" / "-3.5" belongs to the same leg
             if (L && L.kind === "name" && !L.ou && !L.market && !L.event && !P.event && !P.market && (L.odds === null || !isNum(tok.odds))) {
-              if ((tok.kind === "total" || (tok.kind === "prop" && !tok.player)) && !L.isTeamName) { Object.assign(L, { kind: "prop", player: L.name, ou: tok.ou, line: tok.line, pmk: tok.pmk || null, slg: tok.slg || null, odds: isNum(tok.odds) ? tok.odds : L.odds, text: `${L.text} ${tok.text}` }); break; }
+              const nw = String(L.name || "").split(" ").filter(Boolean);
+              const nameOk = nw.length >= 2 || (nw.length === 1 && nw[0].length >= 4);
+              if (nameOk && (tok.kind === "total" || (tok.kind === "prop" && !tok.player)) && !L.isTeamName) { Object.assign(L, { kind: "prop", player: L.name, ou: tok.ou, line: tok.line, pmk: tok.pmk || null, slg: tok.slg || null, odds: isNum(tok.odds) ? tok.odds : L.odds, text: `${L.text} ${tok.text}` }); break; }
               if (tok.kind === "total" && L.isTeamName) { Object.assign(L, { kind: "other", teamTotal: true, ou: tok.ou, line: tok.line, odds: isNum(tok.odds) ? tok.odds : null, text: `${L.text} ${tok.text}` }); break; }
             }
             startLeg(tok); selThisLine = true; break;
@@ -829,13 +834,17 @@
         if (!prev.pmk && l.pmk) prev.pmk = l.pmk;
         if (!isNum(prev.line) && isNum(l.line)) prev.line = l.line;
         if (!prev.ou && l.ou) prev.ou = l.ou;
+        if (!isNum(prev.statValue) && isNum(l.statValue)) {
+          prev.statValue = l.statValue;
+          prev.result = gradeStat(prev.ou, prev.line, l.statValue) || prev.result;
+        }
         continue;
       }
       kept.push(l);
     }
     T.legs = kept.filter(l => {
       const raw = String(l.text || "").replace(/^(?:sgp\s*max|sgpx|sgp)\b[:\s-]*/i, "").trim();
-      if ((l.kind === "ml" || l.kind === "other" || l.kind === "name") && gameLine(raw)) return false;
+      if (gameLine(raw) && !(l.player && l.ou && isNum(l.line))) return false;
       return true;
     });
     T.legs = T.legs.filter(l => {
@@ -1261,6 +1270,10 @@
           if (!prev.when && l.when) prev.when = l.when;
           if (!isNum(prev.line) && isNum(l.line)) prev.line = l.line;
           if (!prev.ou && l.ou) prev.ou = l.ou;
+          if (!isNum(prev.statValue) && isNum(l.statValue)) {
+            prev.statValue = l.statValue;
+            prev.result = gradeStat(prev.ou, prev.line, l.statValue) || prev.result;
+          }
           continue;
         }
         merged.push({ ...l });

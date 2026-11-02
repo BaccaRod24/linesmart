@@ -613,16 +613,26 @@
     const leagues = window.RankingsData && window.RankingsData.leagues;
     return (leagues && leagues[lg]) || null;
   }
-  /** Season totals from the Pages snapshot. The bundle copy is only the fallback. */
+  /** Season totals from the private bucket. The packed snapshot is the fallback. */
   async function loadRankPack(lg) {
     const baked = bakedRankPack(lg);
-    const api = A();
-    if (!api || !api.getJSON) return baked;
+    const AC = window.AcctCore, GC = window.ProGateCore;
+    if (!AC || !GC || !GC.storageUrl || !GC.tokenOf) return baked;
+    let tok = "";
+    try { tok = GC.tokenOf(localStorage.getItem(AC.AUTH_KEY) || ""); } catch (e) { tok = ""; }
+    if (!tok) return baked;
+    const url = GC.storageUrl(AC.SB_URL, "rankings.json", GC.SITE_BUILD);
+    if (!url) return baked;
     try {
-      const doc = await api.getJSON("data/pro/rankings.json");
+      const res = await fetch(url, {
+        headers: { apikey: AC.SB_KEY, Authorization: "Bearer " + tok, Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (!res.ok) return baked;
+      const doc = await res.json();
       const live = doc && doc.leagues && doc.leagues[lg];
       if (live && Array.isArray(live.players) && live.players.length) return live;
-    } catch (e) { /* file not deployed yet; the packed snapshot still renders */ }
+    } catch (e) { /* private snapshot missing; the packed copy still renders */ }
     return baked;
   }
   async function viewRankings() {

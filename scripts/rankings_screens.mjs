@@ -11,6 +11,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const pack = spawnSync(process.execPath, ["scripts/pack_pro_bundle.mjs"], { encoding: "utf8" });
 if (pack.status !== 0) { console.error(pack.stdout, pack.stderr); process.exit(1); }
 const bundle = fs.readFileSync("pro/dist/pro-app.js");
+let privateRankings = null;
 
 const OWNER_TOKEN = "test-owner-token";
 const session = {
@@ -50,6 +51,11 @@ async function make(width, height) {
     if (u.pathname.includes("/storage/v1/object/pro-private/pro-app.js")) {
       if (!owner) return json(403, {});
       return route.fulfill({ status: 200, headers: { ...cors, "content-type": "text/javascript" }, body: bundle });
+    }
+    if (u.pathname.includes("/storage/v1/object/pro-private/rankings.json")) {
+      if (!owner) return json(403, {});
+      if (!privateRankings) return json(404, { error: "missing" });
+      return json(200, privateRankings);
     }
     if (u.pathname.startsWith("/auth/v1/token")) return json(200, session);
     if (u.pathname.startsWith("/auth/v1/user")) return json(200, session.user);
@@ -109,9 +115,7 @@ for (const [file, width, height, hash, view, lg, need] of shots) {
 }
 
 {
-  const livePath = path.join(root, "data/pro/rankings.json");
-  fs.mkdirSync(path.dirname(livePath), { recursive: true });
-  const live = {
+  privateRankings = {
     v: 1,
     leagues: {
       nfl: {
@@ -122,22 +126,21 @@ for (const [file, width, height, hash, view, lg, need] of shots) {
       },
     },
   };
-  fs.writeFileSync(livePath, JSON.stringify(live));
-  try {
-    const { ctx, page } = await make(1280, 900);
-    await page.goto(BASE + "#/pro/rankings?lg=nfl&pos=QB&view=season", { waitUntil: "domcontentloaded" });
-    await page.waitForSelector("#proRankings .rk-table tbody tr", { timeout: 20000 });
-    const table = await page.locator("#proRankings").innerText();
-    if (!table.includes("Sunday Sample")) fails.push("live snapshot ignored");
-    if (!/120 regular-season games/.test(table) || !/Nov 1/.test(table)) fails.push("live snapshot through date missing: " + table.slice(0, 240));
-    if (/Matthew Stafford/.test(table)) fails.push("baked snapshot used instead of the Pages file");
-    await page.screenshot({ path: path.join(OUT, "rankings_live_snapshot_desktop.png"), fullPage: true });
-    console.log("saved rankings_live_snapshot_desktop.png");
-    await ctx.close();
-  } finally {
-    fs.rmSync(livePath, { force: true });
-    try { fs.rmdirSync(path.dirname(livePath)); } catch (e) { /* leave the directory if it still holds something */ }
-  }
+  const { ctx, page } = await make(1280, 900);
+  const hits = [];
+  page.on("request", req => { if (req.url().includes("rankings.json")) hits.push(req.url() + " " + (req.headers().authorization || "")); });
+  await page.goto(BASE + "#/pro/rankings?lg=nfl&pos=QB&view=season", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("#proRankings .rk-table tbody tr", { timeout: 20000 });
+  const table = await page.locator("#proRankings").innerText();
+  if (!table.includes("Sunday Sample")) fails.push("private snapshot ignored");
+  if (!/120 regular-season games/.test(table) || !/Nov 1/.test(table)) fails.push("private snapshot through date missing: " + table.slice(0, 240));
+  if (/Matthew Stafford/.test(table)) fails.push("baked snapshot used instead of the private object");
+  if (!hits.some(h => h.includes("/storage/v1/object/pro-private/rankings.json") && h.includes("Bearer " + OWNER_TOKEN))) fails.push("rankings snapshot was not requested with the owner token");
+  if (fs.existsSync(path.join(root, "data/pro/rankings.json"))) fails.push("a public rankings file was written under site/");
+  await page.screenshot({ path: path.join(OUT, "rankings_private_snapshot_desktop.png"), fullPage: false });
+  console.log("saved rankings_private_snapshot_desktop.png");
+  await ctx.close();
+  privateRankings = null;
 }
 
 await browser.close();

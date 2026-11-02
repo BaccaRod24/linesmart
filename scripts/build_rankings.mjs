@@ -1,10 +1,9 @@
 // Build the Pro rankings snapshot from caches already on disk.
 // No network and no Odds API call. Missing caches leave the current files alone.
-// pro/rankings-data.js is the copy packed into the private bundle (fallback).
-// --json writes the same snapshot for GitHub Pages (site/data/pro/rankings.json).
-// The rankings page reads that file, so a later refresh updates it without another upload.
+// pro/rankings-data.js is the fallback packed into the private bundle.
+// --json writes the same snapshot for the private bucket upload (never under site/).
 // Usage:
-//   node scripts/build_rankings.mjs --matchups _history/matchups --rosters _history/rosters --odds _history/odds --site site/data --json site/data/pro/rankings.json
+//   node scripts/build_rankings.mjs --matchups _history/matchups --rosters _history/rosters --odds _history/odds --site site/data --json _private/rankings.json
 import { createRequire } from "module";
 import fs from "fs";
 import path from "path";
@@ -24,6 +23,11 @@ const oddsDir = arg("--odds", "");
 const siteDir = arg("--site", path.join(root, "site/data"));
 const outPath = arg("--out", path.join(root, "pro/rankings-data.js"));
 const jsonPath = arg("--json", "");
+const siteRoot = path.resolve(root, "site");
+function underSite(p) {
+  const abs = path.resolve(p);
+  return abs === siteRoot || abs.startsWith(siteRoot + path.sep);
+}
 
 function readJson(p) {
   try { return JSON.parse(fs.readFileSync(p, "utf8")); }
@@ -104,6 +108,10 @@ fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, body);
 console.log("[rankings] wrote", outPath, Buffer.byteLength(body), "bytes");
 if (jsonPath) {
+  if (underSite(jsonPath)) {
+    console.error("[rankings] refusing to write the snapshot under site/");
+    process.exit(1);
+  }
   fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
   const json = JSON.stringify(data);
   fs.writeFileSync(jsonPath, json);

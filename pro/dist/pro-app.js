@@ -1,4 +1,4 @@
-window.__PRO_BUILD="4d07cf2670-2026-11-02T14:52:06Z";
+window.__PRO_BUILD="820f7955cc-2026-11-02T14:59:33Z";
 /* Hot props for LineSmart Pro. Pure logic: no DOM, no network.
    Input is data/props/<lg>.json (the shape scripts/props.py writes) plus props-core.js.
    Browser: window.HotProps. Node: require("./hot-props-core.js"). */
@@ -1585,22 +1585,6 @@ window.__PRO_CSS = "/* Injected with the private Pro bundle. Not shipped in site
     } catch (e) { /* no props file for this league */ }
     return null;
   }
-  function bakedRankPack(lg) {
-    const leagues = window.RankingsData && window.RankingsData.leagues;
-    return (leagues && leagues[lg]) || null;
-  }
-  /** Season totals from the Pages snapshot. The bundle copy is only the fallback. */
-  async function loadRankPack(lg) {
-    const baked = bakedRankPack(lg);
-    const api = A();
-    if (!api || !api.getJSON) return baked;
-    try {
-      const doc = await api.getJSON("data/pro/rankings.json");
-      const live = doc && doc.leagues && doc.leagues[lg];
-      if (live && Array.isArray(live.players) && live.players.length) return live;
-    } catch (e) { /* file not deployed yet; the packed snapshot still renders */ }
-    return baked;
-  }
   async function viewRankings() {
     const Rk = window.Rankings;
     if (!Rk) return shell("rankings", "Rankings", "Top 10 by position.", `<p class="pro-empty">Rankings didn't load.</p>`);
@@ -1611,7 +1595,7 @@ window.__PRO_CSS = "/* Injected with the private Pro bundle. Not shipped in site
     const pos = spec ? spec.id : "";
     const view = st.view === "hit" ? "hit" : "season";
     const label = (Rk.LEAGUES.find(([id]) => id === lg) || [, lg.toUpperCase()])[1];
-    const pack = await loadRankPack(lg);
+    const pack = (window.RankingsData && window.RankingsData.leagues && window.RankingsData.leagues[lg]) || null;
     const statMode = Rk.resolveStat(lg, pos, st.stat, pack && pack.players);
     const statId = statMode ? statMode.id : "";
     const chips = `<div class="chips" role="group" aria-label="League">${Rk.LEAGUES.map(([id, name]) => `<a class="chip${id === lg ? " on" : ""}" href="${rankHash({ lg: id })}"${id === lg ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;

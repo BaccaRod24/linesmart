@@ -255,7 +255,7 @@ jobs:
           python3 scripts/stamp_build.py --root site --sha "${GITHUB_SHA}"
 
       # Rankings snapshot for the private bucket. The file lives in _private/, outside the Pages artifact.
-      # SUPABASE_SERVICE_ROLE is not configured today: the script skips and uploads nothing.
+      # SUPABASE_SERVICE_ROLE is configured. The private upload returns HTTP 200.
       # It never prints the key. A failed upload does not block the site deploy.
       - name: Upload private Pro rankings snapshot
         if: steps.build.outcome == 'success'

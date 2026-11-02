@@ -1,4 +1,4 @@
-window.__PRO_BUILD="820f7955cc-2026-11-02T14:59:33Z";
+window.__PRO_BUILD="25e4a8109d-2026-11-02T16:29:57Z";
 /* Hot props for LineSmart Pro. Pure logic: no DOM, no network.
    Input is data/props/<lg>.json (the shape scripts/props.py writes) plus props-core.js.
    Browser: window.HotProps. Node: require("./hot-props-core.js"). */
@@ -1585,6 +1585,32 @@ window.__PRO_CSS = "/* Injected with the private Pro bundle. Not shipped in site
     } catch (e) { /* no props file for this league */ }
     return null;
   }
+  function bakedRankPack(lg) {
+    const leagues = window.RankingsData && window.RankingsData.leagues;
+    return (leagues && leagues[lg]) || null;
+  }
+  /** Season totals from the private bucket. The packed snapshot is the fallback. */
+  async function loadRankPack(lg) {
+    const baked = bakedRankPack(lg);
+    const AC = window.AcctCore, GC = window.ProGateCore;
+    if (!AC || !GC || !GC.storageUrl || !GC.tokenOf) return baked;
+    let tok = "";
+    try { tok = GC.tokenOf(localStorage.getItem(AC.AUTH_KEY) || ""); } catch (e) { tok = ""; }
+    if (!tok) return baked;
+    const url = GC.storageUrl(AC.SB_URL, "rankings.json", GC.SITE_BUILD);
+    if (!url) return baked;
+    try {
+      const res = await fetch(url, {
+        headers: { apikey: AC.SB_KEY, Authorization: "Bearer " + tok, Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (!res.ok) return baked;
+      const doc = await res.json();
+      const live = doc && doc.leagues && doc.leagues[lg];
+      if (live && Array.isArray(live.players) && live.players.length) return live;
+    } catch (e) { /* private snapshot missing; the packed copy still renders */ }
+    return baked;
+  }
   async function viewRankings() {
     const Rk = window.Rankings;
     if (!Rk) return shell("rankings", "Rankings", "Top 10 by position.", `<p class="pro-empty">Rankings didn't load.</p>`);
@@ -1595,7 +1621,7 @@ window.__PRO_CSS = "/* Injected with the private Pro bundle. Not shipped in site
     const pos = spec ? spec.id : "";
     const view = st.view === "hit" ? "hit" : "season";
     const label = (Rk.LEAGUES.find(([id]) => id === lg) || [, lg.toUpperCase()])[1];
-    const pack = (window.RankingsData && window.RankingsData.leagues && window.RankingsData.leagues[lg]) || null;
+    const pack = await loadRankPack(lg);
     const statMode = Rk.resolveStat(lg, pos, st.stat, pack && pack.players);
     const statId = statMode ? statMode.id : "";
     const chips = `<div class="chips" role="group" aria-label="League">${Rk.LEAGUES.map(([id, name]) => `<a class="chip${id === lg ? " on" : ""}" href="${rankHash({ lg: id })}"${id === lg ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;

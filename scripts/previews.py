@@ -531,22 +531,32 @@ def stub_page(lg, g, path):
 """
 
 
-def jsonld(lg, lgname, kind, g, url, desc, base_url):
+def jsonld(lg, lgname, kind, g, url, desc, base_url, valid_from=None):
     a, h = g["away"], g["home"]
     dt = et(parse_dt(g["date"]))
     team = lambda t: {"@type": "Person" if kind == "mma" else "SportsTeam", "name": t.get("name")} | ({"sport": SPORT[kind]} if kind != "mma" else {})
+    org_name, org_alt, org_url = ORGANIZER.get(lg, (lgname, None, None))
+    organizer = {"@type": "SportsOrganization", "name": org_name}
+    if org_alt:
+        organizer["alternateName"] = org_alt
+    if org_url:
+        organizer["url"] = org_url
     ev = {
         "@context": "https://schema.org", "@type": "SportsEvent",
         "name": g.get("name") or f"{a.get('name')} at {h.get('name')}",
         "description": desc, "url": url,
         "startDate": dt.isoformat(timespec="minutes"),
+        "endDate": (dt + timedelta(hours=EVENT_HOURS.get(lg, 3))).isoformat(timespec="minutes"),
         "eventStatus": "https://schema.org/EventScheduled",
         "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
         "sport": SPORT[kind],
         "image": [base_url + "assets/brand/og-image.png"],
-        "organizer": {"@type": "SportsOrganization", "name": lgname},
+        "organizer": organizer,
+        "performer": [team(a), team(h)],
         "competitor": [team(a), team(h)],
     }
+    if valid_from:
+        ev["offers"] = offer_ld(url, valid_from)
     if kind != "mma":
         ev["homeTeam"], ev["awayTeam"] = team(h), team(a)
     if g.get("venue"):
@@ -566,8 +576,35 @@ def jsonld(lg, lgname, kind, g, url, desc, base_url):
 
 SPORT = {"football": "American football", "basketball": "Basketball", "hockey": "Ice hockey", "baseball": "Baseball", "mma": "Mixed martial arts", "soccer": "Soccer"}
 
+# Typical length of one game, for SportsEvent endDate. UFC here is a single bout; a whole card adds its own tail.
+EVENT_HOURS = {"nfl": 3.5, "ncaaf": 3.5, "nba": 2.5, "ncaab": 2.5, "nhl": 2.5, "mlb": 3, "ufc": 3}
+# League organizer: full name, short name, official site. The organizer is the league, never a sportsbook.
+ORGANIZER = {
+    "nfl": ("National Football League", "NFL", "https://www.nfl.com/"),
+    "nba": ("National Basketball Association", "NBA", "https://www.nba.com/"),
+    "mlb": ("Major League Baseball", "MLB", "https://www.mlb.com/"),
+    "nhl": ("National Hockey League", "NHL", "https://www.nhl.com/"),
+    "ncaaf": ("National Collegiate Athletic Association", "NCAA", "https://www.ncaa.org/"),
+    "ncaab": ("National Collegiate Athletic Association", "NCAA", "https://www.ncaa.org/"),
+    "ufc": ("Ultimate Fighting Championship", "UFC", "https://www.ufc.com/"),
+}
 
-def game_page(lg, league, g, detail, teams, props, path, siblings, base_url):
+
+def offer_ld(url, valid_from):
+    """Free access to the odds and stats page. price 0 is that page, not a ticket and not a sportsbook offer."""
+    return {
+        "@type": "Offer",
+        "name": "Free odds and stats",
+        "description": "Free access to odds and stats on LineSmart. Not a ticket.",
+        "url": url,
+        "price": 0,
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock",
+        "validFrom": valid_from,
+    }
+
+
+def game_page(lg, league, g, detail, teams, props, path, siblings, base_url, valid_from=None):
     kind = league.get("kind") or "football"
     lgname = league.get("name") or lg.upper()
     a, h = g["away"], g["home"]
@@ -631,7 +668,7 @@ def game_page(lg, league, g, detail, teams, props, path, siblings, base_url):
 {f'<section aria-labelledby="pvMore"><h2 class="section-title" id="pvMore">More {esc(lgname)} previews</h2><ul class="pv-list pv-more">{sib}</ul></section>' if sib else ''}
 <p class="note pv-upd">{upd}. Odds are for reference and may change; confirm with the sportsbook.</p>
 </article>"""
-    return shell(path.count("/"), path, title, desc, body, jsonld(lg, lgname, kind, g, url, desc, base_url), base_url=base_url), title, desc
+    return shell(path.count("/"), path, title, desc, body, jsonld(lg, lgname, kind, g, url, desc, base_url, valid_from=valid_from), base_url=base_url), title, desc
 
 
 def hub_page(entries, generated, base_url):
@@ -696,7 +733,7 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, leagues=
             gf = load_json(data_dir / lg / "games" / f"{g['id']}.json") or {}
             detail = gf.get("detail") or {}
             sibs = [x for x in listing if x[0] != p]
-            page, _, _ = game_page(lg, league, g, detail, teams, props, p, sibs, base_url)
+            page, _, _ = game_page(lg, league, g, detail, teams, props, p, sibs, base_url, valid_from=et(generated).isoformat(timespec="minutes"))
             dest.write_text(page)
             manifest["leagues"].setdefault(lg, {})[str(g["id"])] = p
             sitemap_urls.append(base_url + p)

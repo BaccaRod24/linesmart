@@ -36,7 +36,11 @@ App-only sub-routes such as `#/l/nfl/all` stay hash routes.
 - Game, fight and UFC event pages carry a `SportsEvent` (Google Event structured data): startDate plus an estimated endDate
   (`EVENT_HOURS` per league; UFC cards end `UFC_CARD_TAIL_H` after the main card starts), eventStatus, attendance mode,
   venue location, the league as organizer (name + official site), and the teams/fighters as performer (linked to their
-  LineSmart pages). No `offers`: LineSmart sells no tickets, so Search Console's "missing offers" note is expected.
+  LineSmart pages). `offers` is free access to that odds and stats page: `price` 0 USD, `priceCurrency` USD,
+  `availability` InStock, `url` the canonical page, and `validFrom` the first time that URL was built (kept in the
+  archive; an existing page uses its stored lastmod the first time). The offer name is "Free odds and stats". It is
+  not a ticket and not a sportsbook offer, and it is not visible on the page. A fight's `superEvent` is the full card
+  with the same fields, so the nested event is not a second incomplete item.
 - Real text content in `main#app`: matchup, time and venue, lines by book, movement, weather, injuries, form, props and result.
 - The persistent internal links in `section.seo-more`:
   - game ↔ props, teams, weather, movement and related games;

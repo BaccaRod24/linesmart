@@ -208,7 +208,14 @@ try:
     check(ev is not None, "SportsEvent JSON-LD")
     if ev:
         check(ev["startDate"].startswith("2026-10-29T20:15") and ev["startDate"].endswith("-04:00"), f"startDate with ET offset ({ev['startDate']})")
+        check(ev["endDate"].startswith("2026-10-29T23:45") and ev["endDate"].endswith("-04:00"), f"endDate is start plus 3.5h ({ev.get('endDate')})")
         check(ev["homeTeam"]["name"] == "Green Bay Packers" and ev["awayTeam"]["name"] == "Carolina Panthers", "home/away teams")
+        check(len(ev.get("performer") or []) == 2 and all(p.get("@type") == "SportsTeam" and p.get("name") for p in ev["performer"]), "performer is the two teams")
+        check(ev["organizer"].get("url") == "https://www.nfl.com/" and ev["organizer"].get("name"), f"organizer name + url ({ev.get('organizer')})")
+        off = ev.get("offers") or {}
+        check(off.get("@type") == "Offer" and off.get("url") == url and off.get("price") == 0 and off.get("priceCurrency") == "USD"
+              and off.get("availability") == "https://schema.org/InStock" and off.get("validFrom") == "2026-10-27T12:00-04:00"
+              and off.get("name") == "Free odds and stats" and "not a ticket" in (off.get("description") or "").lower(), f"free page offer ({off})")
         check(ev["location"]["name"] == "Lambeau Field" and ev["location"]["address"]["addressRegion"] == "WI", "location")
         check(ev.get("eventStatus", "").endswith("EventScheduled") and ev.get("url") == url, "status + url")
     check(any(x.get("@type") == "BreadcrumbList" for x in d.ld), "BreadcrumbList JSON-LD")
@@ -245,6 +252,8 @@ try:
     check("jiri-prochazka-vs-alex-pereira" in str(next((site / "preview" / "ufc").iterdir())), "UFC path")
     ud = parse(ufc); uev = next(x for x in ud.ld if x.get("@type") == "SportsEvent")
     check(uev.get("competitor") and all(c["@type"] == "Person" for c in uev["competitor"]), "UFC competitors are Person")
+    check(uev.get("performer") and all(c["@type"] == "Person" for c in uev["performer"]) and uev.get("organizer", {}).get("url") == "https://www.ufc.com/"
+          and uev.get("endDate") and (uev.get("offers") or {}).get("price") == 0 and (uev.get("offers") or {}).get("url") == uev.get("url"), "UFC preview has endDate, performer, organizer.url, free offer")
     common_page_checks(ufc, "ufc page")
 
     hub = (pv / "index.html").read_text()

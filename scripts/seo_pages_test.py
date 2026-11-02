@@ -422,9 +422,23 @@ EV_DUR = {"nfl": 3.5, "ncaaf": 3.5, "nba": 2.5, "ncaab": 2.5, "nhl": 2.5, "mlb":
 ISO_OFF = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d)?[+-]\d\d:\d\d$")
 
 
+def offer_ld_ok(rel, ev):
+    """Free odds-page offer: price 0 on the canonical URL. Not a ticket and not a sportsbook."""
+    off = ev.get("offers") or {}
+    if isinstance(off, list):
+        off = off[0] if off else {}
+    blob = json.dumps(off)
+    check(off.get("@type") == "Offer" and off.get("url") == ev.get("url"), f"{rel}: offers.url is the canonical page ({off.get('url')})")
+    check(off.get("price") == 0 and off.get("priceCurrency") == "USD", f"{rel}: free offer is 0 USD ({off.get('price')} {off.get('priceCurrency')})")
+    check(off.get("availability") == "https://schema.org/InStock", f"{rel}: offers.availability InStock")
+    check(ISO_OFF.match(off.get("validFrom") or ""), f"{rel}: offers.validFrom with offset ({off.get('validFrom')})")
+    check(off.get("name") == "Free odds and stats" and "not a ticket" in (off.get("description") or "").lower(), f"{rel}: offer names the free page, not a ticket ({off.get('name')})")
+    check(not PROMO_RE.search(blob) and not re.search(r"draftkings|fanduel|hard rock|betmgm|sportsbook", blob, re.I), f"{rel}: offer JSON-LD has no promo or sportsbook wording")
+
+
 def event_ld_ok(rel, h, lg, kind):
-    """Google Event structured data on a game / fight / UFC event page: parses, has the required fields (name, startDate,
-    location + address) and the ones Search Console flagged (endDate, performer, organizer.url), no invented offers."""
+    """Google Event structured data on a game / fight / UFC event page: required fields (name, startDate, location)
+    plus the recommended ones Search Console flagged (offers, endDate, performer, organizer.url)."""
     lds = [json.loads(x.replace("<\\/", "</")) for x in re.findall(r'<script type="application/ld\+json">(.*?)</script>', h, re.S)]
     evs = [x for x in lds if x.get("@type") == "SportsEvent"]
     check(len(evs) == 1, f"{rel}: one SportsEvent JSON-LD ({len(evs)})")
@@ -446,7 +460,18 @@ def event_ld_ok(rel, h, lg, kind):
     check(len(perf) >= 2 and (kind == "event" or len(perf) == 2) and all(p.get("@type") == want and p.get("name") for p in perf), f"{rel}: performer {want}s with names")
     check(all(str(p.get("url", SP.BASE_URL)).startswith(SP.BASE_URL) for p in perf) and any(p.get("url") for p in perf), f"{rel}: performers link LineSmart team/fighter pages")
     check(ev.get("eventStatus", "").startswith("https://schema.org/Event") and ev.get("eventAttendanceMode") == "https://schema.org/OfflineEventAttendanceMode", f"{rel}: eventStatus + attendance mode")
-    check("offers" not in ev, f"{rel}: no offers (LineSmart sells no tickets)")
+    offer_ld_ok(rel, ev)
+    visible = re.sub(r"<script\b.*?</script>", " ", h, flags=re.S)
+    check("Free odds and stats" not in visible and "Not a ticket" not in visible, f"{rel}: offer wording stays in JSON-LD")
+    se = ev.get("superEvent")
+    if isinstance(se, dict):
+        check(se.get("@type") == "SportsEvent" and se.get("name") and str(se.get("url") or "").startswith(SP.BASE_URL + "ufc/events/"), f"{rel}: superEvent is the card")
+        check(ISO_OFF.match(se.get("endDate") or "") and ISO_OFF.match(se.get("startDate") or ""), f"{rel}: superEvent startDate and endDate")
+        sorg = se.get("organizer") or {}
+        check(sorg.get("name") and sorg.get("url") == SP.ORGANIZER["ufc"][2], f"{rel}: superEvent organizer url")
+        sperf = se.get("performer") or []
+        check(len(sperf) >= 2 and all(p.get("@type") == "Person" and p.get("name") for p in sperf), f"{rel}: superEvent performers")
+        offer_ld_ok(rel + " superEvent", se)
     if lg != "ufc":
         check(ev.get("homeTeam", {}).get("name") and ev.get("awayTeam", {}).get("name") and len(ev.get("competitor") or []) == 2, f"{rel}: homeTeam / awayTeam / competitor kept")
     return ev
@@ -1096,8 +1121,12 @@ def main():
                 check(False, f"sitemap URL exists: {u}")
         robots = (site / "robots.txt").read_text()
         check("Sitemap: https://linesmart.app/sitemap.xml" in robots, "robots.txt points at the sitemap")
-        # rebuild with nothing changed: same lastmods (content-hash driven)
+        # rebuild with nothing changed: same lastmods (content-hash driven), and the free-page offer keeps its first validFrom
+        sample_rel = next(iter(man["g"]["nfl"].values()))
+        vf_before = event_ld_ok(sample_rel, (site / sample_rel / "index.html").read_text(), "nfl", "game")["offers"]["validFrom"]
         st_b = SP.build(site, data, now + timedelta(minutes=30), archive_dir=tmp / "arch")
+        vf_after = json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>', (site / sample_rel / "index.html").read_text(), re.S).group(1).replace("<\\/", "</"))["offers"]["validFrom"]
+        check(vf_before and vf_before == vf_after, f"offers.validFrom stays on the first publish time ({vf_before} -> {vf_after})")
         lm1 = dict(locs)
         lm2 = {}
         for p in sorted((site).glob("sitemap-*.xml")):

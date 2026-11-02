@@ -247,8 +247,74 @@ async function retry(browser, viewport, tag) {
   await ctx.close();
 }
 
+// Settled Hard Rock straight total (score bar TNS/MUR) opens the review form, not the props confirm page.
+async function slipTotal(browser) {
+  const { ctx, page, errors, net } = await setup(browser, { width: 1366, height: 900 });
+  await page.route(/\/data\/ncaab\/index\.json/, async route => {
+    const raw = JSON.parse(readFileSync(new URL("../site/data/ncaab/index.json", import.meta.url), "utf8"));
+    const g = (raw.games || []).find(x => String(x.id) === "401911707");
+    if (g) {
+      g.date = "2026-10-26T23:00:00Z";
+      g.state = "post";
+      g.completed = true;
+      if (g.away) g.away.score = 94;
+      if (g.home) g.home.score = 64;
+    }
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify(raw) });
+  });
+  const slip = `Hard Rock Bet
+WINNER
+Under 169.5 +110
+TOTAL POINTS
+TNS 64 Final Score 94 MUR
+Wager
+$25.00
+Paid
+$52.50
+ID: HRB-TEST-2002`;
+  await page.goto(BASE + "#/bets/import", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector(".bt-slip-ta");
+  if (await page.locator("#ageOk").count()) await page.locator("#ageOk").click();
+  await page.fill(".bt-slip-ta", slip);
+  await page.click('[data-a="read"]');
+  await page.waitForURL(/#\/bets\/import\/(review|confirm)\//);
+  check(/import\/review\/0/.test(page.url()) && !/confirm/.test(page.url()), `settled total opens the review form (${page.url()})`);
+  await page.waitForSelector(".bt-rv");
+  const text = await page.locator("#app").innerText();
+  check(/Matched/.test(text) && /Under 169\.5/.test(text) && /\$52\.50/.test(text) && /Won/.test(text), "review shows the total, the paid amount, and a match");
+  check(await page.locator('.bt-leg [data-a="lg"][data-v="ncaab"].on').count() === 1, "league is NCAAB");
+  check(await page.locator('select[data-f="game"]').inputValue() === "401911707", "game is Murray State at Tennessee State");
+  check(await page.locator('.bt-side.on').innerText().then(s => /Under/.test(s)), "Under is the selected side");
+  check(await page.locator('[data-f="line"]').inputValue() === "169.5", "line is 169.5");
+  check(await page.locator("select[data-f=status]").inputValue() === "won", "result is Won");
+  await page.locator(".bt-rv").scrollIntoViewIfNeeded();
+  await shot(page, "slip-total-review");
+  await page.locator(".bt-actions button.bt-add").click();
+  await page.waitForURL(/#\/bets\/list/);
+  const saved = (await bets(page)).find(b => b.slipRef === "HRB-TEST-2002");
+  check(saved && saved.type === "total" && saved.league === "ncaab" && saved.side === "under" && saved.line === 169.5 && String(saved.event && saved.event.id) === "401911707" && saved.status === "won" && saved.paid === 52.5 && saved.stake === 25 && saved.odds === 110 && saved.book === "hardrock" && saved.settledBy === "slip",
+    `saved total keeps the game, side, line, and paid amount (${saved && [saved.type, saved.league, saved.side, saved.line, saved.status, saved.paid].join(" ")})`);
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto(BASE + "#/bets/import", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector(".bt-slip-ta");
+  await page.fill(".bt-slip-ta", `Hard Rock Bet
+WINNER
+Under 9.5 -130
+CADE CUNNINGHAM - ASSISTS
+Wager
+$20.00
+Paid
+$35.38
+ID: HRB-TEST-1001`);
+  await page.click('[data-a="read"]');
+  await page.waitForURL(/#\/bets\/import\/(review|confirm)\//);
+  check(/import\/confirm\/0/.test(page.url()), `settled player prop still opens confirm (${page.url()})`);
+  check(net.odds === 0 && !errors.length, `slip import: no Odds API requests or page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
+  await ctx.close();
+}
+
 const browser = await chromium.launch();
-try { await desktop(browser); await mobile(browser); await retry(browser, { width: 1366, height: 900 }, "desktop"); await retry(browser, { width: 390, height: 844 }, "mobile"); }
+try { await desktop(browser); await mobile(browser); await retry(browser, { width: 1366, height: 900 }, "desktop"); await retry(browser, { width: 390, height: 844 }, "mobile"); await slipTotal(browser); }
 catch (e) { check(false, "crashed: " + e.message.split("\n")[0]); }
 finally { await browser.close(); }
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall add-bet result e2e checks passed");

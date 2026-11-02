@@ -912,5 +912,69 @@ BAM ADEBAYO - REBOUNDS
   check(junk && junk.legs.length === 3 && junk.legs.map(l => l.statValue).join(",") === "4,27,9", `OCR junk between legs does not steal the line (got ${junk && junk.legs.map(l => l.player + ":" + l.statValue).join(",")})`, tag);
 }
 
+// ---------- 23. Hard Rock straight total (Under 169.5) named only by the score bar. Fake bet ID. No photo.
+{
+  const tag = "hrb-total";
+  const ocr = JSON.parse(fs.readFileSync(new URL("./fixtures/hrb-total-ocr.json", import.meta.url)));
+  const hintOf = line => (S.classify(line, null, NOW).find(t => t.k === "hint") || null);
+  const bar = hintOf("TNS 64  Final Score  94 MUR");
+  check(bar && bar.abbrs.join() === "TNS,MUR" && bar.scores.join() === "64,94" && bar.final === true, "score bar TNS 64 Final Score 94 MUR is a hint", tag);
+  const phi = hintOf("PHI 24 Final 17 DAL");
+  check(phi && phi.abbrs.join() === "PHI,DAL" && phi.scores.join() === "24,17" && phi.final === true, "score bar PHI 24 Final 17 DAL is a hint", tag);
+  check(!hintOf("Wager Paid"), "Wager Paid is not a score bar", tag);
+  check(!hintOf("Under 169.5 +110"), "Under 169.5 +110 is not a score bar", tag);
+
+  const MUR = tm("93", "MUR", "Murray State Racers", "Murray St");
+  const TNST = tm("2634", "TNST", "Tennessee State Tigers", "Tennessee St");
+  const TEN = tm("2633", "TEN", "Tennessee Volunteers", "Tennessee");
+  const VAN = tm("238", "VAN", "Vanderbilt Commodores", "Vanderbilt");
+  const gline = (id, date, away, home, state, as, hs) => ({ id, date, state, away: { ...away, score: as }, home: { ...home, score: hs } });
+  const now = Date.parse("2026-11-02T20:00:00Z");
+  const finalIdx = S.buildIndex({ games: { ncaab: [gline("401911707", "2026-11-02T16:30Z", MUR, TNST, "post", 94, 64)] } });
+  const t = S.bestOcrTicket(ocr.passes);
+  const leg = t && t.legs && t.legs[0];
+  check(t && t.book === "hardrock" && t.status === "won" && t.stake === 25 && t.odds === 110 && t.payout === 52.5 && t.legs.length === 1 && leg.kind === "total" && leg.ou === "under" && leg.line === 169.5,
+    `OCR merge: hardrock won $25 +110 paid $52.50 under 169.5 (got ${t && t.book} ${t && t.status} ${t && t.stake} ${t && t.odds} ${t && t.payout} legs ${t && t.legs.length} ${leg && leg.kind} ${leg && leg.ou} ${leg && leg.line})`, tag);
+  check(t.gameHint && t.gameHint.abbrs.join() === "TNS,MUR" && t.gameHint.scores.join() === "64,94" && t.gameHint.final === true, `gameHint from the inverted pass (got ${t && t.gameHint && JSON.stringify(t.gameHint)})`, tag);
+  check(t.ref === "HRB-TEST-2002", `fixture bet id HRB-TEST-2002 (got ${t && t.ref})`, tag);
+  S.matchTicket(t, finalIdx, { now });
+  const F = S.toDraft(t, { defaultBook: "hardrock", defaultLeague: "nfl", today: "2026-11-02" });
+  check(leg.m.game && leg.m.game.id === "401911707" && leg.m.lg === "ncaab" && leg.m.side === "under" && !leg.m.unsure, `matched MUR @ TNST under, scores agree (unsure ${leg.m.unsure} id ${leg.m.game && leg.m.game.id})`, tag);
+  check(F.type === "total" && F.legs[0].review.status === "matched" && F.legs[0].side === "under" && F.legs[0].line === 169.5 && F.status === "won" && F.paid === 52.5 && F.legs[0].league === "ncaab" && F.legs[0].eventId === "401911707",
+    `draft: total matched under 169.5 won paid 52.5 (got ${F.type} ${F.legs[0].review.status} ${F.legs[0].side} ${F.legs[0].line} ${F.status} ${F.paid} ${F.legs[0].league})`, tag);
+
+  const both = S.buildIndex({ games: { ncaab: [
+    gline("401911707", "2026-11-02T16:30Z", MUR, TNST, "post", 94, 64),
+    gline("401800001", "2026-11-02T16:30Z", VAN, TEN, "post", 70, 80),
+  ] } });
+  const hinted = (abbrs, scores) => ({ book: "hardrock", stake: 25, odds: 110, status: "won", payout: 52.5, gameHint: { abbrs, scores, final: true }, legs: [{ kind: "total", text: "Under 169.5", ou: "under", line: 169.5, odds: 110 }] });
+  const near = hinted(["TNS", "MUR"], [64, 94]);
+  S.matchTicket(near, both, { now });
+  check(near.legs[0].m.game && near.legs[0].m.game.id === "401911707", `TNS/MUR matches TNST/MUR (got ${near.legs[0].m.game && near.legs[0].m.game.id})`, tag);
+  const ten = hinted(["TEN", "MUR"], [64, 94]);
+  S.matchTicket(ten, both, { now });
+  check(!(ten.legs[0].m.game && ten.legs[0].m.game.id === "401911707"), `TEN/MUR does not match TNST (got ${ten.legs[0].m.game && ten.legs[0].m.game.id})`, tag);
+
+  const wrong = hinted(["TNS", "MUR"], [64, 90]);
+  S.matchTicket(wrong, finalIdx, { now });
+  const Fw = S.toDraft(wrong, { defaultBook: "hardrock", defaultLeague: "nfl", today: "2026-11-02" });
+  check(wrong.legs[0].m.game && wrong.legs[0].m.game.id === "401911707" && Fw.legs[0].review.status === "check", `wrong scores stay check, not matched (got ${wrong.legs[0].m.game && wrong.legs[0].m.game.id} ${Fw.legs[0].review.status})`, tag);
+
+  const um = S.toDraft({ legs: [{ kind: "total", text: "Under 169.5", ou: "under", line: 169.5, market: { mk: "total", lg: "ncaab" }, m: {} }], stake: 25, odds: 110 }, { defaultBook: "hardrock", defaultLeague: "nfl", today: "2026-11-02" });
+  check(um.legs[0].mk === "total" && um.legs[0].side === "under" && um.legs[0].line === 169.5 && um.legs[0].league === "ncaab" && um.legs[0].review.status === "manual", `unmatched total keeps side, line, and the slip league (got ${um.legs[0].mk} ${um.legs[0].side} ${um.legs[0].line} ${um.legs[0].league} ${um.legs[0].review.status})`, tag);
+  const ums = S.toDraft({ legs: [{ kind: "spread", text: "Eagles -3.5", team: "Eagles", line: -3.5, market: { mk: "spread", lg: "nfl" }, m: {} }] }, { defaultLeague: "nba" });
+  check(ums.legs[0].mk === "spread" && ums.legs[0].line === -3.5 && ums.legs[0].league === "nfl", `unmatched spread keeps the line (got ${ums.legs[0].line} ${ums.legs[0].league})`, tag);
+
+  const open = { id: "open-total", status: "pending", book: "hardrock", type: "total", odds: 110, stake: 25, league: "ncaab", side: "under", line: 169.5, event: { id: "401911707", lg: "ncaab" } };
+  check(S.matchOpenBets([open], near).map(b => b.id).join() === "open-total", "open total matched by game, market, side, and line", tag);
+  check(S.matchOpenBets([{ ...open, id: "over", side: "over" }], near).length === 0, "open over does not match this under", tag);
+  const sprT = { book: "hardrock", stake: 10, odds: -110, legs: [{ kind: "spread", line: -3.5, m: { game: { id: "401" }, side: "home" } }] };
+  const sprB = { id: "sp", status: "pending", book: "hardrock", type: "spread", odds: -110, stake: 10, side: "home", line: -3.5, event: { id: "401" } };
+  check(S.matchOpenBets([sprB], sprT)[0] && S.matchOpenBets([sprB], sprT)[0].id === "sp", "open spread matches game, side, and line", tag);
+  const mlT = { book: "hardrock", stake: 10, odds: -150, legs: [{ kind: "ml", m: { game: { id: "401" }, side: "away" } }] };
+  const mlB = { id: "ml", status: "pending", book: "hardrock", type: "ml", odds: -150, stake: 10, side: "away", event: { id: "401" } };
+  check(S.matchOpenBets([mlB], mlT)[0] && S.matchOpenBets([mlB], mlT)[0].id === "ml", "open moneyline matches game and side", tag);
+}
+
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall slip import tests passed");
 process.exit(fails.length ? 1 : 0);

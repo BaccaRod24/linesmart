@@ -970,6 +970,7 @@
     if (R) {   // imported from a bet slip: remember its ID (duplicate check) and a result the slip already showed
       base.source = "slip"; if (F.ref) base.slipRef = F.ref;
       if (slipSt) Object.assign(base, { status: slipSt, manual: true, settledBy: "slip", settledAt: today(), cashout: co ?? undefined });
+      if (slipSt === "won" && isNum(F.paid)) base.paid = Math.round(Number(F.paid) * 100) / 100;
     }
     let bet = parlay ? { ...base, legs, oddsManual: !!F.oddsManual, league: undefined } : { ...base, ...legs[0], type: F.type, odds };
     if (!parlay) delete bet.result;
@@ -1082,7 +1083,7 @@
       });
       status("");
       SLIPQ = { items, i: 0, saved: 0, at: Date.now() }; saveQ();
-      const settled = items.findIndex(it => it.ticket && it.ticket.status && it.ticket.status !== "pending");
+      const settled = items.findIndex(propConfirmItem);
       location.hash = settled >= 0 ? `#/bets/import/confirm/${settled}` : "#/bets/import/review/0";
     };
     root.addEventListener("click", e => {
@@ -1221,7 +1222,7 @@
     if (next < q.items.length) {
       q.i = next; saveQ();
       if (saved) toast(`Saved. Now bet ${next + 1} of ${q.items.length}.`);
-      location.hash = `#/bets/import/review/${next}`;
+      location.hash = importHash(q.items[next], next);
       return;
     }
     const n = q.saved || 0;
@@ -1264,6 +1265,14 @@
     </div>`;
   }
 
+  /** Settled player-prop slips use the confirm page. Straight totals, spreads and moneylines use the review form. */
+  function propConfirmItem(item) {
+    const t = item && item.ticket;
+    if (!t || !t.status || t.status === "pending") return false;
+    const legs = t.legs || [];
+    return legs.length > 0 && legs.every(l => String(l.player || "").trim());
+  }
+  const importHash = (item, i) => propConfirmItem(item) ? `#/bets/import/confirm/${i}` : `#/bets/import/review/${i}`;
   function slimTicket(t) {
     return {
       book: t.book || "", bookName: t.bookName || "", status: t.status || "", stake: t.stake, odds: t.odds,
@@ -1317,8 +1326,7 @@
     const next = i + 1;
     if (next < q.items.length) {
       q.i = next; saveQ();
-      const n = q.items[next];
-      location.hash = n.ticket && n.ticket.status ? `#/bets/import/confirm/${next}` : `#/bets/import/review/${next}`;
+      location.hash = importHash(q.items[next], next);
       return;
     }
     SLIPQ = null; saveQ(); SLIP_TEXT = "";
@@ -1328,7 +1336,7 @@
     const q = loadQ();
     if (!q || !q.items || !q.items[i]) { location.hash = "#/bets/import"; return; }
     const item = q.items[i], t = item.ticket;
-    if (!t || !t.status) { location.hash = `#/bets/import/review/${i}`; return; }
+    if (!propConfirmItem(item)) { location.hash = `#/bets/import/review/${i}`; return; }
     q.i = i; saveQ();
     const matches = SC().matchOpenBets(BETS, t);
     const stake = isNum(t.stake) ? Number(t.stake) : null;
@@ -1364,7 +1372,7 @@
       <p class="note">Paid is the amount the sportsbook returned. Nothing is saved until you tap the button. ${q.items.length > 1 ? `<button type="button" class="chip" data-go="skip">Skip</button>` : ""}</p>
     </section>`);
     const go = (kind, id) => {
-      if (kind === "skip") { const qq = loadQ(); if (!qq) return; const next = i + 1; if (next < qq.items.length) { qq.i = next; saveQ(); const n = qq.items[next]; location.hash = n.ticket && n.ticket.status ? `#/bets/import/confirm/${next}` : `#/bets/import/review/${next}`; } else { SLIPQ = null; saveQ(); location.hash = "#/bets/import"; } return; }
+      if (kind === "skip") { const qq = loadQ(); if (!qq) return; const next = i + 1; if (next < qq.items.length) { qq.i = next; saveQ(); location.hash = importHash(qq.items[next], next); } else { SLIPQ = null; saveQ(); location.hash = "#/bets/import"; } return; }
       const bet = kind === "match" ? applyExisting(BETS.find(b => b.id === id), t) : newBetFromTicket(t);
       if (!bet) { toast("That slip is missing a stake or a selection."); return; }
       if (kind === "match") BETS = BETS.map(b => b.id === id ? bet : b); else BETS = [bet, ...BETS];

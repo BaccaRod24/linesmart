@@ -346,6 +346,11 @@
       const pluses = [...s.matchAll(/\b(\d{1,3})\+/g)].map(m => +m[1]);
       if (pluses.length >= 2 && !/[a-z]{4,}/i.test(s)) { out.push({ k: "miles", ns: pluses }); return out; }
     }
+    // Hard Rock settled card score bar: "TNS 64  Final Score  94 MUR" (also "Q4 2:31", "2nd Half")
+    {
+      const bar = s.match(/^([A-Za-z]{2,5})\s+(\d{1,3})\s+(final(?:\s+score)?|(?:live|\d(?:st|nd|rd|th)|q\d|ot|half)[^\d]*?(?:\d{1,2}:\d{2})?)\s+(\d{1,3})\s+([A-Za-z]{2,5})$/i);
+      if (bar) { out.push({ k: "hint", abbrs: [bar[1].toUpperCase(), bar[5].toUpperCase()], scores: [+bar[2], +bar[4]], final: /final/i.test(bar[3]), when: null }); return out; }
+    }
     // "@ MIN Today 8:10 PM SAS" — two abbreviations and a time, order not reliable
     {
       const foot = s.match(/^@\s*([A-Za-z]{2,4})\b(.*)\b([A-Za-z]{2,4})\s*$/);
@@ -592,7 +597,7 @@
           case "boost": T.boost = true; break;
           case "todds": T.odds = tok.v; break;
           case "miles": for (const n of tok.ns || []) mileSet.add(n); break;
-          case "hint": T.gameHint = { abbrs: tok.abbrs || [], when: tok.when || null }; break;
+          case "hint": T.gameHint = { abbrs: tok.abbrs || [], scores: tok.scores || null, final: !!tok.final, when: tok.when || null }; break;
           case "mile":
             if (L && !isNum(L.line) && !P.event) attachMile(L, tok.n);
             else P.mile = { n: tok.n };
@@ -999,6 +1004,7 @@
     const placedMs = T.placed && T.placed.date ? etMs(T.placed.date, T.placed.time) : null;
     for (const l of T.legs) {
       l.m = { lg: null, game: null, side: null, how: "", pid: null, player: null, score: 0 };
+      if (!l.league && T.gameHint && T.gameHint.lg) l.league = T.gameHint.lg;
       if (!idx) continue;
       const hintLg = l.league || (l.market && l.market.lg) || null;
       const refMs = l.when && l.when.date ? etMs(l.when.date, l.when.time) : placedMs || now;
@@ -1043,6 +1049,38 @@
           for (const side of ["home", "away"]) { const t = idx.teams.find(x => x.lg === lg && x.id === String(g[side].id)); const sc = t ? teamScore(teamText, t) : 0; if (sc >= 45) cands.push({ gi, sc }); }
         }
       }
+      // Game total / spread / moneyline with no team text: Hard Rock's score bar names both sides ("TNS 64 Final Score 94 MUR").
+      // Player props keep their own game — a footer hint must not pull them onto the card's last game.
+      const hint = T.gameHint;
+      if (!cands.length && !l.player && hint && hint.abbrs && hint.abbrs.length === 2) {
+        const abSc = (ab, t) => {
+          const a = norm(ab);
+          if (!t || !a) return 0;
+          if (a === t.abbr) return 84;
+          if (a.length >= 3 && t.abbr && (t.abbr.startsWith(a) || a.startsWith(t.abbr)) && Math.abs(a.length - t.abbr.length) <= 1) return 72;
+          return teamScore(ab, t) >= 70 ? 70 : 0;
+        };
+        const scoreNum = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+        for (const gi of idx.games) {
+          const { g, lg } = gi;
+          const tA = idx.teams.find(t => t.lg === lg && t.id === String(g.away.id));
+          const tH = idx.teams.find(t => t.lg === lg && t.id === String(g.home.id));
+          if (!tA || !tH) continue;
+          const [x, y] = hint.abbrs, [sx, sy] = hint.scores || [];
+          const o1 = Math.min(abSc(x, tA), abSc(y, tH)), o2 = Math.min(abSc(x, tH), abSc(y, tA));
+          let sc = Math.max(o1, o2);
+          const bestX = Math.max(abSc(x, tA), abSc(x, tH)), bestY = Math.max(abSc(y, tA), abSc(y, tH));
+          const one = Math.max(bestX, bestY);
+          const ax = scoreNum(g.away.score), hx = scoreNum(g.home.score);
+          const haveScores = isNum(sx) && isNum(sy) && ax !== null && hx !== null;
+          const scoresFit = haveScores && (o1 >= o2 ? [ax, hx] : [hx, ax]).join() === [+sx, +sy].join();
+          // One exact code plus the printed score can rescue a 1–2 letter OCR scrap. A different 3-letter code (TEN vs TNST) does not.
+          const otherLen = bestX >= bestY ? norm(y).length : norm(x).length;
+          if (!sc && one >= 84 && scoresFit && otherLen < 3) sc = 70;
+          if (sc && scoresFit) sc += 10;
+          if (sc >= 70) cands.push({ gi, sc, fromHint: true, scoresFit: haveScores ? !!scoresFit : null });
+        }
+      }
       // player props: the player's team (rosters) or the props feed tells us the game
       let ph = [];
       if (l.player) {
@@ -1076,9 +1114,10 @@
       const amb = r.find(c => c.gi !== best.gi && c.sc === best.sc && Math.abs(c.d - best.d) < 1 && c.gi.g.id !== best.gi.g.id);
       const rival = r.find(c => String(c.gi.g.id) !== String(best.gi.g.id) && c.sc >= 70 && c.sc >= best.sc - 4 && c.d < best.d + 18);
       const g = best.gi.g, lg = best.gi.lg;
-      Object.assign(l.m, { lg, game: g, score: best.sc, how: ev ? "event" : teamText ? "team" : "player", ambiguous: !!amb });
+      Object.assign(l.m, { lg, game: g, score: best.sc, how: best.fromHint ? "hint" : ev ? "event" : teamText ? "team" : "player", ambiguous: !!amb });
       if (!best.inWindow) l.m.far = true;
-      l.m.unsure = best.sc < 80 || !!rival || !!amb || !!l.m.far;
+      // A score bar is matched only when the printed score agrees. Otherwise keep the game and ask the user to check it.
+      l.m.unsure = best.sc < 80 || !!rival || !!amb || !!l.m.far || (best.fromHint && best.scoresFit === false);
       // side
       if (l.kind === "ml" || l.kind === "spread") {
         if (l.draw) l.m.side = "draw";
@@ -1138,7 +1177,7 @@
   }
   function legDraft(l, opts) {
     const m = l.m || {};
-    const base = { league: m.lg || l.league || l.slg || opts.defaultLeague || "nfl", eventId: "", event: null, manual: false, eventText: "", mk: "ml", side: "", line: "", odds: isNum(l.odds) ? l.odds : "", selection: "", pid: "", player: "", pmk: "", custom: false, result: l.result || "", statValue: isNum(l.statValue) ? l.statValue : "" };
+    const base = { league: m.lg || l.league || (l.market && l.market.lg) || l.slg || opts.defaultLeague || "nfl", eventId: "", event: null, manual: false, eventText: "", mk: "ml", side: "", line: "", odds: isNum(l.odds) ? l.odds : "", selection: "", pid: "", player: "", pmk: "", custom: false, result: l.result || "", statValue: isNum(l.statValue) ? l.statValue : "" };
     const info = { text: l.text || "", status: "manual", why: "" };
     const g = m.game;
     if (g) { base.eventId = String(g.id); base.event = evOf(g, m.lg); }
@@ -1160,7 +1199,12 @@
       info.status = "settle";
       info.why = l.period ? "Part-game bet (half / quarter / period): settle it yourself." : l.teamTotal ? "Team total: settle it yourself." : "LineSmart can't grade this market automatically; settle it yourself.";
     } else {
-      Object.assign(base, { mk: ["ml", "spread", "total", "prop"].includes(l.kind) ? l.kind : "prop", selection: l.text || "" });
+      const mk = ["ml", "spread", "total", "prop"].includes(l.kind) ? l.kind : "prop";
+      Object.assign(base, { mk, selection: l.text || "" });
+      if (mk === "total" || mk === "spread") {
+        if (l.ou) base.side = l.ou;
+        if (isNum(l.line)) base.line = l.line;
+      }
       info.status = "manual";
       info.why = l.kind === "prop" && l.player ? "Couldn't find this game in LineSmart's data. Pick it below so the prop can settle automatically." : "Couldn't match this to a game in LineSmart's data. Pick the game below, or keep it as typed and settle it yourself.";
     }
@@ -1175,6 +1219,15 @@
   /** slips already imported (same sportsbook reference) */
   const dupOf = (bets, ref) => (ref ? (bets || []).find(b => b.slipRef && String(b.slipRef) === String(ref)) || null : null);
   function legParts(l, fromBet) {
+    if (!l) return null;
+    const lineKind = fromBet ? (l.type || "") : (l.kind || "");
+    if ((lineKind === "total" || lineKind === "spread" || lineKind === "ml") && (fromBet || !l.player)) {
+      const ev = fromBet ? (l.event && l.event.id ? String(l.event.id) : "") : (l.m && l.m.game ? String(l.m.game.id) : "");
+      const side = fromBet ? (l.side || "") : (lineKind === "total" ? (l.ou || "") : ((l.m && l.m.side) || ""));
+      const line = lineKind === "ml" ? 0 : (isNum(l.line) ? Number(l.line) : null);
+      if (!ev || !side || (lineKind !== "ml" && !isNum(line))) return null;
+      return { kind: "line", ev, mk: lineKind, side, line };
+    }
     const pr = fromBet ? (l.prop || {}) : null;
     const player = normName(fromBet ? pr.player || "" : l.player || "");
     const side = fromBet ? (pr.side || "") : (l.ou || "");
@@ -1187,7 +1240,11 @@
     if (!a || !b || a.length !== b.length || !a.length) return false;
     const used = new Set();
     for (const x of a) {
-      const i = b.findIndex((y, idx) => !used.has(idx) && y.p === x.p && y.side === x.side && Math.abs(y.line - x.line) < 1e-6 && (!x.mk || !y.mk || x.mk === y.mk));
+      const i = b.findIndex((y, idx) => {
+        if (used.has(idx)) return false;
+        if (x.kind === "line" || y.kind === "line") return x.kind === "line" && y.kind === "line" && x.ev === y.ev && x.mk === y.mk && x.side === y.side && Math.abs(Number(x.line) - Number(y.line)) < 1e-6;
+        return y.p === x.p && y.side === x.side && Math.abs(y.line - x.line) < 1e-6 && (!x.mk || !y.mk || x.mk === y.mk);
+      });
       if (i < 0) return false;
       used.add(i);
     }
@@ -1254,6 +1311,8 @@
     for (const k of ["book", "bookName", "status", "stake", "odds", "payout", "toWin", "cashout", "ref"]) {
       if ((out[k] === null || out[k] === undefined || out[k] === "") && other[k] !== null && other[k] !== undefined && other[k] !== "") out[k] = other[k];
     }
+    if (!out.gameHint && other.gameHint) out.gameHint = other.gameHint;
+    else if (out.gameHint && other.gameHint && !out.gameHint.scores && other.gameHint.scores) out.gameHint = other.gameHint;
     const nGood = legs => (legs || []).filter(legGood).length;
     const moneyAgrees = (!isNum(out.stake) || !isNum(other.stake) || Math.abs(Number(out.stake) - Number(other.stake)) < 0.05)
       && (!isNum(out.odds) || !isNum(other.odds) || Number(out.odds) === Number(other.odds));
@@ -1318,12 +1377,19 @@
   }
   /** Several OCR readings of one photo (raw, inverted, header band, tiles). Returns the merged ticket. */
   function bestOcrTicket(texts) {
-    let acc = null;
+    let acc = null, hint = null;
+    // A pass that is only the score bar has no stake or selection, so parseSlip drops it. Keep its hint anyway.
+    for (const text of texts || []) for (const line of String(text || "").split(/\n/)) {
+      for (const tok of classify(line.replace(/\s+/g, " ").trim(), null, Date.now())) {
+        if (tok.k === "hint" && tok.scores && !hint) hint = { abbrs: tok.abbrs, scores: tok.scores, final: !!tok.final, when: tok.when || null };
+      }
+    }
     for (const text of texts || []) {
       const folded = foldRepeatLines(text);
       if (!folded.trim()) continue;
       for (const t of parseSlip(folded).tickets) acc = richer(acc, t);
     }
+    if (acc && !acc.gameHint && hint) acc.gameHint = hint;
     return acc;
   }
 

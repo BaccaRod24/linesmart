@@ -34,6 +34,11 @@ with `cacheNonce` set to the deploy stamp plus the current time, which is the qu
 CDN treats as a new object. The `#/owner` hub shows `Pro build … · site …`, and the console
 logs the same build id.
 
+After any change under `pro/`, pack again and replace that object. Do not do the upload from CI.
+Season rankings then read `data/pro/rankings.json`, which the 30-minute refresh writes into the
+Pages deploy. Until this file is replaced, the live app keeps the snapshot packed into the
+current bundle.
+
 ## 4. Open Pro
 
 Sign in with the LineSmart account from the statement above, then open `/owner.html`

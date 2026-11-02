@@ -609,6 +609,22 @@
     } catch (e) { /* no props file for this league */ }
     return null;
   }
+  function bakedRankPack(lg) {
+    const leagues = window.RankingsData && window.RankingsData.leagues;
+    return (leagues && leagues[lg]) || null;
+  }
+  /** Season totals from the Pages snapshot. The bundle copy is only the fallback. */
+  async function loadRankPack(lg) {
+    const baked = bakedRankPack(lg);
+    const api = A();
+    if (!api || !api.getJSON) return baked;
+    try {
+      const doc = await api.getJSON("data/pro/rankings.json");
+      const live = doc && doc.leagues && doc.leagues[lg];
+      if (live && Array.isArray(live.players) && live.players.length) return live;
+    } catch (e) { /* file not deployed yet; the packed snapshot still renders */ }
+    return baked;
+  }
   async function viewRankings() {
     const Rk = window.Rankings;
     if (!Rk) return shell("rankings", "Rankings", "Top 10 by position.", `<p class="pro-empty">Rankings didn't load.</p>`);
@@ -619,7 +635,7 @@
     const pos = spec ? spec.id : "";
     const view = st.view === "hit" ? "hit" : "season";
     const label = (Rk.LEAGUES.find(([id]) => id === lg) || [, lg.toUpperCase()])[1];
-    const pack = (window.RankingsData && window.RankingsData.leagues && window.RankingsData.leagues[lg]) || null;
+    const pack = await loadRankPack(lg);
     const statMode = Rk.resolveStat(lg, pos, st.stat, pack && pack.players);
     const statId = statMode ? statMode.id : "";
     const chips = `<div class="chips" role="group" aria-label="League">${Rk.LEAGUES.map(([id, name]) => `<a class="chip${id === lg ? " on" : ""}" href="${rankHash({ lg: id })}"${id === lg ? ' aria-current="true"' : ""}>${esc(name)}</a>`).join("")}</div>`;

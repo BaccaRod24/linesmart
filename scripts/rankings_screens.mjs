@@ -108,6 +108,38 @@ for (const [file, width, height, hash, view, lg, need] of shots) {
   await ctx.close();
 }
 
+{
+  const livePath = path.join(root, "data/pro/rankings.json");
+  fs.mkdirSync(path.dirname(livePath), { recursive: true });
+  const live = {
+    v: 1,
+    leagues: {
+      nfl: {
+        season: 2026, boxGames: 120, through: "2026-11-02T01:20Z", cacheUpdated: "2026-11-02T04:45:44Z",
+        propsPulledAt: null, propsGames: 0,
+        players: [{ id: "999001", n: "Sunday Sample", pos: "QB", t: "1", ta: "SUN", gp: 8, py: 2500, ptd: 20, ry: 10, rtd: 1, rec: 0, recy: 0, rectd: 0 }],
+        props: [],
+      },
+    },
+  };
+  fs.writeFileSync(livePath, JSON.stringify(live));
+  try {
+    const { ctx, page } = await make(1280, 900);
+    await page.goto(BASE + "#/pro/rankings?lg=nfl&pos=QB&view=season", { waitUntil: "domcontentloaded" });
+    await page.waitForSelector("#proRankings .rk-table tbody tr", { timeout: 20000 });
+    const table = await page.locator("#proRankings").innerText();
+    if (!table.includes("Sunday Sample")) fails.push("live snapshot ignored");
+    if (!/120 regular-season games/.test(table) || !/Nov 1/.test(table)) fails.push("live snapshot through date missing: " + table.slice(0, 240));
+    if (/Matthew Stafford/.test(table)) fails.push("baked snapshot used instead of the Pages file");
+    await page.screenshot({ path: path.join(OUT, "rankings_live_snapshot_desktop.png"), fullPage: true });
+    console.log("saved rankings_live_snapshot_desktop.png");
+    await ctx.close();
+  } finally {
+    fs.rmSync(livePath, { force: true });
+    try { fs.rmdirSync(path.dirname(livePath)); } catch (e) { /* leave the directory if it still holds something */ }
+  }
+}
+
 await browser.close();
 srv.close();
 if (fails.length) { console.error(fails.join("\n")); process.exit(1); }

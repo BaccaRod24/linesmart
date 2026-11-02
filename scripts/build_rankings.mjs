@@ -1,7 +1,10 @@
-// Build pro/rankings-data.js from caches already on disk.
-// No network and no Odds API call. Missing caches leave the current file alone.
+// Build the Pro rankings snapshot from caches already on disk.
+// No network and no Odds API call. Missing caches leave the current files alone.
+// pro/rankings-data.js is the copy packed into the private bundle (fallback).
+// --json writes the same snapshot for GitHub Pages (site/data/pro/rankings.json).
+// The rankings page reads that file, so a later refresh updates it without another upload.
 // Usage:
-//   node scripts/build_rankings.mjs --matchups _history/matchups --rosters _history/rosters --odds _history/odds --site site/data
+//   node scripts/build_rankings.mjs --matchups _history/matchups --rosters _history/rosters --odds _history/odds --site site/data --json site/data/pro/rankings.json
 import { createRequire } from "module";
 import fs from "fs";
 import path from "path";
@@ -20,6 +23,7 @@ const rosterDir = arg("--rosters", "");
 const oddsDir = arg("--odds", "");
 const siteDir = arg("--site", path.join(root, "site/data"));
 const outPath = arg("--out", path.join(root, "pro/rankings-data.js"));
+const jsonPath = arg("--json", "");
 
 function readJson(p) {
   try { return JSON.parse(fs.readFileSync(p, "utf8")); }
@@ -99,3 +103,9 @@ const body = `/* Pro rankings snapshot. Built by scripts/build_rankings.mjs from
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, body);
 console.log("[rankings] wrote", outPath, Buffer.byteLength(body), "bytes");
+if (jsonPath) {
+  fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
+  const json = JSON.stringify(data);
+  fs.writeFileSync(jsonPath, json);
+  console.log("[rankings] wrote", jsonPath, Buffer.byteLength(json), "bytes");
+}

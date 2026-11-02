@@ -70,26 +70,34 @@ App-only sub-routes such as `#/l/nfl/all` stay hash routes.
 
 Titles use the phrases people search for and end in ` | LineSmart`. The whole title, suffix included, is kept to 60
 characters (`TITLE_MAX`). `fit()` takes the first candidate that fits with the suffix (the phrase itself can be at most
-48 characters). If none fit, it drops the suffix, then cuts at a word boundary. Long names fall back to shorter forms
-(abbreviations, `NCAAF` / `NCAAB`, dropping "Lines &").
+48 characters). If none fit, it drops the suffix, then cuts at a word boundary. Game and player-prop titles use
+`prefer_title()` instead: the first phrase that fits in 60 wins, and the suffix stays only when that phrase still fits
+with it. Long names fall back to abbreviations or a last name only after the readable form no longer fits.
 
-- Upcoming game, away team first: `Cardinals vs Cowboys Odds: Hard Rock, DraftKings, FanDuel`, then
-  `X vs Y Odds & Props` (`Odds & Lines` without props, `Odds & Preview` before books post lines), then `X vs Y Odds`,
-  then abbreviations. Only books that have a column in the page's odds table are named (`page_books()`): Hard Rock,
-  DraftKings, FanDuel in that order, or the ESPN line's provider when it is one of them.
-- UFC fight: `Fighter vs Fighter Odds` (last names if the full names don't fit). DraftKings is the only book named.
+- Upcoming or live game, away team first: `Grizzlies vs Blazers Odds: DK, FD & HR (Oct 29) | LineSmart`. The title names
+  the matchup, the date (ET), and that the page compares DraftKings, FanDuel and Hard Rock Bet (`DK, FD & HR` is the
+  form that fits in 60 characters). `prefer_title()` keeps a long readable name that fits in 60 ahead of an abbreviation
+  that would have kept the brand suffix. `Trail Blazers` is `Blazers` in the title and the description. The same title
+  is used before lines are posted, so it does not change when the number arrives.
+- Description: `Compare Grizzlies vs Blazers NBA odds for Thu, Oct 29, 10:00 PM ET across DraftKings, FanDuel and Hard Rock Bet.`
+  A posted spread or total is added when it fits (`Bills -2.5, total 48.5.`). Neutral comparison only: no pick, and
+  nothing that says DraftKings or FanDuel is legal or available in Florida.
+- Player props: `Josh Jacobs (GB) Props: DK, FD & HR (Oct 29) | LineSmart`. The description names the player, the date
+  and the same three books. A long name drops to the last name before it drops the date.
+- UFC fight: `Fighter vs Fighter Odds (Nov 7)` (last names if the full names don't fit). DraftKings is the only book named.
 - Finished game: `X vs Y Result & Closing Odds (97-111)`, then `Result & Odds`. With no closing lines: `X vs Y Final Score: 97-111`.
-- Description: `Compare X vs Y odds for Sun, Nov 1 at Hard Rock, DraftKings and FanDuel: spread, moneyline, total and
-  player props.` Finished games: `X vs Y result, Tue, Oct 27: DET 97, NY 111. Closing odds from ..., line movement and
+- Finished-game description: `X vs Y result, Tue, Oct 27: DET 97, NY 111. Closing odds from ..., line movement and
   how the spread and total graded.` At most 155 characters (`DESC_MAX`), including the homepage.
 - League hubs and team/fighter pages add an `ItemList` of the game or fight URLs linked on the page (hub: inside the
   `CollectionPage`; team: `mainEntity` of the page about the `SportsTeam` or fighter `Person`). The homepage
   `Organization` has `sameAs` and `alternateName`. No `SearchAction`.
-- Team, player, fighter and event pages: `<Team> Odds & Schedule (NFL)`, `<Player> Props & Last-5 Results (TEAM)`,
-  `<Fighter> UFC Odds, Record & Fight Results`.
-- `og:title` and `twitter:title` always equal `<title>`. If two game pages would share a title (a series), the date is
-  added: `Yankees vs Red Sox Odds & Lines, Oct 27`. That pass goes through `with_extra()` / `fit()` so the date or the
-  path slug cannot push the title back over 60 characters. The H1 and the visible content don't change with the title.
+- Team, fighter and event pages: `<Team> Odds & Schedule (NFL)`, `<Fighter> UFC Odds, Record & Fight Results`.
+  Player-prop pages use the props title above.
+- `og:title` and `twitter:title` always equal `<title>`. `og:description` and `twitter:description` always equal the meta
+  description, because they are written from the same string. If two finished game pages would share a title (a series),
+  the date is added. Upcoming titles already include the date, so a same-day collision gets the start time instead.
+  That pass goes through `with_extra()` so the extra token cannot push the title back over 60 characters. Anything still
+  shared gets the page slug. The H1 and the visible content don't change with the title.
 
 `content_hash()` covers the title and meta description as well as `main#app`, so a new title or snippet moves the page's
 `lastmod` (and gets sent to IndexNow).

@@ -279,32 +279,48 @@ def _fixture_league(lg):
 
 
 def game_title_tests():
-    """The seven pre-game titles from the committed fixtures, plus finished titles left unchanged."""
+    """Upcoming titles name the matchup, the date and the three-book comparison. Finished titles stay result titles."""
     cases = [
-        ("ncaaf", "401856734", "Florida vs Georgia Odds, Spread & Total (Oct 31) | LineSmart"),
-        ("nfl", "401873026", "Ravens vs Bills Odds, Spread & Total (Nov 1) | LineSmart"),
-        ("nfl", "401873024", "Cardinals vs Cowboys Odds & Spread (Nov 1) | LineSmart"),
-        ("ncaab", "401906769", "Miami vs Florida Odds, Spread & Total (Nov 2) | LineSmart"),
-        ("ncaaf", "401866454", "Buffalo vs Miami OH Odds & Preview (Nov 3) | LineSmart"),
-        ("ncaaf", "401858509", "Ohio State vs USC Odds, Spread & Total (Oct 31) | LineSmart"),
-        ("nba", "401909903", "Celtics vs Magic Odds & Preview (Nov 1) | LineSmart"),
+        ("ncaaf", "401856734", "Florida vs Georgia Odds: DK, FD & HR (Oct 31) | LineSmart"),
+        ("nfl", "401873026", "Ravens vs Bills Odds: DK, FD & HR (Nov 1) | LineSmart"),
+        ("nfl", "401873024", "Cardinals vs Cowboys Odds: DK, FD & HR (Nov 1) | LineSmart"),
+        ("ncaab", "401906769", "Miami vs Florida Odds: DK, FD & HR (Nov 2) | LineSmart"),
+        ("ncaaf", "401866454", "Buffalo vs Miami OH Odds: DK, FD & HR (Nov 3) | LineSmart"),
+        ("ncaaf", "401858509", "Ohio State vs USC Odds: DK, FD & HR (Oct 31) | LineSmart"),
+        ("nba", "401909903", "Celtics vs Magic Odds: DK, FD & HR (Nov 1) | LineSmart"),
+        ("nba", "401909895", "Grizzlies vs Blazers Odds: DK, FD & HR (Oct 29) | LineSmart"),
+        ("nba", "401909893", "Cavaliers vs Hawks Odds: DK, FD & HR (Oct 29) | LineSmart"),
     ]
     leagues = {}
+    seen_desc = {}
     for lg, gid, want in cases:
         L = leagues.setdefault(lg, _fixture_league(lg))
         g = L.cur[gid]
         title, desc = SP.game_meta(L, g, gid)
         check(title == want, f"{lg} {gid} title ({title})")
-        check(len(title) <= SP.TITLE_MAX and len(desc) <= SP.DESC_MAX, f"{lg} {gid} title {len(title)} desc {len(desc)}")
-        check("Odds:" not in title, f"{lg} {gid} title does not name a book")
-    # Buffalo has no line in the snapshot. With a spread and a total, the dated market title fits at 60.
+        snippet_ok(title, desc, f"{lg} {gid}")
+        check(SP.title_side(g["away"]) in title and SP.title_side(g["home"]) in title, f"{lg} {gid} title names both teams ({title})")
+        seen_desc.setdefault(desc, []).append(gid)
+    check(all(len(v) == 1 for v in seen_desc.values()), f"sample game descriptions are unique ({[v for v in seen_desc.values() if len(v) > 1]})")
+    # A long college matchup stays readable inside 60, instead of collapsing to abbreviations to keep the brand suffix.
+    long_phrase = "Tennessee Tech vs Mississippi St Odds: DK, FD & HR (Nov 2)"
+    check(SP.prefer_title([long_phrase, "TNTC vs MSST Odds: DK, FD & HR (Nov 2)"]) == long_phrase, f"prefer_title keeps the readable name ({SP.prefer_title([long_phrase, 'TNTC vs MSST'])})")
+    check(SP.day_in_title("Rays vs Brewers Odds (Oct 2)", "Oct 2") and not SP.day_in_title("Rays vs Brewers Odds (Oct 20)", "Oct 2"), "day_in_title does not treat Oct 2 as Oct 20")
+    Lnb = _fixture_league("ncaab")
+    long_t, long_d = SP.game_meta(Lnb, Lnb.cur["401906791"], "401906791")
+    check(long_t.startswith("Tennessee Tech vs Mississippi St ") and len(long_t) <= SP.TITLE_MAX, f"long matchup stays readable ({long_t})")
+    snippet_ok(long_t, long_d, "Tennessee Tech")
+    # No line and a posted line share the comparison title. The description adds the number only when a line is up.
     L = leagues["ncaaf"]
+    bare_t, bare_d = SP.game_meta(L, L.cur["401866454"], "401866454")
     buffalo = json.loads(json.dumps(L.cur["401866454"]))
     buffalo["books"] = {"draftkings": {"homeSpread": -3.5, "awaySpread": 3.5, "homeSpreadOdds": -110, "awaySpreadOdds": -110,
                                        "total": 48.5, "overOdds": -110, "underOdds": -110, "homeML": -160, "awayML": 140}}
     lined, lined_desc = SP.game_meta(L, buffalo, "401866454")
-    check(lined == "Buffalo vs Miami OH Odds, Spread & Total (Nov 3) | LineSmart" and len(lined) == 60, f"Buffalo with a line ({lined})")
-    check(len(lined_desc) <= SP.DESC_MAX, f"Buffalo lined description {len(lined_desc)}")
+    check(lined == bare_t and "DK, FD & HR" in lined, f"Buffalo title is stable once a line posts ({lined})")
+    check("total 48.5" in lined_desc and all(b in lined_desc for b in BOOKS3), f"Buffalo lined description names the number and the books ({lined_desc})")
+    snippet_ok(lined, lined_desc, "Buffalo lined")
+    check("Miami OH" in bare_d and "total 48.5" not in bare_d, "Buffalo without a line does not invent a number")
     fl = leagues["ncaaf"].cur["401856734"]
     h1 = SP.game_h1(leagues["ncaaf"], fl)
     check(h1.startswith("Florida Gators vs Georgia Bulldogs ") and " at " not in h1, f"neutral H1 uses vs ({h1})")
@@ -415,6 +431,28 @@ def mask_official(h):
         h = h.replace(f'href="{url}"', 'href="https://example.com/book"')
     return h
 PROMO_RE = re.compile(r"\b(free bets?|risk[- ]free|no[- ]risk|guaranteed|bonus bets?|no[- ]sweat|free plays?)\b", re.I)   # same list as compliance_test.mjs
+# Title and meta-description ban list for game and player-prop pages (also rejects the phrase inside a longer sentence).
+SNIPPET_BANNED = re.compile(r"\b(locks?|guaranteed|free bets?|bonus bets?|risk[- ]free|no[- ]sweat|free plays?|free money|can(?:'|’)?t lose)\b", re.I)
+FL_CLAIM = re.compile(r"\b(?:legal|available|offered)\s+in\s+florida\b|\bin\s+florida\b", re.I)
+DATE_RE = re.compile(r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b")
+BOOKS3 = ("DraftKings", "FanDuel", "Hard Rock Bet")
+
+
+def snippet_ok(title, desc, who, books=True):
+    """Length, the three books, a date, and none of the banned or Florida-availability phrases."""
+    blob = f"{title or ''}\n{desc or ''}"
+    check(bool(title) and len(title) <= SP.TITLE_MAX, f"{who}: title length {len(title or '')} ({title})")
+    check(bool(desc) and 40 <= len(desc) <= SP.DESC_MAX, f"{who}: description length {len(desc or '')}")
+    hit = SNIPPET_BANNED.search(blob)
+    check(not hit, f"{who}: banned word ({hit and hit.group(0)})")
+    hit = pv.FORBIDDEN.search(blob)
+    check(not hit, f"{who}: pick or promo language ({hit and hit.group(0)})")
+    check(not FL_CLAIM.search(blob), f"{who}: implies a book is available in Florida")
+    if books:
+        missing = [b for b in BOOKS3 if b not in (desc or "")]
+        check(not missing, f"{who}: description missing {missing} ({desc})")
+        check(SP.TITLE_BOOKS in (title or "") or all(b in (title or "") for b in BOOKS3), f"{who}: title does not name the comparison ({title})")
+        check(DATE_RE.search(title or "") and DATE_RE.search(desc or ""), f"{who}: title and description need a date ({title} / {desc})")
 BAD_NAME = re.compile(r"\bRod\b|Rodney", re.I)
 
 
@@ -790,9 +828,75 @@ def state_unit_tests():
         check(f'href="{slug}/"' in home, f"homepage links {slug}/")
 
 
+def _prop_league(players, games, props_by_game, now):
+    """A tiny NFL league with prop pages, built the same way the SEO build collects players. No odds API."""
+    ix_games = []
+    raw = json.loads((ROOT / "site" / "data" / "nfl" / "index.json").read_text())
+    by_id = {g["id"]: g for g in raw["games"]}
+    for gid in games:
+        ix_games.append(by_id[gid])
+    props = {
+        "markets": {"rush_yds": ["Rushing yards", "Rush yds"], "rec": ["Receptions", "Recs"], "anytime_td": ["Anytime TD", "TD"]},
+        "players": players,
+        "games": props_by_game,
+    }
+    L = SP.League("nfl", {"league": {"kind": "football"}, "games": ix_games, "teams": {}, "generated": SP.iso(now)}, props, SP.Archive(None), now, SP.BASE_URL)
+    L.select()
+    L.assign_paths()
+    L.collect_players()
+    L.collect_teams()
+    return L
+
+
+def snippet_copy_tests():
+    """Player-prop titles and descriptions, plus the banned-word and Florida guards."""
+    for phrase in ("lock", "locks", "guaranteed", "free bet", "free bets", "bonus bet", "risk-free", "risk free", "no sweat", "no-sweat", "free play", "free money", "can't lose", "can’t lose"):
+        check(SNIPPET_BANNED.search(f"this is a {phrase} tonight"), f"banned guard catches {phrase!r}")
+    check(not SNIPPET_BANNED.search("the clock and a block of text"), "banned guard ignores clock and block")
+    check(FL_CLAIM.search("DraftKings is legal in Florida") and FL_CLAIM.search("available in Florida") and not FL_CLAIM.search("Compare Florida vs Georgia NCAAF odds"), "Florida guard is an availability claim, not the Gators")
+    now = pv.parse_dt("2026-10-26T12:00:00Z")
+    players = {
+        "1": {"n": "Josh Jacobs", "ta": "GB", "pos": "RB", "t": "9", "log": []},
+        "2": {"n": "Christopher Rodriguez Jr.", "ta": "WAS", "pos": "RB", "t": "28", "log": []},
+        "3": {"n": "Christopher Montgomery Rodriguez", "ta": "GB", "pos": "RB", "t": "9", "log": []},
+        "4": {"n": "Josh Jacobs", "ta": "LV", "pos": "RB", "t": "13", "log": []},
+    }
+    row = lambda pid, mk, ln: [pid, mk, ln, None, None, {"draftkings": [ln, -110, -110], "fanduel": [ln, -115, -105], "hardrockbet": [ln, -110, -110]}]
+    props_by_game = {
+        "401873023": {"props": [row("1", "rush_yds", 68.5), row("1", "rec", 3.5), row("1", "anytime_td", 0.5), row("3", "rush_yds", 40.5)]},
+        "401873026": {"props": [row("2", "rush_yds", 55.5), row("4", "rush_yds", 70.5)]},
+    }
+    L = _prop_league(players, ["401873023", "401873026"], props_by_game, now)
+    titles, descs = {}, {}
+    for pid in players:
+        title, desc = SP.player_meta(L, pid)
+        snippet_ok(title, desc, f"player {players[pid]['n']} {players[pid]['ta']}")
+        check(players[pid]["n"] in title or SP.short_person(players[pid]["n"]) in title, f"{pid} title names the player ({title})")
+        check(players[pid]["ta"] in title or players[pid]["ta"] in desc, f"{pid} names the team ({title} / {desc})")
+        titles.setdefault(title, []).append(pid)
+        descs.setdefault(desc, []).append(pid)
+    check(all(len(v) == 1 for v in titles.values()), f"prop titles unique ({[v for v in titles.values() if len(v) > 1]})")
+    check(all(len(v) == 1 for v in descs.values()), f"prop descriptions unique ({[v for v in descs.values() if len(v) > 1]})")
+    jt, jd = SP.player_meta(L, "1")
+    check(jt == "Josh Jacobs (GB) Props: DK, FD & HR (Oct 29) | LineSmart", f"Josh Jacobs title ({jt})")
+    check(jd.startswith("Compare Josh Jacobs (GB) NFL props for Panthers at Packers on Thu, Oct 29 across DraftKings, FanDuel and Hard Rock Bet."), f"Josh Jacobs description ({jd})")
+    check("Rushing yards 68.5" in jd and "best bet" not in jd.lower(), "Josh Jacobs description states the posted line")
+    long_t, long_d = SP.player_meta(L, "3")
+    check(long_t.startswith("Christopher Montgomery Rodriguez ") and len(long_t) <= SP.TITLE_MAX and "Oct 29" in long_t, f"long player name keeps the date ({long_t})")
+    check(all(b in long_d for b in BOOKS3) and "Oct 29" in long_d, f"long player description names the books and the date ({long_d})")
+    sh = SP.Shell((ROOT / "site" / "index.html").read_text(), SP.BASE_URL)
+    html, title = SP.player_page(L, sh, "1")
+    d = parse(html)
+    desc = d.meta.get("description")
+    check(d.title == title == d.meta.get("og:title") == d.meta.get("twitter:title"), "prop page og:title and twitter:title match <title>")
+    check(desc == d.meta.get("og:description") == d.meta.get("twitter:description"), "prop page og:description and twitter:description match")
+    check("21+" in html and "1-800-GAMBLER" in html, "prop page keeps the 21+ notice and the helpline")
+
+
 def main():
     title_limit_tests()
     game_title_tests()
+    snippet_copy_tests()
     best_lines_filter_tests()
     wtw_tests()
     state_unit_tests()
@@ -1139,7 +1243,10 @@ def main():
         check([n for n, _ in parts] == ["sitemap-games-nba-2026-10.xml", "sitemap-games-nba-2026-10-2.xml", "sitemap-games-nba-2026-10-3.xml"]
               and all(len(rows) <= 2 for _, rows in parts) and sum(len(rows) for _, rows in parts) == 5, f"sitemap split stays under the cap ({[n for n, _ in parts]})")
 
-        # ---- game / fight titles: "Away vs Home Odds: <books>", books named only if their column is on the page
+        # ---- game / fight / prop snippets. Upcoming team-sport pages name the three-book comparison even when a
+        # column is still empty (the page compares that set; a missing column is "no line yet"). Finished pages and
+        # UFC still name only a book that is actually on the page. UFC is DraftKings only.
+        snip_desc = {}
         for lg, gmap in man["g"].items():
             ixg = {str(x["id"]): x for x in (json.loads((data / lg / "index.json").read_text()).get("games") or [])} if (data / lg / "index.json").exists() else {}
             for gid, rel in gmap.items():
@@ -1149,22 +1256,43 @@ def main():
                 head = re.search(r'<table class="books pv-books"><thead><tr><th>Market</th>(.*?)</tr></thead>', h)
                 cols = set(html.unescape(x) for x in re.findall(r'<th data-book="[^"]*">([^<]*)<', head.group(1))) if head else set()
                 named = {full for short, full in (("Hard Rock", "Hard Rock Bet"), ("DraftKings", "DraftKings"), ("FanDuel", "FanDuel")) if short in t or short in desc}
-                check(named <= cols, f"{rel}: title/description name only books shown on the page ({sorted(named)} vs {sorted(cols)})")
                 check(" vs " in t and " at " not in t.split(" vs ")[0], f"{rel}: '<away> vs <home>' title ({t})")
+                g = ixg.get(str(gid))
+                upcoming = bool(g and g.get("state") in ("pre", "in") and lg != "ufc" and not SP.abnormal(g))
                 if lg == "ufc":
                     check(named <= {"DraftKings"}, f"{rel}: UFC names DraftKings only ({t})")
-                g = ixg.get(str(gid))
+                elif upcoming:
+                    snippet_ok(t, desc, rel)
+                    check(d.meta.get("og:title") == t == d.meta.get("twitter:title"), f"{rel}: og/twitter title")
+                    check(d.meta.get("og:description") == desc == d.meta.get("twitter:description"), f"{rel}: og/twitter description")
+                    snip_desc.setdefault(desc, []).append(rel)
+                else:
+                    check(named <= cols, f"{rel}: title/description name only books shown on the page ({sorted(named)} vs {sorted(cols)})")
                 if g and lg != "ufc":
-                    a_, h_ = pv.side_name(g["away"]), pv.side_name(g["home"])
-                    check(t.startswith(f"{a_} vs {h_} ") or t.startswith(f"{g['away'].get('abbr')} vs {g['home'].get('abbr')} "), f"{rel}: away team first ({t})")
-                if g and g.get("state") in ("pre", "in"):
+                    away_names = {SP.title_side(g["away"]), pv.side_name(g["away"])}
+                    check(any(t.startswith(f"{n} vs ") for n in away_names if n) or t.startswith(f"{g['away'].get('abbr')} vs "), f"{rel}: away team first ({t})")
+                if upcoming or (g and g.get("state") in ("pre", "in") and lg == "ufc" and not SP.abnormal(g)):
                     check(" Odds" in t, f"{rel}: upcoming title says Odds ({t})")
-                    check("Odds:" not in t, f"{rel}: books stay out of the title ({t})")
                 if "/games/" in rel and 'class="card sx-result"' in h or (g and g.get("state") == "post"):
                     check("Result" in t or "Final Score" in t, f"{rel}: finished game says Result ({t})")
+        for lg, pmap in (man.get("p") or {}).items():
+            for pid, rel in (pmap or {}).items():
+                if "/props/" not in rel:
+                    continue
+                h = (site / rel / "index.html").read_text()
+                d = parse(h)
+                desc = d.meta.get("description") or ""
+                snippet_ok(d.title, desc, rel)
+                check(d.meta.get("og:title") == d.title == d.meta.get("twitter:title"), f"{rel}: og/twitter title")
+                check(d.meta.get("og:description") == desc == d.meta.get("twitter:description"), f"{rel}: og/twitter description")
+                check("21+" in h and "1-800-GAMBLER" in h, f"{rel}: 21+ and helpline stay on the prop page")
+                snip_desc.setdefault(desc, []).append(rel)
+        dupes = [v for v in snip_desc.values() if len(v) > 1]
+        check(not dupes, f"upcoming game and prop descriptions are unique ({dupes[:2]})")
         nfl_t = [parse((site / r / "index.html").read_text()).title for r in man["g"].get("nfl", {}).values()]
-        check(any("Odds, Spread" in x or "Odds & Spread" in x or "Odds (" in x for x in nfl_t), f"NFL titles name the market and the date ({nfl_t[:2]})")
-        check(all("Odds:" not in x for x in nfl_t), f"NFL titles do not name a book ({[x for x in nfl_t if 'Odds:' in x][:2]})")
+        pre_t = [x for x in nfl_t if "Final Score" not in x and "Result" not in x and "Canceled" not in x and "Postponed" not in x]
+        check(pre_t and all(SP.TITLE_BOOKS in x and DATE_RE.search(x) for x in pre_t), f"NFL upcoming titles name the date and the comparison ({pre_t[:2]})")
+        check(all("Final Score" in x or "Result" in x or "Canceled" in x or "Postponed" in x or SP.TITLE_BOOKS in x for x in nfl_t), f"NFL titles are a result or a comparison ({[x for x in nfl_t if SP.TITLE_BOOKS not in x and 'Final' not in x][:2]})")
         check(SP.and_list(["Hard Rock", "DraftKings", "FanDuel"]) == "Hard Rock, DraftKings and FanDuel" and SP.and_list(["FanDuel"]) == "FanDuel", "and_list()")
         g0 = {"odds": {"provider": "DraftKings", "homeML": -150, "awayML": 130}, "books": {}}
         check(SP.page_books({"odds": {"provider": "ESPN BET", "homeML": -150, "awayML": 130}}, "nba") == [] and

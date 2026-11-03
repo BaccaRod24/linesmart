@@ -69,7 +69,11 @@ span.pro-pill,
 .pro-sharp{display:inline-flex;align-items:center;gap:6px;max-width:100%;margin-left:var(--pro-2);padding:2px 8px 2px 2px;border-radius:var(--pro-badge-r);border:1px solid transparent}
 .pro-sharp .pro-pill{margin:0}
 .pro-sharp-txt{color:#c8ffe4;-webkit-text-fill-color:#c8ffe4;font:800 12px/1.2 var(--font);letter-spacing:.04em;text-transform:uppercase}
-a.game .game-top:has(.pro-sharp){flex-wrap:wrap;row-gap:var(--pro-1)}
+/* One spot on every slate card, phone and iPad: just under the kickoff line, flush with the
+   card's right padding. Out of the flex row, so a long broadcast or the preview link and alert bell
+   cannot wrap it or slide it. The header grows to leave that corner clear. */
+a.game .pro-sharp{position:absolute;top:46px;right:16px;z-index:2;margin:0}
+a.game:has(.pro-sharp) .game-top{margin-bottom:40px}
 body.app a.search-btn[data-pro-owner-nav]{display:inline-flex;align-items:center;justify-content:center;flex:none;width:auto;height:32px;margin-left:var(--pro-2);padding:0 8px;border-radius:var(--pro-badge-r);border:1px solid transparent;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
 
 /* ---- cards: the same glass as .card / .slate in site/assets/styles.css ---- */

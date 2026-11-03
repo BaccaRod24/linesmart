@@ -1064,7 +1064,8 @@
       const s = document.createElement("span");
       s.className = "pro-sharp pro-frame";
       s.dataset.proBadge = "1";
-      s.title = "Pro · sharp move";
+      const why = (pub.getAttribute("title") || "").trim();
+      s.title = why ? "Pro · " + why : "Pro · sharp move";
       s.innerHTML = `<span class="pro-pill">PRO</span><span class="pro-sharp-txt">Sharp</span>`;
       top.appendChild(s);
     });

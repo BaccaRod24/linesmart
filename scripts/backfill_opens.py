@@ -6,6 +6,10 @@ line is checked against that book's recorded points with line_history.reconcile_
 A spread that sits on the opposite side of its own opening moneyline is swapped.
 A basketball total that never appears within 4 points of any recorded total is
 replaced with the first total those snapshots recorded.
+An opener that exactly matches an earlier game sharing a team, and that never
+comes within a point of a spread recorded for this game, is replaced with the
+first recorded line. The Week 8 Jaguars opener has to still be in the file for
+that pass to see it (prune drops a game 3 days after it starts).
 
 Dry-run by default: prints before and after, writes nothing. --write updates the
 JSON files in place. This script does not push, does not call The Odds API, and
@@ -52,6 +56,10 @@ def correct_file(path, write):
             changes.append((gid, g, bk, diffs))
             if write:
                 g["open"][bk] = new
+    for gid, bk, before, after in LH.fix_carried_opens(hist):
+        g = games.get(gid) or {}
+        diffs = [(k, before.get(k), after.get(k)) for k in list(before) + [k for k in after if k not in before] if before.get(k) != after.get(k)]
+        changes.append((gid, g, bk, diffs))
     if write and changes:
         LH.save(path, hist)
     return changes
@@ -75,7 +83,7 @@ def main():
             print(f"  {g.get('away')}@{g.get('home')}  {gid}  {bk}  {g.get('date')}")
             for k, before, after in diffs:
                 print(f"    {LABELS.get(k, k)}: {show(before, k)} -> {show(after, k)}")
-            if any(k in ("hs", "as") for k, _, _ in diffs):
+            if any(k in ("hs", "as") for k, _, _ in diffs) and not any(k in ("hml", "aml") for k, _, _ in diffs):
                 op = (g.get("open") or {}).get(bk) or {}
                 print(f"    home ML: {show(op.get('hml'), 'hml')} (unchanged)")
                 print(f"    away ML: {show(op.get('aml'), 'aml')} (unchanged)")

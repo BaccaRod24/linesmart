@@ -3,10 +3,13 @@
 ESPN sometimes reports the opening spread on the opposite side of the opening moneyline
 (Pacers at Heat, Rockets at Mavericks on 2026-10-30) and an opening total that never
 appears in the recorded snapshots (Hornets at Wizards, 234.5 vs a series at 219.5-223.5).
-The shapes below are the stored history rows. Offline: no network, no Odds API key.
+Week 9 Jaguars at Ravens carried the Week 8 Jaguars opener (-4.5, -218, +180, 49.5)
+even though the recorded line was already Baltimore -2.5. The shapes below are the
+stored history rows. Offline: no network, no Odds API key.
 
 Run: env -u ODDS_API_KEY python3 scripts/open_line_test.py
 """
+import json
 import os
 import sys
 
@@ -96,6 +99,63 @@ check(game["books"]["draftkings"]["homeSpreadOpen"] == -3.5 and game["odds"]["ho
 game["odds"]["totalOpen"] = 234.5
 LH.stamp_open(game, cha)
 check(game["odds"]["totalOpen"] == 223.5 and game["books"]["draftkings"]["totalOpen"] == 223.5, "line card total opener becomes the first recorded total")
+
+# Week 9 Jaguars at Ravens. The ESPN opener is the Week 8 Colts at Jaguars opener,
+# copied onto the shared team. The first recorded Week 9 line was Baltimore -2.5.
+fx = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "opens", "week9_jax_bal.json")
+carried = json.load(open(fx))
+n = LH.fix_carried_opens(carried)
+by_id = {gid: after for gid, bk, before, after in n}
+check(len(n) == 1 and "401873037" in by_id, f"only the Jaguars-Ravens opener is carried ({n})")
+jax = carried["games"]["401873037"]["open"]["draftkings"]
+check(jax["hs"] == -2.5 and jax["as"] == 2.5 and jax["hml"] == -148 and jax["aml"] == 124 and jax["tot"] == 48.5,
+      f"Jaguars-Ravens open becomes the first recorded line ({jax})")
+ind = carried["games"]["401873028"]["open"]["draftkings"]
+check(ind["hs"] == -4.5 and ind["hml"] == -218 and ind["tot"] == 49.5, "Week 8 Jaguars opener is left as stored")
+tb = carried["games"]["401873050"]["open"]["draftkings"]
+check(tb["hs"] == -3.5 and tb["tot"] == 48.5, "same opener on two games that share no team is not a carryover")
+
+# merge keeps the correction when ESPN sends the copy again, and after the source game is pruned.
+def snap(gid, date, home, away, pt, op, t):
+    return {gid: dict(date=date, home=home, away=away, books={"draftkings": pt}, open={"draftkings": op})}
+
+w8_op = dict(hs=-4.5, **{"as": 4.5}, hml=-218, aml=180, tot=49.5)
+w8_pt = dict(hs=-7.5, **{"as": 7.5}, hml=-355, aml=280, tot=46.5)
+w9_pt = dict(hs=-2.5, **{"as": 2.5}, hml=-148, aml=124, tot=48.5)
+hist = dict(v=1, league="nfl", games={})
+LH.merge(hist, snap("401873028", "2026-11-01T18:00Z", "JAX", "IND", w8_pt, w8_op, "2026-10-26T02:46:21Z"), "2026-10-26T02:46:21Z")
+LH.merge(hist, snap("401873037", "2026-11-06T01:15Z", "BAL", "JAX", w9_pt, dict(w8_op), "2026-10-27T19:48:34Z"), "2026-10-27T19:48:34Z")
+got = hist["games"]["401873037"]["open"]["draftkings"]
+check(got["hs"] == -2.5 and got["hml"] == -148 and got["tot"] == 48.5, f"merge drops the carried Jaguars opener ({got})")
+check(hist["games"]["401873028"]["open"]["draftkings"]["hs"] == -4.5, "merge leaves the Week 8 source opener")
+LH.merge(hist, snap("401873037", "2026-11-06T01:15Z", "BAL", "JAX",
+                    dict(hs=9.5, **{"as": -9.5}, hml=370, aml=-485, tot=42.5), dict(w8_op), "2026-11-03T14:15:21Z"),
+         "2026-11-03T14:15:21Z")
+got = hist["games"]["401873037"]["open"]["draftkings"]
+check(got["hs"] == -2.5 and got["tot"] == 48.5 and len(hist["games"]["401873037"]["books"]["draftkings"]) == 2,
+      f"a later run that resends the carried open stays on the first recorded line ({got})")
+del hist["games"]["401873028"]
+LH.merge(hist, snap("401873037", "2026-11-06T01:15Z", "BAL", "JAX",
+                    dict(hs=9.5, **{"as": -9.5}, hml=370, aml=-485, tot=42.5), dict(w8_op), "2026-11-04T20:00:00Z"),
+         "2026-11-04T20:00:00Z")
+got = hist["games"]["401873037"]["open"]["draftkings"]
+check(got["hs"] == -2.5 and got["hml"] == -148, f"pruning the Week 8 game does not put its opener back ({got})")
+
+# The same correction when the Week 8 game is already gone and the bad open is still stored.
+late = json.load(open(fx))
+del late["games"]["401873028"]
+n = LH.fix_carried_opens(late)
+jax = late["games"]["401873037"]["open"]["draftkings"]
+check(len(n) == 1 and jax["hs"] == -2.5 and jax["tot"] == 48.5, f"the copy is still dropped after the source game is gone ({jax})")
+untouched = json.load(open(fx))
+del untouched["games"]["401873037"]
+check(LH.fix_carried_opens(untouched) == [], "the Week 8 game keeps the opener that actually belongs to it")
+
+# A shared team whose recorded line really is that opener is not rewritten.
+same = dict(v=1, league="nfl", games={})
+LH.merge(same, snap("a", "2026-11-01T18:00Z", "JAX", "IND", w8_pt, w8_op, "2026-10-26T02:46:21Z"), "2026-10-26T02:46:21Z")
+LH.merge(same, snap("b", "2026-11-08T18:00Z", "JAX", "HOU", w8_op, dict(w8_op), "2026-10-30T04:15:16Z"), "2026-10-30T04:15:16Z")
+check(same["games"]["b"]["open"]["draftkings"]["hs"] == -4.5, "an opener this game actually showed is kept")
 
 print(f"open_line_test: {ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)

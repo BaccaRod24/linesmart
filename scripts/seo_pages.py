@@ -40,6 +40,7 @@ import build_pages  # noqa: E402
 import line_history as LH  # noqa: E402  (even-money-aware moneyline move, shared with the game page)
 import previews as pv  # noqa: E402  (formatting, odds tables, line movement, summaries, form/injury cards)
 import final_label as FL  # noqa: E402  ("Final/OT", "Final/12"... labels)
+import standings as ST_STAND  # noqa: E402  (ESPN standings cache written by build_data.py)
 from previews import esc, isnum, parse_dt, et, fmt_et, num, line, am, slugify, plural, load_json  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -2852,7 +2853,7 @@ def hub_page(L: League, sh: Shell, Ls):
 {today_html}
 {evs}
 {section("schedule", "Upcoming " + ("bouts" if L.lg == "ufc" else "games"), "".join(days) or '<div class="empty">No games in the next few days. Check back after the next data refresh.</div>')}
-<p class="note"><a href="{L.lg}/results/">Results archive</a> · <a href="states/">Sports betting by state</a></p>
+<p class="note"><a href="{L.lg}/results/">Results archive</a>{f' · <a href="{L.lg}/standings/">Standings</a>' if L.lg in ST_STAND.LEAGUES else ""} · <a href="states/">Sports betting by state</a></p>
 <p class="note pv-upd">{stamp("Updated " + esc(fmt_et(L.generated)))}. For adults 21+; odds are for reference only.</p>
 </article>"""
     moves = big_moves(L, 8)
@@ -2900,6 +2901,131 @@ def hub_page(L: League, sh: Shell, Ls):
         cp["mainEntity"] = games_ld
     ld = [cp, crumbs_ld(L.base_url, [(path, NAMES[L.lg])])]
     return sh.page(path, title, desc, main, more, kind="hub", lg=L.lg, route=f"l/{L.lg}" if getattr(L, "has_data", True) else "", ld=ld, og_type="website"), title
+
+
+def _standings_cell(text):
+    return f'<td class="num">{esc(text) if text not in (None, "") else "—"}</td>'
+
+
+def standings_static(doc, team_href):
+    """Crawlable standings tables. team_href(id) is a real team page, or None."""
+    groups = (doc or {}).get("groups") or []
+    if not groups:
+        return "<p>Standings are not available yet. They are refreshed with the rest of the site data.</p>"
+    cols = set(doc.get("columns") or [])
+    kind = doc.get("kind") or ""
+    score = ("GF", "GA", "GD") if kind == "hockey" else ("RF", "RA", "RD") if kind == "baseball" else ("PF", "PA", "PD")
+    head = ["Team", "W-L"]
+    if "t" in cols:
+        head.append("T")
+    if "otl" in cols:
+        head.append("OTL")
+    if "pts" in cols:
+        head.append("PTS")
+    elif "pct" in cols:
+        head.append("PCT")
+    if "gb" in cols:
+        head.append("GB")
+    head.append("GP")
+    if "pf" in cols:
+        head.append(score[0])
+    if "pa" in cols:
+        head.append(score[1])
+    if "pd" in cols:
+        head.append(score[2])
+    if "home" in cols:
+        head.append("Home")
+    if "away" in cols:
+        head.append("Away")
+    if "div" in cols:
+        head.append("DIV")
+    if "streak" in cols:
+        head.append("Streak")
+    if "l10" in cols:
+        head.append("L10")
+    parts = []
+    for g in groups:
+        parts.append(f'<h2 class="st-conf">{esc(g.get("name") or "")}</h2>')
+        divs = g.get("divisions") or []
+        for div in divs:
+            if not (len(divs) == 1 and div.get("name") == g.get("name")):
+                parts.append(f'<h3 class="st-div">{esc(div.get("name") or "")}</h3>')
+            rows = []
+            for t in div.get("teams") or []:
+                href = team_href(str(t.get("id") or ""))
+                name = esc(t.get("name") or "")
+                label = f'<a href="{esc(href)}">{name}</a>' if href else name
+                cells = [f'<td class="st-team">{label}</td>', _standings_cell(t.get("record"))]
+                if "t" in cols:
+                    cells.append(_standings_cell(t.get("t")))
+                if "otl" in cols:
+                    cells.append(_standings_cell(t.get("otl")))
+                if "pts" in cols:
+                    cells.append(_standings_cell(t.get("pts")))
+                elif "pct" in cols:
+                    cells.append(_standings_cell(t.get("pct")))
+                if "gb" in cols:
+                    cells.append(_standings_cell(t.get("gb")))
+                cells.append(_standings_cell(t.get("gp")))
+                if "pf" in cols:
+                    cells.append(_standings_cell(t.get("pf")))
+                if "pa" in cols:
+                    cells.append(_standings_cell(t.get("pa")))
+                if "pd" in cols:
+                    pd = t.get("pd")
+                    cells.append(_standings_cell(None if pd is None else f"{pd:+g}" if isinstance(pd, (int, float)) else pd))
+                if "home" in cols:
+                    cells.append(_standings_cell(t.get("home")))
+                if "away" in cols:
+                    cells.append(_standings_cell(t.get("away")))
+                if "div" in cols:
+                    cells.append(_standings_cell(t.get("div")))
+                if "streak" in cols:
+                    cells.append(_standings_cell(t.get("streak")))
+                if "l10" in cols:
+                    cells.append(_standings_cell(t.get("l10")))
+                rows.append("<tr>" + "".join(cells) + "</tr>")
+            parts.append('<div class="tbl-wrap st-board"><table><thead><tr>' + "".join(f"<th>{esc(h)}</th>" for h in head) + "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
+    return "".join(parts)
+
+
+def standings_page(L: League, sh: Shell, doc):
+    """Indexable /<league>/standings/ page. The app hydrates the same route."""
+    lg = L.lg
+    title = fit(
+        f"{NAMES[lg]} Standings by Conference and Division",
+        f"{SHORT[lg]} Standings by Division",
+        f"{NAMES[lg]} Standings",
+        f"{SHORT[lg]} Standings")
+    if lg == "nhl":
+        desc = cut(f"{NAMES[lg]} standings by conference and division: wins, losses, overtime losses, points, goals for and against, and streaks.")
+    elif lg == "nfl":
+        desc = cut(f"{NAMES[lg]} standings by conference and division: wins, losses, ties, win percentage, points for and against, and streaks.")
+    elif lg == "ncaaf":
+        desc = cut("College football standings by conference: wins and losses, games back, points for and against, home and away, and streaks.")
+    else:
+        desc = cut(f"{NAMES[lg]} standings by conference and division: wins, losses, win percentage, games back, scoring for and against, and streaks.")
+    scope = ""
+    if (doc or {}).get("scope") == "Major conferences":
+        scope = " Major conferences: ACC, Big 12, Big East, Big Ten, SEC, American, Atlantic 10, Missouri Valley, Mountain West, Pac-12 and West Coast."
+    elif (doc or {}).get("scope") == "FBS":
+        scope = " FBS conferences."
+    season = f" {(doc or {}).get('season')}" if (doc or {}).get("season") else ""
+    href = lambda tid: L.team_paths.get(str(tid))
+    main = f"""<article class="pv sx-hub">
+{crumbs((f"{lg}/", NAMES[lg]), (None, "Standings"))}
+<h1 class="pv-h1">{esc(NAMES[lg])} standings</h1>
+<p class="pv-lead">{esc(NAMES[lg])} standings{esc(season)}, grouped by conference and division.{esc(scope)} Figures come from ESPN.</p>
+{standings_static(doc, href)}
+<p class="note">For adults 21+. Records are for reference only.</p>
+<p class="note"><a href="{lg}/">Upcoming {esc(NAMES[lg])} games</a> · <a href="{lg}/results/">Results archive</a></p>
+</article>"""
+    others = [(f"{k}/standings/", f"{NAMES[k]} standings", "") for k in ST_STAND.LEAGUES if k != lg]
+    more = section("also", "Also on LineSmart", link_list([(f"{lg}/", f"{NAMES[lg]} odds", ""), (f"{lg}/results/", "Results archive", "")] + others))
+    cp = {"@context": "https://schema.org", "@type": "CollectionPage", "name": bare_title(title), "url": L.base_url + f"{lg}/standings/",
+          "description": desc, "about": {"@type": "SportsOrganization", "name": L.full}, "isPartOf": {"@id": L.base_url + "#site"}}
+    ld = [cp, crumbs_ld(L.base_url, [(f"{lg}/", NAMES[lg]), (f"{lg}/standings/", "Standings")])]
+    return sh.page(f"{lg}/standings/", title, desc, main, more, kind="standings", lg=lg, route=f"l/{lg}/standings", ld=ld, og_type="website"), title
 
 
 def asof_long(doc):
@@ -3756,6 +3882,13 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
             put(L.ev[eid]["path"], html, t, "event", lg)
         html, t = results_index_page(L, sh)
         put(f"{lg}/results/", html, t, "results", lg)
+        if lg in ST_STAND.LEAGUES:
+            doc = load_json(data_dir / lg / "standings.json") or {}
+            if not doc.get("kind"):
+                doc = dict(doc, kind=L.kind, league=lg)
+            html, t = standings_page(L, sh, doc)
+            put(f"{lg}/standings/", html, t, "standings", lg)
+            manifest.setdefault("s", {})[lg] = f"{lg}/standings/"
         months = _result_months(L)
         for ym in months:
             html, t = results_month_page(L, sh, ym, months)

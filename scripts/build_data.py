@@ -38,6 +38,7 @@ import linevalue as LV
 import lastgood as LG
 import final_label as FL
 import ncaaf_rankings as NR
+import standings as ST
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.environ.get("DATA_OUT") or os.path.join(ROOT, "site", "data")   # DATA_OUT: build elsewhere (local testing)
@@ -1029,6 +1030,16 @@ def main():
         if props_pulled: OP.cache_save(a.odds_cache_dir, pcache)
         if props_pulled and a.snap_dir:
             OP.cache_save(os.path.join(a.snap_dir, "_odds"), dict(pcache, leagues={k: pcache["leagues"][k] for k in props_pulled}))
+    if not a.search_only:
+        meta.setdefault("standings", {})
+        for lg in LEAGUES:
+            if lg["key"] not in want or lg["key"] not in ST.LEAGUES:
+                continue
+            try:
+                meta["standings"][lg["key"]] = ST.write_standings(lg, getj, OUT, log=log)
+            except Exception as ex:
+                log(f"[{lg['key']}] standings FAILED: {ex}")
+                meta["standings"][lg["key"]] = {"error": str(ex)[:200]}
     if not a.no_search:
         meta.setdefault("search", {})
         for lg in LEAGUES:

@@ -21,6 +21,7 @@
     const m = /^#\/([lgtp])\/([a-z0-9]+)(?:\/([^/?#]+))?\/?$/.exec(hash || "");
     if (!m) return null;
     const [, k, lg, id] = m, M = PAGES[k] || {};
+    if (k === "l" && id === "standings") return (PAGES.s || {})[lg] || null;
     return k === "l" ? (id ? null : M[lg] || null) : id ? ((M[lg] || {})[id] || null) : null;
   };
   const realizeLinks = root => {   // rewrite app links to their real URLs (kept in data-h for code that looks tiles up by route)
@@ -397,8 +398,10 @@
     catch (e) { return (app.innerHTML = `<div class="page-head"><h1>${esc(L.full)}</h1></div><div class="empty"><h3>No data file for ${esc(L.name)}</h3>Run <code>python3 scripts/build_data.py</code> to refresh.${L.error ? "<br>" + esc(L.error) : ""}</div>`); }
     const kind = data.league.kind;
     let filter = sessionStorage.getItem("filter-" + key) || "upcoming";
-    if (key === "ncaaf" && sub === "top25") filter = "top25";
+    if (sub === "standings" && STANDINGS_LGS.has(key)) filter = "standings";
+    else if (key === "ncaaf" && sub === "top25") filter = "top25";
     if (filter === "top25" && key !== "ncaaf") filter = "upcoming";
+    if (filter === "standings" && !STANDINGS_LGS.has(key)) filter = "upcoming";
     if (kind === "mma" && window.LSUfc) {   // UFC: fight cards grouped by event and main card / prelims (assets/ufc.js)
       app.innerHTML = window.LSUfc.league(data, key, filter);
       addStale(data.stale, "fights");
@@ -414,9 +417,10 @@
       <span class="chip"><b>${data.report.withOdds}</b> with lines</span>
       <span class="chip">Lines: <b>${esc((data.report.providers || []).join(", ") || "none")}</b></span>
       <span class="chip">Next ${data.windowDays} days</span></div>${staleNote(data.stale)}`;
-    const seg = `<div class="seg${key === "ncaaf" ? " seg-3" : ""}"><button data-f="upcoming" class="${filter === "upcoming" ? "on" : ""}">Upcoming & live</button><button data-f="all" class="${filter === "all" ? "on" : ""}">Incl. today's finals</button>${key === "ncaaf" ? `<button data-f="top25" class="${filter === "top25" ? "on" : ""}">Top 25</button>` : ""}</div>`;
-    let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(data.league.full)}</h1><div class="sub">${filter === "top25" ? `AP Top 25 games this week · times in ${TZL}` : `Upcoming games, lines and form · times in ${TZL}`}</div></div>
-      ${seg}</div>${filter === "top25" ? "" : chips}`;
+    const seg = leagueSeg(key, filter);
+    const subLine = filter === "standings" ? "Standings by conference and division" : filter === "top25" ? `AP Top 25 games this week · times in ${TZL}` : `Upcoming games, lines and form · times in ${TZL}`;
+    let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(data.league.full)}</h1><div class="sub">${subLine}</div></div>
+      ${seg}</div>${filter === "top25" || filter === "standings" ? "" : chips}`;
     if (filter === "top25") {
       let rankDoc = null;
       try { rankDoc = await getJSON("data/ncaaf/rankings.json"); } catch (e) { rankDoc = null; }
@@ -445,6 +449,15 @@
       startLive(shown.map(g => liveRef(key, g)));
       return;
     }
+    if (filter === "standings") {
+      let stDoc = null;
+      try { stDoc = await getJSON(`data/${key}/standings.json`); } catch (e) { stDoc = null; }
+      html += standingsView(stDoc, data, kind);
+      app.innerHTML = html;
+      wireLeagueSeg(key, home);
+      app.querySelectorAll(".st-board table").forEach(wireSort);
+      return;
+    }
     if (!games.length) {
       html += `<div class="empty" style="margin-top:16px"><h3>No ${esc(data.league.name)} games in the next ${data.windowDays} days</h3>
         ${data.league.key === "mlb" ? "MLB is in its offseason / postseason window." : data.league.key === "ncaab" ? "The college basketball season is just getting started." : "The league may be on a break or out of season."} Check back after the next data refresh.</div>`;
@@ -454,7 +467,7 @@
           days[k].map(g => gameTile(g, key, kind, home)).join("") + `</div>`;
       }
     }
-    html += teamTable(data, kind);
+    html += STANDINGS_LGS.has(key) ? standingsJump(key) : teamTable(data, kind);
     app.innerHTML = html;
     wireLeagueSeg(key, home);
     wireSort(app.querySelector("#teamTbl"));
@@ -486,13 +499,105 @@
       <div class="note">Computed from each team's completed games this season (ESPN team schedules${rows[0].t.seasonType ? ", " + esc(rows[0].t.seasonType) : ""}). Teams with no completed games show N/A.${window.LSAdv && window.LSAdv.ADV_LGS.has(data.league.key) ? " ATS and over/under records are on each team page." : ""}</div>`;
   }
 
+  function standingsJump(key) {
+    return `<a class="st-jump" href="#/l/${key}/standings"><span class="st-jump-t">Standings</span><span class="st-jump-s">Conference and division records, scoring and form</span></a>`;
+  }
+  function signedNum(n, digits) {
+    if (!isNum(n)) return null;
+    const x = Number(n);
+    const s = digits == null ? (Number.isInteger(x) ? String(x) : String(x)) : x.toFixed(digits);
+    return (x > 0 ? "+" : "") + s;
+  }
+  function standingsView(doc, data, kind) {
+    const groups = doc && Array.isArray(doc.groups) ? doc.groups : [];
+    if (!groups.length) return `<div class="empty" id="standings"><h3>Standings not available</h3>They'll show up after the next data refresh.</div>`;
+    const cols = new Set(doc.columns || []);
+    const u = unitWord(kind);
+    const score = kind === "hockey" ? ["GF", "GA", "GD"] : kind === "baseball" ? ["RF", "RA", "RD"] : ["PF", "PA", "PD"];
+    const head = ["Team", "W-L"];
+    if (cols.has("t")) head.push("T");
+    if (cols.has("otl")) head.push("OTL");
+    if (cols.has("pts")) head.push("PTS");
+    else if (cols.has("pct")) head.push("PCT");
+    if (cols.has("gb")) head.push("GB");
+    head.push("GP");
+    if (cols.has("pf")) head.push(score[0], `${u}/G`);
+    if (cols.has("pa")) head.push(score[1], `Opp ${u}/G`);
+    if (cols.has("pd")) head.push(score[2], "Diff");
+    if (cols.has("home")) head.push("Home");
+    if (cols.has("away")) head.push("Away");
+    if (cols.has("div")) head.push("DIV");
+    if (cols.has("streak")) head.push("Streak");
+    if (cols.has("l10")) head.push("L10");
+    const td = (text, sort, cls) => `<td class="num${cls ? " " + cls : ""}" data-v="${esc(sort ?? "")}">${text == null || text === "" ? NA : text}</td>`;
+    const perGame = (total, games) => (isNum(total) && isNum(games) && Number(games) ? Number(total) / Number(games) : null);
+    const rowHtml = row => {
+      const diff = perGame(row.pd, row.gp);
+      const diffText = diff == null ? null : (diff > 0 ? "+" : "") + diff.toFixed(1);
+      const pdText = signedNum(row.pd);
+      const ppg = perGame(row.pf, row.gp);
+      const oppg = perGame(row.pa, row.gp);
+      let cells = `<td class="st-team" data-v="${esc(row.name)}">${logo(row, "tlogo")}<a class="tlink" href="#/t/${data.league.key}/${row.id}">${esc(row.name)}</a></td>`;
+      cells += td(row.record ? esc(row.record) : null, row.record || "");
+      if (cols.has("t")) cells += td(row.t == null ? null : esc(row.t), row.t);
+      if (cols.has("otl")) cells += td(row.otl == null ? null : esc(row.otl), row.otl);
+      if (cols.has("pts")) cells += td(row.pts == null ? null : esc(row.pts), row.pts);
+      else if (cols.has("pct")) cells += td(row.pct ? esc(row.pct) : null, row.pct || "");
+      if (cols.has("gb")) cells += td(row.gb ? esc(row.gb) : null, row.gb === "—" ? -0.01 : row.gb);
+      cells += td(row.gp == null ? null : esc(row.gp), row.gp);
+      if (cols.has("pf")) cells += td(row.pf == null ? null : esc(row.pf), row.pf) + td(ppg == null ? null : esc(ppg.toFixed(1)), ppg);
+      if (cols.has("pa")) cells += td(row.pa == null ? null : esc(row.pa), row.pa) + td(oppg == null ? null : esc(oppg.toFixed(1)), oppg);
+      if (cols.has("pd")) cells += td(pdText == null ? null : esc(pdText), row.pd, row.pd > 0 ? "pos" : row.pd < 0 ? "neg" : "") + td(diffText == null ? null : esc(diffText), diff, diff > 0 ? "pos" : diff < 0 ? "neg" : "");
+      if (cols.has("home")) cells += td(row.home ? esc(row.home) : null, row.home || "");
+      if (cols.has("away")) cells += td(row.away ? esc(row.away) : null, row.away || "");
+      if (cols.has("div")) cells += td(row.div ? esc(row.div) : null, row.div || "");
+      if (cols.has("streak")) cells += td(row.streak ? esc(row.streak) : null, row.streak || "");
+      if (cols.has("l10")) cells += td(row.l10 ? esc(row.l10) : null, row.l10 || "");
+      return `<tr>${cells}</tr>`;
+    };
+    const one = divs => divs.length === 1;
+    let html = `<div id="standings">`;
+    for (const g of groups) {
+      html += `<h2 class="st-conf">${esc(g.name)}</h2>`;
+      for (const div of g.divisions || []) {
+        if (!one(g.divisions) || div.name !== g.name) html += `<h3 class="st-div">${esc(div.name)}</h3>`;
+        html += `<div class="tbl-wrap st-board"><table><thead><tr>${head.map((h, i) => `<th${i === 0 ? ' class="st-team"' : ""}>${h}</th>`).join("")}</tr></thead><tbody>${(div.teams || []).map(rowHtml).join("")}</tbody></table></div>`;
+      }
+    }
+    const season = doc.season ? ` ${esc(doc.season)}` : "";
+    const scope = doc.scope === "Major conferences" ? " Major conferences only." : doc.scope === "FBS" ? " FBS conferences." : "";
+    const ats = window.LSAdv && window.LSAdv.ADV_LGS.has(data.league.key) ? " ATS and over/under records are on each team page." : "";
+    html += `<div class="note">Each row is one ESPN season standings line${season}, in ESPN's division order.${scope} Win percentage counts a tie as half a win. Per-game figures are that row's season total divided by games played. A blank cell is not in the feed.${ats}</div></div>`;
+    return html;
+  }
+
+  const STANDINGS_LGS = new Set(["nfl", "nba", "nhl", "mlb", "ncaaf", "ncaab"]);
+  function leagueSeg(key, filter) {
+    const extra = (key === "ncaaf" ? 1 : 0) + (STANDINGS_LGS.has(key) ? 1 : 0);
+    const cls = "seg" + (extra ? " seg-stand" : "") + (key === "ncaaf" ? " seg-4" : "");
+    const btn = (f, label) => `<button type="button" data-f="${f}" class="${filter === f ? "on" : ""}">${label}</button>`;
+    const stand = STANDINGS_LGS.has(key) ? `<a href="#/l/${key}/standings" data-f="standings" class="${filter === "standings" ? "on" : ""}"${filter === "standings" ? ' aria-current="page"' : ""}>Standings</a>` : "";
+    return `<div class="${cls}" role="tablist">${btn("upcoming", "Upcoming & live")}${btn("all", "Incl. today's finals")}${key === "ncaaf" ? btn("top25", "Top 25") : ""}${stand}</div>`;
+  }
+  function onStandingsPage(key) {
+    if (PAGE_ROUTE === `l/${key}/standings`) return true;
+    return (location.hash || "").replace(/\/$/, "") === `#/l/${key}/standings`;
+  }
   function wireLeagueSeg(key, home) {
     app.querySelectorAll(".page-head .seg button").forEach(b => (b.onclick = () => {
       const f = b.dataset.f;
-      sessionStorage.setItem("filter-" + key, f);
+      sessionStorage.setItem("filter-" + key, f === "standings" ? "upcoming" : f);
+      if (onStandingsPage(key) && f !== "standings") {
+        if (PAGE_ROUTE === `l/${key}/standings`) {
+          location.href = new URL(key === "ncaaf" && f === "top25" ? `${key}/#/l/${key}/top25` : `${key}/`, document.baseURI).href;
+          return;
+        }
+        location.hash = key === "ncaaf" && f === "top25" ? "#/l/ncaaf/top25" : `#/l/${key}`;
+        return;
+      }
       if (key === "ncaaf") {
-        const next = f === "top25" ? "#/l/ncaaf/top25" : "#/l/ncaaf";
-        if ((location.hash || "#") !== next) { location.hash = next; return; }
+        const next = f === "top25" ? "#/l/ncaaf/top25" : `#/l/${key}`;
+        if ((location.hash || "#") !== next && !(PAGE_ROUTE === `l/${key}` && f !== "top25")) { location.hash = next; return; }
       }
       viewLeague(key, home, f === "top25" ? "top25" : "");
     }));

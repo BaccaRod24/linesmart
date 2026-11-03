@@ -44,6 +44,17 @@ BOOK_ORDER = ["draftkings", "hardrockbet", "fanduel"]
 # Totals we actually record sit within 2 points of a real open. Farther than this, the
 # ESPN figure is dropped for the first total the snapshots recorded.
 BASKETBALL_TOTAL_OPEN_GAP = 4
+# An opening spread copied from an earlier game of the same team. If it sits at least
+# this far from every spread recorded for this game, it never traded here.
+CARRIED_OPEN_GAP = 1.0
+# Game id -> opener (home spread, home ML, away ML, total) proven, from the history
+# file, to be an earlier game's opener rather than a line this game traded.
+# 401873037 (Jaguars at Ravens, Week 9) carried 401873028 (Colts at Jaguars, Week 8)
+# from the first snapshot (745ee9329f, 2026-10-27T19:48:34Z). The source game is
+# pruned 3 days after its Nov 1 kickoff, so the copy has to be recognizable without it.
+PROVEN_CARRIED_OPEN = {
+    "401873037": (-4.5, -218, 180, 49.5),
+}
 LEAGUE_KIND = {"nfl": "football", "ncaaf": "football", "nba": "basketball", "ncaab": "basketball",
                "nhl": "hockey", "mlb": "baseball", "epl": "soccer", "mls": "soccer", "ucl": "soccer", "ufc": "mma"}
 OPEN_TO_GAME = {"hs": "homeSpreadOpen", "as": "awaySpreadOpen", "hml": "homeMLOpen", "aml": "awayMLOpen",
@@ -95,6 +106,81 @@ def reconcile_open(op, points=None, kind=""):
         if observed and min(abs(out["tot"] - t) for t in observed) > BASKETBALL_TOTAL_OPEN_GAP:
             out["tot"] = observed[0]
     return out
+
+def _open_sig(op):
+    """Spread, both moneylines, and total. None unless all four are present."""
+    if not isinstance(op, dict): return None
+    keys = ("hs", "hml", "aml", "tot")
+    if any(op.get(k) is None for k in keys): return None
+    return tuple(op[k] for k in keys)
+
+def _spread_near(op, series, gap):
+    """True when the open spread is within gap of some recorded spread, or we cannot tell."""
+    hs = op.get("hs") if isinstance(op, dict) else None
+    obs = [p.get("hs") for p in series if isinstance(p, dict) and p.get("hs") is not None]
+    if hs is None or not obs: return True
+    return min(abs(float(hs) - float(s)) for s in obs) < gap
+
+def adopt_first_open(op, first):
+    """Opening numbers from the first recorded point. Spread prices are not part of the open."""
+    out = dict(op or {})
+    if not isinstance(first, dict): return out
+    for k in ("hs", "as", "hml", "aml", "dml", "tot"):
+        if first.get(k) is not None: out[k] = first[k]
+    if out.get("hs") is not None and out.get("as") is None: out["as"] = -out["hs"]
+    elif out.get("as") is not None and out.get("hs") is None: out["hs"] = -out["as"]
+    return out
+
+def keep_recorded_open(prev, new, series, gap=CARRIED_OPEN_GAP):
+    """Keep a stored open that is the first recorded spread when the incoming one never traded.
+
+    A carried opener is corrected once. Later refreshes send the same ESPN number again,
+    including after prune() has dropped the earlier game the number was copied from.
+    """
+    if not prev or not series: return False
+    first = series[0]
+    if not isinstance(first, dict) or first.get("hs") is None or prev.get("hs") != first.get("hs"):
+        return False
+    return not _spread_near(new, series, gap)
+
+def fix_carried_opens(hist, gap=CARRIED_OPEN_GAP):
+    """Replace an opener that is an exact copy of an earlier game sharing a team.
+
+    ESPN has left last week's opener (home spread, both moneylines, and total) on the
+    next game. Week 9 Jaguars at Ravens carried Week 8 Colts at Jaguars: -4.5, -218,
+    +180, 49.5, while every recorded Jaguars-Ravens spread was at least 1.5 points away.
+    The first recorded line of this game is used instead. A copy that this game actually
+    traded (within `gap` points) is left alone, and so is a matching number on a game
+    that shares no team.
+
+    Returns [(game id, book, before, after), ...] and updates hist in place.
+    """
+    games = hist.get("games") or {}
+    changes = []
+    for gid, g in games.items():
+        teams = {g.get("home"), g.get("away")} - {None, ""}
+        date = g.get("date") or ""
+        if not teams or not date: continue
+        for bk, op in list((g.get("open") or {}).items()):
+            series = [p[1] for p in (g.get("books") or {}).get(bk) or []
+                      if isinstance(p, list) and len(p) > 1 and isinstance(p[1], dict)]
+            sig = _open_sig(op)
+            if not series or sig is None or _spread_near(op, series, gap): continue
+            carried = PROVEN_CARRIED_OPEN.get(gid) == sig
+            if not carried:
+                for oid, og in games.items():
+                    if oid == gid or (og.get("date") or "") >= date: continue
+                    oteams = {og.get("home"), og.get("away")} - {None, ""}
+                    if not (teams & oteams): continue
+                    if _open_sig((og.get("open") or {}).get(bk)) == sig:
+                        carried = True
+                        break
+            if not carried: continue
+            before, new = dict(op), adopt_first_open(op, series[0])
+            if new == before: continue
+            g["open"][bk] = new
+            changes.append((gid, bk, before, new))
+    return changes
 
 def stamp_open(game, op):
     """Copy a reconciled DraftKings open onto the odds objects the line card reads."""
@@ -164,9 +250,10 @@ def merge(hist, snap, t):
     """Append changed points from one run's snapshot (taken at UTC time t). Returns #points appended.
 
     The opening line is reconciled after the points are updated, so a bad ESPN open
-    (spread on the wrong side, or a basketball total that never appears in the
-    snapshots) is corrected from those snapshots on the way in. A later run that
-    sends the same bad open is corrected again; it does not stick.
+    (spread on the wrong side, a basketball total that never appears in the snapshots,
+    or an opener copied from an earlier game of the same team) is corrected from those
+    snapshots on the way in. A later run that sends the same bad open is corrected
+    again; it does not stick, including after the source game has been pruned.
     """
     added = 0
     kind = league_kind(hist.get("league"))
@@ -183,7 +270,11 @@ def merge(hist, snap, t):
                 pts.append([tb, pt]); added += 1
         for bk, op in (s.get("open") or {}).items():
             series = [p[1] for p in g["books"].get(bk, [])]
-            g["open"][bk] = reconcile_open(op, series, kind)
+            prev = g["open"].get(bk)
+            new = reconcile_open(op, series, kind)
+            if keep_recorded_open(prev, new, series): new = prev
+            g["open"][bk] = new
+    fix_carried_opens(hist)
     hist["updated"] = max(hist.get("updated") or "", t)
     return added
 

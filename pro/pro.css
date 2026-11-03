@@ -1,7 +1,8 @@
 /* Injected with the private Pro bundle. Not shipped in site/assets/styles.css.
-   Spacing is a 4px scale. Gold is the existing Pro accent, flat, with no gradient. */
+   Spacing is a 4px scale. Badges and selected filters are emerald glass (#c8ffe4 on a teal edge),
+   distinct from the site win green (--win) and positive green (--pos). */
 :root{
-  --pro-gold:#e0b84a;--pro-on:#050b1c;--pro-gold-edge:#a67c00;
+  --pro-gold:#e0b84a;
   --pro-1:4px;--pro-2:8px;--pro-3:12px;--pro-4:16px;--pro-5:24px;
   --pro-badge-r:6px;
 }
@@ -25,45 +26,52 @@
 .ppv-book{margin:var(--pro-2) 0 var(--pro-2);font-size:13px;font-weight:700;letter-spacing:.02em}
 .ppv-cap-row b,.ppv .stat b,.ppv-line .num,.ppv .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
 
-/* ---- gold badges: dark site-bg text on a solid gold fill. One treatment everywhere. ---- */
+/* ---- emerald glass badges: frosted fill, teal gradient edge, soft glow, mint text ---- */
 .pro-pill,
 span.pro-pill,
 .ppv-card span.pro-pill,
 .ppv-h span.pro-pill,
-.pro-sharp .pro-pill,
 .pro-best-tag,
 span.pro-best-tag,
 .ppv .books td .pro-best-tag,
 .ppv .books td.num .pro-best-tag,
 .pro-sharp,
-.pro-sharp .pro-sharp-txt,
+.pro-nav,
 body.app a.search-btn[data-pro-owner-nav],
-[data-pro-owner] a.chip.on,
-[data-pro-owner] button.chip.on,
-[data-pro-enhance] a.chip.on,
-[data-pro-enhance] button.chip.on,
-.pro-sort button.chip.on,
-.ppv .seg a.on,
 [data-pro-owner] h3.ppv-h:not(:has(.pro-pill))::before{
-  background:var(--pro-gold);color:var(--pro-on);-webkit-text-fill-color:var(--pro-on);border-color:var(--pro-gold-edge);box-shadow:none;
+  position:relative;isolation:isolate;
+  color:#c8ffe4;-webkit-text-fill-color:#c8ffe4;
+  background:linear-gradient(180deg,rgba(184,255,220,.10),rgba(184,255,220,.02) 55%),color-mix(in srgb,var(--surface) 60%,transparent);
+  border-color:transparent;
+  -webkit-backdrop-filter:saturate(170%) blur(12px);backdrop-filter:saturate(170%) blur(12px);
+  box-shadow:0 0 0 .5px rgba(16,185,129,.28),0 0 14px -3px rgba(16,185,129,.55),inset 0 1px 0 rgba(200,255,228,.16);
+}
+.pro-pill::before,
+.pro-best-tag::before,
+.pro-sharp::before,
+.pro-nav::before,
+body.app a.search-btn[data-pro-owner-nav]::before{
+  content:"";position:absolute;inset:-1px;z-index:-1;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(135deg,#d4ffe8 0%,#10b981 35%,#065f46 65%,#5eead4 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
 }
 .pro-pill,
 span.pro-pill,
 .pro-best-tag,
 [data-pro-owner] h3.ppv-h:not(:has(.pro-pill))::before{
   display:inline-flex;align-items:center;justify-content:center;flex:none;
-  min-height:20px;padding:2px 7px;border-radius:var(--pro-badge-r);border:1px solid var(--pro-gold-edge);
+  min-height:20px;padding:2px 7px;border-radius:var(--pro-badge-r);border:1px solid transparent;
   font:800 12px/1.2 var(--font);letter-spacing:.04em;text-transform:uppercase;
 }
-[data-pro-owner] h3.ppv-h:not(:has(.pro-pill))::before{content:"PRO";margin-right:var(--pro-2)}
+[data-pro-owner] h3.ppv-h:not(:has(.pro-pill))::before{content:"PRO";margin-right:var(--pro-2);border-color:#10b981}
 .pro-best-tag{margin-left:var(--pro-1);vertical-align:1px}
 .game-top .pro-pill{margin-left:0}
-.pro-sharp{display:inline-flex;align-items:center;gap:6px;max-width:100%;margin-left:var(--pro-2);padding:2px 8px 2px 2px;border-radius:var(--pro-badge-r);border:1px solid var(--pro-gold-edge)}
+.pro-sharp{display:inline-flex;align-items:center;gap:6px;max-width:100%;margin-left:var(--pro-2);padding:2px 8px 2px 2px;border-radius:var(--pro-badge-r);border:1px solid transparent}
 .pro-sharp .pro-pill{margin:0}
-.pro-sharp-txt{font:800 12px/1.2 var(--font);letter-spacing:.04em;text-transform:uppercase}
+.pro-sharp-txt{color:#c8ffe4;-webkit-text-fill-color:#c8ffe4;font:800 12px/1.2 var(--font);letter-spacing:.04em;text-transform:uppercase}
 a.game .game-top:has(.pro-sharp){flex-wrap:wrap;row-gap:var(--pro-1)}
-body.app a.search-btn[data-pro-owner-nav]{display:inline-flex;align-items:center;justify-content:center;flex:none;width:auto;height:32px;margin-left:var(--pro-2);padding:0 8px;border-radius:var(--pro-badge-r);border:1px solid var(--pro-gold-edge);font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
-body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);border-color:var(--pro-gold-edge);color:var(--pro-on);-webkit-text-fill-color:var(--pro-on)}
+body.app a.search-btn[data-pro-owner-nav]{display:inline-flex;align-items:center;justify-content:center;flex:none;width:auto;height:32px;margin-left:var(--pro-2);padding:0 8px;border-radius:var(--pro-badge-r);border:1px solid transparent;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
 
 /* ---- cards: the same glass as .card / .slate in site/assets/styles.css ---- */
 .ppv,.ppv-inject,.pro-insights,.ppv-grid,.ppv-card,[data-pro-owner] .card{min-width:0;max-width:100%}
@@ -92,7 +100,32 @@ body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);borde
 .ppv-nav{display:flex;flex-wrap:nowrap;gap:var(--pro-2);margin:0 0 var(--pro-4);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;overscroll-behavior-x:contain}
 .ppv-nav .chip{flex:none}
 [data-pro-owner] .chip,[data-pro-enhance] .chip{min-height:32px;padding:4px 10px;border-radius:999px;font-size:12.5px;font-weight:600}
-[data-pro-owner] a.chip.on,[data-pro-owner] button.chip.on,[data-pro-enhance] a.chip.on,[data-pro-enhance] button.chip.on,.pro-sort button.chip.on{border:1px solid var(--pro-gold-edge);font-weight:800}
+[data-pro-owner] a.chip.on,
+[data-pro-owner] button.chip.on,
+[data-pro-enhance] a.chip.on,
+[data-pro-enhance] button.chip.on,
+.pro-sort button.chip.on,
+.ppv .seg a.on,
+.ppv .seg button.on{
+  position:relative;isolation:isolate;font-weight:800;
+  color:#c8ffe4;-webkit-text-fill-color:#c8ffe4;
+  background:linear-gradient(180deg,rgba(184,255,220,.10),rgba(184,255,220,.02) 55%),color-mix(in srgb,var(--surface) 60%,transparent);
+  border-color:transparent;
+  -webkit-backdrop-filter:saturate(170%) blur(12px);backdrop-filter:saturate(170%) blur(12px);
+  box-shadow:0 0 0 .5px rgba(16,185,129,.28),0 0 14px -3px rgba(16,185,129,.55),inset 0 1px 0 rgba(200,255,228,.16);
+}
+[data-pro-owner] a.chip.on::before,
+[data-pro-owner] button.chip.on::before,
+[data-pro-enhance] a.chip.on::before,
+[data-pro-enhance] button.chip.on::before,
+.pro-sort button.chip.on::before,
+.ppv .seg a.on::before,
+.ppv .seg button.on::before{
+  content:"";position:absolute;inset:-1px;z-index:-1;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(135deg,#d4ffe8 0%,#10b981 35%,#065f46 65%,#5eead4 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
+}
 .pro-sort{display:flex;flex-wrap:wrap;gap:var(--pro-2);margin:0 0 var(--pro-3)}
 .rk-pos,.rk-view,.rk-stat{margin-top:var(--pro-2)}
 .ppv-frow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--pro-2);margin-top:var(--pro-3)}
@@ -100,7 +133,7 @@ body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);borde
 .ppv-q input,.ppv-form input,.ppv-form select,.ppv-books select,.ppv .vf-sel select{max-width:100%;font:500 16px var(--font);color:var(--txt);background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r-sm);min-height:40px;padding:0 10px}
 .ppv .seg{display:inline-flex;flex-wrap:wrap;gap:2px;max-width:100%;padding:3px}
 .ppv .seg a{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 12px;border-radius:9px;color:var(--mute);font:600 13px var(--font);text-decoration:none}
-.ppv .seg a.on{border:1px solid var(--pro-gold-edge);font-weight:800}
+.ppv .seg a,.ppv .seg button{position:relative}
 .ppv-tags{margin:var(--pro-3) 0}
 .ppv-saved{margin-top:var(--pro-2)}
 .ppv-saved-chip{gap:var(--pro-1);padding-right:6px}
@@ -134,9 +167,6 @@ body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);borde
 .ppv-chart circle{fill:currentColor}
 .ppv-mk{margin:0;min-width:0}
 .ppv-mk .na{margin:0;font-size:12px;line-height:1.35}
-.pro-best{background:color-mix(in srgb,var(--pro-gold) 14%,transparent)}
-.ppv .rk-table th.rk-on,.ppv .rk-table td.rk-on{background:color-mix(in srgb,var(--pro-gold) 28%,var(--bg2));box-shadow:inset 0 -2px 0 var(--pro-gold);font-weight:700}
-
 /* ---- tables: scroll on phones, numbers right, sticky header ---- */
 .ppv .tbl-wrap,.pro-insights .tbl-wrap,.ppv-inject .tbl-wrap{max-width:100%;overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--glass-brd);border-radius:var(--r-sm);background:transparent}
 .ppv .books,.pro-insights .books,.ppv-inject .books{width:max-content;min-width:100%;border-collapse:collapse}
@@ -148,6 +178,8 @@ body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);borde
 .pro-moves td.num,.pro-moves th.num{min-width:3.25rem}
 .ppv .tbl-wrap thead th:first-child,.pro-insights .tbl-wrap thead th:first-child,.ppv-inject .tbl-wrap thead th:first-child{z-index:3;background:var(--bg2)}
 .ppv .books td.num.pos{color:var(--pos)}.ppv .books td.num.neg{color:var(--neg)}
+.ppv .books td.num.pro-best{background:color-mix(in srgb,#10b981 18%,var(--surface));color:#c8ffe4;-webkit-text-fill-color:#c8ffe4}
+.ppv .rk-table th.rk-on,.ppv .rk-table td.rk-on,.ppv .books th.num.rk-on,.ppv .books td.num.rk-on{background:color-mix(in srgb,#10b981 22%,var(--bg2));box-shadow:inset 0 -2px 0 #5eead4;color:#c8ffe4;-webkit-text-fill-color:#c8ffe4;font-weight:700}
 .ppv-matrix th.num,.ppv-matrix td.num{min-width:84px}
 .rk-table small{display:block;color:var(--dim);font-size:11px;font-weight:550;line-height:1.3}
 .ppv .rk-table th,.ppv .rk-table td{padding:4px 8px;line-height:1.25}
@@ -184,4 +216,27 @@ body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);borde
 
 @media (min-width:1100px){
   .ppv-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* Daylight is a light surface, so the same green glass uses deep emerald text. */
+:root[data-theme="daylight"] :is(
+  .pro-pill,
+  .pro-best-tag,
+  .pro-sharp,
+  .pro-sharp-txt,
+  .pro-nav,
+  body.app a.search-btn[data-pro-owner-nav],
+  [data-pro-owner] h3.ppv-h:not(:has(.pro-pill))::before,
+  [data-pro-owner] a.chip.on,
+  [data-pro-owner] button.chip.on,
+  [data-pro-enhance] a.chip.on,
+  [data-pro-enhance] button.chip.on,
+  .pro-sort button.chip.on,
+  .ppv .seg a.on,
+  .ppv .seg button.on,
+  .ppv .rk-table th.rk-on,
+  .ppv .rk-table td.rk-on,
+  .ppv .books td.num.pro-best
+){
+  color:#064e3b;-webkit-text-fill-color:#064e3b;
 }

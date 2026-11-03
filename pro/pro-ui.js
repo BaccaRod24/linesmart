@@ -818,7 +818,7 @@
     const bar = document.querySelector(".topbar-inner");
     if (!bar) return;
     const a = document.createElement("a");
-    a.className = "search-btn";
+    a.className = "search-btn pro-nav";
     a.href = "#/owner";
     a.dataset.proOwnerNav = "1";
     a.textContent = "Pro";

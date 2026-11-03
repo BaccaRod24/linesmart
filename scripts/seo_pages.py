@@ -1124,7 +1124,9 @@ def hero(L: League, g):
     dt = parse_dt(g["date"])
     final = L.is_final(g)
     sep = "VS" if L.lg == "ufc" or g.get("neutral") else "@"
-    logo = lambda t: f'<img src="{esc(t.get("logo"))}" alt="" width="56" height="56" loading="lazy" class="pv-logo">' if t.get("logo") else ""
+    # Eager, with an onerror hide: loading=lazy inside overflow:hidden (.match) makes iOS Safari
+    # paint the broken-image "?" and never fire the request. Same trap as the home cards.
+    logo = lambda t: f'<img src="{esc(t.get("logo"))}" alt="" width="56" height="56" class="pv-logo" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else ""
     sc = lambda t: f'<div class="sx-score{" win" if t.get("winner") else ""}">{esc(num(t.get("score")))}</div>' if L.lg != "ufc" and (final or g.get("state") == "in") and isnum(t.get("score")) else ""
     meta_bits = [x for x in [g.get("venue"), ", ".join(x for x in [g.get("city"), g.get("venueState")] if x), ", ".join(g.get("broadcasts") or [])] if x]
     if L.lg == "ufc":
@@ -2363,7 +2365,7 @@ def team_page(L: League, sh: Shell, tid):
         desc = f"{name} ({t.get('record') or ts.get('recordSummary') or 'record n/a'}) betting odds" + (f" for {L.matchup(nx, short=True)} {short_day(parse_dt(nx['date']), False)}" if nx else "") + ", schedule, recent results with closing lines, splits and player props."
         h1 = f"{esc(name)} odds, schedule &amp; results"
     desc = cut(desc)
-    logo = f'<img class="sx-tlogo" src="{esc(t.get("logo"))}" alt="" width="48" height="48" loading="lazy">' if t.get("logo") else ""
+    logo = f'<img class="sx-tlogo" src="{esc(t.get("logo"))}" alt="" width="48" height="48" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else ""
     app_link = f"#/t/{L.lg}/{esc(tid)}/all" if L.lg != "ufc" else f"#/p/ufc/{esc(tid)}/log"
     main = f"""<article class="pv sx-team">
 {crumbs((L.hub, NAMES[L.lg]), (None, name))}
@@ -2732,7 +2734,10 @@ def hot_props(L: League, n=10):
 def game_tile(L: League, gid, g, with_lg=False):
     a, h = g["away"], g["home"]
     lg_tag = f'<span class="hc-lg">{esc(SHORT[L.lg])}</span>' if with_lg else ""
-    logo = lambda t: f'<img src="{esc(t.get("logo"))}" alt="" width="22" height="22" loading="lazy">' if t.get("logo") else '<span class="hc-nologo"></span>'
+    # No loading=lazy. These marks sit in .hc-scroll (overflow-x: auto). iOS Safari treats that
+    # scroller as the lazy root, never fetches the PNG, and paints a "?" box because alt is empty.
+    # onerror covers a real 404 the same way the in-app tiles do (app.js logo()).
+    logo = lambda t: f'<img class="hc-logo" src="{esc(t.get("logo"))}" alt="" width="22" height="22" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else '<span class="hc-nologo"></span>'
     when = "LIVE" if g.get("state") == "in" else et(parse_dt(g["date"])).strftime("%-I:%M %p ET") if day_et(parse_dt(g["date"])) == day_et(L.now) else et(parse_dt(g["date"])).strftime("%a %-I:%M %p")
     nm = (lambda t: t.get("last") or t.get("short") or tname(t)) if L.lg == "ufc" else (lambda t: t.get("abbr") or tname(t))
     return (f'<a class="hc-card hc-game" href="{esc(L.paths[gid])}"><div class="hc-top">{lg_tag}<span class="hc-when{" live" if g.get("state") == "in" else ""}">{esc(when)}</span></div>'

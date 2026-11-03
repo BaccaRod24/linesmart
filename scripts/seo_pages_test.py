@@ -1322,6 +1322,13 @@ def main():
         check(all(n.get("@type") != "SearchAction" and (not isinstance(n.get("potentialAction"), dict) or n["potentialAction"].get("@type") != "SearchAction") for n in home_nodes), "homepage has no SearchAction")
         block = ih.split(SP.HOME_START, 1)[1].split(SP.HOME_END, 1)[0]
         check("home-cards" in block and "Top games" in block, "homepage cards filled in")
+        hc_logos = re.findall(r'<img class="hc-logo"[^>]*>', block)
+        check(len(hc_logos) >= 2, f"homepage game cards include team logos ({len(hc_logos)})")
+        check(all("espncdn.com" in t and 'loading="lazy"' not in t and "onerror=" in t and "visibility" in t for t in hc_logos),
+              "homepage logos load immediately and hide Safari's broken-image box")
+        hc_rule = re.search(r"\.hc-tm img,\.hc-logo\{([^}]*)\}", (ROOT / "site" / "assets" / "styles.css").read_text())
+        check(hc_rule and "max-width:none" in hc_rule.group(1) and "flex:none" in hc_rule.group(1),
+              "home card logos opt out of the flex max-width:100% trap")
         check('href="best-lines-today/"' in block and "See all best lines today" in block, "homepage cards link best lines today")
         hrefs = re.findall(r'href="([^"]+)"', block)
         check(hrefs and all(resolve(site, "", None, x).exists() for x in hrefs if not x.startswith("#")), "homepage cards link real pages")

@@ -87,7 +87,7 @@
   const unitWord = kind => ({ football: "Pts", basketball: "Pts", hockey: "Goals", soccer: "Goals", baseball: "Runs" }[kind] || "Pts");
   const formDots = f => (f ? `<span class="form" title="Last ${f.length}: ${esc(f)} (most recent first)">${[...f].map(c => `<i class="f-${c}"></i>`).join("")}</span>` : "");
   const rec = (a, kind) => (!a ? null : kind === "soccer" ? `${a.w}-${a.d}-${a.l}` : a.d ? `${a.w}-${a.l}-${a.d}` : `${a.w}-${a.l}`);
-  const logo = (t, cls = "") => (t && t.logo ? `<img class="${cls}" src="${esc(t.logo)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : `<span class="${cls}"></span>`);
+  const logo = (t, cls = "") => (t && t.logo ? `<img class="${cls}" src="${esc(t.logo)}" alt="" onerror="this.style.visibility='hidden'">` : `<span class="${cls}"></span>`);
 
   // ---------- nav
   // active: a league key, HOME (the dashboard: the "All" pill lights up, no league does) or null (no pill lit)
@@ -1008,7 +1008,7 @@
   const initials = n => esc(String(n || "").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase());
   const hexOk = c => /^[0-9a-f]{6}$/i.test(c || "");
   const avatar = (img, name, color, cls = "") => `<span class="av ${cls}" aria-hidden="true"${hexOk(color) ? ` style="--tc:#${color}"` : ""}>${initials(name)}${img ? `<img src="${esc(img)}" alt="" loading="lazy" onerror="this.remove()">` : ""}</span>`;
-  const crest = (src, name, cls = "") => `<span class="av crest ${cls}" aria-hidden="true">${src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.remove()">` : initials(name)}</span>`;
+  const crest = (src, name, cls = "") => `<span class="av crest ${cls}" aria-hidden="true">${src ? `<img src="${esc(src)}" alt="" onerror="this.remove()">` : initials(name)}</span>`;
   const notAvail = (title, why) => `<div class="card na-card"><h3>${esc(title)}</h3><div class="na">${esc(why || "Not available right now.")}</div></div>`;
   // "Back" returns to wherever the user came from inside the app; on a cold deep link it goes to Search
   const backLink = () => `<a class="back" href="#/search" data-back>← Back</a>`;

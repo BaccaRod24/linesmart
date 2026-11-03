@@ -14,6 +14,8 @@
   const F = () => window.ProFeatures;
   const Hp = () => window.HotProps;
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const th = (label, cls) => `<th${cls ? ` class="${cls}"` : ""}>${esc(label)}</th>`;
+  const td = (label, html, cls) => `<td${cls ? ` class="${cls}"` : ""} data-label="${esc(label)}">${html}</td>`;
   const isNum = v => typeof v === "number" && isFinite(v);
   const num = v => (v == null || v === "" || !isFinite(Number(v)) ? null : Number(v));
   const sgn = v => (v > 0 ? "+" + v : v === 0 ? "PK" : String(v));
@@ -171,8 +173,8 @@
     return panel("My Bets", `<div class="statgrid"><div class="stat"><span class="sl">Bets</span><b class="num">${bets.length}</b></div><div class="stat"><span class="sl">Record</span><b class="num">${esc(rec)}</b></div><div class="stat"><span class="sl">Net</span><b class="num ${cls(stats ? stats.net : 0)}">${esc(net)}</b></div></div>${clvBlock(clv)}<p><a href="#/bets">Open My Bets</a></p>`);
   }
   function boardTable(rows) {
-    const body = rows.map(r => `<tr data-size="${esc(String(r.size))}" data-lg="${esc(r.lg)}"><td><a href="${publicGame(r.lg, r.id)}" data-pro-goto="game">${esc(r.away)} @ ${esc(r.home)}</a></td><td>${esc(A().lgName(r.lg))}</td><td>${esc(r.market === "total" ? "Total" : "Spread")}</td><td class="num">${esc(moveLabel(r.market, r.open))}</td><td class="num">${esc(moveLabel(r.market, r.cur))}</td><td class="num"><b>${esc(signedPts(r.delta))}</b></td></tr>`).join("");
-    return `<div class="pro-sort" role="group" aria-label="Sort line moves"><button type="button" class="chip on" data-pro-sort="size" data-dir="desc" aria-pressed="true">Size</button><button type="button" class="chip" data-pro-sort="league" aria-pressed="false">League</button></div><div class="tbl-wrap"><table class="books pro-moves" id="proMoves"><thead><tr><th>Game</th><th>League</th><th>Market</th><th>Open</th><th>Now</th><th>Move</th></tr></thead><tbody>${body}</tbody></table></div><p class="note">Size is how far the spread or total moved, in points. Open and current are the numbers stored in the file.</p>`;
+    const body = rows.map(r => `<tr data-size="${esc(String(r.size))}" data-lg="${esc(r.lg)}">${td("Game", `<a href="${publicGame(r.lg, r.id)}" data-pro-goto="game">${esc(r.away)} @ ${esc(r.home)}</a>`)}${td("League", esc(A().lgName(r.lg)))}${td("Market", esc(r.market === "total" ? "Total" : "Spread"))}${td("Open", esc(moveLabel(r.market, r.open)), "num")}${td("Now", esc(moveLabel(r.market, r.cur)), "num")}${td("Move", `<b>${esc(signedPts(r.delta))}</b>`, "num")}</tr>`).join("");
+    return `<div class="pro-sort" role="group" aria-label="Sort line moves"><button type="button" class="chip on" data-pro-sort="size" data-dir="desc" aria-pressed="true">Size</button><button type="button" class="chip" data-pro-sort="league" aria-pressed="false">League</button></div><div class="tbl-wrap"><table class="books pro-moves" id="proMoves"><thead><tr>${th("Game")}${th("League")}${th("Market")}${th("Open", "num")}${th("Now", "num")}${th("Move", "num")}</tr></thead><tbody>${body}</tbody></table></div><p class="note">Size is how far the spread or total moved, in points. Open and current are the numbers stored in the file.</p>`;
   }
   function sortMoves(btn) {
     const table = document.getElementById("proMoves");
@@ -393,13 +395,13 @@
     if (!shown.length) return shell("tracker", "My Bets extras", labelOf("tracker_pro"), `${chips ? `<div class="chips ppv-tags" role="group" aria-label="Tags">${chips}</div>` : ""}${EMPTY}`);
     const box = (k, v, sub, c) => `<div class="stat"><span class="sl">${esc(k)}</span><b class="num ${c || ""}">${v}</b>${sub ? `<span class="ss">${sub}</span>` : ""}</div>`;
     const rec = `${stats.won}-${stats.lost}-${stats.push}`;
-    const clvHead = clvAll.available ? `<th>CLV</th>` : "";
-    const table = `<div class="tbl-wrap"><table class="books ppv-bets"><thead><tr><th>Bet</th><th>Status</th><th>Stake</th><th>Net</th>${clvHead}<th>Tags</th></tr></thead><tbody>${shown.slice(0, 20).map(b => {
+    const clvHead = clvAll.available ? th("CLV", "num") : "";
+    const table = `<div class="tbl-wrap"><table class="books ppv-bets"><thead><tr>${th("Bet")}${th("Status")}${th("Stake", "num")}${th("Net", "num")}${clvHead}${th("Tags")}</tr></thead><tbody>${shown.slice(0, 20).map(b => {
       const net = window.BetCore.netResult(b);
       const clv = F().clvPoints(b, b.closeLine);
       const mine = tags[b.id] || [];
-      const clvCell = clvAll.available ? `<td class="num">${clv.available ? esc((clv.delta > 0 ? "+" : "") + clv.delta) : "—"}</td>` : "";
-      return `<tr><td>${esc(betLabel(b))}<small class="na"> ${esc(b.date || "")}</small></td><td>${esc(b.status || "pending")}</td><td class="num">${esc(money(Number(b.stake) || 0))}</td><td class="num ${cls(net)}">${esc(money(net, true))}</td>${clvCell}<td>${mine.map(t => `<span class="chip">${esc(t)}</span>`).join(" ")}${store ? `<form class="ppv-form" data-ppv-tag="${esc(b.id)}"><input name="tag" maxlength="24" aria-label="Tag" placeholder="Tag"><button type="submit" class="chip">Add</button></form>` : ""}</td></tr>`;
+      const clvCell = clvAll.available ? td("CLV", clv.available ? esc((clv.delta > 0 ? "+" : "") + clv.delta) : "—", "num") : "";
+      return `<tr>${td("Bet", `${esc(betLabel(b))}<small class="na"> ${esc(b.date || "")}</small>`)}${td("Status", esc(b.status || "pending"))}${td("Stake", esc(money(Number(b.stake) || 0)), "num")}${td("Net", esc(money(net, true)), `num ${cls(net)}`)}${clvCell}${td("Tags", `${mine.map(t => `<span class="chip">${esc(t)}</span>`).join(" ")}${store ? `<form class="ppv-form" data-ppv-tag="${esc(b.id)}"><input name="tag" maxlength="24" aria-label="Tag" placeholder="Tag"><button type="submit" class="chip">Add</button></form>` : ""}`)}</tr>`;
     }).join("")}</tbody></table></div>`;
     return shell("tracker", "My Bets extras", labelOf("tracker_pro"),
       `<div class="statgrid bt-stats">${box("Net", money(stats.net, true), "from My Bets", cls(stats.net))}${box("ROI", pct(stats.roi), "", cls(stats.roi || 0))}${box("Record", rec, `${stats.n} bets`)}${box("Win rate", stats.winRate == null ? "—" : (stats.winRate * 100).toFixed(0) + "%", "pushes excluded")}</div>
@@ -436,7 +438,7 @@
     const cols = G() && G().sortBooks ? G().sortBooks(F().BOOK_KEYS.slice()) : F().BOOK_KEYS.slice();
     const headR = cols.map(k => {
       const st = bookBits(k);
-      return `<th>${esc(F().BOOK_NAME[k] || k)}${st.label ? `<span class="na-st">${esc(st.label)}</span>` : ""}</th>`;
+      return `<th class="num">${esc(F().BOOK_NAME[k] || k)}${st.label ? `<span class="na-st">${esc(st.label)}</span>` : ""}</th>`;
     }).join("");
     const markets = [
       [g.away.abbr + " spread"],
@@ -449,11 +451,11 @@
     const body = markets.map(([label]) => {
       const cells = cols.map(k => cell(g, k, label));
       if (!cells.some(Boolean)) return "";
-      return `<tr><td>${esc(label)}</td>${cells.map(c => `<td class="num">${c || "—"}</td>`).join("")}</tr>`;
+      return `<tr>${td("Market", esc(label))}${cols.map((k, i) => td(F().BOOK_NAME[k] || k, cells[i] || "—", "num")).join("")}</tr>`;
     }).join("");
     const sel = `<label class="vf-sel"><span>Game</span><select id="ppvGame" aria-label="Game">${games.slice(0, 40).map(x => `<option value="${esc(x.lg)}/${esc(x.g.id)}"${x.lg === cur.lg && String(x.g.id) === String(g.id) ? " selected" : ""}>${esc(A().lgName(x.lg))} · ${esc(x.g.away.abbr)} @ ${esc(x.g.home.abbr)}</option>`).join("")}</select></label>`;
     const offers = G() && G().offersHTML ? G().offersHTML("pro") : "";
-    const table = body ? `<div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${headR}</tr></thead><tbody>${body}</tbody></table></div><p class="note">Only books with a number in the file get a column. An empty cell means that book didn't post this market. No price is filled in. Pinnacle isn't listed.</p>` : EMPTY;
+    const table = body ? `<div class="tbl-wrap"><table class="books ppv-matrix"><thead><tr>${th("Market")}${headR}</tr></thead><tbody>${body}</tbody></table></div><p class="note">Only books with a number in the file get a column. An empty cell means that book didn't post this market. No price is filled in. Pinnacle isn't listed.</p>` : EMPTY;
     return shell("books", "More sportsbooks", labelOf("books_10"),
       `${flNote()}<section class="card pro-frame ppv-books"><div class="ppv-frow">${sel}<span class="na">${esc(g.away.name)} at ${esc(g.home.name)}</span></div>
         ${table}</section>
@@ -491,7 +493,7 @@
       const L = (meta.leagues || {})[lg] || {}, idx = by[lg];
       const t = L.updated || (idx && idx.generated);
       const age = t ? ((Date.now() - Date.parse(t)) / 36e5) : null;
-      return `<tr><td>${esc(L.name || A().lgName(lg))}</td><td class="num">${t ? esc(A().fullET(t)) : "—"}</td><td class="num">${age == null ? "—" : esc(age.toFixed(1))}</td></tr>`;
+      return `<tr>${td("League", esc(L.name || A().lgName(lg)))}${td("Updated", t ? esc(A().fullET(t)) : "—", "num")}${td("Hours ago", age == null ? "—" : esc(age.toFixed(1)), "num")}</tr>`;
     }).join("");
     const ageCard = info.ageHours == null ? "" : `<section class="card pro-frame"><div class="statgrid">${[
         ["File age", info.ageHours.toFixed(1) + " h", "since the data file"],
@@ -499,7 +501,7 @@
       ].map(([k, v, s]) => `<div class="stat"><span class="sl">${esc(k)}</span><b class="num">${esc(v)}</b><span class="ss">${esc(s)}</span></div>`).join("")}</div>
         <p class="note">This page does not fetch new odds and does not call the odds provider.</p></section>`;
     return shell("refresh", "Faster refresh", labelOf("fast_refresh"),
-      `${ageCard}<section class="card pro-frame"><h3 class="ppv-h">${PILL} When each league file was written</h3><div class="tbl-wrap"><table class="books"><thead><tr><th>League</th><th>Updated</th><th>Hours ago</th></tr></thead><tbody>${rows}</tbody></table></div></section>`);
+      `${ageCard}<section class="card pro-frame"><h3 class="ppv-h">${PILL} When each league file was written</h3><div class="tbl-wrap"><table class="books"><thead><tr>${th("League")}${th("Updated", "num")}${th("Hours ago", "num")}</tr></thead><tbody>${rows}</tbody></table></div></section>`);
   }
 
   function preferBooks() {
@@ -664,8 +666,8 @@
         const kind = spec.perGame ? `${esc(statName)} are per game, from games he appeared in.` : `${esc(statName)} are season totals.`;
         const through = pack.through ? ` through ${esc(whenIso(pack.through))}` : "";
         const lead = board.total ? `Top ${board.rows.length} of ${board.total} by ${esc(statName).toLowerCase()}.` : `No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.`;
-        const headCells = (board.cols || []).map(c => `<th class="${c.on ? "rk-on" : ""}">${esc(c.label)}</th>`).join("");
-        const table = board.rows.length ? `<div class="tbl-wrap"><table class="books rk-table"><thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>GP</th>${headCells}</tr></thead><tbody>${board.rows.map(r => `<tr><td class="num">${r.rank}</td><td><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a></td><td>${esc(r.team || "—")}</td><td class="num">${r.gp}</td>${r.cells.map(c => `<td class="num${c.on ? " rk-on" : ""}">${esc(c.text)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="pro-empty">No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.</p>`;
+        const headCells = (board.cols || []).map(c => `<th class="num${c.on ? " rk-on" : ""}">${esc(c.label)}</th>`).join("");
+        const table = board.rows.length ? `<div class="tbl-wrap"><table class="books rk-table"><thead><tr>${th("Player")}${th("Team")}${th("GP", "num")}${headCells}</tr></thead><tbody>${board.rows.map(r => `<tr>${td("Player", `<span class="rk-rank">${r.rank}</span><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a>`, "rk-who")}${td("Team", esc(r.team || "—"))}${td("GP", String(r.gp), "num")}${r.cells.map(c => td(c.label, esc(c.text), `num${c.on ? " rk-on" : ""}`)).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="pro-empty">No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.</p>`;
         const sampleFloor = spec.perGame && board.minGp > 1 ? ` Players with fewer than ${board.minGp} games are left off. The most games anyone at this position played is ${board.maxGp}.` : "";
         const noThrees = lg === "nba" && !Rk.nbaThrees(pack.players) ? `<p class="note">3-pointers made are not in this box-score cache, so that rank is hidden.</p>` : "";
         body = `<p class="rk-meta">${lead} ${pack.boxGames} regular-season games in the cache${through}. ${kind}${sampleFloor} Games played is how many of those games he appeared in. Postseason games are not in the cache.</p>${table}<p class="note">Counting stats from the cached ESPN box scores. The highlighted column is the one this list is ranked by. A roster name is required. Completed games only.</p>${noThrees}`;
@@ -695,7 +697,7 @@
         body = `<p class="pro-empty">${entries.length} ${esc(spec.label)} ${entries.length === 1 ? "has a line" : "have lines"}, and none ${entries.length === 1 ? "has" : "have"} ${ranked.min} games against it. The minimum sample is ${ranked.min}. The list stays empty.</p>`;
       } else {
         const windowLabel = Rk.basisLabel(ranked.basis);
-        const table = `<div class="tbl-wrap"><table class="books rk-table"><thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>Line</th><th>Over</th><th>Rate</th></tr></thead><tbody>${ranked.rows.map(r => `<tr><td class="num">${r.rank}</td><td><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a></td><td>${esc(r.team || "—")}</td><td class="num">${esc(lineText(r.line))}<small>${esc(bookLabel(r.book))}${ranked.basis === "mixed" ? ` · ${esc(Rk.basisLabel(r.basis))}` : ""}</small></td><td class="num"><b>${esc(r.text)}</b></td><td class="num">${esc(r.pct == null ? "—" : Math.round(r.pct * 100) + "%")}</td></tr>`).join("")}</tbody></table></div>`;
+        const table = `<div class="tbl-wrap"><table class="books rk-table"><thead><tr>${th("Player")}${th("Team")}${th("Line", "num")}${th("Over", "num")}${th("Rate", "num")}</tr></thead><tbody>${ranked.rows.map(r => `<tr>${td("Player", `<span class="rk-rank">${r.rank}</span><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a>`, "rk-who")}${td("Team", esc(r.team || "—"))}${td("Line", `${esc(lineText(r.line))}<small>${esc(bookLabel(r.book))}${ranked.basis === "mixed" ? ` · ${esc(Rk.basisLabel(r.basis))}` : ""}</small>`, "num")}${td("Over", `<b>${esc(r.text)}</b>`, "num")}${td("Rate", esc(r.pct == null ? "—" : Math.round(r.pct * 100) + "%"), "num")}</tr>`).join("")}</tbody></table></div>`;
         const showing = ranked.total > ranked.rows.length ? `Top ${ranked.rows.length} of ${ranked.total}.` : `${ranked.rows.length} player${ranked.rows.length === 1 ? "" : "s"} with at least ${ranked.min} games.`;
         const srcNote = src === "file"
           ? "From the props file on the site. A season tally in that file is every cached game against the current line. When the file has no season tally, the row is the last 10 logged games, and it is labeled that way."
@@ -816,7 +818,7 @@
     const bar = document.querySelector(".topbar-inner");
     if (!bar) return;
     const a = document.createElement("a");
-    a.className = "search-btn";
+    a.className = "search-btn pro-nav";
     a.href = "#/owner";
     a.dataset.proOwnerNav = "1";
     a.textContent = "Pro";
@@ -929,15 +931,15 @@
       if (charts) charts += `<p class="note">Each chart is the opening number in the file, then the recorded snapshots. Moneyline is drawn as implied win percent so a move across even money stays on one scale. The prices under it are the American odds.</p>`;
     }
     const cols = F().bookColumns(g);
-    const bookHead = cols.map(k => `<th>${bookName(k)}</th>`).join("");
+    const bookHead = cols.map(k => `<th class="num">${bookName(k)}</th>`).join("");
     const labels = [`${g.away.abbr} spread`, `${g.home.abbr} spread`, `${g.away.abbr} ML`, `${g.home.abbr} ML`, "Over", "Under"];
     const bookBody = cols.length ? labels.map(label => {
       const cells = cols.map(k => cell(g, k, label));
       if (!cells.some(Boolean)) return "";
-      return `<tr><td>${esc(label)}</td>${cells.map(c => `<td class="num">${c || "—"}</td>`).join("")}</tr>`;
+      return `<tr>${td("Market", esc(label))}${cols.map((k, i) => td((F().BOOK_NAME)[k] || k, cells[i] || "—", "num")).join("")}</tr>`;
     }).join("") : "";
     const books = bookBody
-      ? `<div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${bookHead}</tr></thead><tbody>${bookBody}</tbody></table></div><p class="note">Only books with a number in the file get a column. Pinnacle isn't listed.</p>`
+      ? `<div class="tbl-wrap"><table class="books ppv-matrix"><thead><tr>${th("Market")}${bookHead}</tr></thead><tbody>${bookBody}</tbody></table></div><p class="note">Only books with a number in the file get a column. Pinnacle isn't listed.</p>`
       : "";
     const best = bestTable(g);
     const info = F().refreshInfo((meta && meta.generated) || (idx && idx.generated) || "", Date.now());
@@ -950,20 +952,21 @@
     if (!bp.available) return "";
     const cols = [];
     for (const r of bp.rows) for (const q of r.quotes) if (!cols.includes(q.book)) cols.push(q.book);
-    const head = cols.map(k => `<th>${bookName(k)}</th>`).join("");
+    const head = cols.map(k => `<th class="num">${bookName(k)}</th>`).join("");
     const body = bp.rows.map(r => {
       const by = Object.fromEntries(r.quotes.map(q => [q.book, q]));
       const cells = cols.map(k => {
+        const name = (F().BOOK_NAME)[k] || k;
         const q = by[k];
-        if (!q) return `<td class="num">—</td>`;
+        if (!q) return td(name, "—", "num");
         const on = r.best.includes(k);
         const text = r.kind === "ml" ? am(q.line) : r.kind === "spread" ? sgn(q.line) : String(q.line);
         const price = q.price == null || r.kind === "ml" ? "" : ` <span class="na">${esc(am(q.price))}</span>`;
-        return `<td class="num${on ? " pro-best" : ""}"><b>${esc(text)}</b>${price}${on ? ` <span class="pro-best-tag">Best</span>` : ""}</td>`;
+        return td(name, `<b>${esc(text)}</b>${price}${on ? ` <span class="pro-best-tag">Best</span>` : ""}`, on ? "num pro-best" : "num");
       }).join("");
-      return `<tr><td>${esc(r.label)}</td>${cells}</tr>`;
+      return `<tr>${td("Market", esc(r.label))}${cells}</tr>`;
     }).join("");
-    return `<div class="tbl-wrap"><table class="books"><thead><tr><th>Market</th>${head}</tr></thead><tbody>${body}</tbody></table></div><p class="note">Highlighted when at least two books posted that market. The best number is the most favorable one in the file for that side: a higher spread or moneyline, a lower over, or a higher under. The price breaks a tie. It is not a suggestion to bet. Confirm the price at the sportsbook.</p>`;
+    return `<div class="tbl-wrap"><table class="books ppv-matrix"><thead><tr>${th("Market")}${head}</tr></thead><tbody>${body}</tbody></table></div><p class="note">Highlighted when at least two books posted that market. The best number is the most favorable one in the file for that side: a higher spread or moneyline, a lower over, or a higher under. The price breaks a tie. It is not a suggestion to bet. Confirm the price at the sportsbook.</p>`;
   }
   function hotFilter(ctx) {
     const key = (ctx.lg || "") + "/" + (ctx.id || "");
@@ -1044,11 +1047,11 @@
     const rows = bets.slice(0, 12).map(b => {
       const c = F().clvPoints(b, b.closeLine);
       const mine = tags[b.id] || [];
-      const clvCell = clv.available ? `<td class="num">${c.available ? esc((c.delta > 0 ? "+" : "") + c.delta) : "—"}</td>` : "";
-      return `<tr><td>${esc(betLabel(b))}</td>${clvCell}<td>${mine.map(t => `<span class="chip">${esc(t)}</span>`).join(" ")}${store ? `<form class="ppv-form" data-pro-tag="${esc(b.id)}"><input name="tag" maxlength="24" aria-label="Tag" placeholder="Tag"><button type="submit" class="chip">Add</button></form>` : ""}</td></tr>`;
+      const clvCell = clv.available ? td("CLV", c.available ? esc((c.delta > 0 ? "+" : "") + c.delta) : "—", "num") : "";
+      return `<tr>${td("Bet", esc(betLabel(b)))}${clvCell}${td("Tags", `${mine.map(t => `<span class="chip">${esc(t)}</span>`).join(" ")}${store ? `<form class="ppv-form" data-pro-tag="${esc(b.id)}"><input name="tag" maxlength="24" aria-label="Tag" placeholder="Tag"><button type="submit" class="chip">Add</button></form>` : ""}`)}</tr>`;
     }).join("");
-    const clvHead = clv.available ? `<th>CLV</th>` : "";
-    const table = `<div class="tbl-wrap"><table class="books ppv-bets"><thead><tr><th>Bet</th>${clvHead}<th>Tags</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const clvHead = clv.available ? th("CLV", "num") : "";
+    const table = `<div class="tbl-wrap"><table class="books ppv-bets"><thead><tr>${th("Bet")}${clvHead}${th("Tags")}</tr></thead><tbody>${rows}</tbody></table></div>`;
     const html = `${clvBlock(clv)}${typeHtml}${tagHtml}${table}<p class="note">Tags stay in this browser. They don't turn Pro on. <span class="of-21">21+</span></p>`;
     place("pro-bets-panel", "bets", panel("My Bets extras", html), anchor);
   }

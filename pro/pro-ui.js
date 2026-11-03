@@ -396,7 +396,7 @@
     const box = (k, v, sub, c) => `<div class="stat"><span class="sl">${esc(k)}</span><b class="num ${c || ""}">${v}</b>${sub ? `<span class="ss">${sub}</span>` : ""}</div>`;
     const rec = `${stats.won}-${stats.lost}-${stats.push}`;
     const clvHead = clvAll.available ? th("CLV", "num") : "";
-    const table = `<div class="tbl-wrap"><table class="books ppv-bets ppv-stack"><thead><tr>${th("Bet")}${th("Status")}${th("Stake", "num")}${th("Net", "num")}${clvHead}${th("Tags")}</tr></thead><tbody>${shown.slice(0, 20).map(b => {
+    const table = `<div class="tbl-wrap"><table class="books ppv-bets"><thead><tr>${th("Bet")}${th("Status")}${th("Stake", "num")}${th("Net", "num")}${clvHead}${th("Tags")}</tr></thead><tbody>${shown.slice(0, 20).map(b => {
       const net = window.BetCore.netResult(b);
       const clv = F().clvPoints(b, b.closeLine);
       const mine = tags[b.id] || [];
@@ -501,7 +501,7 @@
       ].map(([k, v, s]) => `<div class="stat"><span class="sl">${esc(k)}</span><b class="num">${esc(v)}</b><span class="ss">${esc(s)}</span></div>`).join("")}</div>
         <p class="note">This page does not fetch new odds and does not call the odds provider.</p></section>`;
     return shell("refresh", "Faster refresh", labelOf("fast_refresh"),
-      `${ageCard}<section class="card pro-frame"><h3 class="ppv-h">${PILL} When each league file was written</h3><div class="tbl-wrap"><table class="books ppv-stack"><thead><tr>${th("League")}${th("Updated", "num")}${th("Hours ago", "num")}</tr></thead><tbody>${rows}</tbody></table></div></section>`);
+      `${ageCard}<section class="card pro-frame"><h3 class="ppv-h">${PILL} When each league file was written</h3><div class="tbl-wrap"><table class="books"><thead><tr>${th("League")}${th("Updated", "num")}${th("Hours ago", "num")}</tr></thead><tbody>${rows}</tbody></table></div></section>`);
   }
 
   function preferBooks() {
@@ -667,7 +667,7 @@
         const through = pack.through ? ` through ${esc(whenIso(pack.through))}` : "";
         const lead = board.total ? `Top ${board.rows.length} of ${board.total} by ${esc(statName).toLowerCase()}.` : `No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.`;
         const headCells = (board.cols || []).map(c => `<th class="num${c.on ? " rk-on" : ""}">${esc(c.label)}</th>`).join("");
-        const table = board.rows.length ? `<div class="tbl-wrap"><table class="books rk-table ppv-stack"><thead><tr>${th("Rank", "num")}${th("Player")}${th("Team")}${th("GP", "num")}${headCells}</tr></thead><tbody>${board.rows.map(r => `<tr>${td("Rank", String(r.rank), "num")}${td("Player", `<a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a>`)}${td("Team", esc(r.team || "—"))}${td("GP", String(r.gp), "num")}${r.cells.map(c => td(c.label, esc(c.text), `num${c.on ? " rk-on" : ""}`)).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="pro-empty">No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.</p>`;
+        const table = board.rows.length ? `<div class="tbl-wrap"><table class="books rk-table"><thead><tr>${th("Player")}${th("Team")}${th("GP", "num")}${headCells}</tr></thead><tbody>${board.rows.map(r => `<tr>${td("Player", `<span class="rk-rank">${r.rank}</span><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a>`, "rk-who")}${td("Team", esc(r.team || "—"))}${td("GP", String(r.gp), "num")}${r.cells.map(c => td(c.label, esc(c.text), `num${c.on ? " rk-on" : ""}`)).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="pro-empty">No ${esc(spec.label)} with ${esc(statName).toLowerCase()} in the cache.</p>`;
         const sampleFloor = spec.perGame && board.minGp > 1 ? ` Players with fewer than ${board.minGp} games are left off. The most games anyone at this position played is ${board.maxGp}.` : "";
         const noThrees = lg === "nba" && !Rk.nbaThrees(pack.players) ? `<p class="note">3-pointers made are not in this box-score cache, so that rank is hidden.</p>` : "";
         body = `<p class="rk-meta">${lead} ${pack.boxGames} regular-season games in the cache${through}. ${kind}${sampleFloor} Games played is how many of those games he appeared in. Postseason games are not in the cache.</p>${table}<p class="note">Counting stats from the cached ESPN box scores. The highlighted column is the one this list is ranked by. A roster name is required. Completed games only.</p>${noThrees}`;
@@ -697,7 +697,7 @@
         body = `<p class="pro-empty">${entries.length} ${esc(spec.label)} ${entries.length === 1 ? "has a line" : "have lines"}, and none ${entries.length === 1 ? "has" : "have"} ${ranked.min} games against it. The minimum sample is ${ranked.min}. The list stays empty.</p>`;
       } else {
         const windowLabel = Rk.basisLabel(ranked.basis);
-        const table = `<div class="tbl-wrap"><table class="books rk-table ppv-stack"><thead><tr>${th("Rank", "num")}${th("Player")}${th("Team")}${th("Line", "num")}${th("Over", "num")}${th("Rate", "num")}</tr></thead><tbody>${ranked.rows.map(r => `<tr>${td("Rank", String(r.rank), "num")}${td("Player", `<a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a>`)}${td("Team", esc(r.team || "—"))}${td("Line", `${esc(lineText(r.line))}<small>${esc(bookLabel(r.book))}${ranked.basis === "mixed" ? ` · ${esc(Rk.basisLabel(r.basis))}` : ""}</small>`, "num")}${td("Over", `<b>${esc(r.text)}</b>`, "num")}${td("Rate", esc(r.pct == null ? "—" : Math.round(r.pct * 100) + "%"), "num")}</tr>`).join("")}</tbody></table></div>`;
+        const table = `<div class="tbl-wrap"><table class="books rk-table"><thead><tr>${th("Player")}${th("Team")}${th("Line", "num")}${th("Over", "num")}${th("Rate", "num")}</tr></thead><tbody>${ranked.rows.map(r => `<tr>${td("Player", `<span class="rk-rank">${r.rank}</span><a class="rk-player" href="${esc(Rk.playerHash(lg, r.id))}">${esc(r.name)}</a>`, "rk-who")}${td("Team", esc(r.team || "—"))}${td("Line", `${esc(lineText(r.line))}<small>${esc(bookLabel(r.book))}${ranked.basis === "mixed" ? ` · ${esc(Rk.basisLabel(r.basis))}` : ""}</small>`, "num")}${td("Over", `<b>${esc(r.text)}</b>`, "num")}${td("Rate", esc(r.pct == null ? "—" : Math.round(r.pct * 100) + "%"), "num")}</tr>`).join("")}</tbody></table></div>`;
         const showing = ranked.total > ranked.rows.length ? `Top ${ranked.rows.length} of ${ranked.total}.` : `${ranked.rows.length} player${ranked.rows.length === 1 ? "" : "s"} with at least ${ranked.min} games.`;
         const srcNote = src === "file"
           ? "From the props file on the site. A season tally in that file is every cached game against the current line. When the file has no season tally, the row is the last 10 logged games, and it is labeled that way."
@@ -1051,7 +1051,7 @@
       return `<tr>${td("Bet", esc(betLabel(b)))}${clvCell}${td("Tags", `${mine.map(t => `<span class="chip">${esc(t)}</span>`).join(" ")}${store ? `<form class="ppv-form" data-pro-tag="${esc(b.id)}"><input name="tag" maxlength="24" aria-label="Tag" placeholder="Tag"><button type="submit" class="chip">Add</button></form>` : ""}`)}</tr>`;
     }).join("");
     const clvHead = clv.available ? th("CLV", "num") : "";
-    const table = `<div class="tbl-wrap"><table class="books ppv-bets ppv-stack"><thead><tr>${th("Bet")}${clvHead}${th("Tags")}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    const table = `<div class="tbl-wrap"><table class="books ppv-bets"><thead><tr>${th("Bet")}${clvHead}${th("Tags")}</tr></thead><tbody>${rows}</tbody></table></div>`;
     const html = `${clvBlock(clv)}${typeHtml}${tagHtml}${table}<p class="note">Tags stay in this browser. They don't turn Pro on. <span class="of-21">21+</span></p>`;
     place("pro-bets-panel", "bets", panel("My Bets extras", html), anchor);
   }

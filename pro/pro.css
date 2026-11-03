@@ -1,7 +1,7 @@
 /* Injected with the private Pro bundle. Not shipped in site/assets/styles.css.
    Spacing is a 4px scale. Gold is the existing Pro accent, flat, with no gradient. */
 :root{
-  --pro-gold:#e0b84a;--pro-gold-ink:#1c1404;--pro-gold-edge:#a67c00;
+  --pro-gold:#e0b84a;--pro-on:#050b1c;--pro-gold-edge:#a67c00;
   --pro-1:4px;--pro-2:8px;--pro-3:12px;--pro-4:16px;--pro-5:24px;
   --pro-badge-r:6px;
 }
@@ -16,7 +16,7 @@
 .ppv-h{display:flex;flex-wrap:wrap;align-items:center;gap:var(--pro-2);margin:0 0 var(--pro-3);font-size:15px;font-weight:750;letter-spacing:-.015em;line-height:1.3}
 .ppv-h .st-sub{font-size:12px;font-weight:500}
 .ppv-card b{font-size:15px;font-weight:750;line-height:1.3;letter-spacing:-.015em}
-.ppv-card span{color:var(--mute);font-size:13px;line-height:1.45}
+.ppv-card span:not(.pro-pill){color:var(--mute);font-size:13px;line-height:1.45}
 .ppv-go{margin-top:auto;color:var(--pro-gold);font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .rk-meta{margin:0 0 var(--pro-3);color:var(--mute);font-size:13px;line-height:1.45}
 .rk-player{font-weight:700}
@@ -25,24 +25,45 @@
 .ppv-book{margin:var(--pro-2) 0 var(--pro-2);font-size:13px;font-weight:700;letter-spacing:.02em}
 .ppv-cap-row b,.ppv .stat b,.ppv-line .num,.ppv .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
 
-/* ---- gold badges: one size, flat fill, no gradient or glow ---- */
+/* ---- gold badges: dark site-bg text on a solid gold fill. One treatment everywhere. ---- */
 .pro-pill,
+span.pro-pill,
+.ppv-card span.pro-pill,
+.ppv-h span.pro-pill,
+.pro-sharp .pro-pill,
+.pro-best-tag,
+span.pro-best-tag,
+.ppv .books td .pro-best-tag,
+.ppv .books td.num .pro-best-tag,
+.pro-sharp,
+.pro-sharp .pro-sharp-txt,
+body.app a.search-btn[data-pro-owner-nav],
+[data-pro-owner] a.chip.on,
+[data-pro-owner] button.chip.on,
+[data-pro-enhance] a.chip.on,
+[data-pro-enhance] button.chip.on,
+.pro-sort button.chip.on,
+.ppv .seg a.on,
+[data-pro-owner] h3.ppv-h:not(:has(.pro-pill))::before{
+  background:var(--pro-gold);color:var(--pro-on);-webkit-text-fill-color:var(--pro-on);border-color:var(--pro-gold-edge);box-shadow:none;
+}
+.pro-pill,
+span.pro-pill,
 .pro-best-tag,
 [data-pro-owner] h3.ppv-h:not(:has(.pro-pill))::before{
   display:inline-flex;align-items:center;justify-content:center;flex:none;
-  min-height:18px;padding:2px 6px;border-radius:var(--pro-badge-r);
-  border:1px solid var(--pro-gold-edge);background:var(--pro-gold);color:var(--pro-gold-ink);
-  font:700 11px/1.2 var(--font);letter-spacing:.06em;text-transform:uppercase;box-shadow:none;
+  min-height:20px;padding:2px 7px;border-radius:var(--pro-badge-r);border:1px solid var(--pro-gold-edge);
+  font:800 12px/1.2 var(--font);letter-spacing:.04em;text-transform:uppercase;
 }
 [data-pro-owner] h3.ppv-h:not(:has(.pro-pill))::before{content:"PRO";margin-right:var(--pro-2)}
 .pro-best-tag{margin-left:var(--pro-1);vertical-align:1px}
 .game-top .pro-pill{margin-left:0}
-.pro-sharp{display:inline-flex;align-items:center;gap:var(--pro-1);max-width:100%;margin-left:var(--pro-2);padding:2px 8px 2px 2px;border-radius:var(--pro-badge-r);border:1px solid color-mix(in srgb,var(--pro-gold) 50%,var(--line));background:color-mix(in srgb,var(--pro-gold) 12%,var(--surface));box-shadow:none}
+.pro-sharp{display:inline-flex;align-items:center;gap:6px;max-width:100%;margin-left:var(--pro-2);padding:2px 8px 2px 2px;border-radius:var(--pro-badge-r);border:1px solid var(--pro-gold-edge)}
 .pro-sharp .pro-pill{margin:0}
-.pro-sharp-txt{color:var(--txt);font:700 11px/1.2 var(--font);letter-spacing:.04em;text-transform:uppercase}
+.pro-sharp-txt{font:800 12px/1.2 var(--font);letter-spacing:.04em;text-transform:uppercase}
 a.game .game-top:has(.pro-sharp){flex-wrap:wrap;row-gap:var(--pro-1)}
-body.app a.search-btn[data-pro-owner-nav]{display:inline-flex;align-items:center;justify-content:center;flex:none;width:auto;height:32px;margin-left:var(--pro-2);padding:0 8px;border-radius:var(--pro-badge-r);border:1px solid var(--pro-gold-edge);background:var(--pro-gold);color:var(--pro-gold-ink);box-shadow:none;font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
-body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);border-color:var(--pro-gold-edge);color:var(--pro-gold-ink);filter:brightness(1.05)}
+body.app a.search-btn[data-pro-owner-nav]{display:inline-flex;align-items:center;justify-content:center;flex:none;width:auto;height:32px;margin-left:var(--pro-2);padding:0 8px;border-radius:var(--pro-badge-r);border:1px solid var(--pro-gold-edge);font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);border-color:var(--pro-gold-edge);color:var(--pro-on);-webkit-text-fill-color:var(--pro-on)}
 
 /* ---- cards and gold sections ---- */
 .ppv,.ppv-inject,.pro-insights,.ppv-grid,.ppv-card,[data-pro-owner] .card{min-width:0;max-width:100%}
@@ -67,7 +88,7 @@ body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);borde
 .ppv-nav{display:flex;flex-wrap:nowrap;gap:var(--pro-2);margin:0 0 var(--pro-4);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;overscroll-behavior-x:contain}
 .ppv-nav .chip{flex:none}
 [data-pro-owner] .chip,[data-pro-enhance] .chip{min-height:32px;padding:4px 10px;border-radius:999px;font-size:12.5px;font-weight:600}
-[data-pro-owner] .chip.on,[data-pro-enhance] .chip.on,.pro-sort .chip.on{background:color-mix(in srgb,var(--pro-gold) 16%,var(--surface));border-color:var(--pro-gold-edge);color:var(--txt);font-weight:700;box-shadow:none}
+[data-pro-owner] a.chip.on,[data-pro-owner] button.chip.on,[data-pro-enhance] a.chip.on,[data-pro-enhance] button.chip.on,.pro-sort button.chip.on{border:1px solid var(--pro-gold-edge);font-weight:800}
 .pro-sort{display:flex;flex-wrap:wrap;gap:var(--pro-2);margin:0 0 var(--pro-3)}
 .rk-pos,.rk-view,.rk-stat{margin-top:var(--pro-2)}
 .ppv-frow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--pro-2);margin-top:var(--pro-3)}
@@ -75,7 +96,7 @@ body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);borde
 .ppv-q input,.ppv-form input,.ppv-form select,.ppv-books select,.ppv .vf-sel select{max-width:100%;font:500 16px var(--font);color:var(--txt);background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r-sm);min-height:40px;padding:0 10px}
 .ppv .seg{display:inline-flex;flex-wrap:wrap;gap:2px;max-width:100%;padding:3px}
 .ppv .seg a{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 12px;border-radius:9px;color:var(--mute);font:600 13px var(--font);text-decoration:none}
-.ppv .seg a.on{background:var(--elev);color:var(--txt);box-shadow:0 0 0 1px var(--line2) inset}
+.ppv .seg a.on{border:1px solid var(--pro-gold-edge);font-weight:800}
 .ppv-tags{margin:var(--pro-3) 0}
 .ppv-saved{margin-top:var(--pro-2)}
 .ppv-saved-chip{gap:var(--pro-1);padding-right:6px}
@@ -124,6 +145,11 @@ body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);borde
 .ppv .books td.num.pos{color:var(--pos)}.ppv .books td.num.neg{color:var(--neg)}
 .ppv-matrix th.num,.ppv-matrix td.num{min-width:84px}
 .rk-table small{display:block;color:var(--dim);font-size:11px;font-weight:550;line-height:1.3}
+.ppv .rk-table th,.ppv .rk-table td{padding:4px 8px;line-height:1.25}
+.ppv .rk-table td.rk-who,.ppv .rk-table th:first-child{max-width:min(52vw,220px);box-shadow:1px 0 0 var(--line)}
+.rk-who{display:flex;align-items:baseline;gap:8px}
+.rk-rank{flex:none;width:1.5rem;text-align:right;color:var(--txt);font-weight:700;font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.rk-who .rk-player{min-width:0;max-width:min(34vw,180px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
 .ppv .books tr:last-child td{border-bottom:0}
 
 /* stacked rows under 720px: labels travel with the cell, nothing clips off the page */
@@ -139,6 +165,7 @@ body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);borde
   .ppv .books.ppv-stack td.rk-on,.pro-insights .books.ppv-stack td.rk-on{background:color-mix(in srgb,var(--pro-gold) 28%,var(--bg2));box-shadow:inset 0 -2px 0 var(--pro-gold)}
   .ppv .books.ppv-stack td:has(form),.ppv-inject .books.ppv-stack td:has(form){flex-direction:column;align-items:stretch}
   .ppv .books.ppv-stack td:has(form)::before,.ppv-inject .books.ppv-stack td:has(form)::before{margin-bottom:var(--pro-1)}
+  .ppv .books:not(.ppv-stack) th,.ppv .books:not(.ppv-stack) td,.pro-insights .books:not(.ppv-stack) th,.pro-insights .books:not(.ppv-stack) td,.ppv-inject .books:not(.ppv-stack) th,.ppv-inject .books:not(.ppv-stack) td{padding:4px 8px;line-height:1.25}
   .ppv-frow,.ppv-q,.ppv-form{width:100%}
   .ppv .seg{width:100%}
   .ppv .seg a{flex:1 1 auto}
@@ -158,7 +185,7 @@ body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);borde
   .ppv-line{align-items:center}
   body.app a.search-btn[data-pro-owner-nav]{height:36px;padding:0 10px;font-size:12px}
   .ppv .tbl-wrap:has(.books),.pro-insights .tbl-wrap:has(.books),.ppv-inject .tbl-wrap:has(.books){max-height:min(68vh,640px)}
-  .rk-table{min-width:680px}
+  .ppv .rk-table th,.ppv .rk-table td{padding:6px 10px}
 }
 
 @media (min-width:1100px){

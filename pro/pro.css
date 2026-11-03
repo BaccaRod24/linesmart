@@ -144,7 +144,8 @@ body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);borde
 .ppv .books td.num,.ppv .books th.num,.pro-insights .books td.num,.pro-insights .books th.num,.ppv-inject .books td.num,.ppv-inject .books th.num{text-align:right;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";color:var(--txt);font-weight:650}
 .ppv .books td:first-child:not(.num),.ppv .books th:first-child:not(.num),.pro-insights .books td:first-child:not(.num),.pro-insights .books th:first-child:not(.num),.ppv-inject .books td:first-child:not(.num),.ppv-inject .books th:first-child:not(.num){text-align:left;font-weight:650;color:var(--txt)}
 .ppv .tbl-wrap thead th,.pro-insights .tbl-wrap thead th,.ppv-inject .tbl-wrap thead th{position:sticky;top:0;z-index:2;background:var(--bg2);box-shadow:inset 0 -1px 0 var(--line);cursor:default}
-.ppv .books th:first-child,.ppv .books td:first-child,.pro-insights .books th:first-child,.pro-insights .books td:first-child,.ppv-inject .books th:first-child,.ppv-inject .books td:first-child{position:sticky;left:0;z-index:1;background:var(--surface)}
+.ppv .tbl-wrap th:first-child,.ppv .tbl-wrap td:first-child,.pro-insights .tbl-wrap th:first-child,.pro-insights .tbl-wrap td:first-child,.ppv-inject .tbl-wrap th:first-child,.ppv-inject .tbl-wrap td:first-child{position:sticky;left:0;z-index:1;background:var(--surface)}
+.pro-moves td.num,.pro-moves th.num{min-width:3.25rem}
 .ppv .tbl-wrap thead th:first-child,.pro-insights .tbl-wrap thead th:first-child,.ppv-inject .tbl-wrap thead th:first-child{z-index:3;background:var(--bg2)}
 .ppv .books td.num.pos{color:var(--pos)}.ppv .books td.num.neg{color:var(--neg)}
 .ppv-matrix th.num,.ppv-matrix td.num{min-width:84px}
@@ -156,20 +157,9 @@ body.app a.search-btn[data-pro-owner-nav]:hover{background:var(--pro-gold);borde
 .rk-who .rk-player{min-width:0;max-width:min(34vw,180px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
 .ppv .books tr:last-child td{border-bottom:0}
 
-/* stacked rows under 720px: labels travel with the cell, nothing clips off the page */
+/* phone tables stay compact: short rows, sticky first column, sideways scroll */
 @media (max-width:719px){
-  .ppv .tbl-wrap:has(.ppv-stack),.pro-insights .tbl-wrap:has(.ppv-stack),.ppv-inject .tbl-wrap:has(.ppv-stack){overflow:visible;border:0;background:transparent;box-shadow:none;max-height:none}
-  .ppv .books.ppv-stack,.pro-insights .books.ppv-stack,.ppv-inject .books.ppv-stack{display:block;width:100%;min-width:0;max-width:100%}
-  .ppv .books.ppv-stack tbody,.pro-insights .books.ppv-stack tbody,.ppv-inject .books.ppv-stack tbody{display:flex;flex-direction:column;gap:var(--pro-2);width:100%;min-width:0}
-  .ppv .books.ppv-stack thead,.pro-insights .books.ppv-stack thead,.ppv-inject .books.ppv-stack thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-  .ppv .books.ppv-stack tr,.pro-insights .books.ppv-stack tr,.ppv-inject .books.ppv-stack tr{display:block;border:1px solid var(--line);border-radius:var(--r-sm);background:color-mix(in srgb,var(--bg) 45%,transparent);box-shadow:var(--inner);padding:var(--pro-1) 0}
-  .ppv .books.ppv-stack td,.ppv .books.ppv-stack th,.pro-insights .books.ppv-stack td,.ppv-inject .books.ppv-stack td{position:static;left:auto;top:auto;z-index:auto;display:flex;justify-content:space-between;align-items:baseline;gap:var(--pro-3);width:auto;min-width:0;padding:6px var(--pro-3);border:0;white-space:normal;text-align:right;background:transparent;box-shadow:none}
-  .ppv .books.ppv-stack td+td,.pro-insights .books.ppv-stack td+td,.ppv-inject .books.ppv-stack td+td{border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
-  .ppv .books.ppv-stack td::before,.pro-insights .books.ppv-stack td::before,.ppv-inject .books.ppv-stack td::before{content:attr(data-label);flex:none;color:var(--dim);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;text-align:left}
-  .ppv .books.ppv-stack td.rk-on,.pro-insights .books.ppv-stack td.rk-on{background:color-mix(in srgb,var(--pro-gold) 28%,var(--bg2));box-shadow:inset 0 -2px 0 var(--pro-gold)}
-  .ppv .books.ppv-stack td:has(form),.ppv-inject .books.ppv-stack td:has(form){flex-direction:column;align-items:stretch}
-  .ppv .books.ppv-stack td:has(form)::before,.ppv-inject .books.ppv-stack td:has(form)::before{margin-bottom:var(--pro-1)}
-  .ppv .books:not(.ppv-stack) th,.ppv .books:not(.ppv-stack) td,.pro-insights .books:not(.ppv-stack) th,.pro-insights .books:not(.ppv-stack) td,.ppv-inject .books:not(.ppv-stack) th,.ppv-inject .books:not(.ppv-stack) td{padding:4px 8px;line-height:1.25}
+  .ppv .tbl-wrap th,.ppv .tbl-wrap td,.pro-insights .tbl-wrap th,.pro-insights .tbl-wrap td,.ppv-inject .tbl-wrap th,.ppv-inject .tbl-wrap td{padding:4px 8px;line-height:1.25}
   .ppv-frow,.ppv-q,.ppv-form{width:100%}
   .ppv .seg{width:100%}
   .ppv .seg a{flex:1 1 auto}

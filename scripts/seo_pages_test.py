@@ -119,6 +119,7 @@ LD_TYPES = {
     "state": {"WebPage", "BreadcrumbList", "FAQPage"},
     "states": {"CollectionPage", "BreadcrumbList", "ItemList"},
     "lines": {"ItemList", "BreadcrumbList"},
+    "standings": {"CollectionPage", "BreadcrumbList"},
 }
 
 
@@ -213,6 +214,10 @@ def check_page_ld(rel, h, hrefs, kind):
             els = book_lists[0].get("itemListElement") or []
             check(book_lists[0].get("numberOfItems") == len(els) and els, f"{rel}: book ItemList has entries")
             check(all(e.get("@type") == "ListItem" and e.get("position") == i and str(e.get("url") or "").startswith("https://") for i, e in enumerate(els, 1)), f"{rel}: book ItemList positions and https urls")
+    elif kind == "standings":
+        check(any(n.get("@type") == "CollectionPage" for n in tops), f"{rel}: CollectionPage is top-level")
+        check("BreadcrumbList" in types, f"{rel}: breadcrumb JSON-LD")
+        check(not lists, f"{rel}: standings page has no ItemList")
     elif kind == "lines":
         check("SportsEvent" not in types and "Event" not in types, f"{rel}: best lines page has no Event markup")
         check("BreadcrumbList" in types, f"{rel}: breadcrumb JSON-LD")
@@ -920,10 +925,10 @@ def main():
         # Other league hubs stay byte-identical aside from the best-lines link, the footer link, and "vs" on neutral sites.
         if not os.environ.get("DATA_DIR"):
             same = {
-                "nfl": "1ff9fa341aad6d8d79162ff75fae2b652d1dc2da29a3e1475364594120af9655",
-                "ncaab": "3e7d3d589bd8f9d47476f96fc44d23771905b2e50f2c5eb93ce4dd8d52a4ebe0",
-                "nhl": "c4e18d9f15b0e8580ee1d3b8a8a4c1a68eb1139ba741a979d02d76caa1bd974c",
-                "mlb": "8d789fee4d38c97fec5c3179d9f760f06cf2c4bcf17e4e9fabbd40196a455c3d",
+                "nfl": "d4e45f2720d07d5a5ca1cc0996048ae90dd641fb36e753bfd8628de83d8faca4",
+                "ncaab": "89e74128b2fe30ccd29f9625ca32b2e69be390767c85cd237c91ee097b801a2b",
+                "nhl": "5ea769093743b7b1c22a30e1ca845267843788ddc6c5ef44b9b66b4fef6c71c1",
+                "mlb": "6dcc3d6772d5a4de03e813bb2eb3f9470fc28439726d236b86dd2acaaa5946fc",
                 "ufc": "c507cd4d07b11e6368c89e7e5afa5a757827350e7288bac0ef430247d849be43",
             }
             for lg, digest in same.items():
@@ -1022,11 +1027,13 @@ def main():
         check(len(real) == st["pages"], f"page files match stats ({len(real)} vs {st['pages']})")
         # hydration: only hubs and current, unfinished games hand #app to the live app view
         for rel, route in hydrated:
-            kind, lg = route.split("/")[0], route.split("/")[1]
-            ok = (kind == "l" and rel == f"{lg}/") or (kind == "g" and man["g"][lg].get(route.split("/")[2]) == rel)
+            parts = route.split("/")
+            kind, lg = parts[0], parts[1] if len(parts) > 1 else ""
+            ok = (route == f"l/{lg}" and rel == f"{lg}/") or (route == f"l/{lg}/standings" and rel == f"{lg}/standings/") or (kind == "g" and len(parts) > 2 and (man["g"].get(lg) or {}).get(parts[2]) == rel)
             check(ok, f"{rel}: data-route {route} matches the manifest")
         with_data = [lg for lg in man["l"] if (data / lg / "index.json").exists()]
-        check(any(r.startswith("g/") for _, r in hydrated) and sorted(r.split("/")[1] for _, r in hydrated if r.startswith("l/")) == sorted(with_data), "hubs (with data) and upcoming games are hydrated")
+        hubs = sorted({r.split("/")[1] for _, r in hydrated if r.count("/") == 1 and r.startswith("l/")})
+        check(any(r.startswith("g/") for _, r in hydrated) and hubs == sorted(with_data), "hubs (with data) and upcoming games are hydrated")
         check(len(man["l"]) == len(SP.ORDER), "every league has a hub, even without data this run")
 
         # ---- internal linking

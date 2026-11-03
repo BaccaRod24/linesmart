@@ -44,13 +44,13 @@ check(bills["pf"] == 233 and bills["pa"] == 181 and bills["pd"] == 52 and bills[
 check(bills["w"] == 6 and bills["gp"] == 7 and bills["ppg"] == round(233 / 7, 2), "games played and per-game points are derived when ESPN omits them")
 check("l10" not in nfl["columns"] and "otl" not in nfl["columns"] and "pts" not in nfl["columns"], f"NFL hides last 10, OTL and points ({nfl['columns']})")
 check("t" in nfl["columns"] and "pct" in nfl["columns"] and "gb" in nfl["columns"] and "pd" in nfl["columns"], f"NFL keeps ties, win%, games back and differential ({nfl['columns']})")
-check(east["teams"][1]["record"] == "1-5-1" and east["teams"][1]["t"] == 1 and east["teams"][1]["gb"] == "4.5" and east["teams"][1]["pd"] == -59, "a tie and a deficit stay on the row")
+check(east["teams"][1]["record"] == "1-5" and east["teams"][1]["t"] == 1 and east["teams"][1]["pct"] == ".214" and east["teams"][1]["gb"] == "4.5" and east["teams"][1]["pd"] == -59, "a tie is its own column and win% counts it as half a win")
 check(bills["logo"].endswith("/buf.png"), "team logo is kept")
 
 nhl = ST.parse_standings(lg("nhl", "hockey"), FIX["nhl"])
 bruins = nhl["groups"][0]["divisions"][0]["teams"][0]
 check(nhl["groups"][0]["divisions"][0]["name"] == "Atlantic", "NHL division name")
-check(bruins["record"] == "12-2-2" and bruins["otl"] == 2 and bruins["pts"] == 26 and bruins["gp"] == 16, "NHL record drops the points suffix; OTL and points stay")
+check(bruins["record"] == "12-2" and bruins["otl"] == 2 and bruins["pts"] == 26 and bruins["gp"] == 16, "NHL W-L omits overtime losses; points are 2*W+OTL")
 check(bruins["l10"] == "8-1-1" and bruins["div"] == "4-1-0" and bruins["pf"] == 63 and bruins["pa"] == 36, "NHL last 10, division and goals")
 check("otl" in nhl["columns"] and "pts" in nhl["columns"] and "pct" not in nhl["columns"] and "l10" in nhl["columns"], f"NHL shows points and OTL, not win% ({nhl['columns']})")
 
@@ -71,7 +71,15 @@ college = {"children": [{"name": "Sun Belt", "abbreviation": "belt", "standings"
 ]}]}}, {"name": "America East", "abbreviation": "aeast", "standings": {"entries": [{"team": {"id": "1", "displayName": "Skip"}, "stats": [{"type": "total", "displayValue": "1-0"}]}]}}]}
 cf = ST.parse_standings({"key": "ncaaf", "kind": "football"}, college)
 utsa = cf["groups"][0]["divisions"][0]["teams"][0]
-check(utsa["record"] == "7-1" and utsa["home"] == "4-0" and utsa["away"] == "3-1" and utsa["div"] == "2-0" and utsa["gp"] == 8, "college football home, away and division use ESPN's record types")
+check(utsa["record"] == "7-1" and utsa["l"] == 1 and utsa["pct"] == ".875" and utsa["home"] == "4-0" and utsa["away"] == "3-1" and utsa["div"] == "2-0" and utsa["gp"] == 8, "college football fills the missing loss from the same record and derives win%")
+for label, parsed, kind in (("fixture NFL", nfl, "football"), ("fixture NHL", nhl, "hockey"), ("fixture NCAAB", ncaab, "basketball"), ("fixture NCAAF", cf, "football")):
+    errs = ST.consistency_errors(parsed, kind)
+    check(not errs, f"{label} win%, GP and games back match the same entry ({errs[:3]})")
+for key, kind in (("nfl", "football"), ("nba", "basketball"), ("nhl", "hockey"), ("mlb", "baseball"), ("ncaaf", "football"), ("ncaab", "basketball")):
+    path = ROOT / "site" / "data" / key / "standings.json"
+    doc = json.loads(path.read_text())
+    errs = ST.consistency_errors(doc, kind)
+    check(doc.get("source") == "ESPN" and not errs, f"cached {key} standings are internally consistent ({errs[:3]})")
 check(ST.parse_standings(lg("nfl", "football"), None)["groups"] == [] and ST.parse_standings(lg("nfl", "football"), {})["groups"] == [], "a missing feed has no groups")
 check(ST.season_not_started(FIX["future"], NOW) and not ST.season_not_started(FIX["nfl"], NOW), "a season that has not started is detected")
 

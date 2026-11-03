@@ -139,6 +139,97 @@ def _logo(team):
     return ""
 
 
+def _parts(record):
+    """'6-1' or '4-2-1' -> (wins, losses, third). The third is ties in football and OTL in hockey."""
+    bits = str(record or "").split("-")
+    if len(bits) < 2 or not all(b.isdigit() for b in bits):
+        return None
+    nums = [int(b) for b in bits]
+    return nums[0], nums[1], nums[2] if len(nums) > 2 else 0
+
+
+def win_pct(w, l, ties=0):
+    """NFL rule: a tie counts as half a win and half a loss. Other leagues pass ties=0."""
+    ties = ties or 0
+    played = (w or 0) + (l or 0) + ties
+    if w is None or l is None or played <= 0:
+        return None
+    return (w + 0.5 * ties) / played
+
+
+def fmt_pct(w, l, ties=0):
+    val = win_pct(w, l, ties)
+    if val is None:
+        return None
+    text = f"{val:.3f}"
+    return text[1:] if text.startswith("0") else text
+
+
+def games_behind(leader, team, kind):
+    """Games behind the division leader.
+
+    Hockey standings are ordered by points, and ESPN's GB is the points gap.
+    Everywhere else a tie cancels out, so GB is half the combined win and loss gap.
+    """
+    if kind == "hockey":
+        return float((leader.get("pts") or 0) - (team.get("pts") or 0))
+    return ((leader["w"] - team["w"]) + (team["l"] - leader["l"])) / 2.0
+
+
+def gb_value(raw):
+    """ESPN writes '-' for the leader. That is zero games behind."""
+    if raw in (None, "", "-", "—"):
+        return 0.0
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def consistency_errors(parsed, kind):
+    """Rows whose win%, games played, differential, or games back disagree with the same entry.
+
+    `parsed` is a parse_standings() result or a standings.json body. Returns a list of reasons.
+    """
+    groups = (parsed or {}).get("groups") or []
+    errs = []
+    for group in groups:
+        for div in group.get("divisions") or []:
+            teams = [t for t in (div.get("teams") or []) if t.get("w") is not None and t.get("l") is not None]
+            label = div.get("name") or group.get("name") or ""
+            leader = None
+            for team in teams:
+                if gb_value(team.get("gb")) == 0:
+                    leader = team
+                    break
+            for team in teams:
+                name = team.get("abbr") or team.get("name") or team.get("id")
+                ties = team.get("t") or 0
+                otl = team.get("otl") or 0
+                extra = otl if kind == "hockey" else ties
+                gp = team["w"] + team["l"] + extra
+                if team.get("gp") != gp:
+                    errs.append(f"{label} {name}: GP {team.get('gp')} != {team['w']}+{team['l']}+{extra}")
+                if team.get("record") != f"{team['w']}-{team['l']}":
+                    errs.append(f"{label} {name}: W-L {team.get('record')} != {team['w']}-{team['l']}")
+                if kind == "hockey":
+                    if team.get("pts") is not None and team["pts"] != 2 * team["w"] + otl:
+                        errs.append(f"{label} {name}: PTS {team.get('pts')} != 2*{team['w']}+{otl}")
+                else:
+                    want = fmt_pct(team["w"], team["l"], ties)
+                    if team.get("pct") != want:
+                        errs.append(f"{label} {name}: PCT {team.get('pct')} != {want}")
+                if team.get("pf") is not None and team.get("pa") is not None and team.get("pd") is not None:
+                    if team["pf"] - team["pa"] != team["pd"]:
+                        errs.append(f"{label} {name}: PD {team['pd']} != {team['pf']}-{team['pa']}")
+                if leader is not None and team.get("gb") is not None:
+                    got = gb_value(team.get("gb"))
+                    exp = games_behind(leader, team, kind)
+                    if got is None or abs(got - exp) > 0.01:
+                        errs.append(f"{label} {name}: GB {team.get('gb')} != {exp} behind {leader.get('abbr') or leader.get('name')}")
+    return errs
+
+
 def _team(entry, kind):
     team = entry.get("team") or {}
     if team.get("id") is None:
@@ -147,25 +238,33 @@ def _team(entry, kind):
     w, l = _num(st.get("w")), _num(st.get("l"))
     ties, otl = _num(st.get("t")), _num(st.get("otl"))
     record = _text(st.get("record"))
-    if not record and None not in (w, l):
-        record = f"{w}-{l}"
+    parts = _parts(record)
+    if parts:
+        if w is None:
+            w = parts[0]
+        if l is None:
+            l = parts[1]
+        if kind == "hockey":
+            if otl is None:
+                otl = parts[2]
+        elif ties is None:
+            ties = parts[2]
+    if None not in (w, l):
+        record = f"{int(w)}-{int(l)}"
     gp = _num(st.get("gp"))
-    if gp is None and None not in (w, l):
-        extra = (ties or 0) + ((otl or 0) if kind == "hockey" else 0)
+    extra = (otl or 0) if kind == "hockey" else (ties or 0)
+    if None not in (w, l):
         gp = w + l + extra
-    if gp is None and record:
-        bits = record.split("-")
-        if len(bits) >= 2 and all(b.isdigit() for b in bits):
-            gp = sum(int(b) for b in bits)
+    elif gp is None and parts:
+        gp = parts[0] + parts[1] + parts[2]
     pf, pa = _num(st.get("pf")), _num(st.get("pa"))
-    ppg, oppg = _num(st.get("ppg")), _num(st.get("oppg"))
-    if ppg is None and pf is not None and gp:
-        ppg = round(pf / gp, 2)
-    if oppg is None and pa is not None and gp:
-        oppg = round(pa / gp, 2)
+    pd = (pf - pa) if pf is not None and pa is not None else _num(st.get("pd"))
+    ppg = round(pf / gp, 2) if pf is not None and gp else _num(st.get("ppg"))
+    oppg = round(pa / gp, 2) if pa is not None and gp else _num(st.get("oppg"))
     div = _text(st.get("div"))
     gb_stat = st.get("gb")
     gb = "—" if gb_stat and _text(gb_stat) is None else _text(gb_stat)
+    pct = None if kind == "hockey" or w is None or l is None else fmt_pct(w, l, ties or 0)
     row = {
         "id": str(team.get("id")),
         "name": team.get("displayName") or team.get("name") or "",
@@ -174,11 +273,11 @@ def _team(entry, kind):
         "logo": _logo(team),
         "w": w, "l": l, "t": ties, "otl": otl,
         "record": record,
-        "pct": _text(st.get("pct")),
-        "pts": _num(st.get("pts")) if kind == "hockey" else None,
+        "pct": pct,
+        "pts": (2 * int(w) + int(otl or 0)) if kind == "hockey" and w is not None else None,
         "gb": gb,
         "gp": gp,
-        "pf": pf, "pa": pa, "pd": _num(st.get("pd")),
+        "pf": pf, "pa": pa, "pd": pd,
         "ppg": ppg, "oppg": oppg,
         "home": _text(st.get("home")),
         "away": _text(st.get("away")),

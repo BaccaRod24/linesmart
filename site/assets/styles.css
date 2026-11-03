@@ -105,7 +105,7 @@ button{font-family:inherit}
 .gt-head{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);font-weight:700;margin-bottom:4px}
 .gt-head span{text-align:center}
 .trow{padding:4px 0}
-.trow .tl{width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 2px 4px color-mix(in srgb,var(--shade) 35%,transparent))}
+.trow .tl{width:34px;height:34px;max-width:none;flex:none;object-fit:contain;filter:drop-shadow(0 2px 4px color-mix(in srgb,var(--shade) 35%,transparent))}
 .tname{font-weight:650;font-size:14.5px;line-height:1.25;letter-spacing:-.005em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .tname .rk{color:var(--warn);font-size:11px;font-weight:750;margin-right:5px}
 .tmeta{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums;margin-top:1px}
@@ -162,7 +162,7 @@ th:first-child,td:first-child{text-align:left}
 tr:last-child td{border-bottom:0}
 tbody tr{transition:background .12s}
 tbody tr:hover{background:color-mix(in srgb,var(--tint) 2.5%,transparent)}
-td .tlogo{width:22px;height:22px;vertical-align:middle;margin-right:10px;object-fit:contain}
+td .tlogo{width:22px;height:22px;max-width:none;vertical-align:middle;margin-right:10px;object-fit:contain}
 td.pos{color:var(--pos);font-weight:650}td.neg{color:var(--neg);font-weight:650}
 .st-conf{margin:22px 0 4px;font-size:16px;font-weight:800;letter-spacing:-.02em}
 .st-div{margin:14px 0 6px;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
@@ -188,7 +188,7 @@ td.pos{color:var(--pos);font-weight:650}td.neg{color:var(--neg);font-weight:650}
   background:radial-gradient(520px 260px at 0% 50%,color-mix(in srgb,var(--ca) 34%,transparent),transparent 70%),radial-gradient(520px 260px at 100% 50%,color-mix(in srgb,var(--ch) 34%,transparent),transparent 70%),linear-gradient(180deg,var(--surface2),var(--surface))}
 .mteam{display:flex;align-items:center;gap:18px;min-width:0}
 .mteam.home{flex-direction:row-reverse;text-align:right}
-.mteam img{width:88px;height:88px;object-fit:contain;flex:none;filter:drop-shadow(0 6px 14px color-mix(in srgb,var(--shade) 45%,transparent))}
+.mteam img{width:88px;height:88px;max-width:none;object-fit:contain;flex:none;filter:drop-shadow(0 6px 14px color-mix(in srgb,var(--shade) 45%,transparent))}
 .mteam .nm{font-size:23px;font-weight:800;letter-spacing:-.025em;line-height:1.15}
 .mteam .rec{color:var(--mute);font-size:13px;margin-top:4px;font-variant-numeric:tabular-nums}
 .mmid{text-align:center;min-width:0}
@@ -1908,7 +1908,7 @@ body:has(.news-bets) .footer .news-foot{display:none}
 .lt-tm.w{color:var(--txt)}
 .lt-tm.l{color:var(--dim)}
 
-.lt-tm .lt-logo{width:22px;height:22px;object-fit:contain;flex:none}
+.lt-tm .lt-logo{width:22px;height:22px;max-width:none;object-fit:contain;flex:none}
 .lt-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lt-rk{font-style:normal;font-size:10.5px;color:var(--dim);margin-right:4px;font-weight:700}
 .lt-poss{width:7px;height:7px;border-radius:50%;background:var(--warn);flex:none;box-shadow:0 0 6px color-mix(in srgb,var(--warn) 70%,transparent)}
@@ -2035,7 +2035,7 @@ body:has(.news-bets) .footer .news-foot{display:none}
 .sx-log td,.sx-log th{text-align:center}.sx-log td:first-child,.sx-log th:first-child{text-align:left}
 .sx-stale{margin:8px 0 0;padding:9px 13px;border-radius:var(--r-sm);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);background:color-mix(in srgb,var(--warn) 8%,transparent);color:var(--warn-txt);font-size:13px}
 .sx-thead{display:flex;align-items:center;gap:14px;margin-top:8px}
-.sx-tlogo{width:56px;height:56px;border-radius:14px;background:var(--logo-tile);padding:6px;object-fit:contain}
+.sx-tlogo{width:56px;height:56px;max-width:none;flex:none;border-radius:14px;background:var(--logo-tile);padding:6px;object-fit:contain}
 .sx-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:14px 0 0}
 .sx-fact{padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface)}
 .sx-fact b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
@@ -2069,7 +2069,10 @@ body:has(.news-bets) .footer .news-foot{display:none}
 .hc-when{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hc-when.hot{color:#bbf7d0}
 .hc-tm{display:flex;align-items:center;gap:7px;font-size:14px}
-.hc-tm img{width:22px;height:22px;object-fit:contain}
+/* Definite size, not max-width:100%. In a flex row that percentage is cyclic, and iOS Safari
+   paints the broken-image "?" even after the PNG has loaded. */
+.hc-tm img,.hc-logo{width:22px;height:22px;flex:none;max-width:none;object-fit:contain}
+.hc-nologo{flex:none;width:22px;height:22px}
 .hc-tm b{font-weight:750}
 .hc-line{margin-top:2px;font-size:12px;color:var(--best-txt);font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hc-move,.hc-prop{width:168px}

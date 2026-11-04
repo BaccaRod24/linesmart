@@ -4,8 +4,10 @@ ESPN sometimes reports the opening spread on the opposite side of the opening mo
 (Pacers at Heat, Rockets at Mavericks on 2026-10-30) and an opening total that never
 appears in the recorded snapshots (Hornets at Wizards, 234.5 vs a series at 219.5-223.5).
 Week 9 Jaguars at Ravens carried the Week 8 Jaguars opener (-4.5, -218, +180, 49.5)
-even though the recorded line was already Baltimore -2.5. The shapes below are the
-stored history rows. Offline: no network, no Odds API key.
+even though the recorded line was already Baltimore -2.5. DAL @ SA (401909933) has
+both the spread and the moneyline on the wrong teams: the stored open is the first
+recorded point with home and away exchanged. The shapes below are the stored history
+rows. Offline: no network, no Odds API key.
 
 Run: env -u ODDS_API_KEY python3 scripts/open_line_test.py
 """
@@ -150,6 +152,67 @@ check(len(n) == 1 and jax["hs"] == -2.5 and jax["tot"] == 48.5, f"the copy is st
 untouched = json.load(open(fx))
 del untouched["games"]["401873037"]
 check(LH.fix_carried_opens(untouched) == [], "the Week 8 game keeps the opener that actually belongs to it")
+
+# DAL @ SA, 401909933. ESPN's DraftKings open is the first recorded line (12:15 AM ET
+# Nov 3) with home and away exchanged: SA +12.5 and +503/-700 instead of SA -12.5 and -700/+502.
+fx = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "opens", "dal_sas_401909933.json")
+sas = json.load(open(fx))
+sas_op = sas["open"]["draftkings"]
+sas_pts = [p[1] for p in sas["books"]["draftkings"]]
+sas_fix = LH.reconcile_open(sas_op, sas_pts, "basketball")
+check(sas_fix["hs"] == -12.5 and sas_fix["as"] == 12.5, f"Spurs opening spread swaps onto the favorite ({sas_fix})")
+check(sas_fix["hml"] == -700 and sas_fix["aml"] == 503, f"Spurs opening moneyline swaps with the spread ({sas_fix})")
+check(sas_fix["tot"] == 229.5, "Spurs total 229.5 is the recorded open and stays")
+check(LH.reconcile_open(sas_fix, sas_pts, "basketball") == sas_fix, "the corrected Spurs open is stable")
+check(LH.reconcile_open(sas_op, sas_pts, "football")["hs"] == -12.5, "the same home/away flip is corrected for football")
+check(LH.reconcile_open(sas_op, sas_pts, "hockey")["aml"] == 503, "the same home/away flip is corrected for hockey")
+drawn = dict(sas_op, dml=240)
+check(LH.reconcile_open(drawn, sas_pts, "soccer")["dml"] == 240 and LH.reconcile_open(drawn, sas_pts, "soccer")["hs"] == -12.5,
+      "a draw price stays put while home and away are swapped")
+
+# The away spread is not the other side of the home spread, so exchanging home and away
+# still leaves the favorite on the wrong side. Use the first recorded point.
+broken = dict(hs=12.5, **{"as": 12.5}, hml=503, aml=-700, tot=229.5)
+fell = LH.reconcile_open(broken, sas_pts[:1], "basketball")
+check(fell["hs"] == -12.5 and fell["as"] == 12.5 and fell["hml"] == -700 and fell["aml"] == 502 and fell["tot"] == 229.5,
+      f"a swap that is still inconsistent becomes the first recorded point ({fell})")
+
+# Chiefs at Broncos really moved through the number. The opener is not the first point swapped
+# (moneyline is 7 cents off), so it stays. Same shape the backfill must leave alone.
+den_open = dict(hs=-1.5, **{"as": 1.5}, hml=-118, aml=-102, tot=43.5)
+den_pts = [dict(hs=1.5, **{"as": -1.5}, hml=105, aml=-125, tot=41.5)]
+den = LH.reconcile_open(den_open, den_pts, "football")
+check(den == den_open, f"a real flip whose prices are not the first point swapped is left alone ({den})")
+
+def sas_snap(pt, op):
+    return {sas["id"]: dict(date=sas["date"], home=sas["home"], away=sas["away"],
+                            books={"draftkings": pt}, open={"draftkings": dict(op)})}
+
+hist = dict(v=1, league="nba", games={})
+for t, pt in sas["books"]["draftkings"]:
+    LH.merge(hist, sas_snap(pt, sas_op), t)
+got = hist["games"]["401909933"]["open"]["draftkings"]
+check(got["hs"] == -12.5 and got["hml"] == -700 and got["aml"] == 503 and len(hist["games"]["401909933"]["books"]["draftkings"]) == 22,
+      f"merge corrects the Spurs open while keeping every recorded point ({got})")
+LH.merge(hist, sas_snap(sas_pts[-1], sas_op), "2026-11-04T21:15:20Z")
+got = hist["games"]["401909933"]["open"]["draftkings"]
+check(got["hs"] == -12.5 and got["aml"] == 503 and len(hist["games"]["401909933"]["books"]["draftkings"]) == 22,
+      f"a later run that resends the flipped ESPN open stays corrected ({got})")
+move = LH.summarize(hist["games"]["401909933"], "basketball", "nba")
+check(move["spread"]["open"] == -12.5 and move["spread"]["cur"] == sas_pts[-1]["hs"] and move["spread"]["delta"] == 0,
+      f"Spurs spread movement is no longer a 25 point swing ({move['spread']})")
+check(move["homeML"]["open"] == -700 and move["awayML"]["open"] == 503, "Spurs moneyline open is SA -700 / DAL +503")
+check(abs(move["homeML"]["delta"]) < 200 and abs(move["awayML"]["delta"]) < 200, f"Spurs moneyline move is cents, not ~950 ({move['homeML']['delta']}/{move['awayML']['delta']})")
+check(all("Spread moved" not in n for n in move["notable"]), f"the 25 point spread note is gone ({move['notable']})")
+
+# The line card and the DraftKings book were stamped with the flipped ESPN open.
+game = dict(odds=dict(sas["odds"]), books={"draftkings": dict(sas["draftkings"])})
+LH.stamp_open(game, sas_fix)
+check(game["odds"]["homeSpreadOpen"] == -12.5 and game["odds"]["awaySpreadOpen"] == 12.5, "line card opening spreads follow the Spurs swap")
+check(game["odds"]["homeMLOpen"] == -700 and game["odds"]["awayMLOpen"] == 503, "line card opening moneylines follow the Spurs swap")
+check(game["books"]["draftkings"]["homeSpreadOpen"] == -12.5 and game["books"]["draftkings"]["homeMLOpen"] == -700,
+      "DraftKings book open follows the Spurs swap")
+check(game["odds"]["homeSpread"] == -12.5 and game["odds"]["homeML"] == -620, "current Spurs prices are not rewritten")
 
 # A shared team whose recorded line really is that opener is not rewritten.
 same = dict(v=1, league="nfl", games={})

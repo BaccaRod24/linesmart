@@ -4,6 +4,9 @@
 Reads history/<league>.json (the data-history files). For each game, the opening
 line is checked against that book's recorded points with line_history.reconcile_open.
 A spread that sits on the opposite side of its own opening moneyline is swapped.
+A spread and moneyline that are both the opposite side of the first recorded
+point, and that are that point with home and away exchanged, are swapped back.
+If that swap is still inconsistent, the first recorded point is used instead.
 A basketball total that never appears within 4 points of any recorded total is
 replaced with the first total those snapshots recorded.
 An opener that exactly matches an earlier game sharing a team, and that never

@@ -47,6 +47,10 @@ BASKETBALL_TOTAL_OPEN_GAP = 4
 # An opening spread copied from an earlier game of the same team. If it sits at least
 # this far from every spread recorded for this game, it never traded here.
 CARRIED_OPEN_GAP = 1.0
+# ESPN sometimes exchanges home and away on the whole opener. The swapped prices are
+# the first recorded line, give or take a cent of juice (DAL @ SA: open +503 vs +502).
+# Farther than this, the favorite really changed and the opener is left alone.
+FLIPPED_OPEN_ML_CENTS = 2
 # Game id -> opener (home spread, home ML, away ML, total) proven, from the history
 # file, to be an earlier game's opener rather than a line this game traded.
 # 401873037 (Jaguars at Ravens, Week 9) carried 401873028 (Colts at Jaguars, Week 8)
@@ -74,6 +78,49 @@ def _ml_side(hml, aml):
     if ih is None or ia is None or abs(ih - ia) < 1e-9: return None
     return "home" if ih > ia else "away"
 
+def _same_number(a, b):
+    if a is None or b is None: return True
+    return abs(float(a) - float(b)) < 0.001
+
+def _swap_home_away_open(op):
+    """Exchange the home and away opening spread and moneyline. The total stays."""
+    out = dict(op)
+    hs, as_ = out.get("hs"), out.get("as")
+    if hs is not None and as_ is not None:
+        out["hs"], out["as"] = as_, hs
+    elif hs is not None:
+        out["hs"] = -hs
+    elif as_ is not None:
+        out["as"] = -as_
+    if out.get("hml") is not None or out.get("aml") is not None:
+        out["hml"], out["aml"] = out.get("aml"), out.get("hml")
+    return out
+
+def _sides_flipped(op, first):
+    """Both the spread sign and the moneyline favorite are opposite the first point."""
+    sp, ml = _spread_side(op.get("hs")), _ml_side(op.get("hml"), op.get("aml"))
+    fsp, fml = _spread_side(first.get("hs")), _ml_side(first.get("hml"), first.get("aml"))
+    return bool(sp and ml and fsp and fml and sp != fsp and ml != fml)
+
+def _open_matches(op, first):
+    """Same spread and both moneylines, allowing FLIPPED_OPEN_ML_CENTS of juice."""
+    if op.get("hs") is None or first.get("hs") is None: return False
+    if not _same_number(op.get("hs"), first.get("hs")): return False
+    if not _same_number(op.get("as"), first.get("as")): return False
+    for k in ("hml", "aml"):
+        if op.get(k) is None or first.get(k) is None: return False
+        if abs(ml_cents(op[k], first[k])) > FLIPPED_OPEN_ML_CENTS: return False
+    return True
+
+def _still_inconsistent(op, first):
+    """Spread and moneyline disagree, or either side is still opposite the first point."""
+    sp, ml = _spread_side(op.get("hs")), _ml_side(op.get("hml"), op.get("aml"))
+    fsp, fml = _spread_side(first.get("hs")), _ml_side(first.get("hml"), first.get("aml"))
+    if sp and ml and sp != ml: return True
+    if sp and fsp and sp != fsp: return True
+    if ml and fml and ml != fml: return True
+    return False
+
 def reconcile_open(op, points=None, kind=""):
     """Correct one book's opening line using that book's recorded snapshots.
 
@@ -83,13 +130,22 @@ def reconcile_open(op, points=None, kind=""):
     disagree, and the first recorded spread agrees with the moneyline (or we have no
     recorded spread yet), the two opening spreads are swapped.
 
+    ESPN also sometimes exchanges home and away on the whole opener, so the spread
+    sign and the moneyline favorite are both the opposite of the first recorded
+    point (DAL @ SA, 401909933: open SA +12.5 and +503/-700, first point SA -12.5
+    and -700/+502). When the swapped prices are that first point, the home and away
+    openers are exchanged. The same check runs for every sport. If the swap still
+    leaves the spread and the moneyline inconsistent, the first recorded point is
+    used instead. A favorite that really flipped, where the opener agrees with
+    itself and the prices are not that first point on the other side, is left alone.
+
     A basketball opening total that is more than BASKETBALL_TOTAL_OPEN_GAP points
     from every recorded total never traded in the snapshots. It is replaced with the
     first total those snapshots recorded.
     """
     if not op: return op
     out = dict(op)
-    points = list(points or [])
+    points = [p for p in (points or []) if isinstance(p, dict)]
     sp, ml = _spread_side(out.get("hs")), _ml_side(out.get("hml"), out.get("aml"))
     if sp and ml and sp != ml:
         series_sp = next((s for s in (_spread_side(p.get("hs")) for p in points) if s), None)
@@ -101,6 +157,13 @@ def reconcile_open(op, points=None, kind=""):
                 out["hs"] = -hs
             elif as_ is not None:
                 out["as"] = -as_
+    first = next((p for p in points if p.get("hs") is not None or p.get("hml") is not None), None)
+    if first and _sides_flipped(out, first):
+        swapped = _swap_home_away_open(out)
+        if _open_matches(swapped, first):
+            out = swapped
+        elif _still_inconsistent(swapped, first):
+            out = adopt_first_open(out, first)
     if kind == "basketball" and out.get("tot") is not None:
         observed = [p["tot"] for p in points if p.get("tot") is not None]
         if observed and min(abs(out["tot"] - t) for t in observed) > BASKETBALL_TOTAL_OPEN_GAP:
@@ -250,10 +313,11 @@ def merge(hist, snap, t):
     """Append changed points from one run's snapshot (taken at UTC time t). Returns #points appended.
 
     The opening line is reconciled after the points are updated, so a bad ESPN open
-    (spread on the wrong side, a basketball total that never appears in the snapshots,
-    or an opener copied from an earlier game of the same team) is corrected from those
-    snapshots on the way in. A later run that sends the same bad open is corrected
-    again; it does not stick, including after the source game has been pruned.
+    (spread on the wrong side, home and away exchanged together, a basketball total
+    that never appears in the snapshots, or an opener copied from an earlier game of
+    the same team) is corrected from those snapshots on the way in. A later run that
+    sends the same bad open is corrected again; it does not stick, including after
+    the source game has been pruned.
     """
     added = 0
     kind = league_kind(hist.get("league"))

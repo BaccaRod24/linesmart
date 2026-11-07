@@ -5,8 +5,21 @@ Target: **https://linesmart.app/** (custom domain; `https://baccarod24.github.io
 The workflow `.github/workflows/refresh-and-deploy.yml` builds fresh data with
 `python scripts/build_data.py` and deploys `site/` to Pages on every push to `main`,
 on manual dispatch, and every 30 minutes on a schedule. Generated data is **not**
-committed back; the snapshot already in `site/data/` is just the fallback for the
-first deploy (and for any run where the build crashes).
+committed back. The snapshot already in `site/data/` is the offline fallback for a
+local build. A crashed refresh does **not** publish that snapshot: the live site
+keeps whatever it is already serving. Leagues whose feed fails inside a build that
+still exits 0 keep their last good games (`scripts/lastgood.py`) and that build
+does publish.
+
+Scheduled and manual refreshes all check out the same commit, and
+`actions/deploy-pages` uses that commit as the Pages deployment id. Pages can
+report success while continuing to serve the previous artifact. After a good
+build, the workflow commits `.github/pages-deploy-stamp` (a few lines, not the
+odds) and dispatches a second run on that new commit. That run deploys the
+bundle and fails unless the public `data/meta.json` matches it, including
+`hardrock.asOf`, `oddsApi.checkedAt`, and the per-league pull times. A green
+deploy step by itself is not the signal. A push to `main` is already a new
+commit, so it deploys directly and runs the same live check.
 
 ## One-time setup (after `gh auth login` as BaccaRod24)
 
@@ -104,8 +117,12 @@ Hard Rock Bet, FanDuel and DraftKings (Odds API) history get one point per pull 
 - GitHub automatically disables scheduled workflows in public repos after **60 days with no repo activity**.
   Push a commit or re-enable the workflow in the Actions tab if that happens.
 - ESPN endpoints are unofficial. If ESPN rate-limits or blocks GitHub's runner IPs, affected leagues are
-  marked with an `error` in `meta.json` (and keep the committed snapshot's data for that league); if the
-  whole script crashes, the workflow deploys the committed snapshot and shows a warning.
+  marked with an `error` in `meta.json` and keep their last good games when the build still exits 0. If the
+  whole script crashes, the workflow does not publish, and the live site keeps the data it already has.
+- After a refresh is merged and has run, prove the public site moved by reading provider timestamps, not the Actions check:
+  `curl -fsS -H 'Cache-Control: no-cache' "https://linesmart.app/data/meta.json?ls-verify=$(date +%s)"`
+  and compare `generated`, `hardrock.asOf`, `oddsApi.checkedAt`, `hardrock.leagues`, and `hardrock.props`
+  to the "Prove the live site" step of that run. `hardrock.asOf` is the Odds API pull time. `generated` is only the build clock.
 - Local subpath check (mimics `/linesmart/` on Pages):
   `mkdir -p /tmp/ghp && ln -sfn "$PWD/site" /tmp/ghp/linesmart && python3 -m http.server 8799 -d /tmp/ghp &`
   then `BASE=http://localhost:8799/linesmart/ node scripts/subpath_test.mjs`

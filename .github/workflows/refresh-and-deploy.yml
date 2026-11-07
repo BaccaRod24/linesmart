@@ -9,6 +9,10 @@ on:
         description: 'Force a Hard Rock + FanDuel + DraftKings pull now, ignoring the 30-min / 2-h interval gate (budget guard still applies)'
         type: boolean
         default: false
+      publish_run_id:
+        description: 'Internal. Deploy the already-built site bundle from this Actions run id. Leave empty.'
+        type: string
+        default: ''
   schedule:
     # Every 30 minutes (UTC): ESPN data (DK opening lines/fallback), plus Hard Rock Bet + FanDuel + DraftKings from The Odds API
     # (paid 100K plan) when the budget guard allows. cron-job.org also dispatches at :15/:45 ET; a persisted
@@ -20,16 +24,24 @@ on:
 permissions:
   contents: read
 
-# One run at a time. Don't cancel an in-flight run; a queued run replaces older queued ones.
-# This also serializes writes to the data-history branch (the push step still retries on a race).
+# `pages` serializes data builds (and their data-history pushes). A queued run replaces older queued ones.
+# Don't cancel an in-flight build. `pages-live` is a different group, used only by the run that deploys a
+# commit SHA Pages has not deployed before, so a build can wait for that publish without deadlocking.
 concurrency:
-  group: pages
+  group: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish_run_id || '') != '' && 'pages-live' || 'pages' }}
   cancel-in-progress: false
 
 jobs:
   build:
+    # A publish run only deploys a bundle another run already built. A stamp commit must not build again:
+    # GITHUB_TOKEN pushes do not start workflows, but a push that does get through would spend another
+    # ESPN pass and could deploy over the bundle. (inputs.publish_run_id || '') treats schedule events,
+    # where the input is null, as a normal build.
+    if: ${{ (inputs.publish_run_id || '') == '' && (github.event_name != 'push' || !startsWith(github.event.head_commit.message || '', 'Publish pages data ')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      data_ok: ${{ steps.build.outcome }}
     permissions:
       contents: write   # push line-movement snapshots to the data-history branch
       pages: write      # configure-pages
@@ -139,15 +151,17 @@ jobs:
           LASTGOOD_MAX_H: '18'
         run: python scripts/build_data.py
 
-      # If the build crashed outright, fall back to the committed snapshot so the site still deploys.
-      - name: Restore committed data snapshot if build failed
-        if: steps.build.outcome == 'failure'
+      # A crashed build must not publish. The committed snapshot in site/data is older than the
+      # live site; deploying it would wipe fresher odds. Last-good leagues are kept inside a build that
+      # exits 0 (scripts/lastgood.py). A non-zero build leaves https://linesmart.app untouched.
+      - name: Keep the live site when the data build fails
+        if: steps.build.outcome != 'success'
         run: |
-          echo "::warning::Data build failed; deploying the committed snapshot in site/data instead."
-          git checkout -- site/data
-          git clean -fdq site/data
+          echo "::error::Data build failed. Not publishing, so https://linesmart.app keeps the data it already has."
+          exit 1
 
       - name: Sanity-check data
+        if: steps.build.outcome == 'success'
         run: |
           python - <<'PY'
           import json, glob
@@ -239,7 +253,10 @@ jobs:
           done
           echo "::error::Could not push line history after 5 attempts"; exit 1
 
+      # configure-pages has to run in the same job as upload-pages-artifact. A scheduled refresh
+      # does not upload that artifact (the publish run does, on a new commit).
       - name: Configure Pages
+        if: github.event_name == 'push'
         uses: actions/configure-pages@v6
 
       - name: Stamp service-worker cache version and visible build
@@ -264,33 +281,246 @@ jobs:
           SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
         run: python3 scripts/upload_pro_rankings.py --file _private/rankings.json
 
+      # A push to main is a new commit, and this run is the first Pages deployment of that SHA.
+      - name: Upload deploy proof
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: deploy-proof
+          path: site/data/meta.json
+          retention-days: 1
+          if-no-files-found: error
+
       - name: Upload Pages artifact
+        if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
+      # Scheduled and manual refreshes all check out one commit (data is not committed), so deploying
+      # from this run reuses that commit as pages_build_version. Pages then reports success and can keep
+      # serving the previous artifact. The publish run below deploys this exact bundle under a new SHA.
+      - name: Upload site bundle for the publish run
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-bundle
+          path: site
+          retention-days: 1
+          include-hidden-files: true
+          if-no-files-found: error
+
   deploy:
     needs: build
+    if: ${{ needs.build.result == 'success' && needs.build.outputs.data_ok == 'success' && github.event_name == 'push' && !startsWith(github.event.head_commit.message || '', 'Publish pages data ') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Pages deploy needs pages + id-token (OIDC).
+    timeout-minutes: 15
+    # Pages deploy needs pages + id-token (OIDC). Checkout and the proof artifact need contents and actions.
+    # No job-level concurrency here: a skipped deploy on a refresh must not hold pages-live, or it would
+    # deadlock the publish run this workflow is waiting on. The workflow group already keeps a push deploy
+    # from overlapping a refresh.
     permissions:
+      actions: read
+      contents: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download deploy proof
+        uses: actions/download-artifact@v8
+        with:
+          name: deploy-proof
+          path: _proof
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+      - name: Prove the live site is serving this build
+        run: |
+          set -euo pipefail
+          meta=$(find _proof -name meta.json -type f -print -quit)
+          test -n "$meta"
+          python3 scripts/verify_live_deploy.py --meta "$meta" --timeout 240
+
+  # Schedule and workflow_dispatch share the current main SHA, so this job creates one new commit
+  # (a stamp, not the odds data) and dispatches a run on that commit to deploy the bundle.
+  # GITHUB_TOKEN pushes do not start a push workflow. The dispatched run's event is workflow_dispatch,
+  # which GITHUB_TOKEN is allowed to trigger, and its github.sha is the stamp commit.
+  publish-request:
+    needs: build
+    if: ${{ needs.build.result == 'success' && needs.build.outputs.data_ok == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'push' && (inputs.publish_run_id || '') == '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      published: ${{ steps.dispatch.conclusion == 'success' && steps.dispatch.outputs.run_id != '' && 'true' || 'false' }}
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Point main at a new commit so Pages will publish this bundle
+        id: stamp
+        env:
+          BUILD_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          finish() { echo "skip=$1" >> "$GITHUB_OUTPUT"; echo "sha=${2:-}" >> "$GITHUB_OUTPUT"; }
+          git fetch --no-tags --depth=1 origin main
+          tip=$(git rev-parse origin/main)
+          if [ "$tip" != "$BUILD_SHA" ]; then
+            echo "::warning::main moved from $BUILD_SHA to $tip during the build. That push publishes itself. Not stacking a stamp."
+            finish 1
+            exit 0
+          fi
+          python3 scripts/verify_live_deploy.py --write-stamp .github/pages-deploy-stamp \
+            --run-id "$RUN_ID" --attempt "${GITHUB_RUN_ATTEMPT}" --built-from "$BUILD_SHA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -- .github/pages-deploy-stamp
+          names=$(git diff --cached --name-only)
+          if [ "$names" != ".github/pages-deploy-stamp" ]; then
+            echo "::error::refusing to commit anything except the Pages stamp"
+            printf '%s\n' "$names"
+            exit 1
+          fi
+          git commit -m "Publish pages data $(date -u +%Y-%m-%dT%H:%MZ) (run ${RUN_ID})"
+          for i in 1 2 3 4 5; do
+            if git push origin "HEAD:refs/heads/main"; then
+              break
+            fi
+            echo "::warning::stamp push rejected (attempt $i); checking whether main moved"
+            sleep $((i * 2))
+            git fetch --no-tags --depth=1 origin main
+            tip=$(git rev-parse origin/main)
+            if [ "$tip" != "$BUILD_SHA" ]; then
+              echo "::warning::main moved to $tip during the push. Not overwriting it. The live site was left unchanged by this step."
+              finish 1
+              exit 0
+            fi
+            if [ "$i" = 5 ]; then
+              echo "::error::Could not push the Pages stamp commit to main. The live site was left unchanged. If main is protected, allow github-actions[bot] to push this stamp (it is not the odds data)."
+              exit 1
+            fi
+          done
+          git fetch --no-tags --depth=1 origin main
+          new=$(git rev-parse HEAD)
+          if [ "$(git rev-parse origin/main)" != "$new" ]; then
+            echo "::error::push reported success but origin/main is not the stamp commit"
+            exit 1
+          fi
+          finish 0 "$new"
+          echo "Stamp commit $new"
+
+      - name: Dispatch the publish run on the new commit
+        id: dispatch
+        if: steps.stamp.conclusion == 'success' && steps.stamp.outputs.skip == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_SHA: ${{ steps.stamp.outputs.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$NEW_SHA" in
+            *[!0-9a-f]*|'') echo "::error::stamp did not produce a commit sha"; exit 1 ;;
+          esac
+          case "$RUN_ID" in
+            *[!0-9]*|'') echo "::error::run id is not numeric"; exit 1 ;;
+          esac
+          git fetch --no-tags --depth=1 origin main
+          if [ "$(git rev-parse origin/main)" != "$NEW_SHA" ]; then
+            echo "::error::origin/main moved off the stamp commit before dispatch. The live site was left unchanged."
+            exit 1
+          fi
+          gh workflow run refresh-and-deploy.yml --repo "$GITHUB_REPOSITORY" --ref main -f "publish_run_id=$RUN_ID"
+          found=""
+          for _ in $(seq 1 30); do
+            found=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow refresh-and-deploy.yml --commit "$NEW_SHA" --event workflow_dispatch --limit 5 --json databaseId,headSha --jq '[.[] | select(.headSha=="'"$NEW_SHA"'")][0].databaseId // empty')
+            if [ -n "$found" ]; then
+              echo "run_id=$found" >> "$GITHUB_OUTPUT"
+              echo "Publish run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${found}"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::No workflow_dispatch run appeared for $NEW_SHA"
+          exit 1
+
+      - name: Wait until the publish run has checked the live site
+        if: steps.dispatch.conclusion == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_RUN: ${{ steps.dispatch.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          case "$PUBLISH_RUN" in
+            *[!0-9]*|'') echo "::error::publish run id missing"; exit 1 ;;
+          esac
+          gh run watch "$PUBLISH_RUN" --repo "$GITHUB_REPOSITORY" --exit-status
+
+  # Deploy the bundle from publish_run_id. github.sha here is the stamp commit, so Pages gets a
+  # deployment id it has not already marked successful. This job does not build and does not call
+  # The Odds API. It fails unless the public meta.json matches the bundle's provider timestamps.
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish_run_id || '') != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download the built site and drop the committed snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_RUN_ID: ${{ inputs.publish_run_id }}
+        run: |
+          set -euo pipefail
+          case "$PUBLISH_RUN_ID" in
+            *[!0-9]*|'') echo "::error::publish_run_id must be the numeric Actions run id"; exit 1 ;;
+          esac
+          gh run download "$PUBLISH_RUN_ID" --repo "$GITHUB_REPOSITORY" --name site-bundle --dir _bundle
+          python3 scripts/verify_live_deploy.py --stage-bundle _bundle --dest site
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: Prove the live site is serving this build
+        run: python3 scripts/verify_live_deploy.py --meta site/data/meta.json --timeout 240
 
   # IndexNow (Bing, Yandex, Seznam...): after a successful deploy of main, POST the new / changed SEO page URLs
   # (sitemap diff against the pre-deploy live sitemap) once, in one batch. The key file is site/<key>.txt.
   # Never fails the run: the script always exits 0 and the job is continue-on-error. See docs/seo-pages.md.
   indexnow:
-    needs: deploy
-    if: github.ref == 'refs/heads/main' && needs.deploy.result == 'success'
+    needs: [build, deploy, publish-request]
+    if: ${{ always() && github.ref == 'refs/heads/main' && (inputs.publish_run_id || '') == '' && needs.build.result == 'success' && (needs.deploy.result == 'success' || (needs.publish-request.result == 'success' && needs.publish-request.outputs.published == 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     continue-on-error: true

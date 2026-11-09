@@ -348,7 +348,7 @@ def build_ufc(lg, getj, out_dir, search_dir, LH, pull=None, odds_pull=None, odds
         with open(os.path.join(snap_dir, f"{lg['key']}.json"), "w") as fh: json.dump(dict(league=lg["key"], t=run_t, games=snap), fh)
     if hist_dir:
         hpath = os.path.join(hist_dir, f"{lg['key']}.json")
-        hist = LH.load(hpath, lg["key"]); added = LH.merge(hist, snap, run_t); pruned = LH.prune(hist); LH.save(hpath, hist)
+        hist = LH.load(hpath, lg["key"]); added = LH.merge(hist, snap, run_t); pruned = LH.prune(hist, now); LH.save(hpath, hist)
         report["history"] = f"+{added} points, pruned {pruned}, tracking {len(hist['games'])} bouts"
     else:
         hist = dict(games={}); LH.merge(hist, snap, run_t); report["history"] = "no history dir (ESPN open line only)"

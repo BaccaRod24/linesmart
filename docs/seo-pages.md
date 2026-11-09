@@ -136,9 +136,13 @@ URL, a meta refresh, and a `location.replace` that keeps the hash:
 - `/preview/` → `/`
 - `/preview/<lg>/` → `/<lg>/`
 - `/preview/<lg>/<game>/` → the game page
+- an upcoming game URL that this build no longer writes, because the game left `select()` before it was archived
+  as a final (a college game whose line comes down) → `/<lg>/`
 
-Stubs carry no `noindex`: mixing a canonical and noindex sends search engines mixed signals. `404.html` also sends
-unknown `/preview/<lg>/...` URLs to the hub.
+That last stub is how a page Google already fetched avoids a hard 404 when the line flickers. It carries no odds
+and no Pro data. A game that has never had a page is not given a URL. Stubs carry no `noindex`: mixing a canonical
+and noindex sends search engines mixed signals. `404.html` also sends unknown `/preview/<lg>/...` URLs to the hub.
+Pro pages stay `noindex` the way they already are.
 
 ## Site files
 
@@ -148,6 +152,7 @@ unknown `/preview/<lg>/...` URLs to the hub.
   - `sitemap-games-<lg>-YYYY-MM.xml`: finished games (and finished UFC cards) for that month. A month that would pass 50,000 URLs is split into `…-2.xml`, `…-3.xml`.
   - `sitemap-results.xml`: `/<lg>/results/` and the month pages.
   `lastmod` comes from a content hash that ignores the cross-link blocks. A finished game's lastmod freezes when the final is recorded and moves only if the score or the closing line changes. The committed `sitemap.xml` points at `sitemap-core.xml`; the build rewrites the index and the children.
+  A game or fight URL is added to a child sitemap only when this same build wrote that page's HTML, and it is removed in the build that stops writing the page. A redirect stub is never listed. `sitemap-games-*.xml` therefore never names a game before its page exists or after that page is gone.
 - `robots.txt`: points to the sitemap.
 - `index.html`: the homepage cards (top games, line moves, hot props with last-5 strips) are filled in between the
   `HOME` markers. The committed file keeps them empty.
@@ -167,7 +172,7 @@ recrawl it without waiting for the sitemap. Google doesn't use IndexNow; it keep
   `indexnow` artifact (`_indexnow/prev/` and `_indexnow/new/`, index plus child files). `scripts/indexnow_ping.py` reads a sitemap index and the child files next to it, and compares only the generated pages block of each urlset. A URL is sent if it is new, or
   if its `lastmod` changed, which only happens when the page's content, title or description changed (a finished game's lastmod stays put). Up to 10,000 URLs
   go in one POST to `https://api.indexnow.org/indexnow` with `host`, `key`, `keyLocation` and `urlList`. Removed
-  (expired) pages are not sent; they return the 404 page.
+  pages are not sent. A dropped upcoming game refreshes to its sport hub. Any other URL this build does not write returns the 404 page.
 - **Skips:** nothing new or changed; the live sitemap couldn't be fetched (the job never resubmits everything blind);
   the SEO build or the archive checkout failed (lastmods would not be stable); no key file.
 - **Failures never fail the deploy.** The deploy has already finished when the job starts. The script logs the

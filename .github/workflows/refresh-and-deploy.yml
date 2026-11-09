@@ -341,7 +341,8 @@ jobs:
     needs: build
     if: ${{ needs.build.result == 'success' && needs.build.outputs.data_ok == 'success' && github.event_name == 'push' && !startsWith(github.event.head_commit.message || '', 'Publish pages data ') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Two 5-minute deploy attempts, the waits, and the live check need more than the old 15.
+    timeout-minutes: 25
     # Pages deploy needs pages + id-token (OIDC). Checkout and the proof artifact need contents and actions.
     # No job-level concurrency here: a skipped deploy on a refresh must not hold pages-live, or it would
     # deadlock the publish run this workflow is waiting on. The workflow group already keeps a push deploy
@@ -353,7 +354,7 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy_retry.outputs.page_url || steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -364,9 +365,35 @@ jobs:
           name: deploy-proof
           path: _proof
 
+      # upload-pages-artifact can finish before the github-pages artifact is listed, and a deploy
+      # can sit in syncing_files until the action's own timeout. Wait, cap each try at 5 minutes,
+      # and try once more. A green step is still not the signal; the live check below is.
+      - name: Wait for the Pages artifact to be listed
+        run: sleep 15
+
       - name: Deploy to GitHub Pages
         id: deployment
+        continue-on-error: true
         uses: actions/deploy-pages@v5
+        with:
+          timeout: 300000
+
+      - name: Wait before retrying the Pages deployment
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+
+      - name: Retry the GitHub Pages deployment
+        id: deploy_retry
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        with:
+          timeout: 300000
+
+      - name: Fail if both Pages deployments failed
+        if: always() && steps.deployment.outcome == 'failure' && steps.deploy_retry.outcome != 'success'
+        run: |
+          echo "::error::GitHub Pages deployment failed twice (artifact not visible yet, or syncing_files timed out)."
+          exit 1
 
       - name: Prove the live site is serving this build
         run: |
@@ -503,7 +530,8 @@ jobs:
   publish:
     if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish_run_id || '') != '' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Two 5-minute deploy attempts, the waits, the artifact upload, and the live check.
+    timeout-minutes: 25
     permissions:
       actions: read
       contents: read
@@ -511,7 +539,7 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy_retry.outputs.page_url || steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -536,9 +564,35 @@ jobs:
         with:
           path: site
 
+      # upload-pages-artifact can finish before the github-pages artifact is listed, and a deploy
+      # can sit in syncing_files until the action's own timeout. Wait, cap each try at 5 minutes,
+      # and try once more. A green step is still not the signal; the live check below is.
+      - name: Wait for the Pages artifact to be listed
+        run: sleep 15
+
       - name: Deploy to GitHub Pages
         id: deployment
+        continue-on-error: true
         uses: actions/deploy-pages@v5
+        with:
+          timeout: 300000
+
+      - name: Wait before retrying the Pages deployment
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+
+      - name: Retry the GitHub Pages deployment
+        id: deploy_retry
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        with:
+          timeout: 300000
+
+      - name: Fail if both Pages deployments failed
+        if: always() && steps.deployment.outcome == 'failure' && steps.deploy_retry.outcome != 'success'
+        run: |
+          echo "::error::GitHub Pages deployment failed twice (artifact not visible yet, or syncing_files timed out)."
+          exit 1
 
       - name: Prove the live site is serving this build
         run: |

@@ -528,7 +528,7 @@
     const A = g.away || {}, H = g.home || {};
     const fin = g.state === "post";
     const score = fin && A.score != null && H.score != null ? `<span class="num">${esc(A.score)}–${esc(H.score)}</span>` : esc(g.state === "in" ? (g.statusDetail || "LIVE") : timeET(g.date));
-    const extra = fin && FINAL_LBL(g) !== "Final" ? ` <small class="fin-x">${esc(FINAL_LBL(g))}</small>` : "";
+    const extra = fin ? finTag(g.statusDetail || "") : "";
     const go = fin ? "Box ›" : "Lines ›";
     return `<a class="grow" href="${href}"><span class="gr-d">${fmt(g.date, { month: "short", day: "numeric" })}</span>
       <span class="gr-o">${crest(A.logo, A.abbr || A.short, "xs")}<span class="nm-s">${esc(A.abbr || A.short || "")}</span><span class="nm-l">${esc(A.short || A.name || "")}</span> ${g.neutral ? "vs" : "@"} ${crest(H.logo, H.abbr || H.short, "xs")}<span class="nm-s">${esc(H.abbr || H.short || "")}</span><span class="nm-l">${esc(H.short || H.name || "")}</span></span>

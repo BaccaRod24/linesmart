@@ -33,20 +33,25 @@ App-only sub-routes such as `#/l/nfl/all` stay hash routes.
 ## What is on a page
 
 - A unique title, description, canonical, Open Graph and Twitter tags, plus JSON-LD.
-- Game, fight and UFC event pages carry a `SportsEvent` (Google Event structured data): startDate plus an estimated endDate
+- Game, fight and UFC event pages carry a `SportsEvent` (Google Event structured data): a description (the page
+  snippet, or a factual sentence from the teams, time and place when that snippet is blank), startDate plus an estimated endDate
   (`EVENT_HOURS` per league; UFC cards end `UFC_CARD_TAIL_H` after the main card starts), eventStatus, attendance mode,
   venue location, the league as organizer (name + official site), and the teams/fighters as performer (linked to their
-  LineSmart pages). `offers` is free access to that odds and stats page: `price` 0 USD, `priceCurrency` USD,
+  LineSmart pages). A fight's `superEvent` is the full card and carries the same description as the card page. `offers` is free access to that odds and stats page: `price` 0 USD, `priceCurrency` USD,
   `availability` InStock, `url` the canonical page, and `validFrom` the first time that URL was built (kept in the
   archive; an existing page uses its stored lastmod the first time). The offer name is "Free odds and stats". It is
-  not a ticket and not a sportsbook offer, and it is not visible on the page. A fight's `superEvent` is the full card
-  with the same fields, so the nested event is not a second incomplete item.
+  not a ticket and not a sportsbook offer, and it is not visible on the page. The nested card uses those same fields,
+  including description, so it is not a second incomplete item.
 - Real text content in `main#app`: matchup, time and venue, lines by book, movement, weather, injuries, form, props and result.
 - The persistent internal links in `section.seo-more`:
   - game ↔ props, teams, weather, movement and related games;
   - player ↔ game and their other props;
   - the hubs link to everything;
   - the footer links the hubs.
+- **Discover links** (`nav.sx-discover`): plain `<a href>` links, in the static HTML, to league hubs and the soonest upcoming
+  game pages. The homepage lists every league (NCAAF and NCAAB anchors say "odds, lines and spreads") and up to three
+  soonest games per league. Each league page repeats the other leagues under the lead, and lists its soonest games again
+  in `section.seo-more` so the links are still in the HTML after the app replaces `#app`. The list wraps on a phone.
 - Plain-HTML internal links near the top (crawlable without JS; only pages that exist in this build):
   - **Hub: today's slate** (`#today-s`, `ul.sx-today`) right under the lead: today's games (ET) with time / LIVE / score,
     or, when today is done or empty, the next day that has games ("Next NFL games: Thursday, October 29"). With no
@@ -91,6 +96,10 @@ with it. Long names fall back to abbreviations or a last name only after the rea
 - League hubs and team/fighter pages add an `ItemList` of the game or fight URLs linked on the page (hub: inside the
   `CollectionPage`; team: `mainEntity` of the page about the `SportsTeam` or fighter `Person`). The homepage
   `Organization` has `sameAs` and `alternateName`. No `SearchAction`.
+- NCAAB and NCAAF hubs: `NCAAB Odds, Lines & Spreads Today | LineSmart` and `NCAAF Odds, Lines & Spreads Today | LineSmart`.
+  The meta description also says lines, spreads and odds (NCAAB leads with "NCAA basketball lines"). Upcoming game titles
+  for those sports stay `Matchup Odds: DK, FD & HR (date)` because 60 characters cannot also fit "lines" and "spreads"
+  plus the book comparison. The game meta description carries all three words.
 - Team, fighter and event pages: `<Team> Odds & Schedule (NFL)`, `<Fighter> UFC Odds, Record & Fight Results`.
   Player-prop pages use the props title above.
 - `og:title` and `twitter:title` always equal `<title>`. `og:description` and `twitter:description` always equal the meta
@@ -153,6 +162,7 @@ Pro pages stay `noindex` the way they already are.
   - `sitemap-results.xml`: `/<lg>/results/` and the month pages.
   `lastmod` comes from a content hash that ignores the cross-link blocks. A finished game's lastmod freezes when the final is recorded and moves only if the score or the closing line changes. The committed `sitemap.xml` points at `sitemap-core.xml`; the build rewrites the index and the children.
   A game or fight URL is added to a child sitemap only when this same build wrote that page's HTML, and it is removed in the build that stops writing the page. A redirect stub is never listed. `sitemap-games-*.xml` therefore never names a game before its page exists or after that page is gone.
+  The sitemap also leaves out thin URLs: past games with no odds (no posted line and no closing line) or no recorded score, postponed or canceled games with no odds, empty prop pages (no posted number), empty UFC cards, duplicate URLs, and any file whose canonical points somewhere else or that is a meta-refresh. Hubs, results, standings, team pages, upcoming and live games, and finished games that have odds and a score stay.
 - `robots.txt`: points to the sitemap.
 - `index.html`: the homepage cards (top games, line moves, hot props with last-5 strips) are filled in between the
   `HOME` markers. The committed file keeps them empty.

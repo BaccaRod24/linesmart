@@ -236,6 +236,12 @@ def check_page_ld(rel, h, hrefs, kind):
         check(not lists, f"{rel}: ItemList only on hubs, team, results and state pages")
 
 
+def has_query_words(text):
+    """True when lines, spreads and odds each appear as their own word."""
+    low = (text or "").lower()
+    return all(re.search(r"\b" + w + r"\b", low) for w in ("lines", "spreads", "odds"))
+
+
 def title_limit_tests():
     """Title cap includes the brand suffix; descriptions stop at 155; dedupe cannot push a title back over."""
     check(SP.TITLE_MAX == 60 and SP.DESC_MAX == 155 and len(SP.SUFFIX) == 12, "title 60 including suffix, description 155")
@@ -265,6 +271,7 @@ def title_limit_tests():
     for lg, one, many in (
         ("nba", "1 upcoming game", "3 upcoming games"),
         ("ncaaf", "1 upcoming NCAAF game", "3 upcoming NCAAF games"),
+        ("ncaab", "1 upcoming NCAAB game", "3 upcoming NCAAB games"),
     ):
         spec = SP.HUB_COPY[lg]
         title, desc, h1 = SP.fit(spec["title"]), SP.cut(spec["desc"]), spec["h1"]
@@ -274,6 +281,10 @@ def title_limit_tests():
         lead = SP.hub_custom_lead(lg, 3)
         check(many in lead and books in lead and lead.startswith("Today's"), f"{lg} intro uses the count and the book list")
         check(not PROMO_RE.search(title + " " + desc + " " + h1 + " " + lead), f"{lg} hub copy has no promo wording")
+        check(not FL_CLAIM.search(title + " " + desc + " " + h1 + " " + lead), f"{lg} hub copy does not place a book in Florida")
+        if lg in ("ncaaf", "ncaab"):
+            check(has_query_words(spec["title"]) and has_query_words(spec["desc"]) and has_query_words(spec["h1"]) and has_query_words(lead),
+                  f"{lg} hub title, description, h1 and intro say lines, spreads and odds ({title} / {desc})")
 
 
 def _fixture_league(lg):
@@ -305,6 +316,9 @@ def game_title_tests():
         check(title == want, f"{lg} {gid} title ({title})")
         snippet_ok(title, desc, f"{lg} {gid}")
         check(SP.title_side(g["away"]) in title and SP.title_side(g["home"]) in title, f"{lg} {gid} title names both teams ({title})")
+        if lg in ("ncaaf", "ncaab"):
+            check(has_query_words(desc), f"{lg} {gid} description says lines, spreads and odds ({desc})")
+            check("Odds" in title, f"{lg} {gid} title still says Odds ({title})")
         seen_desc.setdefault(desc, []).append(gid)
     check(all(len(v) == 1 for v in seen_desc.values()), f"sample game descriptions are unique ({[v for v in seen_desc.values() if len(v) > 1]})")
     # A long college matchup stays readable inside 60, instead of collapsing to abbreviations to keep the brand suffix.
@@ -326,6 +340,19 @@ def game_title_tests():
     check("total 48.5" in lined_desc and all(b in lined_desc for b in BOOKS3), f"Buffalo lined description names the number and the books ({lined_desc})")
     snippet_ok(lined, lined_desc, "Buffalo lined")
     check("Miami OH" in bare_d and "total 48.5" not in bare_d, "Buffalo without a line does not invent a number")
+    check(has_query_words(bare_d), f"NCAAF game with no number yet still says lines, spreads and odds ({bare_d})")
+    done = json.loads(json.dumps(leagues["ncaaf"].cur["401856734"]))
+    done["state"], done["completed"] = "post", True
+    done["statusDetail"] = "Final"
+    done["away"]["score"], done["home"]["score"] = 17, 24
+    done["home"]["winner"] = True
+    done["_closing"] = True
+    fin_t, fin_d = SP.game_meta(leagues["ncaaf"], done, "401856734")
+    check("Result" in fin_t and has_query_words(fin_d), f"finished NCAAF game with a closing line says lines, spreads and odds ({fin_d})")
+    bare_fin = json.loads(json.dumps(done))
+    bare_fin["books"], bare_fin["odds"], bare_fin["_closing"] = {}, None, False
+    _, bare_fin_d = SP.game_meta(leagues["ncaaf"], bare_fin, "401856734")
+    check(has_query_words(bare_fin_d) and "no closing odds, lines or spreads" in bare_fin_d.lower(), f"finished NCAAF game with no line does not invent one ({bare_fin_d})")
     fl = leagues["ncaaf"].cur["401856734"]
     h1 = SP.game_h1(leagues["ncaaf"], fl)
     check(h1.startswith("Florida Gators vs Georgia Bulldogs ") and " at " not in h1, f"neutral H1 uses vs ({h1})")
@@ -490,6 +517,10 @@ def event_ld_ok(rel, h, lg, kind):
     ev = evs[0]
     st, en = pv.parse_dt(ev.get("startDate")), pv.parse_dt(ev.get("endDate"))
     check(ev.get("name") and ev.get("url") == SP.BASE_URL + rel and ISO_OFF.match(ev.get("startDate") or ""), f"{rel}: name, url, startDate with offset")
+    check(isinstance(ev.get("description"), str) and ev["description"].strip(), f"{rel}: SportsEvent description ({ev.get('description')!r})")
+    for node in walk_nodes(lds):
+        if node.get("@type") in ("Event", "SportsEvent"):
+            check(isinstance(node.get("description"), str) and node["description"].strip(), f"{rel}: every Event has a description ({node.get('name')})")
     check(ISO_OFF.match(ev.get("endDate") or "") and st and en and en > st, f"{rel}: endDate with offset after startDate ({ev.get('startDate')} -> {ev.get('endDate')})")
     if kind != "event":
         check(bool(st and en) and en - st == timedelta(hours=EV_DUR[lg]), f"{rel}: endDate = start + {EV_DUR[lg]}h for {lg}")
@@ -509,6 +540,7 @@ def event_ld_ok(rel, h, lg, kind):
     se = ev.get("superEvent")
     if isinstance(se, dict):
         check(se.get("@type") == "SportsEvent" and se.get("name") and str(se.get("url") or "").startswith(SP.BASE_URL + "ufc/events/"), f"{rel}: superEvent is the card")
+        check(isinstance(se.get("description"), str) and se["description"].strip(), f"{rel}: superEvent description ({se.get('description')!r})")
         check(ISO_OFF.match(se.get("endDate") or "") and ISO_OFF.match(se.get("startDate") or ""), f"{rel}: superEvent startDate and endDate")
         sorg = se.get("organizer") or {}
         check(sorg.get("name") and sorg.get("url") == SP.ORGANIZER["ufc"][2], f"{rel}: superEvent organizer url")
@@ -1064,8 +1096,104 @@ def sitemap_game_guard_tests():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def sitemap_trim_tests():
+    """Thin, empty, duplicate and meta-refresh URLs stay out of the sitemap. Hubs and upcoming games stay in."""
+    now = pv.parse_dt("2026-11-07T16:00:00Z")
+    lm = "2026-11-07T16:00:00Z"
+    line = {"draftkings": {"homeSpread": -3.5, "awaySpread": 3.5, "total": 47.5, "homeML": -150, "awayML": 130}}
+    L = SP.League("nfl", {"games": [], "teams": {}, "league": {"kind": "football"}}, None, SP.Archive(None), now, SP.BASE_URL)
+
+    def side(tid, name, abbr, score=None):
+        row = {"id": tid, "abbr": abbr, "name": name, "short": name.split()[-1]}
+        if score is not None:
+            row["score"] = score
+        return row
+
+    def game(gid, state, books, detail="Sat", scores=None):
+        away, home = side("1", "Away Team", "AWY"), side("2", "Home Team", "HOM")
+        if scores:
+            away["score"], home["score"] = scores
+            home["winner"] = True
+        return {"id": gid, "date": SP.iso(now - timedelta(days=1) if state == "post" else now + timedelta(days=1)),
+                "state": state, "completed": state == "post", "statusDetail": detail,
+                "venue": "Stadium", "city": "Miami", "venueState": "FL", "venueCountry": "US",
+                "away": away, "home": home, "books": books or {}, "odds": None}
+
+    L.games = {
+        "up": game("up", "pre", line),
+        "fin": game("fin", "post", line, "Final", (10, 17)),
+        "thin": game("thin", "post", {}, "Final", (7, 14)),
+        "noscore": game("noscore", "post", line, "Final"),
+        "held": game("held", "pre", {}, "Postponed"),
+    }
+    L.paths = {gid: f"nfl/games/{gid}/" for gid in L.games}
+    L.players = {
+        "good": {"path": "nfl/props/good/", "rows": [("up", ["good", "rush_yds", 55.5])], "archived": False, "p": {"n": "Good"}},
+        "empty": {"path": "nfl/props/empty/", "rows": [], "archived": False, "p": {"n": "Empty"}},
+        "blank": {"path": "nfl/props/blank/", "rows": [("up", ["blank", "rush_yds", None])], "archived": False, "p": {"n": "Blank"}},
+    }
+    L.team_paths = {"1": "nfl/teams/away/"}
+    L.ev = {}
+    U = SP.League("ufc", {"games": [], "teams": {}, "league": {"kind": "mma"}}, None, SP.Archive(None), now, SP.BASE_URL)
+    U.ev = {"e": {"path": "ufc/events/empty-card/", "bouts": [], "name": "Empty Card", "date": SP.iso(now)}}
+    U.games, U.paths, U.players, U.team_paths = {}, {}, {}, {}
+    pages = [
+        "nfl/", "nfl/results/", "nfl/standings/", "nfl/teams/away/",
+        "nfl/games/up/", "nfl/games/fin/", "nfl/games/thin/", "nfl/games/noscore/", "nfl/games/held/",
+        "nfl/props/good/", "nfl/props/empty/", "nfl/props/blank/",
+        "ufc/events/empty-card/", "nfl/teams/canon/",
+    ]
+    tmp = Path(tempfile.mkdtemp(prefix="seotrim-"))
+    try:
+        (tmp / "sitemap.xml").write_text("<sitemapindex/>\n")
+        (tmp / "sitemap-core.xml").write_text("")
+        for rel in pages:
+            f = tmp / rel / "index.html"
+            f.parent.mkdir(parents=True, exist_ok=True)
+            canon = SP.BASE_URL + ("nfl/" if rel == "nfl/teams/canon/" else rel)
+            f.write_text(f'<html><head><link rel="canonical" href="{canon}"></head><body><p>21+ 1-800-GAMBLER</p></body></html>\n')
+        stub = tmp / "nfl/teams/old/index.html"
+        stub.parent.mkdir(parents=True, exist_ok=True)
+        stub.write_text(SP.redirect_stub("nfl/teams/old/", "nfl/", SP.BASE_URL, "NFL odds"))
+        moved = tmp / "nfl/games/moved/index.html"
+        moved.parent.mkdir(parents=True, exist_ok=True)
+        moved.write_text(SP.redirect_stub("nfl/games/moved/", "nfl/", SP.BASE_URL, "NFL odds"))
+        entries = [(rel, lm) for rel in pages] + [
+            ("nfl/", lm),
+            ("nfl/teams/old/", lm),
+            ("nfl/games/moved/", lm),
+            ("nfl/games/missing/", lm),
+            ("preview/nfl/", lm),
+        ]
+        stats = SP.update_sitemap(tmp, entries, {"nfl": L, "ufc": U}, lm)
+        urls = set(sitemap_page_urls(tmp))
+        keep = ["nfl/", "nfl/results/", "nfl/standings/", "nfl/teams/away/", "nfl/games/up/", "nfl/games/fin/", "nfl/props/good/"]
+        drop = ["nfl/games/thin/", "nfl/games/noscore/", "nfl/games/held/", "nfl/props/empty/", "nfl/props/blank/",
+                "ufc/events/empty-card/", "nfl/teams/old/", "nfl/games/moved/", "nfl/games/missing/", "preview/nfl/", "nfl/teams/canon/"]
+        for rel in keep:
+            check(SP.BASE_URL + rel in urls, f"sitemap keeps {rel}")
+        for rel in drop:
+            check(SP.BASE_URL + rel not in urls, f"sitemap drops {rel}")
+        raw = "\n".join(p.read_text() for p in tmp.glob("sitemap-*.xml"))
+        check(raw.count("<loc>" + SP.BASE_URL + "nfl/</loc>") == 1, "duplicate hub is listed once")
+        reasons = stats["dropped"]
+        check(reasons.get("past game with no odds") == 1, f"past game with no odds dropped ({reasons})")
+        check(reasons.get("past game with little content") == 1, f"past game with little content dropped ({reasons})")
+        check(reasons.get("postponed or canceled game with no odds") == 1, f"postponed game with no odds dropped ({reasons})")
+        check(reasons.get("empty prop page") == 2, f"empty prop pages dropped ({reasons})")
+        check(reasons.get("empty event page") == 1, f"empty event page dropped ({reasons})")
+        check(reasons.get("meta-refresh") == 1, f"non-game meta-refresh dropped ({reasons})")
+        check(reasons.get("duplicate redirect") == 2, f"preview and canonical mismatch dropped ({reasons})")
+        check(reasons.get("duplicate url") == 1, f"repeated URL dropped ({reasons})")
+        check(sum(reasons.values()) == stats["before"] - stats["after"], f"trim delta matches ({stats['before']} -> {stats['after']}, {reasons})")
+        check("21+" in stub.read_text() and "1-800-GAMBLER" in stub.read_text() and 'class="aff-tag">Ad' not in stub.read_text(), "meta-refresh stub keeps the 21+ notice and helpline")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     sitemap_game_guard_tests()
+    sitemap_trim_tests()
     title_limit_tests()
     game_title_tests()
     snippet_copy_tests()
@@ -1089,30 +1217,30 @@ def main():
         st = SP.build(site, data, now, archive_dir=tmp / "arch")
         print(f"snapshot build: {st['pages']} pages + {st['redirects']} redirects, {st['bytes'] / 1e6:.1f} MB, {st['seconds']}s {st['total']}")
         check(st["pages"] > 50, f"snapshot builds a real number of pages ({st['pages']})")
-        # Other league hubs stay byte-identical aside from the best-lines link, the footer link, and "vs" on neutral sites.
-        if not os.environ.get("DATA_DIR"):
-            same = {
-                "nfl": "2833d38d5f8d914e35be4fc5901faaecfb20dd67d845f0dc71ad19ab57525f5f",
-                "ncaab": "ae803a073b948a260cfec5d59210167765fa2721748d2d9ff5225f762a6b9f67",
-                "nhl": "4058922d71fbd16a034ab28b081ad67129fb4ddee9d22ea0bcc3b60f65cf3ccd",
-                "mlb": "e47305afebc8a0fe80587f1c4f8764d92ce25d05b669afe7214b97fc4da10763",
-                "ufc": "2b52291dfa37efef7e4c79e5bc8e08e115b03b39691f1a7572996ab54a7edfb7",
-            }
-            for lg, digest in same.items():
-                got = hashlib.sha256((site / lg / "index.html").read_bytes()).hexdigest()
-                check(got == digest, f"{lg} hub is byte-identical")
-            for lg in ("nba", "ncaaf"):
-                h = (site / lg / "index.html").read_text()
-                d = parse(h)
-                spec = SP.HUB_COPY[lg]
-                h1 = html.unescape(re.search(r'class="pv-h1">(.*?)</h1>', h).group(1))
-                lead = html.unescape(re.search(r'class="pv-lead">(.*?)</p>', h).group(1))
-                cp = next(n for n in walk_nodes(ld_scripts(h)) if n.get("@type") == "CollectionPage")
-                check(d.title == spec["title"] + SP.SUFFIX and len(d.title) <= SP.TITLE_MAX, f"{lg} rendered title {len(d.title)}")
-                check(d.meta.get("description") == spec["desc"] and len(spec["desc"]) <= SP.DESC_MAX, f"{lg} rendered description {len(spec['desc'])}")
-                check(h1 == spec["h1"], f"{lg} rendered h1")
-                check(cp.get("name") == spec["title"] and cp.get("description") == spec["desc"], f"{lg} CollectionPage name and description follow the new copy")
-                check(SP.hub_books() in lead, f"{lg} intro names the books from the book table")
+        for lg in ("nba", "ncaaf", "ncaab"):
+            h = (site / lg / "index.html").read_text()
+            d = parse(h)
+            spec = SP.HUB_COPY[lg]
+            h1 = html.unescape(re.search(r'class="pv-h1">(.*?)</h1>', h).group(1))
+            lead = html.unescape(re.search(r'class="pv-lead">(.*?)</p>', h).group(1))
+            cp = next(n for n in walk_nodes(ld_scripts(h)) if n.get("@type") == "CollectionPage")
+            check(d.title == spec["title"] + SP.SUFFIX and len(d.title) <= SP.TITLE_MAX, f"{lg} rendered title {len(d.title)}")
+            check(d.meta.get("description") == spec["desc"] and len(spec["desc"]) <= SP.DESC_MAX, f"{lg} rendered description {len(spec['desc'])}")
+            check(h1 == spec["h1"], f"{lg} rendered h1")
+            check(cp.get("name") == spec["title"] and cp.get("description") == spec["desc"], f"{lg} CollectionPage name and description follow the new copy")
+            check(SP.hub_books() in lead, f"{lg} intro names the books from the book table")
+            if lg in ("ncaaf", "ncaab"):
+                check(has_query_words(d.title) and has_query_words(d.meta.get("description") or ""), f"{lg} rendered title and description say lines, spreads and odds")
+        for lg in SP.ORDER:
+            h = (site / lg / "index.html").read_text()
+            main_h = h.split('id="app">', 1)[1].split("</main>", 1)[0]
+            more_h = h.split("</main>", 1)[1].split("<footer", 1)[0]
+            check('class="sx-discover"' in main_h and 'class="sx-discover"' in more_h, f"{lg}: crawlable league links in the page and again outside #app")
+            check(all(f'href="{o}/"' in more_h for o in SP.ORDER if o != lg), f"{lg}: other league hubs are plain links outside #app")
+            today = re.search(r'class="pv-list sx-today">(.*?)</ul>', main_h, re.S)
+            if today:
+                hrefs = re.findall(r'href="([^"]+)"', today.group(1))
+                check(hrefs and any(href in more_h for href in hrefs), f"{lg}: an upcoming game is linked outside #app")
         man = json.loads((data / "pages.json").read_text())
         meta2 = json.loads((data / "meta.json").read_text())
         check(meta2.get("pages", {}).get("count") == st["pages"] and "previews" not in meta2, "meta.json: pages count, no previews block")
@@ -1374,7 +1502,14 @@ def main():
         urls = [u for u, _ in locs]
         check(len(urls) == len(set(urls)), "sitemap: no duplicate URLs across children")
         check(all(lm and re.match(r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2}))?$", lm) for _, lm in locs), "sitemap: every URL has a W3C lastmod")
-        check(set(SP.BASE_URL + p for p in real) <= set(urls), "sitemap lists every page")
+        sm = st.get("sitemap") or {}
+        dropped_paths = {p for paths in (sm.get("dropped_paths") or {}).values() for p in paths}
+        check(sm.get("before") == st["pages"] + 1 + len(SP.TOOL_PAGES), f"sitemap before trim counts every page plus home and tools ({sm.get('before')} vs {st['pages'] + 1 + len(SP.TOOL_PAGES)})")
+        check(sm.get("after") == len(urls), f"sitemap after trim matches the written urls ({sm.get('after')} vs {len(urls)})")
+        check(sum((sm.get("dropped") or {}).values()) == sm.get("before", 0) - sm.get("after", 0), f"dropped counts add up ({sm.get('dropped')})")
+        check(set(SP.BASE_URL + p for p in real if p not in dropped_paths) <= set(urls), "sitemap lists every page it did not trim")
+        check(not any(SP.BASE_URL + p in set(urls) for p in dropped_paths), "sitemap omits the trimmed pages")
+        check(all(SP.BASE_URL + f"{lg}/" in set(urls) for lg in man["l"]), "sitemap keeps every league hub")
         check(not any(u[len(SP.BASE_URL):] in {r for r, _, _ in stubs} for u in urls), "sitemap: no redirect stubs")
         check(any(u.endswith("/results/") for u in urls), "sitemap-results (or a child) lists results pages")
         core_txt = (site / "sitemap-core.xml").read_text()
@@ -1495,6 +1630,12 @@ def main():
         check(all(n.get("@type") != "SearchAction" and (not isinstance(n.get("potentialAction"), dict) or n["potentialAction"].get("@type") != "SearchAction") for n in home_nodes), "homepage has no SearchAction")
         block = ih.split(SP.HOME_START, 1)[1].split(SP.HOME_END, 1)[0]
         check("home-cards" in block and "Top games" in block, "homepage cards filled in")
+        check('class="sx-discover"' in block and "Upcoming games" in block and "Leagues" in block, "homepage lists upcoming games and league hubs in static HTML")
+        check('href="ncaaf/"' in block and 'href="ncaab/"' in block and block.lower().count("odds, lines and spreads") >= 2, "homepage links NCAAF and NCAAB with lines, spreads and odds")
+        disc = block.split('class="sx-discover"', 1)[1].split('class="home-cards"', 1)[0]
+        game_hrefs = re.findall(r'href="([^"]*/(?:games|fights)/[^"]*)"', disc)
+        check(game_hrefs and all(resolve(site, "", None, x).exists() for x in game_hrefs), f"homepage upcoming links are real game pages ({len(game_hrefs)})")
+        check(any(h.startswith("ncaaf/games/") for h in game_hrefs) and any(h.startswith("ncaab/games/") for h in game_hrefs), "homepage links an NCAAF game and an NCAAB game")
         hc_logos = re.findall(r'<img class="hc-logo"[^>]*>', block)
         check(len(hc_logos) >= 2, f"homepage game cards include team logos ({len(hc_logos)})")
         check(all("espncdn.com" in t and 'loading="lazy"' not in t and "onerror=" in t and "visibility" in t for t in hc_logos),

@@ -228,8 +228,9 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-      # Only persist history from a successful build. On a push race, re-apply this run's
-      # snapshot on top of the latest branch tip and try again; never force-push.
+      # Only persist history from a successful build. On a push race, fetch the new tip
+      # and merge this run's snapshot onto it. Pages are merged per game (a newer tip
+      # is never replaced by the stale snapshot). Never force-push.
       - name: Save line history snapshot
         if: steps.build.outcome == 'success' && steps.hist.outcome == 'success'
         continue-on-error: true
@@ -255,7 +256,7 @@ jobs:
             if [ -d ../.linehist-snap/_matchups ]; then mkdir -p matchups && cp -f ../.linehist-snap/_matchups/*.json matchups/; fi
             if [ -d ../.linehist-snap/_weather ]; then mkdir -p weather && cp -f ../.linehist-snap/_weather/*.json weather/; fi
             if [ -d ../.linehist-snap/_adv ]; then mkdir -p advstats && cp -f ../.linehist-snap/_adv/*.json advstats/; fi
-            if [ -d ../.linehist-snap/_pages ]; then mkdir -p pages && cp -f ../.linehist-snap/_pages/*.json pages/; fi
+            if [ -d ../.linehist-snap/_pages ]; then python3 ../scripts/merge_pages_snapshot.py --src ../.linehist-snap/_pages --dst pages; fi
             if [ -f ../.linehist-snap/reliability.json ]; then mkdir -p health && cp -f ../.linehist-snap/reliability.json health/reliability.json; fi
             git add -A history odds rosters matchups weather advstats health $( [ -d pages ] && echo pages )
             if git diff --cached --quiet; then echo "Nothing left to push."; exit 0; fi

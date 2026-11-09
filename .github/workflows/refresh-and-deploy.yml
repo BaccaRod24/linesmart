@@ -291,6 +291,21 @@ jobs:
           SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
         run: python3 scripts/upload_pro_rankings.py --file _private/rankings.json
 
+      # Pro screens are the private bundle, not a Pages file. Pack the committed pro/ sources
+      # (the data build may have rewritten rankings-data.js; that snapshot is uploaded above).
+      # This job already skips "Publish pages data" pushes, so a push here is a merge to main.
+      # The same source is not uploaded twice. The secret is never printed. continue-on-error
+      # keeps a failed upload from blocking the site deploy, and a non-zero exit marks the step.
+      - name: Pack and upload the private Pro bundle
+        if: steps.build.outcome == 'success' && github.event_name == 'push'
+        continue-on-error: true
+        env:
+          SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+        run: |
+          git checkout -- pro/rankings-data.js
+          node scripts/pack_pro_bundle.mjs
+          python3 scripts/upload_pro_bundle.py --file pro/dist/pro-app.js
+
       # A push to main is a new commit, and this run is the first Pages deployment of that SHA.
       - name: Upload deploy proof
         if: github.event_name == 'push'

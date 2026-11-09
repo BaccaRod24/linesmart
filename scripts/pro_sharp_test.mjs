@@ -54,5 +54,21 @@ check(/18 hours/.test(flat) && /marks them delayed/.test(flat) && /marked closed
 check(/does not call the odds provider/.test(flat) && /25 active line alerts/.test(flat) && /5 a day/.test(flat), "the guide states no odds call, 25 active alerts, and the email cap");
 check(!/stripe|checkout|payment provider/i.test(flat), "the guide does not invent a checkout");
 
+const propRows = (ui.match(/class="ppv-line pro-prop"/g) || []).length;
+check(propRows >= 7, "hot props, the game prop panel, and prop edges use the prop class (" + propRows + ")");
+const propCss = css.slice(css.indexOf(".ppv-line.pro-prop{"), css.indexOf(".ppv-line.pro-prop .num{") + 80);
+check(/0 0 14px -3px rgba\(16,185,129,\.55\)/.test(propCss), "prop rows use the Sharp bubble glow");
+check(/linear-gradient\(135deg,#d4ffe8/.test(propCss), "prop rows use the Sharp gradient edge");
+check(/border-radius:8px/.test(propCss), "prop rows use a tighter corner than the old soft card");
+check(/0 0 0 1px rgba\(16,185,129/.test(propCss), "prop rows use a 1px edge");
+check(/backdrop-filter:saturate\(160%\) blur\(8px\)/.test(propCss), "prop rows keep a shorter frosted blur");
+const bubbles = css.slice(css.indexOf(".pp-card .pp-b{"));
+check(/\.pp-card \.pp-b\{/.test(css) && /0 0 14px -3px rgba\(16,185,129,\.55\)/.test(bubbles) && /0 0 0 1px rgba\(16,185,129/.test(bubbles), "last-5 bubbles inside Pro prop cards use the 1px edge and the Pro glow");
+check(/backdrop-filter:saturate\(160%\) blur\(4px\)/.test(bubbles), "last-5 bubbles keep a short frosted blur");
+check(!/#22c55e|#34d399/.test(propCss + bubbles), "the Pro prop treatment stays off the win greens");
+check(!/\.hc-prop/.test(css), "the free homepage hot-props strip is not restyled from Pro CSS");
+const freeCss = fs.readFileSync("site/assets/styles.css", "utf8");
+check(!/\.pro-prop|0 0 14px -3px rgba\(16,185,129/.test(freeCss), "the free stylesheet does not pick up the Pro glow");
+
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall passed");
 process.exit(fails.length ? 1 : 0);

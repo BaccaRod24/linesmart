@@ -154,20 +154,8 @@ check(R.basisLabel("season") === "This season vs the current line", "a season ta
   const data = fs.readFileSync(new URL("../pro/rankings-data.js", import.meta.url), "utf8");
   check(!/apiKey|ODDS_API|the-odds-api|copenhaver|@yahoo/i.test(data), "the snapshot has no key and no account");
   const D = require("../pro/rankings-data.js");
-  for (const lg of ["nfl", "nba"]) {
-    const L = D.leagues[lg];
-    check(L && L.boxGames > 0 && L.players.length > 40, `${lg} snapshot has a real season`);
-    const poss = new Set(R.specsFor(lg).map(s => s.id));
-    check(L.players.every(p => poss.has(p.pos) && p.n && p.gp >= 1), `${lg} players are named, positioned, and have a game`);
-    for (const spec of R.specsFor(lg)) {
-      const board = R.seasonBoard(L.players, spec);
-      check(board.rows.length > 0 && board.rows.length <= 10, `${lg} ${spec.id} season board is a real top 10`);
-      const hit = R.rankHits(R.fromPack(L.props, spec, ["hardrockbet"]).entries);
-      check(hit.rows.every(r => r.n >= 5 && r.o <= r.n && r.text === `${r.o}/${r.n}`), `${lg} ${spec.id} hit rate keeps the minimum sample`);
-    }
-  }
-  check(!D.leagues.nhl && !D.leagues.mlb && !D.leagues.ncaaf && !D.leagues.ncaab, "the snapshot does not invent other leagues");
-  check(D.leagues.nba.players.some(p => typeof p.tpm === "number" && p.tpm > 0), "the NBA snapshot includes threes made from the box scores");
+  check(D && D.v === 1 && D.leagues && Object.keys(D.leagues).length === 0, "the committed fallback has no league snapshot");
+  check(!/"n"\s*:/.test(data) && data.length < 1200, "the committed fallback has no player rows");
 }
 
 {
@@ -195,25 +183,17 @@ check(R.basisLabel("season") === "This season vs the current line", "a season ta
 }
 
 {
-  // Compare the committed bundle to a fresh pack, then put the committed bytes back.
-  const distUrl = new URL("../pro/dist/pro-app.js", import.meta.url);
-  const before = fs.readFileSync(distUrl);
   const env = { ...process.env };
   delete env.ODDS_API_KEY;
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  let packed = null;
-  let fresh = Buffer.alloc(0);
-  try {
-    packed = spawnSync(process.execPath, [path.join(root, "scripts/pack_pro_bundle.mjs")], { encoding: "utf8", env, cwd: root });
-    fresh = fs.readFileSync(distUrl);
-  } finally {
-    fs.writeFileSync(distUrl, before);
-  }
-  const norm = (buf) => buf.toString("utf8").replace(/^(window\.__PRO_BUILD="[0-9a-f]{10}-)[^"]+(";)/, "$1TIMESTAMP$2");
-  const committed = before.toString("utf8");
-  check(committed.includes("loadRankPack") && committed.includes('"rankings.json"'), "committed bundle contains loadRankPack and rankings.json");
-  const packErr = packed && packed.status !== 0 ? ` (${(packed.stderr || packed.stdout || "").slice(0, 160)})` : "";
-  check(packed && packed.status === 0 && norm(before) === norm(fresh), "committed pro/dist/pro-app.js matches a fresh pack aside from the build time" + packErr);
+  const dist = path.join(root, "pro/dist/pro-app.js");
+  const packed = spawnSync(process.execPath, [path.join(root, "scripts/pack_pro_bundle.mjs")], { encoding: "utf8", env, cwd: root });
+  const fresh = packed.status === 0 && fs.existsSync(dist) ? fs.readFileSync(dist, "utf8") : "";
+  const packErr = packed.status !== 0 ? ` (${(packed.stderr || packed.stdout || "").slice(0, 160)})` : "";
+  check(packed.status === 0 && fresh.includes("loadRankPack") && fresh.includes('"rankings.json"'), "a fresh pack contains loadRankPack and rankings.json" + packErr);
+  check(fresh.includes("leagues:{}") || fresh.includes("leagues: {}"), "a fresh pack does not bake a player snapshot");
+  check(!/Matthew Stafford|Pat Fixture/.test(fresh), "a fresh pack has no player names");
+  check(/pro\/dist\//.test(fs.readFileSync(path.join(root, ".gitignore"), "utf8")), "pro/dist stays gitignored");
 }
 
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall passed");

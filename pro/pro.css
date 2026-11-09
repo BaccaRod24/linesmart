@@ -72,12 +72,16 @@ span.pro-pill,
 /* One spot on every slate card, phone and iPad: just under the kickoff line, flush with the
    card's right padding. Out of the flex row, so a long broadcast or the preview link and alert bell
    cannot wrap it or slide it. The header grows to leave that corner clear. */
-a.game .pro-sharp{position:absolute;top:46px;right:16px;z-index:2;margin:0}
+/* Same corner on every slate card, including a game with no flag. Right edge stays put
+   when the label is "Sharp" or "No flag". The header reserves that band on every card. */
+a.game .pro-sharp{position:absolute;top:46px;right:16px;z-index:2;margin:0;max-width:calc(100% - 32px);white-space:nowrap}
 a.game:has(.pro-sharp) .game-top{margin-bottom:40px}
+.ppv-head .pro-role{margin:0 0 var(--pro-1)}
+#proGuide h3.ppv-h{margin-top:var(--pro-4)}
 body.app a.search-btn[data-pro-owner-nav]{display:inline-flex;align-items:center;justify-content:center;flex:none;width:auto;height:32px;margin-left:var(--pro-2);padding:0 8px;border-radius:var(--pro-badge-r);border:1px solid transparent;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
 
 /* ---- cards: the same glass as .card / .slate in site/assets/styles.css ---- */
-.ppv,.ppv-inject,.pro-insights,.ppv-grid,.ppv-card,[data-pro-owner] .card{min-width:0;max-width:100%}
+.ppv,.ppv-inject,.pro-insights,.ppv-grid,.ppv-card,[data-pro-owner] .card,[data-pro-owner] section{min-width:0;max-width:100%}
 .ppv-grid{display:grid;grid-template-columns:1fr;gap:var(--pro-3);margin-bottom:var(--pro-4)}
 .ppv-card,[data-pro-owner] .card,[data-pro-enhance] .ppv-panel,.pro-insights,.ppv .stat{
   border:1px solid var(--glass-brd);border-radius:var(--r);
@@ -100,7 +104,7 @@ body.app a.search-btn[data-pro-owner-nav]{display:inline-flex;align-items:center
 .pro-empty{margin:var(--pro-2) 0 var(--pro-3);color:var(--dim);font-size:13px;line-height:1.45}
 
 /* ---- chips and filters ---- */
-.ppv-nav{display:flex;flex-wrap:nowrap;gap:var(--pro-2);margin:0 0 var(--pro-4);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;overscroll-behavior-x:contain}
+.ppv-nav{display:flex;flex-wrap:nowrap;gap:var(--pro-2);max-width:100%;margin:0 0 var(--pro-4);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;overscroll-behavior-x:contain}
 .ppv-nav .chip{flex:none}
 [data-pro-owner] .chip,[data-pro-enhance] .chip{min-height:32px;padding:4px 10px;border-radius:999px;font-size:12.5px;font-weight:600}
 [data-pro-owner] a.chip.on,

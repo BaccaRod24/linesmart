@@ -15,6 +15,63 @@
   const TAG_KEY = "ls-pro-tags-v1";
   const isNum = v => typeof v === "number" && isFinite(v);
 
+  /** Same bars as scripts/line_history.py summarize(). */
+  function sharpRule(kind, league) {
+    const k = String(kind || "");
+    const lg = String(league || "");
+    const spread = k === "football" || k === "basketball"
+      ? "A spread flags at 1.5 points"
+      : "Spreads are not flagged in this sport";
+    const key = lg === "nfl" || lg === "ncaaf" ? " NFL and college football also flag a cross of 3 or 7." : "";
+    const tot = k === "football" ? "2" : k === "basketball" ? "3" : "0.5";
+    return spread + "." + key + " A total flags at " + tot + " points.";
+  }
+
+  /** One Sharp slot for every game. show is "sharp" or "empty". The why is the saved note, or why there isn't one. */
+  function sharpSlot(g, kind, league) {
+    const state = (g && g.state) || "";
+    const move = g && g.move;
+    const notes = move && Array.isArray(move.notable) ? move.notable.filter(Boolean) : [];
+    if (state === "pre" && notes.length) return { show: "sharp", label: "Sharp", why: notes.join(" · ") };
+    if (state === "in" || state === "post") {
+      return { show: "empty", label: "No flag", why: "Sharp flags are only for games that have not started. This game is " + (state === "in" ? "live" : "finished") + "." };
+    }
+    const hasMove = !!(move && (move.spread || move.total || move.homeML || move.awayML));
+    if (!hasMove && !(g && g.odds)) return { show: "empty", label: "No flag", why: "No line is stored for this game, so there is nothing to flag." };
+    const rule = kind || league ? " " + sharpRule(kind, league) : "";
+    return { show: "empty", label: "No flag", why: "The saved line did not meet the flag." + rule };
+  }
+
+  /** What the running code actually does. The waitlist copy is a separate list. */
+  function proGuide() {
+    return {
+      includes: [
+        "Sharp-move flags on games that have not started, from the same saved line the public slate already flags.",
+        "Line history charts from the history stored with each game.",
+        "Hard Rock Bet, DraftKings, and FanDuel, and only when that book posted a number. No other book is filled in.",
+        "A best price when at least two of those books posted that market.",
+        "Filters on the lines in the file. A consensus edge still needs three or more books on the same number, the Value finder rule.",
+        "Hot props from the props files already on the site: same-line price gaps, moves from the stored opening line, and hot streaks.",
+        "NFL and NBA season rankings from the private snapshot, and a prop hit rate when a props file or stored lines exist.",
+        "My Bets extras on this device: closing-line value when a closing number is stored, and tags kept in this browser.",
+        "25 active line alerts on a Pro account. Free accounts stay at 10, which is what this screen shows and what the server uses when the free setting is empty. Emails still stop at 5 a day.",
+      ],
+      updates: [
+        "The site refreshes about every 30 minutes. ESPN is read on that run.",
+        "Game lines from Hard Rock Bet, DraftKings, and FanDuel are pulled about every 30 minutes while the odds budget is on pace.",
+        "NFL and NBA player props are pulled about every 2 hours, for games starting within 36 hours, and only while the budget still allows props.",
+        "If the budget is tight, props pause first. Game lines then slow to 60, 90, 120, 180, 240, or 360 minutes. If the budget is used up, paid pulls stop.",
+        "Pro does not call the odds provider. It reads the files that refresh already wrote.",
+      ],
+      down: [
+        "If ESPN does not load, the site keeps the last good games for up to 18 hours and marks them delayed. Times, scores, and lines may be out of date until the feed is back.",
+        "If a paid odds pull does not run, the last saved prices stay in the file. Pro shows those prices and how old the file is.",
+        "Once a game has started, that book's number is marked closed and is not shown as a live price.",
+        "A stale copy is dropped when it is older than 18 hours, or when no upcoming or live game is left in it. That league can then show empty.",
+      ],
+    };
+  }
+
   /** Upcoming games whose saved line movement already carries a sharp-move note. */
   function sharpMoves(byLg, now) {
     const out = [];
@@ -264,7 +321,7 @@
 
   return {
     ACTIVE_FREE, ACTIVE_PRO, EMAIL_FREE, BOOK_KEYS, BOOK_NAME, COMING_BOOKS, TAG_KEY,
-    sharpMoves, filterBoard, bookColumns, refreshInfo, clvPoints, clvSummary, beatsClose, tagGroups, historyMarkets, readTags, setTag,
+    sharpRule, sharpSlot, proGuide, sharpMoves, filterBoard, bookColumns, refreshInfo, clvPoints, clvSummary, beatsClose, tagGroups, historyMarkets, readTags, setTag,
     etDay, lineMoveBoard, bestPrices,
   };
 });

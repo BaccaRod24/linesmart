@@ -1702,7 +1702,7 @@
       if (window.LSProGate && window.LSProGate.ready) await window.LSProGate.ready;
       const now = location.hash.replace(/^#\/?/, "").split("/")[0].split("?")[0];
       if (now !== "owner") return;   // a tap during the wait already left this route
-      if (window.LSProApp && window.LSProApp.view) return window.LSProApp.view();
+      if (window.LSProApp && window.LSProApp.view && window.LSProGate && window.LSProGate.verified && window.LSProGate.verified()) return window.LSProApp.view();
       location.replace(location.pathname + location.search + "#/");
       return;
     }
@@ -1739,7 +1739,7 @@
     Promise.resolve(route()).then(() => window.scrollTo(0, y));
   });
   // helpers shared with the My Bets tracker (assets/bets.js)
-  window.LSApp = { previewHref, previewLink, esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, pages: () => PAGES, nav: () => NAV, espn, crest, notAvail, sidx, linesCard, booksCard, lineMoveSection, gameJump };
+  window.LSApp = { previewHref, previewLink, esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, pages: () => PAGES, nav: () => NAV, espn, crest, notAvail, sidx, linesCard, booksCard, lineMoveSection, gameJump, tile: (lg, id) => TILES[`${lg}/${id}`] || null };
   // "/" opens search from anywhere (unless typing in a field)
   document.addEventListener("keydown", e => {
     if (e.key === "/" && !e.metaKey && !e.ctrlKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "")) {

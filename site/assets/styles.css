@@ -1637,6 +1637,21 @@ body:has(.news-bets) .footer .news-foot{display:none}
 .lbx-t td:first-child{max-width:150px;overflow:hidden;text-overflow:ellipsis}
 .lbx-t tr.tot td{font-weight:750;border-top:1px solid var(--line2)}
 @media (max-width:640px){.lv-sit{margin-left:36px;font-size:11.5px}.lbx-t th,.lbx-t td{padding:5px;font-size:12px}}
+/* Final box score: phone tables scroll sideways; the player name stays pinned. */
+.bx-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+.bx-lines,.bx-team,.bx-players{border-collapse:collapse;width:max-content;min-width:100%;font-size:12.5px}
+.bx-lines th,.bx-lines td,.bx-team th,.bx-team td,.bx-players th,.bx-players td{padding:6px 8px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--line)}
+.bx-lines th:first-child,.bx-lines td:first-child,.bx-team th:first-child,.bx-team td:first-child,.bx-players th:first-child,.bx-players td:first-child{text-align:left;position:sticky;left:0;z-index:1;background:var(--surface);box-shadow:1px 0 0 var(--line)}
+.bx-players td:first-child,.bx-players th:first-child{max-width:9.2rem;overflow:hidden;text-overflow:ellipsis}
+.bx-players tr.tot td{font-weight:750}
+.bx-g{margin-top:12px}
+.bx-g h4{margin:0 0 6px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.bx-tog{display:flex;gap:8px;margin:0 0 10px}
+.bx-tog button{flex:1;min-height:44px;border-radius:12px;border:1px solid var(--line2);background:var(--bg);color:var(--mute);font:750 14px var(--font);cursor:pointer}
+.bx-tog button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.bx-lines-card,.bx-team-card,.bx-players-card{margin-bottom:12px}
+.gjump-4 a,.gjump-4 span{font-size:13px;padding:0 4px}
+@media (max-width:420px){.gjump-4 a,.gjump-4 span{font-size:12px}}
 
 /* ---------- static game previews (site/preview/**, scripts/previews.py + assets/preview.js) */
 .preview-page .state-btn{margin-left:10px}

@@ -424,13 +424,17 @@
     if (filter === "upcoming") games = games.filter(g => g.state !== "post");
     const days = {};
     games.forEach(g => (days[dayKey(g.date)] ||= []).push(g));
-    const chips = `<div class="chips">
+    const weekMeta = data.week && Array.isArray(data.week.games) ? data.week : null;
+    const weekLabel = weekMeta ? [weekMeta.label, weekMeta.detail].filter(Boolean).join(" · ") : "Finals still on this slate";
+    const chips = filter === "all"
+      ? `<div class="chips"><span class="chip">${esc(weekLabel)}</span><span class="chip">Finals open the box score</span></div>${staleNote(data.stale)}`
+      : `<div class="chips">
       <span class="chip"><b>${data.report.upcoming}</b> upcoming</span>
       <span class="chip"><b>${data.report.withOdds}</b> with lines</span>
       <span class="chip">Lines: <b>${esc((data.report.providers || []).join(", ") || "none")}</b></span>
       <span class="chip">Next ${data.windowDays} days</span></div>${staleNote(data.stale)}${oddsStaleNote(key)}`;
     const seg = leagueSeg(key, filter);
-    const subLine = filter === "standings" ? "Standings by conference and division" : filter === "top25" ? `AP Top 25 games this week · times in ${TZL}` : `Upcoming games, lines and form · times in ${TZL}`;
+    const subLine = filter === "standings" ? "Standings by conference and division" : filter === "top25" ? `AP Top 25 games this week · times in ${TZL}` : filter === "all" ? `${weekLabel} · times in ${TZL}` : `Upcoming games, lines and form · times in ${TZL}`;
     let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(data.league.full)}</h1><div class="sub">${subLine}</div></div>
       ${seg}</div>${filter === "top25" || filter === "standings" ? "" : chips}`;
     if (filter === "top25") {
@@ -468,6 +472,14 @@
       app.innerHTML = html;
       wireLeagueSeg(key, home);
       app.querySelectorAll(".st-board table").forEach(wireSort);
+      return;
+    }
+    if (filter === "all") {
+      html += weekBoard(key, data);
+      app.innerHTML = html;
+      wireLeagueSeg(key, home);
+      const live = ((data.week && data.week.games) || []).filter(g => g.state === "in");
+      startLive(live.map(g => liveRef(key, g)));
       return;
     }
     if (!games.length) {
@@ -511,6 +523,37 @@
       <div class="note">Computed from each team's completed games this season (ESPN team schedules${rows[0].t.seasonType ? ", " + esc(rows[0].t.seasonType) : ""}). Teams with no completed games show N/A.${window.LSAdv && window.LSAdv.ADV_LGS.has(data.league.key) ? " ATS and over/under records are on each team page." : ""}</div>`;
   }
 
+  function weekRow(g, lg) {
+    const href = window.WeekCore ? window.WeekCore.href(lg, g) : `#/g/${lg}/${g.id}`;
+    const A = g.away || {}, H = g.home || {};
+    const fin = g.state === "post";
+    const score = fin && A.score != null && H.score != null ? `<span class="num">${esc(A.score)}–${esc(H.score)}</span>` : esc(g.state === "in" ? (g.statusDetail || "LIVE") : timeET(g.date));
+    const extra = fin && FINAL_LBL(g) !== "Final" ? ` <small class="fin-x">${esc(FINAL_LBL(g))}</small>` : "";
+    const go = fin ? "Box ›" : "Lines ›";
+    return `<a class="grow" href="${href}"><span class="gr-d">${fmt(g.date, { month: "short", day: "numeric" })}</span>
+      <span class="gr-o">${logo(A, "tlogo")}<span class="nm-s">${esc(A.abbr || A.short || "")}</span><span class="nm-l">${esc(A.short || A.name || "")}</span> ${g.neutral ? "vs" : "@"} ${logo(H, "tlogo")}<span class="nm-s">${esc(H.abbr || H.short || "")}</span><span class="nm-l">${esc(H.short || H.name || "")}</span></span>
+      <span class="gr-r">${score}${extra} <span class="gr-go">${go}</span></span></a>`;
+  }
+  function weekBoard(key, data) {
+    const week = data.week && Array.isArray(data.week.games) ? data.week : null;
+    const games = week ? week.games : (data.games || []).filter(g => g.state === "post");
+    const order = week ? (week.order || "asc") : "desc";
+    if (!window.WeekCore || !games.length) {
+      const why = week ? "Nothing is scheduled in this window." : "This week's list shows up after the next data refresh.";
+      return `<div class="empty" style="margin-top:16px"><h3>No games this week</h3>${esc(why)}</div>`;
+    }
+    const groups = window.WeekCore.group(games, order);
+    let html = "";
+    for (const day of groups) {
+      html += `<div class="day">${dayLabel(day.date)}<span class="dn">${day.games.length} game${day.games.length > 1 ? "s" : ""}</span></div><div class="card"><div class="grows">` +
+        day.games.map(g => weekRow(g, key)).join("") + `</div></div>`;
+    }
+    const src = week && week.mode === "espn-week"
+      ? "ESPN's current week, finals and games still to be played."
+      : week ? "The last 7 days (US Eastern), including today's remaining games."
+      : "Finals still in this file. A full week is added on the next refresh.";
+    return html + `<div class="note">${src} A final opens its box score. Times in ${TZL}.</div>`;
+  }
   function standingsJump(key) {
     return `<a class="st-jump" href="#/l/${key}/standings"><span class="st-jump-t">Standings</span><span class="st-jump-s">Conference and division records, scoring and form</span></a>`;
   }
@@ -589,7 +632,7 @@
     const cls = "seg" + (extra ? " seg-stand" : "") + (key === "ncaaf" ? " seg-4" : "");
     const btn = (f, label) => `<button type="button" data-f="${f}" class="${filter === f ? "on" : ""}">${label}</button>`;
     const stand = STANDINGS_LGS.has(key) ? `<a href="#/l/${key}/standings" data-f="standings" class="${filter === "standings" ? "on" : ""}"${filter === "standings" ? ' aria-current="page"' : ""}>Standings</a>` : "";
-    return `<div class="${cls}" role="tablist">${btn("upcoming", "Upcoming & live")}${btn("all", "Incl. today's finals")}${key === "ncaaf" ? btn("top25", "Top 25") : ""}${stand}</div>`;
+    return `<div class="${cls}" role="tablist">${btn("upcoming", "Upcoming & live")}${btn("all", "This week")}${key === "ncaaf" ? btn("top25", "Top 25") : ""}${stand}</div>`;
   }
   function onStandingsPage(key) {
     if (PAGE_ROUTE === `l/${key}/standings`) return true;
@@ -626,14 +669,126 @@
   }
 
   // ---------- game detail
+  function mergeSummaryGame(g, sm) {
+    if (!sm || !sm.header) return g;
+    const comp = (sm.header.competitions || [])[0] || {};
+    const st = (comp.status || {}).type || {};
+    const cs = {};
+    for (const c of comp.competitors || []) if (c && c.homeAway) cs[c.homeAway] = c;
+    const team = (side, c) => {
+      const t = (c && c.team) || {}, prev = g[side] || {};
+      const raw = c && c.score;
+      const score = raw == null ? prev.score : String(typeof raw === "object" ? (raw.displayValue ?? raw.value) : raw);
+      const rec = ((c && c.records) || []).find(r => (r.type || r.name) === "total");
+      return Object.assign({}, prev, {
+        id: String((c && c.id) || t.id || prev.id || ""),
+        abbr: t.abbreviation || prev.abbr || "",
+        name: t.displayName || t.name || prev.name || "",
+        short: t.shortDisplayName || prev.short || t.abbreviation || "",
+        logo: t.logo || prev.logo || "",
+        color: t.color || prev.color || "",
+        record: (rec && rec.summary) || prev.record || "",
+        score, winner: st.state === "post" ? !!c.winner : prev.winner,
+      });
+    };
+    return Object.assign({}, g, {
+      id: String(sm.header.id || g.id || ""),
+      date: comp.date || sm.header.date || g.date,
+      state: st.state || g.state,
+      statusDetail: st.shortDetail || st.detail || g.statusDetail,
+      completed: !!st.completed,
+      venue: (comp.venue || {}).fullName || g.venue,
+      city: ((comp.venue || {}).address || {}).city || g.city,
+      broadcasts: g.broadcasts || [],
+      neutral: !!comp.neutralSite,
+      away: cs.away ? team("away", cs.away) : (g.away || {}),
+      home: cs.home ? team("home", cs.home) : (g.home || {}),
+    });
+  }
+  function boxHtml(lg, g, kind, box) {
+    return window.BoxCore ? window.BoxCore.html(box, g.away, g.home, kind, lg) : `<div class="card note">Box score didn't load.</div>`;
+  }
+  function wireBox(root) {
+    if (!root) return;
+    root.querySelectorAll("[data-bx-team]").forEach(btn => {
+      btn.onclick = () => {
+        const side = btn.dataset.bxTeam;
+        root.querySelectorAll("[data-bx-team]").forEach(b => {
+          const on = b === btn;
+          b.classList.toggle("on", on);
+          b.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        root.querySelectorAll("[data-bx-panel]").forEach(p => { p.hidden = p.dataset.bxPanel !== side; });
+      };
+    });
+  }
+  function renderBoxMatch(key, id, backName, g, kind, box) {
+    const H = g.home || {}, A = g.away || {};
+    const mid = g.state === "pre"
+      ? `<div class="vs">${g.neutral ? "VS" : "AT"}</div><div class="when">${g.date ? fullET(g.date) : ""}</div>`
+      : heroMid(g);
+    app.innerHTML = `<a class="back" href="#/l/${key}">← ${esc(backName)}</a>
+      ${gameJump(key, id, "box", g.state === "post" || box ? "post" : g.state)}
+      <div class="match" style="--ca:${teamColor(A, "#334155")};--ch:${teamColor(H, "#475569")}">
+        <div class="mteam">${logo(A)}<div><div class="nm">${A.id ? `<a class="tlink" href="#/t/${key}/${esc(A.id)}">${esc(A.name || A.abbr || "")}</a>` : esc(A.name || A.abbr || "")}</div><div class="rec">${esc(A.record || "—")}</div></div></div>
+        <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}</div></div>
+        <div class="mteam home">${logo(H)}<div><div class="nm">${H.id ? `<a class="tlink" href="#/t/${key}/${esc(H.id)}">${esc(H.name || H.abbr || "")}</a>` : esc(H.name || H.abbr || "")}</div><div class="rec">${esc(H.record || "—")}</div></div></div>
+      </div>
+      <div id="boxRoot">${boxHtml(key, g, kind, box)}</div>`;
+    wireBox(document.getElementById("boxRoot"));
+    window.scrollTo(0, 0);
+  }
+  async function fetchSummary(lg, id) {
+    const path = (LG[lg] || [])[0];
+    if (!path) return null;
+    return espn(`site/v2/sports/${path}/summary?event=${encodeURIComponent(id)}`);
+  }
+  async function showBox(key, id, backName, g0, g, det, kind) {
+    let gg = g, box = (det && det.box) || null;
+    if (!box) {
+      app.innerHTML = `<a class="back" href="#/l/${key}">← ${esc(backName)}</a><div class="card note">Loading the box score from ESPN…</div>`;
+      window.scrollTo(0, 0);
+      const tok = NAV;
+      try {
+        const sm = await fetchSummary(key, String(id));
+        if (tok !== NAV) return;
+        box = window.BoxCore ? window.BoxCore.compact(kind, sm) : null;
+        gg = mergeSummaryGame(g0, sm);
+      } catch (e) { box = null; }
+      if (tok !== NAV) return;
+    }
+    renderBoxMatch(key, id, backName, gg, kind, box);
+  }
+  async function viewBoxRemote(key, id) {
+    const tok = NAV;
+    const meta = (META && META.leagues && META.leagues[key]) || {};
+    const backName = meta.full || key.toUpperCase();
+    const kind = meta.kind || (LG[key] || [])[1] || "";
+    renderTabs(key);
+    app.innerHTML = `<a class="back" href="#/l/${key}">← ${esc(backName)}</a><div class="card note">Loading the box score from ESPN…</div>`;
+    window.scrollTo(0, 0);
+    let sm = null;
+    try { sm = await fetchSummary(key, id); } catch (e) { sm = null; }
+    if (tok !== NAV) return;
+    if (!sm) {
+      app.innerHTML = `<a class="back" href="#/l/${key}">← ${esc(backName)}</a><div class="empty"><h3>Game not found</h3>ESPN didn't return a summary for this game.</div>`;
+      return;
+    }
+    const g = mergeSummaryGame({ id, home: {}, away: {}, state: "post", broadcasts: [] }, sm);
+    const box = window.BoxCore ? window.BoxCore.compact(kind, sm) : null;
+    renderBoxMatch(key, id, backName, g, kind, box);
+  }
   async function viewGame(key, id, focus) {
-    focus = focus === "props" || focus === "stats" ? focus : "";
+    focus = focus === "props" || focus === "stats" || focus === "box" ? focus : "";
     rememberLg(key);
     renderTabs(key);
     if (!cache[`data/${key}/games/${id}.json`]) { showSkel(skelGame()); window.scrollTo(0, 0); }
     let d, idx;
     try { [d, idx] = await Promise.all([getJSON(`data/${key}/games/${id}.json`), getJSON(`data/${key}/index.json`)]); }
-    catch (e) { return (app.innerHTML = `<a class="back" href="#/l/${key}">← Back</a><div class="empty"><h3>Game not found</h3>It may have dropped out of the data window. Refresh the data.</div>`); }
+    catch (e) {
+      if (focus === "box" && key !== "ufc") return viewBoxRemote(key, id);
+      return (app.innerHTML = `<a class="back" href="#/l/${key}">← Back</a><div class="empty"><h3>Game not found</h3>It may have dropped out of the data window. Refresh the data.</div>`);
+    }
     if (idx.league.kind === "mma" && window.LSUfc) {
       const at = location.hash;
       await window.LSUfc.fight(d, idx, key, focus);
@@ -642,12 +797,13 @@
     }
     const g0 = d.game, det = d.detail || {}, kind = idx.league.kind;
     const g = liveG(key, g0);
+    if (focus === "box" && kind !== "mma") return showBox(key, id, idx.league.full, g0, g, det, kind);
     const H = g.home, A = g.away;
     const mid = g.state === "pre"
       ? `<div class="vs">${g.neutral ? "VS" : "AT"}</div><div class="when">${fullET(g.date)}</div>`
       : heroMid(g);
     let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>${previewLink(key, g, "back pv-back")}
-      ${gameJump(key, id, focus)}${focus === "props" ? propsPane(key, g) : ""}${focus === "stats" ? `<div class="section-title" id="stats">Team &amp; matchup stats</div>` : ""}
+      ${gameJump(key, id, focus, g.state)}${focus === "props" ? propsPane(key, g) : ""}${focus === "stats" ? `<div class="section-title" id="stats">Team &amp; matchup stats</div>` : ""}
       <div class="match" style="--ca:${teamColor(A, "#334155")};--ch:${teamColor(H, "#475569")}">
         <div class="mteam">${logo(A)}<div><div class="nm">${A.rank ? `<span class="rk" style="color:var(--warn)">#${A.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${A.id}">${esc(A.name)}</a></div><div class="rec">${esc(A.record || "—")} · Away ${esc(A.awayRecord || "—")}${formDots(A.form)}</div></div></div>
         <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}${g.neutral ? " (neutral)" : ""}</div><div class="where">${esc(g.broadcasts.join(", "))}</div>${g.note ? `<div class="where">${esc(g.note)}</div>` : ""}${window.LSWeather && g.state !== "post" && g.weather ? `<div class="where wx-where">${window.LSWeather.chip(g)}</div>` : ""}</div>
@@ -676,7 +832,7 @@
     }
 
     html += matchupJump(key, id);
-    if (LV() && window.LiveCore && window.LiveCore.supported(key) && (g.state !== "pre" || window.LiveCore.needsLive({ lg: key, id: g.id, state: g.state, date: g.date })))
+    if (LV() && window.LiveCore && window.LiveCore.supported(key) && (g.state === "in" || window.LiveCore.needsLive({ lg: key, id: g.id, state: g.state, date: g.date })))
       html += `<div id="liveBox" class="lbx-wrap">${liveBoxHtml(LV().box(key, g.id), A, H, kind, g, key)}</div>`;
     html += `<div class="section-title">Betting lines${window.LSAlerts && g.state === "pre" ? `<span class="st-act">${window.LSAlerts.pageBell(key, g)}</span>` : ""}</div><div class="cols">${linesCard(g, kind)}${booksCard(g, kind, key)}</div>${window.LSAlerts && window.LSAlerts.pageCta ? window.LSAlerts.pageCta(key, g) : ""}${offersSlot("game")}`;
     if (window.LSBets) html += window.LSBets.trackCard(key, g, kind);
@@ -1158,7 +1314,8 @@
     const right = upcoming ? `<span class="gr-r">${g.state === "in" ? `<b class="live">LIVE</b>` : esc(timeET(g.date))}${inIdx ? ` <span class="gr-go">Lines ›</span>` : ""}</span>`
                            : `<span class="gr-r"><span class="res ${esc(g.res || "")}">${esc(g.res || "")}</span> <span class="num">${esc(g.ms ?? "")}-${esc(g.os ?? "")}</span>${g.done ? finTag(g.detail) : ""}</span>`;
     const inner = `<span class="gr-d">${fmt(g.date, { month: "short", day: "numeric" })}</span>${opp}${right}`;
-    return inIdx ? `<a class="grow" href="#/g/${lg}/${g.id}">${inner}</a>` : `<div class="grow">${inner}</div>`;
+    const href = !upcoming && g.done ? `#/g/${lg}/${g.id}/box` : `#/g/${lg}/${g.id}`;
+    return (inIdx || (!upcoming && g.done)) ? `<a class="grow" href="${href}">${inner}</a>` : `<div class="grow">${inner}</div>`;
   }
   const KEY_STATS = {
     football: [["scoring", "totalPointsPerGame", "Points / game"], ["passing", "netPassingYardsPerGame", "Pass yds / game"], ["rushing", "rushingYardsPerGame", "Rush yds / game"], ["passing", "passingTouchdowns", "Pass TD"], ["rushing", "rushingTouchdowns", "Rush TD"], ["passing", "interceptions", "INT thrown"], ["miscellaneous", "thirdDownConvPct", "3rd down %"], ["defensive", "sacks", "Sacks (def)"], ["defensiveInterceptions", "interceptions", "INT (def)"], ["miscellaneous", "totalPenaltyYards", "Penalty yds"]],
@@ -1478,13 +1635,14 @@
       : `<span class="ps-link off" aria-disabled="true" title="No player props for ${esc(lgName(lg))}">Props</span>`;
     return `<div class="ps-links">${props}<a class="ps-link" href="#/g/${esc(lg)}/${esc(id)}/stats">Matchup</a></div>`;
   }
-  function gameJump(lg, id, focus) {
-    focus = focus === "props" || focus === "stats" ? focus : "";
+  function gameJump(lg, id, focus, state) {
+    focus = focus === "props" || focus === "stats" || focus === "box" ? focus : "";
+    const showBox = lg !== "ufc" && (state === "post" || focus === "box");
     const base = `#/g/${esc(lg)}/${esc(id)}`;
     const item = (href, label, on, off, title) => off
       ? `<span class="${on ? "on " : ""}off" aria-disabled="true" title="${esc(title || "")}">${label}</span>`
       : `<a href="${href}" class="${on ? "on" : ""}"${on ? ' aria-current="page"' : ""}>${label}</a>`;
-    return `<nav class="gjump" aria-label="Game sections">${item(base, "Lines", !focus, false)}${item(base + "/props", "Props", focus === "props", !propsLeague(lg), "No player props for " + lgName(lg))}${item(base + "/stats", "Matchup", focus === "stats", false)}</nav>`;
+    return `<nav class="gjump${showBox ? " gjump-4" : ""}" aria-label="Game sections">${item(base, "Lines", !focus, false)}${item(base + "/props", "Props", focus === "props", !propsLeague(lg), "No player props for " + lgName(lg))}${item(base + "/stats", "Matchup", focus === "stats", false)}${showBox ? item(base + "/box", "Box score", focus === "box", false) : ""}</nav>`;
   }
   function propsPane(key, g) {
     if (!propsLeague(key)) return notAvail("Player props", lgName(key) + " has no player-props file. Props are posted for the NFL and NBA.");

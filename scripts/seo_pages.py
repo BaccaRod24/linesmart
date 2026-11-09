@@ -11,8 +11,10 @@ Outputs (all generated, git-ignored):
   site/<lg>/...                      pages (see docs/seo-pages.md for the URL pattern)
   site/<lg>/results/                 results archive, plus site/<lg>/results/YYYY-MM/ month pages
   site/preview/**                    redirect stubs for the old /preview/ URLs (canonical -> new page)
+  site/<lg>/games|fights/<slug>/     a short hub redirect when an upcoming page drops before it is archived
   site/data/pages.json               hash route -> real URL manifest used by app.js (redirects + link rewriting)
   site/sitemap.xml                   sitemap index; child files sitemap-core/live/results/games-*.xml
+                                     a game URL is listed only when this build wrote that game's HTML
   site/index.html                    the <!-- seo:home:start/end --> block (mobile homepage cards)
 
 Finished games stay up permanently with the final score and the last lines we saw before the start (closing lines).
@@ -907,6 +909,7 @@ class League:
                 continue
             st = g.get("state")
             if st == "pre":
+                # odds leagues (ncaaf, ncaab): no page until a line is posted, so the sitemap cannot name it early
                 if dt > horizon or (cfg["odds"] and not pv.has_line(g)) or dt < now - timedelta(hours=12):
                     continue
                 # pro leagues: games without a line yet still get a page when they're close (records, form, injuries)
@@ -3650,6 +3653,66 @@ def home_cards(Ls, now):
 
 
 # ---------------------------------------------------------------- redirects, sitemap, homepage
+def is_game_rel(rel):
+    """A game or fight page path. Hubs, teams, props, events and results are not game URLs."""
+    parts = [p for p in str(rel or "").split("/") if p]
+    return len(parts) >= 3 and parts[0] in ORDER and parts[1] in ("games", "fights")
+
+
+def rel_file(site: Path, rel: str) -> Path:
+    """File that serves `rel` (a directory URL's index.html, or a top-level .html file)."""
+    rel = str(rel or "")
+    if rel.startswith(BASE_URL):
+        rel = rel[len(BASE_URL):]
+    rel = rel.lstrip("/")
+    if rel == "" or rel.endswith("/"):
+        return Path(site) / rel / "index.html"
+    return Path(site) / rel
+
+
+def is_redirect_file(path: Path) -> bool:
+    """True when the file is a meta-refresh stub. Reads only the head, not the whole page."""
+    try:
+        with Path(path).open("r", encoding="utf-8", errors="replace") as f:
+            head = f.read(1500)
+    except OSError:
+        return False
+    return 'http-equiv="refresh"' in head or "http-equiv='refresh'" in head
+
+
+def game_page_on_disk(site: Path, rel: str) -> bool:
+    """This build wrote a real game page at rel (the file is there, and it is not a redirect stub)."""
+    f = rel_file(site, rel)
+    return f.is_file() and not is_redirect_file(f)
+
+
+def dropped_upcoming_paths(L: League):
+    """Game URLs we already published that this build did not write.
+
+    A finished game stays in L.games, so it is not listed here. An upcoming page that leaves select()
+    before that (a college game whose line comes down, still short of the archive) is listed, and the
+    build keeps a hub redirect at the old URL instead of deleting it.
+    """
+    arch = getattr(L, "arch", None)
+    if arch is None or not arch.dir:
+        return []
+    stored = (arch.state.get("paths") or {}).get(L.lg) or {}
+    out, seen = [], set()
+    for gid, prev in stored.items():
+        if str(gid) in L.games:
+            continue
+        if isinstance(prev, str):
+            prev = [prev]
+        if not isinstance(prev, list):
+            continue
+        for op in prev:
+            if not op or op in seen or not is_game_rel(op):
+                continue
+            seen.add(op)
+            out.append(op)
+    return out
+
+
 def redirect_stub(from_path, to_path, base_url, title):
     """Old URL -> new page: canonical + meta refresh + JS replace (GitHub Pages can't send 301s). No <base>: explicit relative URL."""
     depth = from_path.count("/")
@@ -3778,15 +3841,23 @@ def _kept_tool_lastmods(site, base_url):
 
 def update_sitemap(site: Path, entries, Ls, generated, base_url=BASE_URL):
     """Write sitemap.xml as a sitemap index plus the child urlsets. `entries` is [(rel_path, lastmod)].
-    Static tool pages stay in sitemap-core.xml outside the generated block. Nothing is listed twice."""
+    Static tool pages stay in sitemap-core.xml outside the generated block. Nothing is listed twice.
+    A game or fight URL is written only when this build's HTML for it is on disk and is not a redirect
+    stub, so sitemap-games-*.xml and sitemap-live.xml never name a page that was not generated."""
     if not (site / "sitemap.xml").is_file() and not (site / "sitemap.xml").exists():
         return []
     index = sitemap_index_of(Ls)
     groups = {}
+    skipped = 0
     for rel, lm in entries:
+        if is_game_rel(rel) and not game_page_on_disk(site, rel):
+            skipped += 1
+            continue
         if rel == BEST_LINES:
             lm = generated   # one evergreen URL: lastmod is this run's data stamp, every build
         groups.setdefault(sitemap_bucket(rel, index), []).append((base_url + rel, lm))
+    if skipped:
+        print(f"seo sitemap: omitted {skipped} game URL(s) with no page in this build")
     tools = _kept_tool_lastmods(site, base_url)
     static = [(base_url, generated)] + [(base_url + rel, lm) for rel, lm in tools.items()]
     stems = ["sitemap-core", "sitemap-live", "sitemap-results"]
@@ -3951,6 +4022,11 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
             for op in olds:
                 if op not in pages and op not in redirects:
                     redirects[op] = (L.team_paths[tid], tname(L.team_info.get(tid)))
+        # Upcoming page that left select() before a final was archived: keep the URL as a hub redirect
+        # (no odds, no Pro). It is not a page, so it stays out of the sitemap.
+        for op in dropped_upcoming_paths(L):
+            if op not in pages and op not in redirects:
+                redirects[op] = (L.hub, f"{NAMES[lg]} odds")
         redirects[f"preview/{lg}/"] = (L.hub, f"{NAMES[lg]} odds")
     redirects["preview/"] = ("", "LineSmart")
     # lastmod: content hash, with cross-links excluded. A finished game freezes at the build that recorded its final

@@ -898,7 +898,174 @@ def snippet_copy_tests():
     check("21+" in html and "1-800-GAMBLER" in html, "prop page keeps the 21+ notice and the helpline")
 
 
+NS = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
+
+
+def sitemap_page_urls(site):
+    """Page <loc>s from every child urlset. The index lists sitemap files, not pages."""
+    urls = []
+    for p in sorted(Path(site).glob("sitemap-*.xml")):
+        root = ET.fromstring(p.read_text().encode())
+        if not root.tag.endswith("urlset"):
+            continue
+        for u in root.findall(NS + "url"):
+            loc = u.find(NS + "loc")
+            if loc is not None and loc.text:
+                urls.append(loc.text)
+    return urls
+
+
+def check_sitemap_files(site, label):
+    """Every sitemap URL is a file from this build. A game URL's file is the page, not a redirect stub."""
+    urls = sitemap_page_urls(site)
+    missing, stubs = [], []
+    for u in urls:
+        rel = u[len(SP.BASE_URL):] if u.startswith(SP.BASE_URL) else None
+        f = SP.rel_file(site, rel) if rel is not None else None
+        if f is None or not f.is_file():
+            missing.append(u)
+            continue
+        if rel and SP.is_game_rel(rel) and SP.is_redirect_file(f):
+            stubs.append(u)
+    check(bool(urls) and not missing, f"{label}: every sitemap URL has a file ({len(urls)} urls, missing {missing[:3]})")
+    check(not stubs, f"{label}: no game redirect is listed ({stubs[:2]})")
+    return urls
+
+
+def _side(tid, name, abbr, score=None, winner=False):
+    row = {"id": str(tid), "abbr": abbr, "name": name, "short": name.split()[-1], "record": "4-1"}
+    if score is not None:
+        row["score"] = score
+    if winner:
+        row["winner"] = True
+    return row
+
+
+def _game(gid, when, away, home, state, books):
+    return {"id": gid, "date": SP.iso(when), "state": state,
+            "statusDetail": "Final" if state == "post" else "Sat", "completed": state == "post",
+            "venue": "Ohio Stadium", "city": "Columbus", "venueState": "OH", "venueCountry": "US",
+            "home": home, "away": away, "books": books or {}, "odds": None}
+
+
+def sitemap_game_guard_tests():
+    """A game URL enters a sitemap only with HTML from that build, and leaves when the page does.
+
+    NCAAF needs a posted line. The Oregon page is listed once that page exists. UCLA, which has no
+    line, is not listed and gets no file. When Oregon's line comes down before the game is archived,
+    the URL leaves the sitemap and the file becomes a hub redirect (no odds, no Pro). The finished
+    game stays in sitemap-games. Putting the line back restores the page and the sitemap entry.
+    """
+    line = {"draftkings": {"homeSpread": -3.5, "awaySpread": 3.5, "homeML": -160, "awayML": 140,
+                           "total": 48.5, "overOdds": -110, "underOdds": -110}}
+    tmp = Path(tempfile.mkdtemp(prefix="seosm-"))
+    try:
+        # ---- writer: sitemap-games cannot name a game file this build did not write
+        unit = tmp / "unit"
+        unit.mkdir()
+        (unit / "sitemap.xml").write_text("<sitemapindex/>\n")
+        (unit / "sitemap-core.xml").write_text("")
+        now_u = pv.parse_dt("2026-11-07T16:00:00Z")
+        fin_g = _game("401858514", now_u, _side("1", "Oregon Ducks", "ORE", 28), _side("2", "Ohio State Buckeyes", "OSU", 41, True), "post", line)
+        L = SP.League("ncaaf", {"games": [fin_g], "teams": {}, "league": {"kind": "football"}}, None, SP.Archive(None), now_u, SP.BASE_URL)
+        rel = "ncaaf/games/oregon-ducks-at-ohio-state-buckeyes-2026-11-07/"
+        L.games = {"401858514": fin_g}
+        L.paths = {"401858514": rel}
+        (unit / "ncaaf").mkdir()
+        (unit / "ncaaf" / "index.html").write_text("<html>hub</html>\n")
+        entries = [("ncaaf/", "2026-11-07T16:00:00Z"), (rel, "2026-11-07T16:00:00Z")]
+        SP.update_sitemap(unit, entries, {"ncaaf": L}, "2026-11-07T16:00:00Z")
+        check(SP.BASE_URL + rel not in sitemap_page_urls(unit) and not list(unit.glob("sitemap-games-*.xml")),
+              "sitemap-games omits a game whose HTML was not written")
+        f = unit / rel / "index.html"
+        f.parent.mkdir(parents=True)
+        f.write_text("<html><title>Oregon vs Ohio State Result</title></html>\n")
+        SP.update_sitemap(unit, entries, {"ncaaf": L}, "2026-11-07T16:00:00Z")
+        games_xml = unit / "sitemap-games-ncaaf-2026-11.xml"
+        check(games_xml.is_file() and SP.BASE_URL + rel in games_xml.read_text(), "sitemap-games lists the game once its file exists")
+        f.write_text(SP.redirect_stub(rel, "ncaaf/", SP.BASE_URL, "College Football odds"))
+        SP.update_sitemap(unit, entries, {"ncaaf": L}, "2026-11-07T16:00:00Z")
+        check(SP.BASE_URL + rel not in sitemap_page_urls(unit) and not games_xml.exists(), "a game redirect is dropped from sitemap-games")
+
+        # ---- build: line posted, line removed, line restored. Other leagues are emptied so this stays small.
+        site = build_copy(tmp, "flicker")
+        data = site / "data"
+        now = pv.parse_dt(json.loads((data / "meta.json").read_text())["generated"])
+        for lg in SP.ORDER:
+            p = data / lg / "index.json"
+            if not p.exists():
+                continue
+            doc = json.loads(p.read_text())
+            doc["games"] = []
+            p.write_text(json.dumps(doc))
+        ore = _side("2483", "Oregon Ducks", "ORE")
+        osu = _side("194", "Ohio State Buckeyes", "OSU")
+        ucla = _side("26", "UCLA Bruins", "UCLA")
+        minn = _side("135", "Minnesota Golden Gophers", "MINN")
+        lined = _game("flicker-ore", now + timedelta(days=3), ore, osu, "pre", line)
+        bare = _game("flicker-ucla", now + timedelta(days=3), ucla, minn, "pre", {})
+        past = _game("flicker-final", now - timedelta(days=1),
+                     _side("2483", "Oregon Ducks", "ORE", 17), _side("194", "Ohio State Buckeyes", "OSU", 24, True), "post", line)
+        ix = json.loads((data / "ncaaf" / "index.json").read_text())
+        ix["games"] = [lined, bare, past]
+        (data / "ncaaf" / "index.json").write_text(json.dumps(ix))
+        arch = tmp / "archF"
+        SP.build(site, data, now, archive_dir=arch)
+        man = json.loads((data / "pages.json").read_text())["g"].get("ncaaf") or {}
+        ore_path, fin_path = man.get("flicker-ore"), man.get("flicker-final")
+        check(ore_path and (site / ore_path / "index.html").is_file() and "oregon-ducks-at-ohio-state-buckeyes" in ore_path,
+              f"lined NCAAF game is a real page ({ore_path})")
+        ucla_hit = list((site / "ncaaf" / "games").glob("*ucla*")) if (site / "ncaaf" / "games").is_dir() else []
+        check("flicker-ucla" not in man and not ucla_hit, "NCAAF game with no line is not generated")
+        urls = check_sitemap_files(site, "with a line")
+        fin_ym = SP.day_et(pv.parse_dt(past["date"]))[:7]
+        check(SP.BASE_URL + ore_path in urls and SP.BASE_URL + fin_path in urls, "lined game and final are in the sitemap")
+        check(SP.BASE_URL + ore_path in (site / "sitemap-live.xml").read_text(), "upcoming game is in sitemap-live, not invented early")
+        check(SP.BASE_URL + fin_path in (site / f"sitemap-games-ncaaf-{fin_ym}.xml").read_text(), f"final is in sitemap-games-{fin_ym}")
+        check("ucla-bruins" not in SP.read_sitemaps(site) and "ucla-bruins" not in (site / "ncaaf" / "index.html").read_text(),
+              "no-line game is absent from the sitemap and the hub")
+        # line comes down: page leaves the sitemap; the URL refreshes to the hub instead of 404
+        ix = json.loads((data / "ncaaf" / "index.json").read_text())
+        for g in ix["games"]:
+            if g["id"] == "flicker-ore":
+                g["books"], g["odds"] = {}, None
+        (data / "ncaaf" / "index.json").write_text(json.dumps(ix))
+        SP.build(site, data, now, archive_dir=arch)
+        man = json.loads((data / "pages.json").read_text())["g"].get("ncaaf") or {}
+        check("flicker-ore" not in man and man.get("flicker-final") == fin_path, "dropped upcoming game leaves the manifest; the final stays")
+        stub_f = site / ore_path / "index.html"
+        stub = stub_f.read_text()
+        check('http-equiv="refresh"' in stub and f'href="{SP.BASE_URL}ncaaf/"' in stub, "dropped game refreshes to the college football hub")
+        check("21+" in stub and "1-800-GAMBLER" in stub and "1-833-PLAYWISE" in stub, "hub redirect keeps the 21+ notice and the helplines")
+        check("pro-gate" not in stub and "rankings" not in stub.lower() and "data-offers-slot" not in stub and "Free odds and stats" not in stub,
+              "hub redirect has no Pro data and no odds")
+        check(SP.BASE_URL + ore_path not in sitemap_page_urls(site), "dropped game leaves every sitemap")
+        check(SP.BASE_URL + fin_path in (site / f"sitemap-games-ncaaf-{fin_ym}.xml").read_text(), "sitemap-games keeps the final that still has a page")
+        check_sitemap_files(site, "after the line drops")
+        fin_html = (site / fin_path / "index.html").read_text()
+        check("21+" in fin_html and "1-800-GAMBLER" in fin_html and "1-833-PLAYWISE" in fin_html and "1-888-ADMIT-IT" in fin_html
+              and "data-aff-disclosure" in fin_html and "data-rg-local" in fin_html, "final page still has 21+, state helplines, and the Ad slot")
+        check('content="noindex, nofollow"' in (site / "owner.html").read_text(), "Pro owner page stays noindex")
+        check('noindex, nofollow' in (ROOT / "site" / "assets" / "pro-gate.js").read_text() and 'class="aff-tag">Ad' in (ROOT / "site" / "assets" / "site.js").read_text(),
+              "Pro noindex and the Ad label are unchanged")
+        # line returns: same URL is a real page and is listed again
+        ix = json.loads((data / "ncaaf" / "index.json").read_text())
+        for g in ix["games"]:
+            if g["id"] == "flicker-ore":
+                g["books"] = line
+        (data / "ncaaf" / "index.json").write_text(json.dumps(ix))
+        SP.build(site, data, now, archive_dir=arch)
+        man = json.loads((data / "pages.json").read_text())["g"]["ncaaf"]
+        check(man.get("flicker-ore") == ore_path, f"the same URL comes back when the line is posted ({man.get('flicker-ore')})")
+        back = (site / ore_path / "index.html").read_text()
+        check('http-equiv="refresh"' not in back and SP.BASE_URL + ore_path in sitemap_page_urls(site), "restored page is real HTML and back in the sitemap")
+        check_sitemap_files(site, "line restored")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
+    sitemap_game_guard_tests()
     title_limit_tests()
     game_title_tests()
     snippet_copy_tests()
@@ -1223,13 +1390,19 @@ def main():
         check(bl_lm and bl_lm == home_lm, f"best-lines-today lastmod is this run's generated stamp ({bl_lm})")
         live_txt = (site / "sitemap-live.xml").read_text() if (site / "sitemap-live.xml").exists() else ""
         check(SP.BASE_URL + "florida/" not in live_txt and SP.BASE_URL + "states/" not in live_txt, "state pages are not in sitemap-live")
+        missing, stub_games, game_n = [], [], 0
         for u in urls:
-            p = u[len(SP.BASE_URL):]
-            if p.startswith("sitemap-"):
+            rel = u[len(SP.BASE_URL):] if u.startswith(SP.BASE_URL) else None
+            f = SP.rel_file(site, rel) if rel is not None else None
+            if f is None or not f.is_file():
+                missing.append(u)
                 continue
-            f = site / p / "index.html" if (p == "" or p.endswith("/")) else site / p
-            if not f.exists():
-                check(False, f"sitemap URL exists: {u}")
+            if SP.is_game_rel(rel):
+                game_n += 1
+                if SP.is_redirect_file(f):
+                    stub_games.append(u)
+        check(not missing, f"every sitemap URL has a matching file ({len(missing)} missing, {missing[:3]})")
+        check(game_n > 0 and not stub_games, f"sitemap game URLs are pages this build wrote ({game_n}, stubs {stub_games[:2]})")
         robots = (site / "robots.txt").read_text()
         check("Sitemap: https://linesmart.app/sitemap.xml" in robots, "robots.txt points at the sitemap")
         # rebuild with nothing changed: same lastmods (content-hash driven), and the free-page offer keeps its first validFrom

@@ -14,7 +14,9 @@ Outputs (all generated, git-ignored):
   site/<lg>/games|fights/<slug>/     a short hub redirect when an upcoming page drops before it is archived
   site/data/pages.json               hash route -> real URL manifest used by app.js (redirects + link rewriting)
   site/sitemap.xml                   sitemap index; child files sitemap-core/live/results/games-*.xml
-                                     a game URL is listed only when this build wrote that game's HTML
+                                     a game URL is listed only when this build wrote that game's HTML.
+                                     Thin pages (past games with no odds, empty props, meta-refresh
+                                     stubs, duplicate/redirect URLs) are left out of the sitemap.
   site/index.html                    the <!-- seo:home:start/end --> block (mobile homepage cards)
 
 Finished games stay up permanently with the final score and the last lines we saw before the start (closing lines).
@@ -748,6 +750,76 @@ def end_iso(start, hours):
     return et(start + timedelta(hours=hours)).isoformat(timespec="minutes")
 
 
+def game_event_fallback(L, g):
+    """Factual SportsEvent description from the game's own teams, time and place.
+
+    Used only when the page snippet is blank, so every SportsEvent still has a description.
+    """
+    a, h = g.get("away") or {}, g.get("home") or {}
+    dt = parse_dt(g.get("date"))
+    when = fmt_et(dt) if dt else ""
+    where = ", ".join(x for x in (g.get("venue"), g.get("city"), g.get("venueState")) if x)
+    if L.lg == "ufc":
+        label = (g.get("name") or "").strip() or f"{tname(a)} vs. {tname(h)}"
+    else:
+        label = f"{NAMES[L.lg]}: {tname(a)} vs {tname(h)}"
+    text = label
+    if when:
+        text += f", {when}"
+    if where:
+        text += f" at {where}"
+    bits = []
+    if L.is_final(g) and L.score_known(g):
+        bits.append(f"final score {L.score_line(g)}")
+    if pv.has_line(g):
+        if L.lg in ("ncaaf", "ncaab"):
+            bits.append("odds, lines and spreads")
+        elif L.lg == "ufc":
+            bits.append("odds")
+        else:
+            bits.append("odds and lines")
+    if bits:
+        sentence = ", ".join(bits)
+        sentence = sentence[:1].upper() + sentence[1:]
+        if not sentence.endswith("."):
+            sentence += "."
+        text += ". " + sentence
+    else:
+        text += "."
+    return " ".join(text.split())
+
+
+def card_description(L, e):
+    """Factual UFC card description from that card's name, time, place and bouts."""
+    dt = parse_dt((e or {}).get("date"))
+    when = fmt_et(dt) if dt else ""
+    where = ", ".join(x for x in ((e or {}).get("venue"), (e or {}).get("city"), (e or {}).get("venueState")) if x)
+    games = getattr(L, "games", {}) or {}
+    bouts = [games[b] for b in ((e or {}).get("bouts") or []) if b in games]
+    name = ((e or {}).get("name") or "").strip() or "UFC"
+    text = name
+    if when:
+        text += f", {when}"
+    if where:
+        text += f" at {where}"
+    if bouts:
+        done = all(L.is_final(g) for g in bouts)
+        lined = any(pv.has_line(g) for g in bouts)
+        if done and lined:
+            what = "results and closing odds"
+        elif done:
+            what = "results"
+        elif lined:
+            what = "moneylines and fighter records"
+        else:
+            what = "fighter records"
+        text += f": {plural(len(bouts), 'bout')} with {what}"
+    elif when or where:
+        text += ": fight card"
+    text += "."
+    return " ".join(text.split())
+
+
 def game_event_ld(L: League, g, ev, path=None):
     """Fill in the SportsEvent from previews.jsonld(): endDate, performer, organizer (name + url), a free page offer,
     eventStatus, linked teams/fighters, and a location without placeholder values. Only the JSON-LD changes, never
@@ -766,6 +838,8 @@ def game_event_ld(L: League, g, ev, path=None):
     if L.lg != "ufc":
         ev["homeTeam"], ev["awayTeam"] = side_ld(L, h), side_ld(L, a)
     ev["location"] = place_ld(g)
+    if not str(ev.get("description") or "").strip():
+        ev["description"] = game_event_fallback(L, g)
     if L.lg == "ufc":
         e = L.ev.get(str((g.get("event") or {}).get("id"))) if hasattr(L, "ev") else None
         if e and e.get("path"):
@@ -805,9 +879,8 @@ def card_event_ld(L: League, e, desc=None):
         "performer": list(fighters.values()),
         "offers": pv.offer_ld(url, published_iso(L, path)),
         "image": [L.base_url + "assets/brand/og-image.png"],
+        "description": desc.strip() if str(desc or "").strip() else card_description(L, e),
     }
-    if desc:
-        ev["description"] = desc
     return ev
 
 
@@ -1761,18 +1834,29 @@ def compare_game_desc(L, g, dt, mk, has_props):
     """Meta description: matchup, date, and DraftKings, FanDuel and Hard Rock Bet. A posted number is included when it fits."""
     v0, v1 = title_vs(g)
     day, clock, lg = title_day(dt), clock_et(dt), SHORT[L.lg]
+    # College queries are "lines" and "spreads". The title stays the matchup plus Odds
+    # (60 characters cannot also fit both words and the book comparison).
+    topic = "odds, lines and spreads" if L.lg in ("ncaaf", "ncaab") else "odds"
     books = posted_books(g, L.lg)
     fact = _line_fact(g, books) if pv.has_line(g) and books else ""
     markets = _snippet_markets(L.kind, mk, has_props)
     extras = [e for e in (fact, markets) if e]
+    # Longest form first. A posted number is kept when a shorter date still leaves room for it.
+    cands = []
     for subj in (v0, v1):
         for when in (f"{day}, {clock}", day):
-            head = f"Compare {subj} {lg} odds for {when} across {COMPARE_BOOKS}."
+            head = f"Compare {subj} {lg} {topic} for {when} across {COMPARE_BOOKS}."
             for extra in extras + [""]:
                 text = head if not extra else f"{head} {extra}"
                 if len(text) <= DESC_MAX:
-                    return text
-    return cut(f"Compare {v1} {lg} odds for {day} across {COMPARE_BOOKS}.")
+                    cands.append(text)
+    if fact:
+        for text in cands:
+            if fact in text:
+                return text
+    if cands:
+        return cands[0]
+    return cut(f"Compare {v1} {lg} {topic} for {day} across {COMPARE_BOOKS}.")
 
 
 def upcoming_title_cands(L, g, vs, mk, dt):
@@ -2034,17 +2118,30 @@ def game_meta(L: League, g, gid):
                          f"{vs[1]} Final Score: {sc}", f"{vs[1]} Result: {sc}", f"{vs[1]} Result"]
         title = fit(*cands)
         res = L.score_line(g)
-        if closing:
+        college = L.lg in ("ncaaf", "ncaab")
+        if closing and college and "spread" in (mk or []):
+            tails = [
+                (f" Closing lines, spreads and odds from {and_list(bnames)}, and how the spread graded." if bnames else " Closing lines, spreads and odds, and how the spread graded."),
+                (f" Closing lines, spreads and odds from {and_list(bnames)}." if bnames else " Closing lines, spreads and odds."),
+                " Closing lines, spreads and odds.",
+            ]
+        elif closing:
             graded = and_list([mk[0]] + (["total"] if "total" in mk else [])) if L.lg != "ufc" and mk and mk[0] != "moneyline" else ""
-            tail = (f" Closing odds from {and_list(bnames)}" if bnames else " Closing odds") + (", line movement and how the " + graded + " graded." if graded else " and line movement.")
+            tails = [
+                (f" Closing odds from {and_list(bnames)}" if bnames else " Closing odds") + (", line movement and how the " + graded + " graded." if graded else " and line movement."),
+                (f" Closing odds from {and_list(bnames)} and line movement." if bnames else " Closing odds and line movement."),
+                " Closing odds and line movement.",
+            ]
+        elif college:
+            tails = [" No closing odds, lines or spreads were recorded before the start."]
         else:
-            tail = " No lines were recorded before the start."
+            tails = [" No lines were recorded before the start."]
         head = f"{vs[0]} result, {day}: {res}."
-        desc = head + tail
-        if len(desc) > DESC_MAX and closing:
-            desc = head + (f" Closing odds from {and_list(bnames)} and line movement." if bnames else " Closing odds and line movement.")
-        if len(desc) > DESC_MAX:
-            desc = head + (" Closing odds and line movement." if closing else "")
+        desc = head + tails[-1]
+        for tail in tails:
+            if len(head + tail) <= DESC_MAX:
+                desc = head + tail
+                break
     else:
         if L.lg == "ufc":
             title = fit(*upcoming_title_cands(L, g, vs, mk, dt))
@@ -2429,8 +2526,9 @@ def event_page(L: League, sh: Shell, eid):
         f"{e['name']} Odds & {what}", f"{e['name']} Odds",
         f"{short_name} Odds & {what}" if short_name and short_name != e["name"] else "",
         f"{short_name} Odds" if short_name else "", f"UFC {what}")
-    # UFC lines on these pages are DraftKings (via ESPN) only, so the description does not say "across books".
-    desc = cut(f"{e['name']}, {fmt_et(dt)}{' at ' + where if where else ''}: {plural(len(bouts), 'bout')} with moneylines" + (", results and closing odds." if done else ", records and fighter pages."))
+    # Same sentence the SportsEvent JSON-LD uses (including as superEvent on each fight). UFC lines on
+    # these pages are DraftKings via ESPN, so the description does not say "across books".
+    desc = cut(card_description(L, e))
     main = f"""<article class="pv sx-event">
 {crumbs((L.hub, "UFC"), (None, e["name"]))}
 <h1 class="pv-h1">{esc(e["name"])}: {'results &amp; closing odds' if done else 'odds &amp; fight card'}</h1>
@@ -2767,8 +2865,9 @@ def prop_tile(x, Ls):
             f'<div class="hc-pn">{esc(pl.get("n"))}</div><div class="hc-pm">{esc((L.markets.get(r[1]) or [r[1], r[1]])[1])} {esc(line_text(r[1], r[2]).replace("O/U ", ""))}</div>{strip_html(pl.get("log"), r[1], r[2])}</a>')
 
 
-# Search copy for two hubs. Every other league keeps the shared wording in hub_page / hub_lead.
+# Search copy for hubs that need their own wording. Every other league keeps hub_page / hub_lead.
 # {n} is the upcoming-game count. {books} is the same book list the odds tables use (previews.BOOKS).
+# NCAAB and NCAAF titles and descriptions say lines, spreads and odds, the words those queries use.
 HUB_COPY = {
     "nba": {
         "title": "NBA Odds & Betting Lines Today: Spreads & Totals",
@@ -2777,12 +2876,98 @@ HUB_COPY = {
         "intro": "Today's NBA betting lines for {n} upcoming games: compare point spreads, totals and moneylines across {books}, with line movement, player props with last-5 hit rates, injuries, and NBA scores with closing lines.",
     },
     "ncaaf": {
-        "title": "College Football Lines & NCAAF Spreads Today",
-        "desc": "Compare college football betting lines: NCAAF spreads, totals and moneylines from DraftKings, Hard Rock Bet and FanDuel, with line movement and scores.",
-        "h1": "College football lines today: NCAAF spreads, totals & moneylines",
-        "intro": "Today's college football betting lines for {n} upcoming NCAAF games: compare spreads, totals and moneylines across {books}, with line movement, weather, injuries and final scores with closing lines.",
+        "title": "NCAAF Odds, Lines & Spreads Today",
+        "desc": "College football odds, lines and spreads today: NCAAF spreads, totals and moneylines from DraftKings, Hard Rock Bet and FanDuel, plus scores.",
+        "h1": "College football odds, lines and spreads today",
+        "intro": "Today's college football odds, lines and spreads for {n} upcoming NCAAF games: compare spreads, totals and moneylines across {books}, with line movement, weather, injuries and final scores with closing lines.",
+    },
+    "ncaab": {
+        "title": "NCAAB Odds, Lines & Spreads Today",
+        "desc": "NCAA basketball lines today: compare NCAAB odds, lines and spreads from DraftKings, Hard Rock Bet and FanDuel, with totals, moneylines and scores.",
+        "h1": "College basketball odds, lines and spreads today",
+        "intro": "Today's college basketball odds, lines and spreads for {n} upcoming NCAAB games: compare spreads, totals and moneylines across {books}, with line movement, injuries and final scores with closing lines.",
     },
 }
+
+# Plain <a href> anchors for the homepage and league pages. College copy uses the query words.
+HUB_LINK_TEXT = {
+    "nfl": "NFL odds",
+    "nba": "NBA odds",
+    "mlb": "MLB odds",
+    "nhl": "NHL odds",
+    "ncaaf": "NCAAF odds, lines and spreads",
+    "ncaab": "NCAAB odds, lines and spreads",
+    "ufc": "UFC odds",
+}
+HOME_DISCOVER_GAMES = 3    # soonest upcoming games linked from the homepage, per league
+HUB_DISCOVER_GAMES = 12    # soonest upcoming games linked from that league page
+
+
+def _discover_when(g, now):
+    dt = parse_dt((g or {}).get("date"))
+    if not dt:
+        return ""
+    if g.get("state") == "in":
+        return "LIVE"
+    clock = et(dt).strftime("%-I:%M %p ET")
+    if day_et(dt) == day_et(now):
+        return clock
+    return et(dt).strftime("%a ") + clock
+
+
+def _anchor_list(items, cls):
+    """items: [(href, label, note)]. The note sits inside the <a> so the whole row is one crawlable link."""
+    if not items:
+        return ""
+    lis = []
+    for h, t, w in items:
+        if w:
+            inner = f'<span class="sx-dl">{esc(t)}</span><span class="sx-dt">{esc(w)}</span>'
+        else:
+            inner = esc(t)
+        lis.append(f'<li><a href="{esc(h)}">{inner}</a></li>')
+    return f'<ul class="{cls}">{"".join(lis)}</ul>'
+
+
+def discover_nav(Ls, focus=None, games=True):
+    """League hubs and upcoming game pages as plain <a href> links.
+
+    focus=None is the homepage (every league, a few soonest games each). focus=<lg> is that league
+    page (its soonest games, plus the other league hubs). Rendered into the static HTML, not only
+    after JavaScript runs.
+    """
+    leagues = [lg for lg in ORDER if lg in Ls and lg != focus] if focus else [lg for lg in ORDER if lg in Ls]
+    hub_items = [(f"{lg}/", HUB_LINK_TEXT[lg], "") for lg in leagues]
+    rows = []
+    if games:
+        if focus:
+            sources = [(focus, Ls[focus])] if focus in Ls else []
+            limit = HUB_DISCOVER_GAMES
+        else:
+            sources = [(lg, Ls[lg]) for lg in ORDER if lg in Ls]
+            limit = HOME_DISCOVER_GAMES
+        for lg, L in sources:
+            n = 0
+            for gid, g in upcoming(L):
+                if gid not in L.paths:
+                    continue
+                label = L.matchup(g) if focus else f"{SHORT[lg]}: {L.matchup(g)}"
+                rows.append((parse_dt(g["date"]) or L.now, ORDER.index(lg) if lg in ORDER else 99, gid, L.paths[gid], label, _discover_when(g, L.now)))
+                n += 1
+                if n >= limit:
+                    break
+        if not focus:
+            rows.sort(key=lambda r: (r[0], r[1], r[2]))
+    blocks = []
+    if hub_items:
+        blocks.append(f'<div class="sx-discover-block"><h2>{"Leagues" if not focus else "Other leagues"}</h2>{_anchor_list(hub_items, "sx-pills")}</div>')
+    if rows:
+        title = "Upcoming games" if not focus else f"Upcoming {NAMES[focus]} games"
+        blocks.append('<div class="sx-discover-block"><h2>' + esc(title) + "</h2>" + _anchor_list([(h, lab, note) for _, _, _, h, lab, note in rows], "sx-discover-games") + "</div>")
+    if not blocks:
+        return ""
+    label = "Leagues and upcoming games" if not focus else f"Upcoming {NAMES[focus]} games and other leagues"
+    return f'<nav class="sx-discover" aria-label="{esc(label)}">{"".join(blocks)}</nav>'
 
 
 def hub_books():
@@ -2798,7 +2983,9 @@ def hub_custom_lead(lg, n_up):
     n = int(n_up)
     intro = spec["intro"]
     if n == 1:
-        intro = intro.replace("{n} upcoming NCAAF games", "{n} upcoming NCAAF game").replace("{n} upcoming games", "{n} upcoming game")
+        intro = (intro.replace("{n} upcoming NCAAF games", "{n} upcoming NCAAF game")
+                 .replace("{n} upcoming NCAAB games", "{n} upcoming NCAAB game")
+                 .replace("{n} upcoming games", "{n} upcoming game"))
     return intro.format(n=n, books=hub_books())
 
 
@@ -2861,6 +3048,7 @@ def hub_page(L: League, sh: Shell, Ls):
 {crumbs((None, NAMES[L.lg]))}
 <h1 class="pv-h1">{h1}</h1>
 <p class="pv-lead">{esc(lead)}</p>
+{discover_nav(Ls, L.lg, games=False)}
 <p class="note"><a href="{BEST_LINES}">Best lines today</a></p>
 {today_html}
 {evs}
@@ -2876,12 +3064,12 @@ def hub_page(L: League, sh: Shell, Ls):
     teams = sorted([(p, tname(L.team_info[tid]), L.team_info[tid].get("record") or "") for tid, p in L.team_paths.items()], key=lambda x: x[1])
     players = sorted([(e["path"], e["p"].get("n"), e["p"].get("ta") or "") for e in L.players.values()], key=lambda x: (x[2], x[1]))
     more = "\n".join(x for x in [
+        discover_nav(Ls, L.lg, games=True),
         section("moves", "Biggest line moves", link_list([(L.paths[x[2]], L.matchup(x[3], short=True), f"{x[4]} {x[5]}") for x in moves])),
         section("hot", "Hot props (4 of last 5 over or better)", link_list([(L.players[x[5]]["path"], f"{x[6].get('n')} {(L.markets.get(x[7][1]) or [x[7][1], x[7][1]])[1]} {line_text(x[7][1], x[7][2]).replace('O/U ', '')}", f"{rate(x[6].get('log'), x[7][1], x[7][2])['o']}/{rate(x[6].get('log'), x[7][1], x[7][2])['n']} over") for x in hp])),
         section("results", "Recent results &amp; closing lines", link_list(res_items) + f'<p class="note"><a href="{L.lg}/results/">Results archive</a></p>'),
         section("players", "Player props by player", link_list(players, "pv-list sx-grid")),
         section("teams-l", "Fighters" if L.lg == "ufc" else "Teams", link_list(teams, "pv-list sx-grid")),
-        section("leagues", "Other sports", link_list([(f"{k}/", f"{NAMES[k]} odds", "") for k in ORDER if k != L.lg and k in Ls])),
     ] if x)
     if L.lg == "ufc":
         title = fit("UFC Odds: Fight Cards, Moneylines & Results", "UFC Odds: Cards & Results", "UFC Odds Today")
@@ -3646,10 +3834,10 @@ def home_cards(Ls, now):
         row("hcHot", "Hot props", "Last 5 vs the line", [prop_tile(p, Ls) for p in hp]),
     ])
     more = f'<p class="hc-more"><a href="{BEST_LINES}">See all best lines today →</a></p>'
-    hubs = "".join(f'<a href="{lg}/">{esc(SHORT[lg])}</a>' for lg in ORDER if lg in Ls)
-    if not html_ and not hubs:
+    nav = discover_nav(Ls, None, games=True)
+    if not html_ and not nav:
         return ""
-    return f'<div class="home-cards" id="homeCards">{html_}{more}<nav class="hc-hubs" aria-label="Sports">{hubs}</nav></div>'
+    return f'{nav}<div class="home-cards" id="homeCards">{html_}{more}</div>'
 
 
 # ---------------------------------------------------------------- redirects, sitemap, homepage
@@ -3839,27 +4027,148 @@ def _kept_tool_lastmods(site, base_url):
     return found
 
 
+def _head(path, n=2500):
+    try:
+        with Path(path).open("r", encoding="utf-8", errors="replace") as f:
+            return f.read(n)
+    except OSError:
+        return ""
+
+
+def _canonical_href(head):
+    m = re.search(r'<link rel="canonical" href="([^"]+)"', head or "")
+    return m.group(1) if m else ""
+
+
+def _prop_posted(row):
+    """True when a stored prop row has a number or an anytime-TD market."""
+    r = row
+    if isinstance(row, (list, tuple)) and len(row) == 2 and isinstance(row[0], str) and isinstance(row[1], (list, tuple)):
+        r = row[1]
+    if not isinstance(r, (list, tuple)) or len(r) < 2:
+        return False
+    mk = r[1]
+    ln = r[2] if len(r) > 2 else None
+    return mk == "anytime_td" or isnum(ln)
+
+
+def sitemap_file_reason(site, rel, base_url):
+    """Redirect, duplicate canonical, or a game file this build did not write. None when the file is a real page."""
+    rel = str(rel or "")
+    if rel == "preview" or rel == "preview/" or rel.startswith("preview/"):
+        return "duplicate redirect"
+    f = rel_file(site, rel)
+    if is_game_rel(rel) and not f.is_file():
+        return "game page not written in this build"
+    if f.is_file() and is_redirect_file(f):
+        return "meta-refresh"
+    if f.is_file():
+        canon = _canonical_href(_head(f))
+        if canon and canon != base_url + rel:
+            return "duplicate redirect"
+    return None
+
+
+def sitemap_content_reason(rel, Ls):
+    """Thin-page category to leave out of the sitemap. None keeps the URL.
+
+    Hubs, results, standings, team pages, upcoming and live games, and finished games that
+    have odds and a score stay. Past games with no odds, empty props, and empty cards do not.
+    """
+    rel = str(rel or "").lstrip("/")
+    if rel == "preview" or rel.startswith("preview/"):
+        return "duplicate redirect"
+    for lg, L in Ls.items():
+        if rel in (L.hub, f"{lg}/results/", f"{lg}/standings/") or rel.startswith(f"{lg}/results/"):
+            return None
+        if rel in L.team_paths.values():
+            return None
+        for ev in getattr(L, "ev", {}).values():
+            if ev.get("path") != rel:
+                continue
+            bouts = [b for b in (ev.get("bouts") or []) if b in L.games]
+            if not bouts:
+                return "empty event page"
+            return None
+        for gid, path in L.paths.items():
+            if path != rel:
+                continue
+            g = L.games.get(gid)
+            if not g:
+                return "past game with little content"
+            if not L.is_final(g) and not abnormal(g):
+                return None
+            if abnormal(g):
+                if not pv.has_line(g):
+                    return "postponed or canceled game with no odds"
+                return None
+            if not pv.has_line(g):
+                return "past game with no odds"
+            if not L.score_known(g):
+                return "past game with little content"
+            return None
+        for e in L.players.values():
+            if e.get("path") != rel:
+                continue
+            if not any(_prop_posted(r) for r in (e.get("rows") or [])):
+                return "empty prop page"
+            return None
+    return None
+
+
+def _old_sitemap_listed(site, rel):
+    """True when the pre-trim sitemap would have listed this entry (PR 57 already skipped missing and redirect game files)."""
+    return not (is_game_rel(rel) and not game_page_on_disk(site, rel))
+
+
 def update_sitemap(site: Path, entries, Ls, generated, base_url=BASE_URL):
     """Write sitemap.xml as a sitemap index plus the child urlsets. `entries` is [(rel_path, lastmod)].
+
     Static tool pages stay in sitemap-core.xml outside the generated block. Nothing is listed twice.
     A game or fight URL is written only when this build's HTML for it is on disk and is not a redirect
-    stub, so sitemap-games-*.xml and sitemap-live.xml never name a page that was not generated."""
+    stub. Past games with no odds, empty prop pages, empty event pages, meta-refresh stubs and
+    duplicate/redirect URLs are left out. Hubs, league pages and upcoming games stay.
+
+    Returns {files, before, after, dropped}. `before` is how many URLs the previous writer would
+    have emitted; `dropped` counts only URLs that writer would have kept and this one removes.
+    """
+    empty = {"files": [], "before": 0, "after": 0, "dropped": {}}
     if not (site / "sitemap.xml").is_file() and not (site / "sitemap.xml").exists():
-        return []
+        return empty
     index = sitemap_index_of(Ls)
     groups = {}
-    skipped = 0
+    dropped = {}
+    old_n = new_n = 0
+    seen = set()
     for rel, lm in entries:
-        if is_game_rel(rel) and not game_page_on_disk(site, rel):
-            skipped += 1
+        if rel in seen:
+            if _old_sitemap_listed(site, rel):
+                old_n += 1
+                dropped.setdefault("duplicate url", []).append(rel)
             continue
+        seen.add(rel)
+        old = _old_sitemap_listed(site, rel)
+        reason = sitemap_file_reason(site, rel, base_url) or sitemap_content_reason(rel, Ls)
+        if old:
+            old_n += 1
+        if reason:
+            if old:
+                dropped.setdefault(reason, []).append(rel)
+            continue
+        new_n += 1
         if rel == BEST_LINES:
             lm = generated   # one evergreen URL: lastmod is this run's data stamp, every build
         groups.setdefault(sitemap_bucket(rel, index), []).append((base_url + rel, lm))
-    if skipped:
-        print(f"seo sitemap: omitted {skipped} game URL(s) with no page in this build")
     tools = _kept_tool_lastmods(site, base_url)
     static = [(base_url, generated)] + [(base_url + rel, lm) for rel, lm in tools.items()]
+    static_n = len(static)
+    before, after = old_n + static_n, new_n + static_n
+    dropped_n = {k: len(v) for k, v in dropped.items()}
+    if dropped_n:
+        detail = ", ".join(f"{n} {k}" for k, n in sorted(dropped_n.items()))
+        print(f"seo sitemap: {before} URLs before trim, {after} after; dropped {detail}")
+    else:
+        print(f"seo sitemap: {before} URLs before trim, {after} after; nothing thin dropped")
     stems = ["sitemap-core", "sitemap-live", "sitemap-results"]
     game_stems = sorted((s for s in groups if s.startswith("sitemap-games-")), key=lambda s: (ORDER.index(s.split("-")[2]) if len(s.split("-")) > 2 and s.split("-")[2] in ORDER else 99, s))
     written = []
@@ -3878,7 +4187,7 @@ def update_sitemap(site: Path, entries, Ls, generated, base_url=BASE_URL):
     for p in site.glob("sitemap-*.xml"):
         if p.name not in keep:
             p.unlink()
-    return [name for name, _ in written]
+    return {"files": [name for name, _ in written], "before": before, "after": after, "dropped": dropped_n, "dropped_paths": dropped}
 
 
 def read_sitemaps(site: Path) -> str:
@@ -4092,9 +4401,10 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
         meta.pop("previews", None)
         meta["pages"] = {"generated": iso(now), "count": len(pages)}
         (data_dir / "meta.json").write_text(json.dumps(meta, indent=1))
+    sm_stats = None
     if write_site_files:
         if (site / "sitemap.xml").exists():
-            update_sitemap(site, entries, Ls, iso(generated), base_url)
+            sm_stats = update_sitemap(site, entries, Ls, iso(generated), base_url)
         update_home(index_path, home_cards(Ls, now))
     wrote = arch.save()
     total = {}
@@ -4102,7 +4412,8 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
         for k, n in v.items():
             total[k] = total.get(k, 0) + n
     return {"leagues": stats, "total": total, "pages": len(pages), "redirects": len(redirects), "bytes": nbytes,
-            "archive": {lg: len(v) for lg, v in arch.games.items()} if arch.dir else None, "archiveWrote": wrote, "seconds": round(time.time() - t0, 2)}
+            "archive": {lg: len(v) for lg, v in arch.games.items()} if arch.dir else None, "archiveWrote": wrote,
+            "sitemap": sm_stats, "seconds": round(time.time() - t0, 2)}
 
 
 def main(argv=None):

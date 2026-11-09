@@ -51,7 +51,11 @@ check(OB.due(None, 30, now) and OB.due("2026-10-26T15:30:00+00:00", 30, now) and
 check(OB.due("2026-10-26T15:32:00Z", 30, now) and not OB.due("2026-10-26T15:33:00Z", 30, now), "gate slack is 2 minutes", "budget")
 check(OB.detect_reset(70000, 12) and not OB.detect_reset(10, 40) and not OB.detect_reset(None, 5), "reset = used counter went down", "budget")
 rows, tot = OB.monthly_estimate(props=[("NBA", 4, 7.2, 18), ("NFL", 5, 16 / 7, 18)])
-check(round(rows[0][1]) == 39398 and 55000 < tot < 80000, f"monthly estimate worst case {tot:.0f} < 80K", "budget")
+check(round(rows[0][1]) == 39398 and 55000 < tot < 80000, f"old 36h props math still sums under 80K ({tot:.0f})", "budget")
+cm = OP.credit_model()
+check(round(cm["oldPerDay"], 2) == 724.11 and round(cm["extraPerDay"], 2) == 506.51, f"extra credits/day {cm['extraPerDay']:.2f}", "budget")
+check(round(cm["extraPerMonth"]) == 15398 and round(rows[0][1] + cm["perMonth"]) == 76810, f"new month {rows[0][1] + cm['perMonth']:.0f}", "budget")
+check(70000 < rows[0][1] + cm["perMonth"] < 80000, "split cadence stays inside the 80K budget", "budget")
 
 # ================================================================ key scrubbing
 K = "sekret+Key/123"
@@ -145,9 +149,11 @@ cache = dict(v=1, leagues={"nba": dict(pulledAt=(nowz - dt.timedelta(minutes=10)
 pull, chk, budget, pev = BD.odds_plan_run(K, ["nfl", "nba", "mlb", "ufc"], cache, None, "t0")
 check(all("/events?" in u or "/v4/sports/?" in u for u in urls), "planning makes only free calls (/sports, /events)", "plan")
 check(not any("mma" in u for u in urls), "planning never touches MMA while ODDS_MMA is off", "plan")
-check(budget["level"] == "full" and budget["gamesPerRun"] == 6 and budget["propsPerRun"] == 5 + 4, f"estimates from live events: {budget['gamesPerRun']} game, {budget['propsPerRun']} props credits/run", "plan")
+check(budget["level"] == "full" and budget["gamesPerRun"] == 6 and abs(budget["propsPerRun"] - 14) < 1e-9,
+      f"estimates from live events: {budget['gamesPerRun']} game, {budget['propsPerRun']} props credits/run", "plan")
 check(pull["due"] == {"nfl"} and "not due" in pull["why"]["nba"] and "no events" in pull["why"]["mlb"], f"due {pull['due']} why {pull['why']}", "plan")
-check([e["id"] for e in pev["nfl"]] == ["a"] and [e["id"] for e in pev["nba"]] == ["c"], "props candidates: events within 36h only", "plan")
+check([e["id"] for e in pev["nfl"]] == ["a", "b"] and [e["id"] for e in pev["nba"]] == ["c"],
+      "props candidates: NBA stays 36h; NFL includes the 3-day event (ESPN window)", "plan")
 check(cache["quota"]["remaining"] == 99000 and cache["quota"]["level"] == "full", "quota persisted in the cache", "plan")
 check(K not in json.dumps(cache) and K not in json.dumps(chk), "key never stored", "plan")
 os.environ["ODDS_PAUSE"] = "1"; urls.clear()
@@ -199,8 +205,11 @@ prev = dict(pulledAt="old", games={"900": dict(date=soon, at="old", books={}), "
 ent, msg = OP.pull_league(dict(key="nba", odds_key="basketball_nba"), pev, idx_games, pull, "t9", fake_props_get, BD.match_event,
                           BD.odds_note_headers, BD.scrub, nowz, BD.ODDS_API, prev=prev)
 q = urllib.parse.parse_qs(urllib.parse.urlparse(urls[0]).query)
-check(len(urls) == 1 and "/events/pe1/odds" in urls[0] and q["bookmakers"] == ["hardrockbet,fanduel,draftkings"] and q["markets"] == ["player_points,player_rebounds,player_assists,player_threes"],
-      "per-event endpoint, 36h window, three books, 4 NBA markets", "props")
+nba_mk = ",".join(api for api, _ in OP.market_rows("nba"))
+check(len(urls) == 1 and "/events/pe1/odds" in urls[0] and q["bookmakers"] == ["hardrockbet,fanduel,draftkings"] and q["markets"] == [nba_mk],
+      f"per-event endpoint, three books, every NBA card market: {q.get('markets')}", "props")
+check(nba_mk == "player_points,player_rebounds,player_assists,player_threes,player_points_rebounds,player_points_assists,player_rebounds_assists,player_points_rebounds_assists",
+      "NBA market order is core then the four combos", "props")
 check(pull["spentBy"] == {"props": 3} and ent["cost"] == 3, "cost tracked from x-requests-last", "props")
 check(ent["games"]["901"]["at"] == "t9" and ent["games"]["900"]["at"] == "old", "refreshed game replaced, others kept from previous pull", "props")
 check(K not in json.dumps(ent) and K not in msg, "key not in props entry/message", "props")
@@ -209,6 +218,80 @@ urls.clear()
 ent2, msg2 = OP.pull_league(dict(key="nba", odds_key="basketball_nba"), pev, idx_games, pull_cap, "t10", fake_props_get, BD.match_event,
                             BD.odds_note_headers, BD.scrub, nowz, BD.ODDS_API)
 check(not urls and ent2 is None and "skipped" in msg2, "per-run cap: props skipped before any request", "props")
+
+# market map: every prop the site shows, and the Odds API key it is priced under
+NFL_API = {"pass_yds": "player_pass_yds", "pass_tds": "player_pass_tds", "pass_cmp": "player_pass_completions",
+           "pass_att": "player_pass_attempts", "pass_int": "player_pass_interceptions", "pass_rush_yds": "player_pass_rush_yds",
+           "rush_yds": "player_rush_yds", "rush_att": "player_rush_attempts", "receptions": "player_receptions",
+           "rec_yds": "player_reception_yds", "rush_rec_yds": "player_rush_reception_yds", "anytime_td": "player_anytime_td"}
+NBA_API = {"points": "player_points", "rebounds": "player_rebounds", "assists": "player_assists", "threes": "player_threes",
+           "pts_reb": "player_points_rebounds", "pts_ast": "player_points_assists", "reb_ast": "player_rebounds_assists",
+           "pra": "player_points_rebounds_assists"}
+check({mk: api for api, mk in OP.MARKETS["nfl"]} == NFL_API, "NFL Odds API keys", "props")
+check({mk: api for api, mk in OP.MARKETS["nba"]} == NBA_API, "NBA Odds API keys", "props")
+check({m[0] for m in PR.NFL_MARKETS} == set(NFL_API) and {m[0] for m in PR.NBA_MARKETS} == set(NBA_API),
+      "every NFL and NBA market on the prop cards is priced", "props")
+check(OP.window_hours("nfl") == PR.WINDOW_H["nfl"] == 192 and OP.window_hours("nba") == PR.WINDOW_H["nba"] == 36,
+      "NFL props window matches ESPN (8 days); NBA stays 36h", "props")
+ALLEN = dict(bookmakers=[dict(key="hardrockbet", markets=[
+    dict(key="player_pass_completions", outcomes=[oc("Over", "Josh Allen", -115, 20.5), oc("Under", "Josh Allen", -105, 20.5)]),
+    dict(key="player_pass_attempts", outcomes=[oc("Over", "Josh Allen", -110, 30.5), oc("Under", "Josh Allen", -110, 30.5)]),
+    dict(key="player_pass_interceptions", outcomes=[oc("Over", "Josh Allen", -120, 0.5), oc("Under", "Josh Allen", 100, 0.5)]),
+    dict(key="player_rush_attempts", outcomes=[oc("Over", "James Cook", -115, 18.5), oc("Under", "James Cook", -105, 18.5)]),
+    dict(key="player_rush_reception_yds", outcomes=[oc("Over", "James Cook", -110, 98.5), oc("Under", "James Cook", -110, 98.5)]),
+    dict(key="player_pass_tds", outcomes=[oc("Over", "Josh Allen", -105, 1.5), oc("Under", "Josh Allen", -115, 1.5)])])])
+A = OP.parse_event_odds("nfl", ALLEN)["hardrockbet"]
+check(A["pass_cmp"]["Josh Allen"] == [20.5, -115, -105] and A["pass_att"]["Josh Allen"][0] == 30.5 and A["pass_int"]["Josh Allen"][0] == 0.5, "completions, attempts, interceptions", "props")
+check(A["rush_att"]["James Cook"] == [18.5, -115, -105] and A["rush_rec_yds"]["James Cook"][0] == 98.5 and A["pass_tds"]["Josh Allen"][0] == 1.5, "carries, rush+rec, pass TDs", "props")
+PRA = dict(bookmakers=[dict(key="hardrockbet", markets=[
+    dict(key="player_points_rebounds_assists", outcomes=[oc("Over", "Luka Doncic", -110, 45.5), oc("Under", "Luka Doncic", -110, 45.5)]),
+    dict(key="player_points_rebounds", outcomes=[oc("Over", "Luka Doncic", -115, 40.5), oc("Under", "Luka Doncic", -105, 40.5)])])])
+R = OP.parse_event_odds("nba", PRA)["hardrockbet"]
+check(R["pra"]["Luka Doncic"][0] == 45.5 and R["pts_reb"]["Luka Doncic"] == [40.5, -115, -105], "NBA combo markets map to pra and pts_reb", "props")
+# early-week NFL is inside the 8-day window; a second pass 3h later refreshes only core markets and keeps the extra line
+far = (nowz + dt.timedelta(hours=100)).strftime("%Y-%m-%dT%H:%M:%SZ")
+too_far = (nowz + dt.timedelta(hours=200)).strftime("%Y-%m-%dT%H:%M:%SZ")
+nfl_games = [dict(id="801", state="pre", date=far, home=dict(id="1", name="New York Giants", abbr="NYG"), away=dict(id="2", name="Washington Commanders", abbr="WSH")),
+             dict(id="802", state="pre", date=too_far, home=dict(id="3", name="A", abbr="AAA"), away=dict(id="4", name="B", abbr="BBB"))]
+nfl_ev = [dict(id="fe1", commence_time=far, home_team="New York Giants", away_team="Washington Commanders"),
+          dict(id="fe2", commence_time=too_far, home_team="A", away_team="B")]
+urls.clear()
+def fake_nfl_get(url):
+    urls.append(url)
+    return dict(id="fe1", bookmakers=[dict(key="hardrockbet", markets=[
+        dict(key="player_pass_completions", outcomes=[oc("Over", "Jayden Daniels", -110, 21.5), oc("Under", "Jayden Daniels", -110, 21.5)]),
+        dict(key="player_pass_yds", outcomes=[oc("Over", "Jayden Daniels", -115, 230.5), oc("Under", "Jayden Daniels", -105, 230.5)])])]), {"x-requests-remaining": "98000", "x-requests-used": "2000", "x-requests-last": "2"}
+pull = dict(key=K, remaining=99000, used=1000, spent=0, pulled=[], skipped=[], errors=[], floor=300, cap=250)
+ent, msg = OP.pull_league(dict(key="nfl", odds_key="americanfootball_nfl"), nfl_ev, nfl_games, pull, "t-far", fake_nfl_get, BD.match_event,
+                          BD.odds_note_headers, BD.scrub, nowz, BD.ODDS_API)
+q = urllib.parse.parse_qs(urllib.parse.urlparse(urls[0]).query)
+check(len(urls) == 1 and "/events/fe1/odds" in urls[0] and "fe2" not in "".join(urls), "NFL 100h event is priced; 200h is outside the ESPN window", "props")
+check("player_pass_completions" in q["markets"][0] and "player_rush_attempts" in q["markets"][0] and q["markets"][0].count(",") == 11, "early-week pull asks for all 12 NFL markets", "props")
+check(ent["games"]["801"]["books"]["hardrockbet"]["pass_cmp"]["Jayden Daniels"][0] == 21.5, "Hard Rock completions stored on the early-week game", "props")
+# 3h later the near-window NBA game only re-asks for core markets; the combo from the first pull is kept
+urls.clear()
+recent = (nowz - dt.timedelta(hours=3)).isoformat()
+prev_combo = dict(games={"901": dict(date=soon, at=recent, atBy={"core": (nowz - dt.timedelta(hours=3)).isoformat(), "extra": recent},
+                                     books={"hardrockbet": {"points": {"Luka Doncic": [28.5, -110, -110]}, "pra": {"Luka Doncic": [44.5, -105, -115]}}})})
+def fake_core_get(url):
+    urls.append(url)
+    return dict(id="pe1", bookmakers=[dict(key="hardrockbet", markets=[
+        dict(key="player_points", outcomes=[oc("Over", "Luka Doncic", -112, 29.5), oc("Under", "Luka Doncic", -108, 29.5)])])]), {"x-requests-remaining": "97996", "x-requests-used": "2004", "x-requests-last": "1"}
+ent, msg = OP.pull_league(dict(key="nba", odds_key="basketball_nba"), pev, idx_games, dict(key=K, remaining=99000, used=1000, spent=0, pulled=[], skipped=[], errors=[], floor=300, cap=250),
+                          "t-core", fake_core_get, BD.match_event, BD.odds_note_headers, BD.scrub, nowz, BD.ODDS_API, prev=prev_combo)
+q = urllib.parse.parse_qs(urllib.parse.urlparse(urls[0]).query)
+kept = ent["games"]["901"]["books"]["hardrockbet"]
+check(q["markets"] == ["player_points,player_rebounds,player_assists,player_threes"] and "player_points_rebounds" not in q["markets"][0],
+      "inside 6h only the core NBA markets are re-requested", "props")
+check(kept["points"]["Luka Doncic"][0] == 29.5 and kept["pra"]["Luka Doncic"] == [44.5, -105, -115], "core line replaced, combo kept", "props")
+# a far game pulled an hour ago is not fetched again
+urls.clear()
+prev_far = dict(games={"801": dict(date=far, at=(nowz - dt.timedelta(hours=1)).isoformat(), atBy={"far": (nowz - dt.timedelta(hours=1)).isoformat(), "core": (nowz - dt.timedelta(hours=1)).isoformat(), "extra": (nowz - dt.timedelta(hours=1)).isoformat()},
+                                   books={"hardrockbet": {"pass_yds": {"Jayden Daniels": [230.5, -110, -110]}}})})
+ent, msg = OP.pull_league(dict(key="nfl", odds_key="americanfootball_nfl"), nfl_ev, nfl_games, dict(key=K, remaining=99000, used=1000, spent=0, pulled=[], skipped=[], errors=[], floor=300, cap=250),
+                          "t-hold", fake_nfl_get, BD.match_event, BD.odds_note_headers, BD.scrub, nowz, BD.ODDS_API, prev=prev_far)
+check(not urls and ent and ent["games"]["801"]["books"]["hardrockbet"]["pass_yds"]["Jayden Daniels"][0] == 230.5 and "not due" in msg,
+      "early-week game inside 18h is kept, not re-fetched", "props")
 
 # ================================================================ props merge next to DraftKings
 def item(pid, typ, cur, opn=None):

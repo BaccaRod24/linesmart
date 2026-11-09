@@ -63,8 +63,9 @@ ESPN still supplies DraftKings' opening line (line movement) and is the DraftKin
   - Every 10 bookmakers count as 1 region, so FanDuel and DraftKings cost nothing extra. That makes **3 credits per league**.
   - It runs every 30 min, but only for leagues with events in the next 7 days. That check uses the free `/events` endpoint.
   - Events are matched to ESPN games by start time and team names.
-- **Player props (NFL/NBA):** each event makes one request to `GET /v4/sports/{sport}/events/{id}/odds`, with Hard Rock + FanDuel + DraftKings and a short market list.
-  - It runs every 2 h, for events starting within 36 h.
+- **Player props (NFL/NBA):** each event makes one request to `GET /v4/sports/{sport}/events/{id}/odds`, with Hard Rock + FanDuel + DraftKings and every market the prop cards show.
+  - Core markets (pass/rush/rec yards, receptions, anytime TD, points, rebounds, assists, threes) refresh every 2 h for events starting within 36 h.
+  - The other card markets refresh every 6 h. NFL games further out, through the same 8-day window ESPN uses, refresh every 18 h.
   - The lines are merged by player name into `data/props/<lg>.json`, with DraftKings' ESPN line as the fallback. Each book's line and price is shown.
 - **Budget guard:** the free `/sports` call reads `x-requests-remaining`/`x-requests-used`, and these values are persisted.
   - The guard plans against an 80K/month budget. It pauses props first, then slows game lines (30 → 360 min).

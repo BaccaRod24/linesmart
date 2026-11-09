@@ -59,7 +59,7 @@
       updates: [
         "The site refreshes about every 30 minutes. ESPN is read on that run.",
         "Game lines from Hard Rock Bet, DraftKings, and FanDuel are pulled about every 30 minutes while the odds budget is on pace.",
-        "NFL and NBA player props are pulled about every 2 hours, for games starting within 36 hours, and only while the budget still allows props.",
+        "NFL and NBA player props: the main markets are pulled about every 2 hours for games starting within 36 hours. The other prop markets refresh about every 6 hours. NFL games further out, through 8 days, refresh about every 18 hours. Props run only while the budget still allows them.",
         "If the budget is tight, props pause first. Game lines then slow to 60, 90, 120, 180, 240, or 360 minutes. If the budget is used up, paid pulls stop.",
         "Pro does not call the odds provider. It reads the files that refresh already wrote.",
       ],

@@ -123,6 +123,7 @@ Hard Rock Bet, FanDuel and DraftKings (Odds API) history get one point per pull 
   `curl -fsS -H 'Cache-Control: no-cache' "https://linesmart.app/data/meta.json?ls-verify=$(date +%s)"`
   and compare `generated`, `hardrock.asOf`, `oddsApi.checkedAt`, `hardrock.leagues`, and `hardrock.props`
   to the "Prove the live site" step of that run. `hardrock.asOf` is the Odds API pull time. `generated` is only the build clock.
+- After that proof, the same job fails if an in-season league's pull is older than the freshness limit. The failed Actions run is the alert. What is counted, and how to spot-check a book by hand, is `docs/reliability.md`.
 - Local subpath check (mimics `/linesmart/` on Pages):
   `mkdir -p /tmp/ghp && ln -sfn "$PWD/site" /tmp/ghp/linesmart && python3 -m http.server 8799 -d /tmp/ghp &`
   then `BASE=http://localhost:8799/linesmart/ node scripts/subpath_test.mjs`

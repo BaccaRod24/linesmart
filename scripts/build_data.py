@@ -36,6 +36,7 @@ import odds_props as OP
 import adv as ADV
 import linevalue as LV
 import lastgood as LG
+import reliability as REL
 import final_label as FL
 import ncaaf_rankings as NR
 import standings as ST
@@ -583,7 +584,14 @@ def odds_cache_put(lg, cache, entry, msg):
         log(f"[{lg['key']}] FALLBACK odds: pull matched 0 of {entry['events']} events to ESPN games -> kept the previous pull from {prev.get('pulledAt')}")
         prev.update(checkedAt=entry.get("pulledAt"), remainingAfter=entry.get("remainingAfter"))
         return msg + f" (0 matched: kept the previous pull from {prev.get('pulledAt')})"
-    cache["leagues"][lg["key"]] = entry
+    stored, notes = REL.screen_pull(prev, entry, lg.get("kind") or "")
+    for n in notes:
+        REL.note(dict(n, league=lg["key"]))
+        log(f"[{lg['key']}] reliability {n['code']}: {n.get('detail')}")
+    if stored is None:
+        log(f"[{lg['key']}] FALLBACK odds: pull failed validation -> kept the previous pull from {prev.get('pulledAt')}")
+        return msg + f" (rejected, kept the previous pull from {prev.get('pulledAt')})"
+    cache["leagues"][lg["key"]] = stored
     return msg
 
 ESPN_OPEN_BOOKS = ("draftkings",)   # books ESPN also reports (with the opening line): paid entry is a price overlay
@@ -601,18 +609,21 @@ def apply_cached_odds(lg, games, cache, now):
         if not lines: continue
         started = g.get("state") != "pre" or dt.datetime.fromisoformat(g["date"].replace("Z", "+00:00")) <= now
         for bk, line in lines.items():
+            asof = (line or {}).get("asOf") or e.get("pulledAt")
             if started and bk in ESPN_OPEN_BOOKS:
                 continue                      # DraftKings: leave ESPN's entry as it was before the paid feed
             if started:
-                g.setdefault("books", {})[bk] = dict(stale=True, asOf=e["pulledAt"], source="The Odds API", reason="game started")
+                g.setdefault("books", {})[bk] = dict(stale=True, asOf=asof, source="The Odds API", reason="game started")
             elif bk in ESPN_OPEN_BOOKS:
                 # DraftKings: paid prices replace ESPN's copy, but ESPN's opening line (line movement) is kept
                 esp = (g.get("books") or {}).get(bk) or {}
                 opn = {k: v for k, v in esp.items() if k.endswith("Open") and v is not None}
-                g.setdefault("books", {})[bk] = dict(line, **opn, asOf=e["pulledAt"], source="The Odds API",
+                kept = {k: v for k, v in (line or {}).items() if k != "asOf"}
+                g.setdefault("books", {})[bk] = dict(kept, **opn, asOf=asof, source="The Odds API",
                                                      **({"openSource": esp.get("source")} if opn else {}))
             else:
-                g.setdefault("books", {})[bk] = dict(line, asOf=e["pulledAt"], source="The Odds API")
+                kept = {k: v for k, v in (line or {}).items() if k != "asOf"}
+                g.setdefault("books", {})[bk] = dict(kept, asOf=asof, source="The Odds API")
         if started: stale += 1
         else: fresh += 1
     return fresh, stale
@@ -646,6 +657,8 @@ def odds_plan_run(key, want, cache, pcache, run_t):
                     prop_events[lg["key"]] = [e for e in evs or [] if now < dt.datetime.fromisoformat(str(e.get("commence_time")).replace("Z", "+00:00")) <= soon]
             except Exception as ex:
                 active[lg["key"]] = None; ev_err.append(f"{lg['key']}: {scrub(ex, key)[:120]}")   # unknown: assume active
+        if cache is not None:
+            cache["active"] = active   # 7-day event counts; 0 means this league is not an odds outage
     live = [l for l in pl if active.get(l["key"]) != 0]
     games_per_run = sum(l.get("odds_cost", ODDS_COST) for l in live)
     props_per_run = sum(len(v) * OP.n_markets(k) for k, v in prop_events.items())
@@ -728,6 +741,9 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
     n_dates = len(scoreboard_dates(dt.datetime.now(ET).date(), days))
     report["endpoints"]["scoreboard"] = f"ok {ok_days}/{n_dates} dates" + (f"; errors: {errs[:2]}" if errs else "")
     games = sorted((game_from_event(e, lg) for e in events), key=lambda g: g["date"])
+    games, bad_games = REL.clean_games(games)
+    for n in bad_games:
+        REL.note(dict(n, league=lg["key"]))
     # ESPN failed (or came back suspiciously empty): carry over the last good games (marked stale) instead of showing none
     restored, fb, idx0 = lastgood_games(lg, games, ok_days, errs, days, lgsrc, dt.datetime.now(dt.timezone.utc), tried=n_dates)
     if fb: report["fallback"] = fb
@@ -783,6 +799,11 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
         g["books"] = books
     fresh_games = games
     if restored:   # carried-over games join before the odds step, so a paid pull still matches them (and the cache keeps their lines)
+        restored, bad_restored = REL.clean_games(restored)
+        for n in bad_restored:
+            REL.note(dict(n, league=lg["key"]))
+        have = {str(g.get("id")) for g in games}
+        restored = [g for g in restored if str(g.get("id")) not in have]
         games = sorted(games + restored, key=lambda g: g["date"])
     # Hard Rock Bet + FanDuel + DraftKings: pull from The Odds API when this league is due (interval gate + budget); every run merges the last persisted pull
     run_t = run_t or LH.now_iso()
@@ -1125,6 +1146,19 @@ def main():
         if isinstance(meta.get("slate"), dict): meta["slate"]["value"] = LV.value_spots(OUT, meta["order"])
     except Exception as ex: log(f"[value spots] FAILED: {ex}")
     _refresh_rankings(a, log)
+    findings = REL.take_findings()
+    meta["freshness"] = REL.assess(meta, (cache or {}).get("active"), dt.datetime.now(dt.timezone.utc))
+    for key, row in meta["freshness"]["leagues"].items():
+        if row.get("stale"):
+            findings.append({"level": "warn", "code": "stale_league", "league": key,
+                             "detail": f"last pull {row.get('pulledAt')} is {row.get('ageMin')} min old"})
+            log(f"[{key}] odds stale: last pull {row.get('pulledAt')} ({row.get('ageMin')} min; limit {meta['freshness']['staleAfterMin']} min)")
+    record = REL.health_record(meta, findings, dt.datetime.now(dt.timezone.utc), os.environ.get("GITHUB_RUN_ID"))
+    REL.write_health(record, OUT, os.environ.get("RELIABILITY_DIR") or None,
+                     os.path.join(a.snap_dir, "reliability.json") if a.snap_dir else None)
+    meta["reliability"] = {"counts": record["counts"], "notVerified": record["notVerified"]}
+    log(f"[reliability] findings={record['counts']['findings']} errors={record['counts']['errors']} "
+        f"keptLastGood={record['counts']['keptLastGood']} staleLeagues={record['counts']['staleLeagues']}")
     with open(meta_path, "w") as fh: json.dump(meta, fh, indent=1)
     log("done ->", OUT)
 

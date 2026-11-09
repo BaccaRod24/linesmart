@@ -21,20 +21,25 @@ If that inserts nothing, the account has not signed in yet. Sign in, then run it
 
 ## 3. Publish the Pro bundle
 
-GitHub Pages does not serve the Pro screens. Pack them and upload one file to the private bucket:
+GitHub Pages does not serve the Pro screens.
+
+A merge to `main` packs `pro/dist/pro-app.js` and uploads it to bucket `pro-private`,
+object name `pro-app.js`, with the Actions secret `SUPABASE_SERVICE_ROLE` (the same secret
+as the rankings upload). The request sets `x-upsert` and cache control `0`. The secret is
+never printed. The step runs on that merge, not on the 30-minute data refresh, and it
+skips the upload when the packed source already matches the object in the bucket. A failed
+upload is marked on the run and does not block the Pages deploy.
+
+The site also requests the file with `cacheNonce` set to the deploy stamp plus the current
+time, which is the query Storage's CDN treats as a new object. The `#/owner` hub shows
+`Pro build … · site …`, and the console logs the same build id.
+
+No client can upload the object. To replace it by hand, with `SUPABASE_SERVICE_ROLE` set in the environment:
 
 ```bash
 node scripts/pack_pro_bundle.mjs
+python3 scripts/upload_pro_bundle.py --file pro/dist/pro-app.js
 ```
-
-Upload `pro/dist/pro-app.js` to bucket `pro-private`, object name `pro-app.js`
-(Storage, not the SQL editor; the service role or the dashboard). No client can upload it.
-Set the object's cache control to `0` when the dashboard asks. The site also requests the file
-with `cacheNonce` set to the deploy stamp plus the current time, which is the query Storage's
-CDN treats as a new object. The `#/owner` hub shows `Pro build … · site …`, and the console
-logs the same build id.
-
-After any change under `pro/`, pack again and replace that object. Do not upload the bundle from CI.
 
 Season rankings read `rankings.json` in the same private bucket, with the same signed-in request
 as the bundle. The 30-minute refresh writes that file outside `site/` (`_private/rankings.json`,

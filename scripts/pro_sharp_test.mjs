@@ -73,7 +73,8 @@ check(!/inset:-1px/.test(bubbleBase) && !/inset 0 1px 0/.test(bubbleBase), "last
 check(/\.pp-card \.pp-l5\{[^}]*padding:/.test(css), "the last-5 row is padded so the glow is not clipped");
 check(/1px solid rgba\(251,113,133/.test(miss), "misses use a rose edge");
 check(/0 0 14px -3px rgba\(244,63,94/.test(miss), "misses use a rose glow with 0 0 offsets");
-check(!/16,185,129|#10b981|#5eead4|#d4ffe8/.test(miss), "misses do not keep an emerald edge or green glow");
+check(/rgba\(255,214,220,\.18\),rgba\(244,63,94,\.14\)/.test(miss), "miss centers are a light frosted rose, not a solid fill");
+check(!/16,185,129|#10b981|#5eead4|#d4ffe8|#881337/.test(miss), "misses do not keep an emerald edge or a solid rose fill");
 check(/rgba\(244,63,94/.test(missDay) && !/16,185,129/.test(missDay), "daylight misses stay rose");
 check(/backdrop-filter:saturate\(160%\) blur\(4px\)/.test(bubbles), "last-5 bubbles keep a short frosted blur");
 check(!/#22c55e|#34d399/.test(propCss + bubbles), "the Pro prop treatment stays off the win greens");

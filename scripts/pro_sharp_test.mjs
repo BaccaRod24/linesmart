@@ -54,5 +54,38 @@ check(/18 hours/.test(flat) && /marks them delayed/.test(flat) && /marked closed
 check(/does not call the odds provider/.test(flat) && /25 active line alerts/.test(flat) && /5 a day/.test(flat), "the guide states no odds call, 25 active alerts, and the email cap");
 check(!/stripe|checkout|payment provider/i.test(flat), "the guide does not invent a checkout");
 
+const propRows = (ui.match(/class="ppv-line pro-prop"/g) || []).length;
+check(propRows >= 7, "hot props, the game prop panel, and prop edges use the prop class (" + propRows + ")");
+check(/function playerGroups/.test(ui) && /class="ppv-player"/.test(ui) && /ppv-player-team/.test(ui), "hot props and the props panel group rows under a player header");
+check((ui.match(/playerGroups\(/g) || []).length >= 6, "price gaps, line moves, and hot streaks group players on the screen and the panel");
+const propCss = css.slice(css.indexOf(".ppv-line.pro-prop{"), css.indexOf(".ppv-line.pro-prop .num{") + 80);
+check(/0 0 14px -3px rgba\(16,185,129,\.55\)/.test(propCss), "prop rows use the Sharp bubble glow");
+check(/linear-gradient\(135deg,#d4ffe8/.test(propCss), "prop rows use the Sharp gradient edge");
+check(/border-radius:8px/.test(propCss), "prop rows use a tighter corner than the old soft card");
+check(/0 0 0 1px rgba\(16,185,129/.test(propCss), "prop rows use a 1px edge");
+check(/backdrop-filter:saturate\(160%\) blur\(8px\)/.test(propCss), "prop rows keep a shorter frosted blur");
+const bubbles = css.slice(css.indexOf(".pp-card .pp-b{"));
+const bubbleBase = css.slice(css.indexOf(".pp-card .pp-b{"), css.indexOf(".pp-card .pp-b.pp-o"));
+const miss = css.slice(css.indexOf(".pp-card .pp-b.pp-u{"), css.indexOf(".pp-card .pp-b.pp-p"));
+const missDay = (css.split(':root[data-theme="daylight"] .pp-card .pp-b.pp-u{')[1] || "").split("}")[0];
+check(/border:1px solid rgba\(16,185,129/.test(bubbleBase) && /0 0 14px -3px rgba\(16,185,129,\.55\)/.test(bubbleBase), "last-5 hits use a 1px emerald edge and the Pro glow");
+check(!/inset:-1px/.test(bubbleBase) && !/inset 0 1px 0/.test(bubbleBase), "last-5 corners are not shifted by an outset ring or a top-only inset");
+check(/\.pp-card \.pp-l5\{[^}]*padding:/.test(css), "the last-5 row is padded so the glow is not clipped");
+check(/1px solid rgba\(251,113,133/.test(miss), "misses use a rose edge");
+check(/0 0 14px -3px rgba\(244,63,94/.test(miss), "misses use a rose glow with 0 0 offsets");
+check(/rgba\(255,214,220,\.18\),rgba\(244,63,94,\.14\)/.test(miss), "miss centers are a light frosted rose, not a solid fill");
+check(!/16,185,129|#10b981|#5eead4|#d4ffe8|#881337/.test(miss), "misses do not keep an emerald edge or a solid rose fill");
+check(/rgba\(244,63,94/.test(missDay) && !/16,185,129/.test(missDay), "daylight misses stay rose");
+check(/backdrop-filter:saturate\(160%\) blur\(4px\)/.test(bubbles), "last-5 bubbles keep a short frosted blur");
+check(!/#22c55e|#34d399/.test(propCss + bubbles), "the Pro prop treatment stays off the win greens");
+check(!/\.hc-prop/.test(css), "the free homepage hot-props strip is not restyled from Pro CSS");
+const freeCss = fs.readFileSync("site/assets/styles.css", "utf8");
+const freeProps = fs.readFileSync("site/assets/props.js", "utf8");
+check(!/\.pro-prop|0 0 14px -3px rgba\(16,185,129/.test(freeCss), "the free stylesheet does not pick up the Pro glow");
+const freeSep = freeCss.slice(freeCss.indexOf(".ps-prop-g .pp-players{"), freeCss.indexOf(".pp-player-rule[hidden]") + 40);
+check(/pp-players/.test(freeProps) && /pp-player-rule/.test(freeProps) && /\.pp-player-rule\{border:0/.test(freeCss), "today's prop lines separate players with a header rule and a divider");
+check(!/16,185,129|0 0 14px|backdrop-filter/.test(freeSep), "the free player divider has no Pro glow or edge");
+check(/\.hc-prop \.pp-b\{width:27px/.test(freeCss) && /\.pp-o\{background:color-mix\(in srgb,var\(--win\)/.test(freeCss), "free hot-props bubbles and hit colors stay the site greens");
+
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall passed");
 process.exit(fails.length ? 1 : 0);

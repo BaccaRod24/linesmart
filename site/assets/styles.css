@@ -2262,6 +2262,14 @@ body::before{opacity:.55}
 .ps-prop-sub{font-size:12.5px;color:var(--dim);line-height:1.4;margin:-4px 0 10px}
 .ps-prop-g{display:grid;gap:8px;min-width:0}
 .ps-prop-g .pp-game{padding-top:4px}
+/* Today's prop lines only. A header rule and a divider between players. No glow, no new colors. */
+.ps-prop-g .pp-players{gap:0}
+.ps-prop-g .pp-players > .pp-card .pp-h{margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line2)}
+.ps-prop-g .pp-players > .pp-card .pp-h a,
+.ps-prop-g .pp-players > .pp-card .pp-h b{font-size:17px;font-weight:800}
+.ps-prop-g .pp-players > .pp-card .pp-meta{margin-left:auto;color:var(--txt);font-size:12.5px;font-weight:750}
+.pp-player-rule{border:0;height:0;margin:16px 8px;border-top:1px solid var(--line2)}
+.pp-player-rule[hidden]{display:none}
 @media (max-width:420px){
   .ps-lead li{grid-template-columns:1.4rem minmax(0,1fr)}
   .ps-val{grid-column:2;max-width:none;text-align:left;white-space:normal;font-weight:650;color:var(--mute);font-size:12.5px}

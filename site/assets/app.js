@@ -531,7 +531,7 @@
     const extra = fin && FINAL_LBL(g) !== "Final" ? ` <small class="fin-x">${esc(FINAL_LBL(g))}</small>` : "";
     const go = fin ? "Box ›" : "Lines ›";
     return `<a class="grow" href="${href}"><span class="gr-d">${fmt(g.date, { month: "short", day: "numeric" })}</span>
-      <span class="gr-o">${logo(A, "tlogo")}<span class="nm-s">${esc(A.abbr || A.short || "")}</span><span class="nm-l">${esc(A.short || A.name || "")}</span> ${g.neutral ? "vs" : "@"} ${logo(H, "tlogo")}<span class="nm-s">${esc(H.abbr || H.short || "")}</span><span class="nm-l">${esc(H.short || H.name || "")}</span></span>
+      <span class="gr-o">${crest(A.logo, A.abbr || A.short, "xs")}<span class="nm-s">${esc(A.abbr || A.short || "")}</span><span class="nm-l">${esc(A.short || A.name || "")}</span> ${g.neutral ? "vs" : "@"} ${crest(H.logo, H.abbr || H.short, "xs")}<span class="nm-s">${esc(H.abbr || H.short || "")}</span><span class="nm-l">${esc(H.short || H.name || "")}</span></span>
       <span class="gr-r">${score}${extra} <span class="gr-go">${go}</span></span></a>`;
   }
   function weekBoard(key, data) {

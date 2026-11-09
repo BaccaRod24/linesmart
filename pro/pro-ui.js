@@ -533,6 +533,18 @@
     }).join(" · ");
   }
   const Pnum = v => (isNum(v) ? String(Math.round(v * 10) / 10) : "—");
+  /* Keep the incoming row order. A new header starts only when the player changes,
+     so a ranked list is not reshuffled and each player's props stay together when they already are. */
+  function playerGroups(rows, rowHtml) {
+    const groups = [];
+    for (const r of rows) {
+      const id = String(r.pid || r.name || "");
+      const last = groups[groups.length - 1];
+      if (!last || last.id !== id) groups.push({ id, name: r.name || "Player", team: r.team || "", rows: [r] });
+      else last.rows.push(r);
+    }
+    return `<div class="ppv-players">${groups.map(g => `<section class="ppv-player"><h4 class="ppv-player-h"><b>${esc(g.name)}</b>${g.team ? `<span class="ppv-player-team">${esc(g.team)}</span>` : ""}</h4><div class="ppv-list">${g.rows.map(rowHtml).join("")}</div></section>`).join("")}</div>`;
+  }
   async function viewHot() {
     const H = Hp();
     if (!H) return shell("hot", "Hot props", "Price gaps, line moves, and recent overs.", `<div class="empty"><h3>Hot props didn't load</h3></div>`);
@@ -573,18 +585,18 @@
       if (H.hasPrices(sportAll)) {
         const gaps = H.priceGaps(filtered);
         const shownG = gaps.slice(0, 12);
-        if (shownG.length) lists += `<section class="card pro-frame" id="ppvGaps"><h3 class="ppv-h">${PILL} Price gaps on the same line <span class="st-sub">${gaps.length} in this filter</span></h3><div class="ppv-list">${shownG.map(g => `<div class="ppv-line pro-prop"><span><span class="vs-lg">${esc(labels[g.lg] || g.lg.toUpperCase())}</span> <b>${esc(g.name)} · ${esc(g.label)}</b><small>${esc(g.team)} · O/U ${esc(Pnum(g.line))} · ${g.side === "under" ? "Under" : "Over"}</small><small>${esc(quoteLine(g))}</small></span><span class="num"><b>${esc((g.gap * 100).toFixed(1))} pts</b><small>implied gap</small></span></div>`).join("")}</div><p class="note">The gap is the difference in implied probability between books that posted this exact number. A different number is not included. It is not a suggestion to bet either price.</p></section>`;
+        if (shownG.length) lists += `<section class="card pro-frame" id="ppvGaps"><h3 class="ppv-h">${PILL} Price gaps on the same line <span class="st-sub">${gaps.length} in this filter</span></h3>${playerGroups(shownG, g => `<div class="ppv-line pro-prop"><span><span class="vs-lg">${esc(labels[g.lg] || g.lg.toUpperCase())}</span> <b>${esc(g.name)} · ${esc(g.label)}</b><small>${esc(g.team)} · O/U ${esc(Pnum(g.line))} · ${g.side === "under" ? "Under" : "Over"}</small><small>${esc(quoteLine(g))}</small></span><span class="num"><b>${esc((g.gap * 100).toFixed(1))} pts</b><small>implied gap</small></span></div>`)}<p class="note">The gap is the difference in implied probability between books that posted this exact number. A different number is not included. It is not a suggestion to bet either price.</p></section>`;
       }
       if (H.hasOpen(sportAll)) {
         const moves = H.lineMoves(filtered);
         const shownM = moves.slice(0, 12);
-        if (shownM.length) lists += `<section class="card pro-frame" id="ppvMoves"><h3 class="ppv-h">${PILL} Prop line moves <span class="st-sub">${moves.length} in this filter</span></h3><div class="ppv-list">${shownM.map(m => `<div class="ppv-line pro-prop"><span><span class="vs-lg">${esc(m.team)}</span> <b>${esc(m.name)} · ${esc(m.label)}</b><small>O/U ${esc(Pnum(m.line))} · ${esc(m.text)}</small></span><span class="num"><b>${m.delta > 0 ? "+" : ""}${esc(String(Math.round(m.delta * 10) / 10))}</b><small>from the open</small></span></div>`).join("")}</div><p class="note">The opening number is the one stored on the prop row. It describes that file. It is not a prediction.</p></section>`;
+        if (shownM.length) lists += `<section class="card pro-frame" id="ppvMoves"><h3 class="ppv-h">${PILL} Prop line moves <span class="st-sub">${moves.length} in this filter</span></h3>${playerGroups(shownM, m => `<div class="ppv-line pro-prop"><span><span class="vs-lg">${esc(m.team)}</span> <b>${esc(m.name)} · ${esc(m.label)}</b><small>O/U ${esc(Pnum(m.line))} · ${esc(m.text)}</small></span><span class="num"><b>${m.delta > 0 ? "+" : ""}${esc(String(Math.round(m.delta * 10) / 10))}</b><small>from the open</small></span></div>`)}<p class="note">The opening number is the one stored on the prop row. It describes that file. It is not a prediction.</p></section>`;
       }
       const prefer = preferBooks();
       if (H.hotStreaks(sportAll, prefer).available) {
         const hot = H.hotStreaks(filtered, prefer).rows;
         const shownH = hot.slice(0, 12);
-        if (shownH.length) lists += `<section class="card pro-frame" id="ppvHotStreaks"><h3 class="ppv-h">${PILL} Hot streaks <span class="st-sub">${hot.length} in this filter</span></h3><div class="ppv-list">${shownH.map(h => `<div class="ppv-line pro-prop"><span><span class="vs-lg">${esc(h.team)}</span> <b>${esc(h.name)} · ${esc(h.label)}</b><small>O/U ${esc(Pnum(h.gradedLine))} · ${esc(h.text)} in the last games played</small><small>Past results only.</small></span></div>`).join("")}</div><p class="note">Same rule as the props page: over in at least 4 of the last 5 games played, or the same share when fewer games are in the log. This is a count of past games, not a pick.</p></section>`;
+        if (shownH.length) lists += `<section class="card pro-frame" id="ppvHotStreaks"><h3 class="ppv-h">${PILL} Hot streaks <span class="st-sub">${hot.length} in this filter</span></h3>${playerGroups(shownH, h => `<div class="ppv-line pro-prop"><span><span class="vs-lg">${esc(h.team)}</span> <b>${esc(h.name)} · ${esc(h.label)}</b><small>O/U ${esc(Pnum(h.gradedLine))} · ${esc(h.text)} in the last games played</small><small>Past results only.</small></span></div>`)}<p class="note">Same rule as the props page: over in at least 4 of the last 5 games played, or the same share when fewer games are in the log. This is a count of past games, not a pick.</p></section>`;
       }
       if (!lists) lists = EMPTY;
     }
@@ -1018,16 +1030,16 @@
     if (file) {
       if (H.hasPrices(sportAll)) {
         const gaps = H.priceGaps(filtered).slice(0, 8);
-        if (gaps.length) lists += `<h3 class="ppv-h">Price gaps on the same line</h3><div class="ppv-list">${gaps.map(g => `<div class="ppv-line pro-prop"><span><b>${esc(g.name)} · ${esc(g.label)}</b><small>${esc(g.team)} · ${esc(quoteLine(g))}</small></span><span class="num"><b>${esc((g.gap * 100).toFixed(1))} pts</b></span></div>`).join("")}</div>`;
+        if (gaps.length) lists += `<h3 class="ppv-h">Price gaps on the same line</h3>${playerGroups(gaps, g => `<div class="ppv-line pro-prop"><span><b>${esc(g.name)} · ${esc(g.label)}</b><small>${esc(g.team)} · ${esc(quoteLine(g))}</small></span><span class="num"><b>${esc((g.gap * 100).toFixed(1))} pts</b></span></div>`)}`;
       }
       if (H.hasOpen(sportAll)) {
         const moves = H.lineMoves(filtered).slice(0, 8);
-        if (moves.length) lists += `<h3 class="ppv-h">Prop line moves</h3><div class="ppv-list">${moves.map(m => `<div class="ppv-line pro-prop"><span><b>${esc(m.name)} · ${esc(m.label)}</b><small>${esc(m.text)}</small></span><span class="num"><b>${m.delta > 0 ? "+" : ""}${esc(String(Math.round(m.delta * 10) / 10))}</b></span></div>`).join("")}</div>`;
+        if (moves.length) lists += `<h3 class="ppv-h">Prop line moves</h3>${playerGroups(moves, m => `<div class="ppv-line pro-prop"><span><b>${esc(m.name)} · ${esc(m.label)}</b><small>${esc(m.text)}</small></span><span class="num"><b>${m.delta > 0 ? "+" : ""}${esc(String(Math.round(m.delta * 10) / 10))}</b></span></div>`)}`;
       }
       const prefer = preferBooks();
       if (H.hotStreaks(sportAll, prefer).available) {
         const hot = H.hotStreaks(filtered, prefer).rows.slice(0, 8);
-        if (hot.length) lists += `<h3 class="ppv-h">Hot streaks</h3><div class="ppv-list">${hot.map(h => `<div class="ppv-line pro-prop"><span><b>${esc(h.name)} · ${esc(h.label)}</b><small>${esc(h.text)} in the last games played</small></span></div>`).join("")}</div><p class="note">Past results only, not a pick.</p>`;
+        if (hot.length) lists += `<h3 class="ppv-h">Hot streaks</h3>${playerGroups(hot, h => `<div class="ppv-line pro-prop"><span><b>${esc(h.name)} · ${esc(h.label)}</b><small>${esc(h.text)} in the last games played</small></span></div>`)}<p class="note">Past results only, not a pick.</p>`;
       }
     }
     const html = `${flNote()}<p class="note">Built from the props file already on the site. Nothing here calls the odds provider. Saved filters stay in this browser.</p>

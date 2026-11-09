@@ -73,6 +73,7 @@ RESULTS_DAYS = 14         # hub + /<lg>/results/ "recent" window; older finals l
 # lastmod is the date the page itself last changed, not the data refresh.
 TOOL_PAGES = {
     "about.html": "2026-10-26",
+    "contact.html": "2026-11-09",
     "responsible-gambling.html": "2026-10-26",
     "privacy.html": "2026-10-26",
     "terms.html": "2026-10-26",

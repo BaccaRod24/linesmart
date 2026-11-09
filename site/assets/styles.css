@@ -1862,6 +1862,15 @@ body:has(.news-bets) .footer .news-foot{display:none}
 .vs-none{padding:12px 4px 4px;color:var(--mute);font-size:13.5px;line-height:1.5}
 .vs-none .vf-more{display:inline-block;margin-top:6px;font-weight:700}
 .tool-links{display:flex;flex-wrap:wrap;gap:6px 18px;margin:-2px 0 10px}
+.contact-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:12px 0 4px}
+a.contact-cta{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--glass-brd);background:var(--glass-hi),var(--glass);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:var(--inner),var(--shadow-1);color:var(--txt);font-weight:750;font-size:14.5px;line-height:1.2;text-decoration:none;text-align:center}
+.footer a.contact-cta,.legal a.contact-cta,.ppv a.contact-cta{color:var(--txt);font-weight:750;text-decoration:none}
+a.contact-cta:hover{color:var(--accent)}
+.pro-contact{margin:8px 0 0}
+@media (max-width:560px){
+  .contact-row{align-items:stretch}
+  a.contact-cta{width:100%}
+}
 .footer .tool-links a{color:var(--mute);font-weight:600;font-size:13px}
 .footer .tool-links a:hover{color:var(--accent)}
 @media (max-width:760px){

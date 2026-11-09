@@ -144,7 +144,8 @@
     const items = [["", "Overview"], ["value", "Value"], ["alerts", "Alerts"], ["tracker", "My Bets"], ["books", "Books"], ["history", "Line history"], ["refresh", "Refresh"], ["hot", "Hot props"], ["rankings", "Rankings"]];
     return `<nav class="chips ppv-nav" aria-label="Pro">${items.map(([id, label]) => `<a class="chip${id === screen ? " on" : ""}" href="${href(id)}">${esc(label)}</a>`).join("")}</nav>`;
   }
-  const shell = (screen, title, sub, body) => `<div class="ppv ppv-ready" data-pro-owner data-screen="${esc(screen)}">${banner()}${head(screen, title, sub)}${crumbs(screen)}${body}${fine()}</div>`;
+  const proContact = () => `<p class="pro-contact contact-row"><a class="contact-cta" href="mailto:contact@linesmart.app?subject=LineSmart%20Pro%20feedback">Contact / Report an issue</a></p>`;
+  const shell = (screen, title, sub, body) => `<div class="ppv ppv-ready" data-pro-owner data-screen="${esc(screen)}">${banner()}${proContact()}${head(screen, title, sub)}${crumbs(screen)}${body}${fine()}</div>`;
 
   function buildLine() {
     const build = window.__PRO_BUILD || "unknown";

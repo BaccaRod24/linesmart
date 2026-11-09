@@ -36,6 +36,7 @@ ADMIT_WEB = ext("https://gamblinghelp.org/", "gamblinghelp.org")
 
 PAGES = [  # (file, nav label)
     ("about.html", "About"),
+    ("contact.html", "Contact"),
     ("responsible-gambling.html", "Responsible Gambling"),
     ("privacy.html", "Privacy Policy"),
     ("terms.html", "Terms of Use"),
@@ -80,6 +81,7 @@ FOOTER = f"""<footer class="footer" id="siteFooter">
     <noscript><p class="rg fl">New York: call <a href="tel:18778467369">1-877-8-HOPENY</a> or text <a href="sms:467369">HOPENY (467369)</a> (oasas.ny.gov).</p></noscript>
     <p><strong data-brand>LineSmart</strong> is an informational site and does not accept wagers. Odds are for reference and may change; confirm with the sportsbook.</p>
     <p class="biz">LineSmart · <a href="mailto:{CONTACT}">{CONTACT}</a></p>
+    <p class="contact-row"><a class="contact-cta" href="mailto:{CONTACT}?subject=LineSmart%20issue">Contact / Report an issue</a> <a href="contact.html">What to include</a></p>
     <p class="aff-disc" data-aff-disclosure hidden></p>
     <nav class="legal-links" aria-label="Legal">{" ".join(f'<a href="{f}">{n}</a>' for f, n in PAGES)}</nav>
     <nav class="hub-links" aria-label="Sports">{" ".join(f'<a href="{f}">{n}</a>' for f, n in HUBS)}</nav>
@@ -429,7 +431,24 @@ ABOUT = f"""  <p class="legal-lead">LineSmart is a free website with sports odds
   <p><b>LineSmart is for adults 21 and older.</b> Only bet where it's legal, and only what you can afford to lose. Gambling problem? Call or text {GAMBLER_TEL}. In Florida, call or text {PLAYWISE_TEL}, or the Florida Council on Compulsive Gambling at {ADMIT_TEL}. More help and tips: <a href="responsible-gambling.html">Responsible Gambling</a>.</p>
 
   <h2>Contact</h2>
-  <p>Questions, corrections or partnership inquiries: <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>
+  <p>Questions, corrections or partnership inquiries: <a href="mailto:{CONTACT}">{CONTACT}</a>. To report a problem on a page, use <a href="contact.html">Contact</a>.</p>
+"""
+
+CONTACT_PAGE = f"""  <p class="legal-lead">Email LineSmart about a bug, a wrong line, or anything else on the site. There is no form. The message opens in your email app and goes to {CONTACT}.</p>
+  <p class="contact-row"><a class="contact-cta" href="mailto:{CONTACT}?subject=LineSmart%20issue">Contact / Report an issue</a></p>
+  <p class="legal-date">Subject: LineSmart issue. From Pro, the same link uses the subject LineSmart Pro feedback.</p>
+
+  <h2>What to include</h2>
+  <ul>
+    <li>The page URL. Copy it from the address bar.</li>
+    <li>Your device: phone, tablet, or computer, and the browser if you know it.</li>
+    <li>A screenshot, when the problem is something you can see.</li>
+  </ul>
+
+  <h2>If you need help with gambling</h2>
+  <p><span class="age-pill">21+</span> <strong>21+ only.</strong> Gambling problem? Call or text {GAMBLER_TEL} · {GAMBLER_WEB}</p>
+  <p class="rg fl">Florida: call or text {PLAYWISE_TEL} ({PLAYWISE_WEB}), or the Florida Council on Compulsive Gambling helpline {ADMIT_TEL} ({ADMIT_WEB}).</p>
+  <p>LineSmart is an informational site and does not accept wagers. Odds are for reference and may change; confirm with the sportsbook. More help: <a href="responsible-gambling.html">Responsible Gambling</a>.</p>
 """
 
 SUBSCRIBED = """  <p class="legal-lead">The LineSmart weekly email: best lines across Hard Rock Bet, DraftKings and FanDuel, hot player props and notable line moves, free every Thursday morning. For adults 21 and older.</p>
@@ -454,6 +473,7 @@ CONTENT = {
     "privacy.html": ("Privacy Policy", "Cookieless analytics, approximate location for state-aware offers, data kept on your device, optional accounts for bet sync, and affiliate links.", PRIVACY),
     "terms.html": ("Terms of Use", "Terms for using LineSmart, an informational sports odds site that does not accept wagers.", TERMS),
     "affiliate-disclosure.html": ("Affiliate Disclosure", "How LineSmart handles affiliate links. Currently there are none.", AFFILIATE),
+    "contact.html": ("Contact", "Email contact@linesmart.app to report an issue. Include the page URL, your device, and a screenshot.", CONTACT_PAGE),
 }
 
 def main():

@@ -40,6 +40,8 @@ import reliability as REL
 import final_label as FL
 import ncaaf_rankings as NR
 import standings as ST
+import boxscore as BX
+import week_slate as WS
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.environ.get("DATA_OUT") or os.path.join(ROOT, "site", "data")   # DATA_OUT: build elsewhere (local testing)
@@ -67,6 +69,7 @@ ODDS_MMA = os.environ.get("ODDS_MMA", "").strip() == "1"   # off by default: nev
 # DraftKings comes from ESPN (free); Hard Rock Bet + FanDuel from The Odds API (paid plan, one request per league)
 TARGET_BOOKS = [("draftkings", "DraftKings"), ("hardrockbet", "Hard Rock Bet"), ("fanduel", "FanDuel")]
 MAX_SUMMARIES = 150
+MAX_BOX = 48          # finished games whose summary is fetched for a compact box score (most recent first)
 
 LOG = []
 def log(*a):
@@ -370,6 +373,11 @@ def parse_summary(lg, g, m):
                 if kept >= 4:
                     break
     det["leaders"] = leaders
+    # Finished games only. A live summary is partial and the in-game widget fetches its own.
+    if g.get("state") == "post" and lg.get("kind") != "mma":
+        box = BX.compact(lg.get("kind"), m)
+        if box:
+            det["box"] = box
     return det
 
 def team_splits(lg, tid):
@@ -758,7 +766,10 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
     lg_docs = LG.game_docs(lgsrc, lg["key"], restored) if restored else {}
     # summaries
     details, sum_ok, sum_err = {}, 0, 0
-    targets = [g for g in games if g["state"] in ("pre", "in")][:MAX_SUMMARIES]
+    pre_in = [g for g in games if g["state"] in ("pre", "in")][:MAX_SUMMARIES]
+    finals = sorted((g for g in games if g.get("state") == "post"), key=lambda g: g.get("date") or "", reverse=True)[:MAX_BOX]
+    seen = {g["id"] for g in pre_in}
+    targets = pre_in + [g for g in finals if g["id"] not in seen]
     with cf.ThreadPoolExecutor(12) as ex:
         futs = {ex.submit(getj, f"{SITE}{lg['path']}/summary?event={g['id']}"): g for g in targets}
         for f in cf.as_completed(futs):
@@ -868,8 +879,18 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
     upcoming = sum(1 for g in games if g["state"] == "pre")
     providers = sorted({g["odds"]["provider"] for g in games if g.get("odds") and g["odds"].get("provider")})
     report.update(games=len(games), upcoming=upcoming, withOdds=with_odds, providers=providers, seconds=round(time.time() - t0, 1))
+    # Week list is separate from `games` (that window still drops yesterday's finals).
+    # Rebuilt from ESPN every run. Not written to data-history, and not backfilled.
+    try:
+        week = WS.league_week(lg, getj, dt.datetime.now(ET), SITE)
+    except Exception as ex:
+        week = None
+        log(f"[{lg['key']}] week slate failed: {str(ex)[:120]}")
+    report["week"] = f"{week['mode']} {len(week['games'])} games" if week else "none"
     idx = dict(league={k: lg[k] for k in ("key", "name", "full", "kind")}, generated=dt.datetime.now(dt.timezone.utc).isoformat(),
                windowDays=days, games=games, teams=teams, report=report)
+    if week:
+        idx["week"] = week
     if restored:
         prev = (idx0 or {}).get("stale") or {}
         idx["stale"] = dict(asOf=fb["asOf"], reason=fb["reason"], since=prev.get("since") or idx["generated"], games=len(restored),
@@ -878,7 +899,7 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
     wxr = report.get("weather") or {}
     wxs = f" weather=forecast {wxr.get('forecast', 0)}, indoor {wxr.get('indoor', 0)}, pending {wxr.get('pending', 0)}, n/a {wxr.get('unavailable', 0)}, calls {wxr.get('calls', 0)}{(' errors ' + str(wxr['errors'])) if wxr.get('errors') else ''}" if wxr else ""
     fbs = f" FALLBACK(stale {len(restored)} as of {fb['asOf']})" if restored else ""
-    log(f"[{lg['key']}] games={len(games)}{fbs} upcoming={upcoming} withOdds={with_odds} providers={providers} {report['endpoints']} oddsApi={report['oddsApi']} history={report['history']}{wxs} ({report['seconds']}s)")
+    log(f"[{lg['key']}] games={len(games)}{fbs} upcoming={upcoming} withOdds={with_odds} providers={providers} week={report.get('week')} {report['endpoints']} oddsApi={report['oddsApi']} history={report['history']}{wxs} ({report['seconds']}s)")
     if lg["key"] == "ncaaf":
         write_ncaaf_rankings(getj, log)
     return report

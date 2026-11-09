@@ -2105,6 +2105,7 @@ def game_page(L: League, sh: Shell, gid):
 {stale_html}{hero(L, g)}
 {wtw_section(what_to_watch(L, g, gid, detail))}
 {result_card(L, g) if final else ''}
+{f'<p class="pv-cta"><a class="pv-live" href="#/g/{esc(L.lg)}/{esc(gid)}/box">Box score</a> <span class="na">Team stats and player lines.</span></p>' if final and L.lg != "ufc" else ''}
 {section("odds", odds_title, ot + ('' if ab == "canceled" else alert_cta(L, g, gid)) + ('' if final or ab else '<div id="pvOffers" data-offers-slot="preview"></div>'))}
 {xlink(section("next", "Next games", nxt_html)) if nxt_html and not hydrates else ''}
 {section("line-movement", "Line movement", mv_html)}
@@ -2339,6 +2340,8 @@ def team_page(L: League, sh: Shell, tid):
     up_items = [(L.paths[gid], side_word(g) + tname(opp_of(g)), " · ".join(x for x in [fmt_et(parse_dt(g["date"]), False), L.lines_brief(g)] if x)) for gid, g in up]
     held_items = [(L.paths[gid], f"{'Postponed' if abnormal(g) == 'postponed' else 'Canceled'} {side_word(g)}{tname(opp_of(g))}", short_day(parse_dt(g["date"]), False)) for gid, g in held]
     past_items = [(L.paths[gid], f"{res_of(g)} {side_word(g)}{tname(opp_of(g))}", " · ".join(x for x in [short_day(parse_dt(g["date"]), False), L.score_line(g)] if x)) for gid, g in past]
+    # The visible result opens the box-score tab. JSON-LD below keeps the clean game URL.
+    past_links = [(h if L.lg == "ufc" else f"{h}#/g/{L.lg}/{gid}/box", lab, note) for (h, lab, note), (gid, _g) in zip(past_items, past)]
     anchor = path.strip("/").rsplit("/", 1)[-1]
     full_link = f'<p class="note"><a href="{L.lg}/results/#{esc(anchor)}">Full results</a></p>' if past_items else ""
     rec = lambda x: f"{x.get('w', 0)}-{x.get('l', 0)}{'-' + str(x['d']) if x.get('d') else ''}" if x and x.get("gp") else None
@@ -2374,7 +2377,7 @@ def team_page(L: League, sh: Shell, tid):
 {f'<div class="sx-facts">{chips}</div>' if chips else ''}
 {section("upcoming", "Upcoming", link_list(up_items) or '<div class="empty">No games scheduled in the next few days.</div>')}
 {section("held", "Postponed &amp; canceled", link_list(held_items))}
-{section("results", "Results &amp; closing lines" if past_items else "Recent results", link_list(past_items, "pv-list sx-results") + full_link)}
+{section("results", "Results &amp; closing lines" if past_items else "Recent results", link_list(past_links, "pv-list sx-results") + full_link)}
 {section("players", "Player props", link_list(players))}
 <p class="pv-cta"><a class="pv-live" href="{app_link}">Open {esc(name)} in the app →</a> <span class="na">{'Roster, full schedule and stats.' if L.lg != 'ufc' else 'Fight history and stats.'}</span></p>
 <p class="note pv-upd">{stamp("Updated " + esc(fmt_et(L.generated)))}. For adults 21+; odds are for reference only.</p>

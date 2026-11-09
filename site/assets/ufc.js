@@ -93,7 +93,7 @@
       ${rows.length ? `<table class="uf-hist"><tbody>${rows.map(h => `<tr><td class="uf-r uf-${esc(h.res)}">${esc(h.res)}</td><td>${h.oppId ? `<a class="tlink" href="#/p/ufc/${esc(h.oppId)}">${esc(h.opp || "")}</a>` : esc(h.opp || "")}<div class="note">${esc([h.method, h.detail && h.detail !== h.method ? h.detail : "", rnd(h.round, h.clock)].filter(Boolean).join(" · "))}</div></td><td class="num">${h.date ? esc(A().fmt(h.date, { month: "short", day: "numeric", year: "2-digit" })) : ""}</td></tr>`).join("")}</tbody></table>` : ""}</div>`;
   }
   async function fight(d, idx, key, focus) {
-    focus = focus === "props" || focus === "stats" ? focus : "";
+    focus = focus === "props" || focus === "stats" || focus === "box" ? focus : "";
     const L = A(), g = d.game, H = g.home, W = g.away, r = g.result || {};
     let F = {};
     try { F = (await L.getJSON(`data/${key}/fighters.json`)).fighters || {}; } catch (e) {}
@@ -116,6 +116,7 @@
       const jt = [W, H].filter(t => (t.judges || []).length).map(t => `${esc(t.short || t.name)}: ${t.judges.map(esc).join(", ")}`).join(" · ");
       html += `<div class="section-title">Result</div><div class="card uf-result"><div class="uf-big">${esc(resultLine(g))}</div>${jt ? `<div class="note">Judges' totals: ${jt}</div>` : ""}</div>`;
     }
+    if (focus === "box") html += L.notAvail("Box score", "UFC fights don't have a box score. The result and judges' totals are above.");
     html += `<div class="section-title">Betting lines</div><div class="cols">${L.linesCard(g, "mma")}${L.booksCard(g, "mma", key)}</div>`;
     if (window.LSBets) html += window.LSBets.trackCard(key, g, "mma");
     const lm = L.lineMoveSection(d, g, "mma");

@@ -925,11 +925,11 @@ def main():
         # Other league hubs stay byte-identical aside from the best-lines link, the footer link, and "vs" on neutral sites.
         if not os.environ.get("DATA_DIR"):
             same = {
-                "nfl": "6ce87f6d872a704c12b89eaee084cd5be6389a4c46b2961d33c111bba6654a42",
-                "ncaab": "93a340e707db7020ac45a6f53cb6883c2777d88ba639ef4829c254f8847a9271",
-                "nhl": "66486b45dfa2e3051034e8a21869513c2efc59757dc29854f2ad533d211db67e",
-                "mlb": "a5955a4135307290b1379e8b69cae3fc263d58ecd39f7ec5a979d679718fcba5",
-                "ufc": "c56d66e74e93d423bd9ea602080633f6de00b87ea7e8e66e5377a97c037454c9",
+                "nfl": "2833d38d5f8d914e35be4fc5901faaecfb20dd67d845f0dc71ad19ab57525f5f",
+                "ncaab": "ae803a073b948a260cfec5d59210167765fa2721748d2d9ff5225f762a6b9f67",
+                "nhl": "4058922d71fbd16a034ab28b081ad67129fb4ddee9d22ea0bcc3b60f65cf3ccd",
+                "mlb": "e47305afebc8a0fe80587f1c4f8764d92ce25d05b669afe7214b97fc4da10763",
+                "ufc": "2b52291dfa37efef7e4c79e5bc8e08e115b03b39691f1a7572996ab54a7edfb7",
             }
             for lg, digest in same.items():
                 got = hashlib.sha256((site / lg / "index.html").read_bytes()).hexdigest()
@@ -1365,6 +1365,7 @@ def main():
             check("Result" in pd.title and " vs " in pd.title and "17-31" in pd.title and pd.title.startswith(pv.side_name(g["away"]) + " vs "), f"past-game title: away vs home, Result, final score ({pd.title})")
             check(pd.meta.get("og:title") == pd.title == pd.meta.get("twitter:title") and "result" in (pd.meta.get("description") or ""), "past-game og/twitter titles + description follow")
             check("Closing lines" in ph and 'class="card sx-result"' in ph, "past-game page: result card + closing lines")
+            check(f'href="#/g/nfl/{g["id"]}/box"' in ph, "past-game page links to the box score")
             check(re.search(r"covered the closing spread|closing spread was a push|No spread", ph) or "closing total" in ph, "past-game page grades the closing line")
             check(not pd.body.get("data-route"), "past-game page stays static (not hydrated)")
             check(pd.links.get("canonical") == SP.BASE_URL + path and SP.BASE_URL + path in SP.read_sitemaps(site2), "past-game page canonical + in sitemap")
@@ -1395,7 +1396,7 @@ def main():
             check(lm_before and lm_before == lm_after, f"finished lastmod frozen when the score and closing line do not change ({lm_before} -> {lm_after})")
             home_rel = man3["t"]["nfl"][str(g["home"]["id"])]
             th = (site2 / home_rel / "index.html").read_text()
-            check(f'href="{path}"' in th and ">Full results</a>" in th, "team page links the old final and the full results archive")
+            check(f'href="{path}#/g/nfl/{g["id"]}/box"' in th and ">Full results</a>" in th, "team page result opens that game's box score")
             # 404 page handles the expired URL
             nf = (site2 / "404.html").read_text()
             check("expired" in nf and "noindex" in nf and "1-800-GAMBLER" in nf, "404 page explains expired pages")

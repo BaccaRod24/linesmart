@@ -209,7 +209,7 @@
     el.innerHTML = `<div class="section-title" id="psProps">${esc(head)} <span class="st-sub">${nLines} lines · ${blocks.length} ${blocks.length === 1 ? "game" : "games"}</span></div><div class="ps-prop-sub">${subTitle(doc)}</div><div class="pp ps-props">${legend}`
       + blocks.map(({ g, players }) => `<section class="ps-prop-g" aria-label="${esc(nm(g))}">
           <a class="pp-game" href="#/g/${esc(lg)}/${esc(g.id)}/props"><b>${esc(nm(g))}</b><span>${esc(when(g))}</span><span class="pp-go">All props</span></a>
-          <div class="pp-list">${players.map(p => playerCard(lg, p, { gid: g.state === "pre" ? g.id : null })).join("")}</div>
+          <div class="pp-list pp-players">${players.map(p => playerCard(lg, p, { gid: g.state === "pre" ? g.id : null })).join('<hr class="pp-player-rule">')}</div>
           <button type="button" class="pp-more" hidden>Show all ${players.length} players</button>
         </section>`).join("")
       + foot(doc) + `</div>`;
@@ -220,6 +220,10 @@
       let open = false;
       const draw = () => {
         cards.forEach((c, i) => { c.hidden = !open && i >= LAND_SHOW; });
+        sec.querySelectorAll(".pp-player-rule").forEach(rule => {
+          const prev = rule.previousElementSibling, next = rule.nextElementSibling;
+          rule.hidden = !prev || prev.hidden || !next || next.hidden;
+        });
         if (more) { more.hidden = open || cards.length <= LAND_SHOW; more.textContent = `Show all ${cards.length} players`; }
       };
       if (more) more.addEventListener("click", () => { open = true; draw(); });

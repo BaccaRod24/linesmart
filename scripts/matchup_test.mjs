@@ -124,10 +124,9 @@ const lakerLeaders = [
   { teamId: "13", cat: "Rebounds", player: "Walker Kessler", value: "10.4", id: "4433136", pos: "C" },
 ];
 const lakers = M.pickKeyPlayers("nba", lakerLeaders, lakerInj, "13");
-check(lakers.map(p => p.name).join("|") === "Walker Kessler|Quentin Grimes", `Out leader skipped and day-to-day athlete backfills (${lakers.map(p => p.name).join("|")})`, "inj");
-check(!lakers.some(p => /luka/i.test(p.name)), "Luka is not a key player while Out", "inj");
-check(lakers[1].badge === "Day-To-Day" && lakers[1].tone === "q" && lakers[0].badge === "", "day-to-day backfill is badged; healthy leader is not", "inj");
-check(lakers.length === 2, "stop at the players who are actually available (fewer than 3)", "inj");
+check(lakers.map(p => p.name).join("|") === "Walker Kessler", `Out leader skipped; injury-report names are not used (${lakers.map(p => p.name).join("|")})`, "inj");
+check(!lakers.some(p => /luka|grimes/i.test(p.name)), "Luka and a day-to-day player who is not a leader are both left off", "inj");
+check(lakers.length === 1 && lakers[0].badge === "", "show fewer names when no other leader has a stat line", "inj");
 
 const catBackfill = M.pickKeyPlayers("nba", [
   { teamId: "13", cat: "Points", player: "Luka Doncic", value: "40.1", id: "1", pos: "G" },
@@ -137,9 +136,14 @@ const catBackfill = M.pickKeyPlayers("nba", [
 ], { "13": [{ player: "Luka Doncic", status: "Out" }] }, "13");
 check(catBackfill.map(p => p.name).join("|") === "Austin Reaves|Walker Kessler", `next leader in the category fills the Out slot (${catBackfill.map(p => p.name).join("|")})`, "inj");
 const fromOther = M.pickKeyPlayers("nba", [
-  { teamId: "2", cat: "Points", player: "Only Points", value: "30", id: "p", pos: "G" },
-], { "2": [] }, "2", { athletes: [{ player: "Other Athlete", id: "a", pos: "F", cat: "Rebounds", value: "9", teamId: "2" }] });
-check(fromOther.map(p => p.name).join("|") === "Only Points|Other Athlete", "one leader per category backfills from another athlete the data offers", "inj");
+  { teamId: "2", cat: "Points", player: "Out Star", value: "30", id: "p", pos: "G" },
+  { teamId: "2", cat: "Rebounds", player: "Other Leader", value: "9", id: "a", pos: "F" },
+], { "2": [{ player: "Out Star", status: "Out" }, { player: "Day To Day Guy", status: "Day-To-Day", pos: "G" }] }, "2");
+check(fromOther.map(p => p.name).join("|") === "Other Leader", "an Out category is filled from another category's leader, not the injury report", "inj");
+const dtdLeader = M.pickKeyPlayers("nba", [
+  { teamId: "2", cat: "Points", player: "Stat Leader", value: "18.2", id: "s", pos: "G" },
+], { "2": [{ player: "Stat Leader", status: "Day-To-Day" }, { player: "Only Listed", status: "Day-To-Day", pos: "F" }] }, "2");
+check(dtdLeader.length === 1 && dtdLeader[0].name === "Stat Leader" && dtdLeader[0].badge === "Day-To-Day", "a day-to-day badge stays on a leader who has the stat line", "inj");
 
 const doubtful = M.pickKeyPlayers("nba", [
   { teamId: "8", cat: "Points", player: "Doubt Guy", value: "22", id: "d", pos: "F" },

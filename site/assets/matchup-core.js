@@ -224,7 +224,7 @@
       for (const c of cats) {
         for (const l of byCat.get(c)) {
           const name = l.player || l.name || "";
-          if (!name) continue;
+          if (!hasStatLine(l)) continue;
           const inj = injuryByName(name, rows);
           const av = injuryAvailability(inj && inj.status);
           if (av === "skip") continue;
@@ -235,17 +235,24 @@
     }
     return out;
   }
+  /** A season-leader row with a category and a stat line. Injury-report names are not leaders. */
+  function hasStatLine(l) {
+    if (!l) return false;
+    const cat = String(l.cat || "").trim();
+    const value = l.value == null ? "" : String(l.value).trim();
+    return !!(cat && (l.player || l.name) && value);
+  }
   /**
    * Up to `limit` key players for one team (default 3). Skips Out, Doubtful and IR.
-   * Fills a category with the next leader in that category, then leaders from other categories,
-   * then other athletes the caller passes or that the injury report lists as Questionable / day-to-day.
-   * Returns fewer than `limit` when nobody eligible is left.
+   * A spot is filled only by a leader who has a stat line: the next leader in that category,
+   * then a leader from another category. Questionable and day-to-day leaders stay, with a badge.
+   * Names that appear only on the injury report are not used. Returns fewer than `limit` when
+   * no eligible leader is left.
    */
   function pickKeyPlayers(lg, leaders, injuries, teamId, opts) {
     const limit = (opts && opts.limit) || 3;
-    const extra = (opts && opts.athletes) || [];
     const rows = injuryRows(injuries, teamId);
-    const mine = (leaders || []).filter(l => l && String(l.teamId) === String(teamId));
+    const mine = (leaders || []).filter(l => l && String(l.teamId) === String(teamId) && hasStatLine(l));
     const cats = [], byCat = new Map();
     for (const l of mine) {
       const c = String(l.cat || "");
@@ -255,34 +262,24 @@
     const seen = new Set(), out = [];
     const nameKey = n => "n:" + String(n || "").toLowerCase();
     const idKey = id => (id != null && id !== "" ? "i:" + String(id) : "");
-    function consider(l, requireKey) {
+    function consider(l) {
       if (out.length >= limit) return false;
       const name = l.player || l.name || "";
-      if (!name) return false;
+      if (!hasStatLine(l)) return false;
       const ik = idKey(l.id), nk = nameKey(name);
       if ((ik && seen.has(ik)) || seen.has(nk)) return false;
       const inj = injuryByName(name, rows);
       const av = injuryAvailability(inj && inj.status);
       if (av === "skip") return false;
       const pos = l.pos || (inj && inj.pos) || "";
-      if (requireKey && lg && !leaderKey(lg, l.cat, posBucket(lg, pos))) return false;
+      if (lg && !leaderKey(lg, l.cat, posBucket(lg, pos))) return false;
       if (ik) seen.add(ik);
       seen.add(nk);
-      const row = decorateLeader({ ...l, pos, teamId }, inj, av);
-      out.push(row);
+      out.push(decorateLeader({ ...l, pos, teamId }, inj, av));
       return true;
     }
-    for (const c of cats) for (const l of byCat.get(c)) if (consider(l, true)) break;
-    if (out.length < limit) for (const c of cats) for (const l of byCat.get(c)) consider(l, true);
-    if (out.length < limit) {
-      const pool = [];
-      for (const a of extra) pool.push(a && a.teamId != null ? a : { ...a, teamId });
-      for (const r of rows) {
-        if (!r || injuryAvailability(r.status) !== "badge") continue;
-        pool.push({ player: r.player, id: r.id, pos: r.pos, cat: r.cat || "", value: r.value || "", teamId });
-      }
-      for (const a of pool) consider(a, false);
-    }
+    for (const c of cats) for (const l of byCat.get(c)) if (consider(l)) break;
+    if (out.length < limit) for (const c of cats) for (const l of byCat.get(c)) consider(l);
     return out;
   }
 

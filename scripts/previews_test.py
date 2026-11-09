@@ -193,7 +193,7 @@ lakers_det = {"leaders": [
 }}
 card = P.leaders_card(lakers_det)
 check("Luka Doncic" not in card and "Walker Kessler" in card and "Nickeil Alexander-Walker" in card, "Out leader dropped, healthy leaders kept")
-check("Quentin Grimes" in card and 'class="badge q"' in card and "Day-To-Day" in card, "day-to-day athlete backfills with a q badge")
+check("Quentin Grimes" not in card, "a day-to-day player who is not a leader does not fill a Team leaders row")
 check("Jalen Johnson" in card and card.count("Jalen Johnson") == 2, "a healthy player can still lead two categories")
 check("Out, Doubtful and injured-reserve" in card, "leaders card says why a name is missing")
 
@@ -218,6 +218,10 @@ q_rows = P.leader_rows({"leaders": [
     {"teamId": "12", "cat": "Rushing Yards", "player": "Kenneth Walker III", "value": "770", "pos": "RB"},
 ], "injuries": {"12": [{"player": "Patrick Mahomes", "status": "Questionable"}]}})
 check(q_rows[0]["player"] == "Patrick Mahomes" and q_rows[0]["badge"] == "Questionable" and q_rows[1]["badge"] == "", "Questionable leader kept and badged")
+dtd_leader = P.leader_rows({"leaders": [
+    {"teamId": "13", "cat": "Points", "player": "Stat Leader", "value": "18.2", "pos": "G"},
+], "injuries": {"13": [{"player": "Stat Leader", "status": "Day-To-Day"}, {"player": "Only Listed", "pos": "F", "status": "Day-To-Day"}]}})
+check([r["player"] for r in dtd_leader] == ["Stat Leader"] and dtd_leader[0]["badge"] == "Day-To-Day", "day-to-day badge stays on a leader with a stat line, not an injury-report-only name")
 q_card = P.leaders_card({"leaders": q_rows, "injuries": {"12": [{"player": "Patrick Mahomes", "status": "Questionable"}]}})
 check("Patrick Mahomes" in q_card and 'class="badge q">Questionable' in q_card, "leaders card renders the Questionable badge")
 check(P.leaders_card({"leaders": [{"teamId": "1", "cat": "Points", "player": "Only Out", "value": "9"}],

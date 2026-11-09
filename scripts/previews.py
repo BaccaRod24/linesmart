@@ -485,20 +485,27 @@ def _injury_rows(injuries, team_id):
     return injuries.get(str(team_id)) or injuries.get(team_id) or []
 
 
-def leader_rows(detail, per_team=3):
+def _has_stat_line(x):
+    """A real leader row: a category, a name, and a stat. Injury-report-only names are not leaders."""
+    if not isinstance(x, dict):
+        return False
+    return bool((x.get("cat") or "").strip() and (x.get("player") or "").strip() and str(x.get("value") if x.get("value") is not None else "").strip())
+
+
+def leader_rows(detail):
     """Team-leader lines for a static game page.
 
-    One line per category, using the next stored leader when the top name is Out, Doubtful or IR.
-    Questionable and day-to-day names stay and carry a badge. When a side still has fewer than
-    `per_team` distinct names (the usual case: one athlete per category), fill from other
-    categories already kept and from Questionable / day-to-day athletes on that team's injury report.
+    One line per category. If the top name is Out, Doubtful or IR, the next stored leader in that
+    category fills the line. Questionable and day-to-day leaders who have a stat line stay and carry
+    a badge. Players who appear only on the injury report are not added. A side with fewer eligible
+    leaders simply shows fewer lines.
     """
     detail = detail or {}
     leaders = detail.get("leaders") or []
     injuries = detail.get("injuries") or {}
     teams, by = [], {}
     for x in leaders:
-        if not isinstance(x, dict):
+        if not _has_stat_line(x):
             continue
         tid = str(x.get("teamId"))
         if tid not in by:
@@ -515,41 +522,20 @@ def leader_rows(detail, per_team=3):
                 byc[c] = []
                 cats.append(c)
             byc[c].append(x)
-        chosen, seen = [], set()
         for c in cats:
             for x in byc[c]:
                 name = x.get("player") or ""
-                if not name:
-                    continue
                 inj = injury_by_name(name, rows)
                 av = injury_availability((inj or {}).get("status"))
                 if av == "skip":
                     continue
-                chosen.append({
+                out.append({
                     "teamId": tid, "cat": x.get("cat") or "", "player": name,
-                    "value": "" if x.get("value") is None else x.get("value"),
+                    "value": x.get("value"),
                     "pos": x.get("pos") or (inj or {}).get("pos") or "",
                     "badge": str((inj or {}).get("status") or "") if av == "badge" else "",
                 })
-                seen.add(name.lower())
                 break
-        if len(seen) < per_team:
-            for r in rows:
-                if len(seen) >= per_team:
-                    break
-                if not isinstance(r, dict):
-                    continue
-                name = r.get("player") or ""
-                if not name or name.lower() in seen:
-                    continue
-                if injury_availability(r.get("status")) != "badge":
-                    continue
-                chosen.append({
-                    "teamId": tid, "cat": "", "player": name, "value": "",
-                    "pos": r.get("pos") or "", "badge": str(r.get("status") or ""),
-                })
-                seen.add(name.lower())
-        out.extend(chosen)
     return out[:8]
 
 
@@ -560,10 +546,7 @@ def leaders_card(detail):
     bits = []
     for x in rows:
         badge = f' <span class="badge q">{esc(x.get("badge"))}</span>' if x.get("badge") else ""
-        cat = f'<span class="na">{esc(x.get("cat"))}</span> ' if x.get("cat") else ""
-        val = f' {esc(x.get("value"))}' if x.get("value") not in (None, "") else ""
-        pos = f' <span class="na">{esc(x.get("pos"))}</span>' if (not x.get("cat") and x.get("pos")) else ""
-        bits.append(f"<li>{cat}<b>{esc(x.get('player'))}</b>{pos}{val}{badge}</li>")
+        bits.append(f"<li><span class=\"na\">{esc(x.get('cat'))}</span> <b>{esc(x.get('player'))}</b> {esc(x.get('value'))}{badge}</li>")
     note = '<div class="note">Out, Doubtful and injured-reserve players are left off. Questionable and day-to-day players stay, marked with a badge.</div>'
     return f'<div class="card"><h3>Team leaders</h3><ul class="pv-list">{"".join(bits)}</ul>{note}</div>'
 

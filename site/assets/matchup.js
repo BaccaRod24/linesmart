@@ -184,9 +184,9 @@
     const row = (p, t, opp) => {
       const b = M.posBucket(lg, p.pos), lk = M.leaderKey(lg, p.cat, b);
       const d = lk && mu ? M.oppDefense(mu, opp.id, lk[0]) : null, x = d && d.pos.find(s => s.key === lk[1]);
-      const vs = x ? `<span class="mu-km-d">${esc(opp.abbr)} allows <b class="num">${f1(x.val)}</b> ${esc(x.label.toLowerCase())} to ${esc(BUCKET_NAME[lk[0]] || lk[0])} · <span class="mu-tier ${x.tier || "mid"}">${esc(M.ordinal(x.rank))}</span></span>` : (p.cat ? `<span class="mu-km-d na">${esc(p.cat)}</span>` : (p.badge ? `<span class="mu-km-d na">On the injury report</span>` : ""));
-      const badge = p.badge ? `<span class="badge ${p.tone === "out" ? "out" : "q"}">${esc(p.badge)}</span>` : "";
-      const val = p.cat ? `<span class="mu-km-v"><span class="na">${esc(p.cat)}:</span> <span class="num">${esc(p.value || "")}</span></span>` : "";
+      const vs = x ? `<span class="mu-km-d">${esc(opp.abbr)} allows <b class="num">${f1(x.val)}</b> ${esc(x.label.toLowerCase())} to ${esc(BUCKET_NAME[lk[0]] || lk[0])} · <span class="mu-tier ${x.tier || "mid"}">${esc(M.ordinal(x.rank))}</span></span>` : `<span class="mu-km-d na">${esc(p.cat)}</span>`;
+      const badge = p.badge ? `<span class="badge q">${esc(p.badge)}</span>` : "";
+      const val = `<span class="mu-km-v"><span class="na">${esc(p.cat)}:</span> <span class="num">${esc(p.value || "")}</span></span>`;
       const inner = `<span class="mu-km-n"><b>${esc(p.name)}</b>${p.pos ? ` <span class="na">${esc(p.pos)}</span>` : ""}${badge}</span>${p.id ? `<span class="mu-km-go">Matchup ›</span>` : `<span class="mu-km-go"></span>`}${val}${vs}`;
       return p.id ? `<a class="mu-km" href="#/p/${lg}/${esc(p.id)}/m">${inner}</a>` : `<div class="mu-krow">${inner}</div>`;
     };

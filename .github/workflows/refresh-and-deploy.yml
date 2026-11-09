@@ -229,8 +229,9 @@ jobs:
           if-no-files-found: ignore
 
       # Only persist history from a successful build. On a push race, fetch the new tip
-      # and merge this run's snapshot onto it. Pages are merged per game (a newer tip
-      # is never replaced by the stale snapshot). Never force-push.
+      # and merge this run's snapshot onto it. Rosters, matchups, weather, advanced
+      # stats, pages, and the health log are merged per record (a newer tip is never
+      # replaced by the stale snapshot). Never force-push.
       - name: Save line history snapshot
         if: steps.build.outcome == 'success' && steps.hist.outcome == 'success'
         continue-on-error: true
@@ -252,12 +253,12 @@ jobs:
             git reset -q --hard origin/data-history
             python3 ../scripts/line_history.py apply --snap-dir ../.linehist-snap --history-dir history
             if [ -d ../.linehist-snap/_odds ]; then python3 ../scripts/line_history.py apply-odds --src ../.linehist-snap/_odds --dst odds; fi
-            if [ -d ../.linehist-snap/_rosters ]; then cp -f ../.linehist-snap/_rosters/*.json rosters/; fi
-            if [ -d ../.linehist-snap/_matchups ]; then mkdir -p matchups && cp -f ../.linehist-snap/_matchups/*.json matchups/; fi
-            if [ -d ../.linehist-snap/_weather ]; then mkdir -p weather && cp -f ../.linehist-snap/_weather/*.json weather/; fi
-            if [ -d ../.linehist-snap/_adv ]; then mkdir -p advstats && cp -f ../.linehist-snap/_adv/*.json advstats/; fi
+            if [ -d ../.linehist-snap/_rosters ]; then python3 ../scripts/merge_pages_snapshot.py --src ../.linehist-snap/_rosters --dst rosters; fi
+            if [ -d ../.linehist-snap/_matchups ]; then python3 ../scripts/merge_pages_snapshot.py --src ../.linehist-snap/_matchups --dst matchups; fi
+            if [ -d ../.linehist-snap/_weather ]; then python3 ../scripts/merge_pages_snapshot.py --src ../.linehist-snap/_weather --dst weather; fi
+            if [ -d ../.linehist-snap/_adv ]; then python3 ../scripts/merge_pages_snapshot.py --src ../.linehist-snap/_adv --dst advstats; fi
             if [ -d ../.linehist-snap/_pages ]; then python3 ../scripts/merge_pages_snapshot.py --src ../.linehist-snap/_pages --dst pages; fi
-            if [ -f ../.linehist-snap/reliability.json ]; then mkdir -p health && cp -f ../.linehist-snap/reliability.json health/reliability.json; fi
+            if [ -f ../.linehist-snap/reliability.json ]; then python3 ../scripts/merge_pages_snapshot.py --health --src ../.linehist-snap/reliability.json --dst health; fi
             git add -A history odds rosters matchups weather advstats health $( [ -d pages ] && echo pages )
             if git diff --cached --quiet; then echo "Nothing left to push."; exit 0; fi
             git commit -qm "$msg"

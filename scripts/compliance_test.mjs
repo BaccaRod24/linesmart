@@ -13,7 +13,7 @@ const read = f => fs.readFileSync(path.join("site", f), "utf8");
 const text = h => h.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ");
 
 // ---- static pages
-const FOOTER_PAGES = ["index.html", "about.html", "terms.html", "privacy.html", "affiliate-disclosure.html", "responsible-gambling.html", "subscribed.html", "unsubscribe.html"];
+const FOOTER_PAGES = ["index.html", "about.html", "contact.html", "terms.html", "privacy.html", "affiliate-disclosure.html", "responsible-gambling.html", "subscribed.html", "unsubscribe.html"];
 for (const f of FOOTER_PAGES) {
   const h = read(f), foot = h.slice(h.indexOf('<footer class="footer"'));
   check(/age-pill">21\+</.test(foot) && /1-800-GAMBLER/.test(foot), `${f}: footer 21+ and 1-800-GAMBLER`);

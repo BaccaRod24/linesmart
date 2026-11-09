@@ -88,7 +88,10 @@ const MEMBER_TOKEN = "test-member-token";
     if (!fs.existsSync(f)) continue;
     const t = read(f);
     if (f !== "pro/pro-ui.js") check(!ownerEmail || !t.includes(ownerEmail), `${f} has no owner email`);
-    check(!/contact@linesmart\.app/.test(t), `${f} does not use the contact address as a sign-in`);
+    if (f === "pro/pro-ui.js") {
+      check(/mailto:contact@linesmart\.app\?subject=LineSmart%20Pro%20feedback/.test(t), "Pro links the contact address for feedback");
+      check(!/signInWithOtp[\s\S]{0,160}contact@linesmart\.app/.test(t), "the contact address is not used to sign in");
+    } else check(!/contact@linesmart\.app/.test(t), `${f} does not use the contact address as a sign-in`);
   }
   const uiEarly = read("pro/pro-ui.js");
   check(/const OWNER_EMAIL = "copenhaverrodney24@yahoo\.com"/.test(uiEarly) && /email\.toLowerCase\(\) === OWNER_EMAIL/.test(uiEarly), "hub badge matches the owner email, case-insensitive, from the stored session");

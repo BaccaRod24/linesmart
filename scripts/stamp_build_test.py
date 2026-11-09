@@ -55,7 +55,8 @@ site = (ROOT / "site/assets/site.js").read_text(encoding="utf-8")
 check("visibilitychange" in site and "r.update" in site, "resume calls registration.update()")
 check('Update ready - tap to refresh' in site and "controllerchange" in site and "had" in site and 'updateViaCache: "none"' in site, "a new worker shows the reload banner; sw.js is not HTTP-cached")
 check("localStorage.clear" not in site and "unregister" not in site, "update check does not clear storage or unregister the worker")
-for name in ("about.html", "privacy.html", "terms.html", "responsible-gambling.html", "affiliate-disclosure.html"):
+check("mailto:contact@linesmart.app?subject=LineSmart%20issue" in idx and 'href="contact.html"' in idx, "homepage footer reports an issue by email and links the contact page")
+for name in ("about.html", "contact.html", "privacy.html", "terms.html", "responsible-gambling.html", "affiliate-disclosure.html"):
     html = (ROOT / "site" / name).read_text(encoding="utf-8")
     check('data-ls-build>Build dev</p>' in html and "1-800-GAMBLER" in html and "1-833-PLAYWISE" in html, f"{name}: build line added, helplines kept")
 

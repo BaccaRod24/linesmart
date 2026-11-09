@@ -156,6 +156,18 @@ body.app a.search-btn[data-pro-owner-nav]{display:inline-flex;align-items:center
 .ppv-line b{display:block;font-weight:750;overflow-wrap:anywhere}
 .ppv-line small{display:block;color:var(--dim);font-size:12.5px;overflow-wrap:anywhere}
 .ppv-line .num{flex:none;margin-left:auto;text-align:right;font-weight:700}
+/* Prop rows only: the same frosted glass and emerald glow as the Sharp bubble, with a tighter edge. */
+.ppv-line.pro-prop{position:relative;isolation:isolate;border-radius:8px;border:1px solid transparent;color:var(--txt);
+  background:linear-gradient(180deg,rgba(184,255,220,.10),rgba(184,255,220,.02) 55%),color-mix(in srgb,var(--surface) 60%,transparent);
+  -webkit-backdrop-filter:saturate(170%) blur(12px);backdrop-filter:saturate(170%) blur(12px);
+  box-shadow:0 0 0 .5px rgba(16,185,129,.28),0 0 14px -3px rgba(16,185,129,.55),inset 0 1px 0 rgba(200,255,228,.16)}
+.ppv-line.pro-prop::before{content:"";position:absolute;inset:-1px;z-index:-1;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(135deg,#d4ffe8 0%,#10b981 35%,#065f46 65%,#5eead4 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.ppv-line.pro-prop b,.ppv-line.pro-prop .vs-lg{color:var(--txt);-webkit-text-fill-color:var(--txt);font-weight:750}
+.ppv-line.pro-prop small{color:#d7f5e8;-webkit-text-fill-color:#d7f5e8}
+.ppv-line.pro-prop .num{color:#c8ffe4;-webkit-text-fill-color:#c8ffe4}
 .ppv-line.on{
   border-color:transparent;color:#c8ffe4;
   background:linear-gradient(180deg,rgba(184,255,220,.10),rgba(184,255,220,.02) 55%),color-mix(in srgb,var(--surface) 78%,transparent);
@@ -262,11 +274,16 @@ body.app a.search-btn[data-pro-owner-nav]{display:inline-flex;align-items:center
   .ppv-line.on b,
   .ppv-line.on .vs-lg,
   .ppv-line.on small,
+  .ppv-line.pro-prop,
+  .ppv-line.pro-prop b,
+  .ppv-line.pro-prop .vs-lg,
+  .ppv-line.pro-prop .num,
   [data-pro-owner] .mvbadge,
   [data-pro-enhance] .mvbadge
 ){
   color:#064e3b;-webkit-text-fill-color:#064e3b;
 }
+:root[data-theme="daylight"] .ppv-line.pro-prop small{color:#065f46;-webkit-text-fill-color:#065f46}
 :root[data-theme="daylight"] .ppv-chart{color:#0f766e}
 :root[data-theme="daylight"] [data-pro-owner],
 :root[data-theme="daylight"] [data-pro-enhance],

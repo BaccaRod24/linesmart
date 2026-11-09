@@ -54,5 +54,14 @@ check(/18 hours/.test(flat) && /marks them delayed/.test(flat) && /marked closed
 check(/does not call the odds provider/.test(flat) && /25 active line alerts/.test(flat) && /5 a day/.test(flat), "the guide states no odds call, 25 active alerts, and the email cap");
 check(!/stripe|checkout|payment provider/i.test(flat), "the guide does not invent a checkout");
 
+const propRows = (ui.match(/class="ppv-line pro-prop"/g) || []).length;
+check(propRows >= 7, "hot props, the game prop panel, and prop edges use the prop class (" + propRows + ")");
+const propCss = css.slice(css.indexOf(".ppv-line.pro-prop{"), css.indexOf(".ppv-line.pro-prop .num{") + 80);
+check(/0 0 14px -3px rgba\(16,185,129,\.55\)/.test(propCss), "prop rows use the Sharp bubble glow");
+check(/linear-gradient\(135deg,#d4ffe8/.test(propCss), "prop rows use the Sharp gradient edge");
+check(/border-radius:8px/.test(propCss), "prop rows use a tighter corner than the old soft card");
+const freeCss = fs.readFileSync("site/assets/styles.css", "utf8");
+check(!/\.pro-prop|0 0 14px -3px rgba\(16,185,129/.test(freeCss), "the free prop cards do not pick up the Pro glow");
+
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall passed");
 process.exit(fails.length ? 1 : 0);

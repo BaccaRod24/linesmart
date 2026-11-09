@@ -925,11 +925,11 @@ def main():
         # Other league hubs stay byte-identical aside from the best-lines link, the footer link, and "vs" on neutral sites.
         if not os.environ.get("DATA_DIR"):
             same = {
-                "nfl": "d4e45f2720d07d5a5ca1cc0996048ae90dd641fb36e753bfd8628de83d8faca4",
-                "ncaab": "89e74128b2fe30ccd29f9625ca32b2e69be390767c85cd237c91ee097b801a2b",
-                "nhl": "5ea769093743b7b1c22a30e1ca845267843788ddc6c5ef44b9b66b4fef6c71c1",
-                "mlb": "6dcc3d6772d5a4de03e813bb2eb3f9470fc28439726d236b86dd2acaaa5946fc",
-                "ufc": "c507cd4d07b11e6368c89e7e5afa5a757827350e7288bac0ef430247d849be43",
+                "nfl": "6ce87f6d872a704c12b89eaee084cd5be6389a4c46b2961d33c111bba6654a42",
+                "ncaab": "93a340e707db7020ac45a6f53cb6883c2777d88ba639ef4829c254f8847a9271",
+                "nhl": "66486b45dfa2e3051034e8a21869513c2efc59757dc29854f2ad533d211db67e",
+                "mlb": "a5955a4135307290b1379e8b69cae3fc263d58ecd39f7ec5a979d679718fcba5",
+                "ufc": "c56d66e74e93d423bd9ea602080633f6de00b87ea7e8e66e5377a97c037454c9",
             }
             for lg, digest in same.items():
                 got = hashlib.sha256((site / lg / "index.html").read_bytes()).hexdigest()

@@ -159,6 +159,130 @@
     return null;
   }
 
+  // Injury report vs season leaders. Keep this classifier in sync with injury_availability() in scripts/previews.py.
+  // "skip"  = do not show (Out, Doubtful, Injured Reserve / IR, and the injured-list rename IL)
+  // "badge" = show, with the q badge (Questionable, Day-To-Day)
+  // "ok"    = show with no badge
+  function injuryAvailability(status) {
+    const raw = String(status == null ? "" : status).trim();
+    if (!raw) return "ok";
+    const s = raw.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+    const compact = s.replace(/ /g, "");
+    if (/(^| )out( |$)/.test(s) || compact === "o") return "skip";
+    if (/(^| )doubtful( |$)/.test(s)) return "skip";
+    if (compact === "ir" || compact === "il" || s === "i r" || s === "i l" || /\binjured reserve\b/.test(s) || /\binjured list\b/.test(s) || /\bir\b/.test(s) || /\bil\b/.test(s)) return "skip";
+    if (/\bquestionable\b/.test(s) || /\bday to day\b/.test(s) || compact === "dtd" || /\bdtd\b/.test(s)) return "badge";
+    return "ok";
+  }
+  /** Case-insensitive exact name match, the same comparison injuryFor() uses on player pages. */
+  function injuryByName(name, rows) {
+    const n = String(name || "").toLowerCase();
+    if (!n) return null;
+    return (rows || []).find(r => r && r.player && String(r.player).toLowerCase() === n) || null;
+  }
+  function injuryRows(injuries, teamId) {
+    if (!injuries) return [];
+    if (Array.isArray(injuries)) return injuries;
+    const id = String(teamId);
+    return injuries[id] || injuries[teamId] || [];
+  }
+  function decorateLeader(leader, inj, av) {
+    const name = leader.player || leader.name || "";
+    return {
+      id: leader.id != null && leader.id !== "" ? String(leader.id) : "",
+      pos: leader.pos || (inj && inj.pos) || "",
+      name, player: name,
+      cat: leader.cat || "",
+      value: leader.value != null && leader.value !== "" ? String(leader.value) : "",
+      teamId: leader.teamId != null ? String(leader.teamId) : "",
+      status: inj && inj.status ? String(inj.status) : "",
+      badge: av === "badge" && inj && inj.status ? String(inj.status) : "",
+      tone: av === "badge" ? "q" : "",
+    };
+  }
+  /**
+   * Season-leader rows with Out / Doubtful / IR removed. One row per category: if the top name is
+   * unavailable, the next leader stored for that category fills the line. Questionable and day-to-day stay, with a badge.
+   */
+  function visibleLeaders(leaders, injuries) {
+    const byTeam = new Map(), order = [];
+    for (const l of leaders || []) {
+      if (!l) continue;
+      const tid = String(l.teamId);
+      if (!byTeam.has(tid)) { byTeam.set(tid, []); order.push(tid); }
+      byTeam.get(tid).push(l);
+    }
+    const out = [];
+    for (const tid of order) {
+      const rows = injuryRows(injuries, tid);
+      const cats = [], byCat = new Map();
+      for (const l of byTeam.get(tid)) {
+        const c = String(l.cat || "");
+        if (!byCat.has(c)) { byCat.set(c, []); cats.push(c); }
+        byCat.get(c).push(l);
+      }
+      for (const c of cats) {
+        for (const l of byCat.get(c)) {
+          const name = l.player || l.name || "";
+          if (!hasStatLine(l)) continue;
+          const inj = injuryByName(name, rows);
+          const av = injuryAvailability(inj && inj.status);
+          if (av === "skip") continue;
+          out.push(decorateLeader(l, inj, av));
+          break;
+        }
+      }
+    }
+    return out;
+  }
+  /** A season-leader row with a category and a stat line. Injury-report names are not leaders. */
+  function hasStatLine(l) {
+    if (!l) return false;
+    const cat = String(l.cat || "").trim();
+    const value = l.value == null ? "" : String(l.value).trim();
+    return !!(cat && (l.player || l.name) && value);
+  }
+  /**
+   * Up to `limit` key players for one team (default 3). Skips Out, Doubtful and IR.
+   * A spot is filled only by a leader who has a stat line: the next leader in that category,
+   * then a leader from another category. Questionable and day-to-day leaders stay, with a badge.
+   * Names that appear only on the injury report are not used. Returns fewer than `limit` when
+   * no eligible leader is left.
+   */
+  function pickKeyPlayers(lg, leaders, injuries, teamId, opts) {
+    const limit = (opts && opts.limit) || 3;
+    const rows = injuryRows(injuries, teamId);
+    const mine = (leaders || []).filter(l => l && String(l.teamId) === String(teamId) && hasStatLine(l));
+    const cats = [], byCat = new Map();
+    for (const l of mine) {
+      const c = String(l.cat || "");
+      if (!byCat.has(c)) { byCat.set(c, []); cats.push(c); }
+      byCat.get(c).push(l);
+    }
+    const seen = new Set(), out = [];
+    const nameKey = n => "n:" + String(n || "").toLowerCase();
+    const idKey = id => (id != null && id !== "" ? "i:" + String(id) : "");
+    function consider(l) {
+      if (out.length >= limit) return false;
+      const name = l.player || l.name || "";
+      if (!hasStatLine(l)) return false;
+      const ik = idKey(l.id), nk = nameKey(name);
+      if ((ik && seen.has(ik)) || seen.has(nk)) return false;
+      const inj = injuryByName(name, rows);
+      const av = injuryAvailability(inj && inj.status);
+      if (av === "skip") return false;
+      const pos = l.pos || (inj && inj.pos) || "";
+      if (lg && !leaderKey(lg, l.cat, posBucket(lg, pos))) return false;
+      if (ik) seen.add(ik);
+      seen.add(nk);
+      out.push(decorateLeader({ ...l, pos, teamId }, inj, av));
+      return true;
+    }
+    for (const c of cats) for (const l of byCat.get(c)) if (consider(l)) break;
+    if (out.length < limit) for (const c of cats) for (const l of byCat.get(c)) consider(l);
+    return out;
+  }
+
   return { isNum, num, parseLog, mergeRows, seasonsOf, currentSeason, posBucket, STATS, statDefs, avg, lastN, trend, splitHA, vsOpp, hitRate, defaultLine,
-    seasonRows, nextGame, linesFor, ordinal, tier, oppDefense, leaderKey };
+    seasonRows, nextGame, linesFor, ordinal, tier, oppDefense, leaderKey, injuryAvailability, injuryByName, visibleLeaders, pickKeyPlayers };
 });

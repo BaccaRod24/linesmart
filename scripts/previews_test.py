@@ -14,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 import previews as P  # noqa: E402
+import build_data as BD  # noqa: E402
 
 passed = failed = 0
 
@@ -169,6 +170,67 @@ check(len([1 for _, m in sel if m == "index"]) == P.LEAGUES["nba"]["cap"], "per-
 check([g["id"] for g, _ in sel] == sorted([g["id"] for g, _ in sel], key=int), "soonest games kept first")
 check("epl" not in P.LEAGUES and "mls" not in P.LEAGUES, "soccer not included")
 check(P.ref_name("nfl", gb, True) == "The Packers" and P.ref_name("ncaaf", gb) == "Green Bay Packers", "ref_name grammar")
+
+# ---------- team leaders skip Out / Doubtful / IR and badge Questionable
+for s in ("Out", "OUT", "out", "Doubtful", "DOUBTFUL", "IR", "I.R.", "Injured Reserve", "injured-reserve", "60-Day-IL"):
+    check(P.injury_availability(s) == "skip", f"status skipped ({s})")
+for s in ("Questionable", "Day-To-Day", "day to day", "DTD"):
+    check(P.injury_availability(s) == "badge", f"status badged ({s})")
+check(P.injury_availability("") == "ok" and P.injury_availability("Probable") == "ok", "blank and probable are not holds")
+check(P.injury_by_name("Luka Doncic", [{"player": "luka doncic", "status": "Out"}])["status"] == "Out", "leader name match is case-insensitive")
+check(P.injury_by_name("Luka Doncic", [{"player": "Luka Doncic Jr", "status": "Out"}]) is None, "a different name does not match")
+
+lakers_det = {"leaders": [
+    {"teamId": "13", "cat": "Points", "player": "Luka Doncic", "value": "40.1", "pos": "G"},
+    {"teamId": "13", "cat": "Assists", "player": "Luka Doncic", "value": "7.7", "pos": "G"},
+    {"teamId": "13", "cat": "Rebounds", "player": "Walker Kessler", "value": "10.4", "pos": "C"},
+    {"teamId": "1", "cat": "Points", "player": "Nickeil Alexander-Walker", "value": "22.1", "pos": "G"},
+    {"teamId": "1", "cat": "Assists", "player": "Jalen Johnson", "value": "7.6", "pos": "F"},
+    {"teamId": "1", "cat": "Rebounds", "player": "Jalen Johnson", "value": "8.8", "pos": "F"},
+], "injuries": {
+    "13": [{"player": "Quentin Grimes", "pos": "G", "status": "Day-To-Day"}, {"player": "Luka Doncic", "pos": "G", "status": "Out"}],
+    "1": [{"player": "Asa Newell", "pos": "F", "status": "Out"}],
+}}
+card = P.leaders_card(lakers_det)
+check("Luka Doncic" not in card and "Walker Kessler" in card and "Nickeil Alexander-Walker" in card, "Out leader dropped, healthy leaders kept")
+check("Quentin Grimes" not in card, "a day-to-day player who is not a leader does not fill a Team leaders row")
+check("Jalen Johnson" in card and card.count("Jalen Johnson") == 2, "a healthy player can still lead two categories")
+check("Out, Doubtful and injured-reserve" in card, "leaders card says why a name is missing")
+
+backfill = P.leader_rows({"leaders": [
+    {"teamId": "8", "cat": "Points", "player": "Doubt Guy", "value": "22", "pos": "F"},
+    {"teamId": "8", "cat": "Points", "player": "Next Points", "value": "18", "pos": "G"},
+    {"teamId": "8", "cat": "Assists", "player": "Playmaker", "value": "8", "pos": "G"},
+], "injuries": {"8": [{"player": "Doubt Guy", "status": "Doubtful"}]}})
+check([r["player"] for r in backfill] == ["Next Points", "Playmaker"], f"Doubtful skipped and the next leader fills the category ({[r['player'] for r in backfill]})")
+
+ir_rows = P.leader_rows({"leaders": [
+    {"teamId": "4", "cat": "Receiving Yards", "player": "IR Guy", "value": "80", "pos": "WR"},
+    {"teamId": "4", "cat": "Receiving Yards", "player": "Next Rec", "value": "60", "pos": "WR"},
+    {"teamId": "4", "cat": "Passing Yards", "player": "Reserve QB", "value": "200", "pos": "QB"},
+], "injuries": {"4": [{"player": "IR Guy", "status": "IR"}, {"player": "Reserve QB", "status": "Injured Reserve"}]}})
+check([r["player"] for r in ir_rows] == ["Next Rec"], f"IR and Injured Reserve skipped ({[r['player'] for r in ir_rows]})")
+check(P.leader_rows({"leaders": [{"teamId": "4", "cat": "Passing Yards", "player": "Dot IR", "value": "1", "pos": "QB"}],
+                    "injuries": {"4": [{"player": "Dot IR", "status": "I.R."}]}}) == [], "I.R. left off rather than shown")
+
+q_rows = P.leader_rows({"leaders": [
+    {"teamId": "12", "cat": "Passing Yards", "player": "Patrick Mahomes", "value": "1,795", "pos": "QB"},
+    {"teamId": "12", "cat": "Rushing Yards", "player": "Kenneth Walker III", "value": "770", "pos": "RB"},
+], "injuries": {"12": [{"player": "Patrick Mahomes", "status": "Questionable"}]}})
+check(q_rows[0]["player"] == "Patrick Mahomes" and q_rows[0]["badge"] == "Questionable" and q_rows[1]["badge"] == "", "Questionable leader kept and badged")
+dtd_leader = P.leader_rows({"leaders": [
+    {"teamId": "13", "cat": "Points", "player": "Stat Leader", "value": "18.2", "pos": "G"},
+], "injuries": {"13": [{"player": "Stat Leader", "status": "Day-To-Day"}, {"player": "Only Listed", "pos": "F", "status": "Day-To-Day"}]}})
+check([r["player"] for r in dtd_leader] == ["Stat Leader"] and dtd_leader[0]["badge"] == "Day-To-Day", "day-to-day badge stays on a leader with a stat line, not an injury-report-only name")
+q_card = P.leaders_card({"leaders": q_rows, "injuries": {"12": [{"player": "Patrick Mahomes", "status": "Questionable"}]}})
+check("Patrick Mahomes" in q_card and 'class="badge q">Questionable' in q_card, "leaders card renders the Questionable badge")
+check(P.leaders_card({"leaders": [{"teamId": "1", "cat": "Points", "player": "Only Out", "value": "9"}],
+                     "injuries": {"1": [{"player": "Only Out", "status": "Out"}]}}) == "", "no healthy leader and no backfill → no card")
+stored = BD.parse_summary({}, {}, {"leaders": [{"team": {"id": "13"}, "leaders": [{"displayName": "Points", "leaders": [
+    {"displayValue": "40.1", "athlete": {"id": "1", "displayName": "Luka Doncic", "position": {"abbreviation": "G"}}},
+    {"displayValue": "28.0", "athlete": {"id": "3", "displayName": "Austin Reaves", "position": {"abbreviation": "G"}}},
+]}]}]})
+check([x["player"] for x in stored["leaders"]] == ["Luka Doncic", "Austin Reaves"], "game summary keeps the next leader in a category, not only the top name")
 
 # ---------- fixture build
 tmp = Path(tempfile.mkdtemp(prefix="pvtest-"))

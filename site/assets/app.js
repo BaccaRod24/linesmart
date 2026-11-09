@@ -1493,12 +1493,13 @@
     return notAvail("Player props", g.state === "pre" ? "Player props aren't available for this game." : "Player props are posted before a game starts. Season leaders are on Matchup.");
   }
   function gameStatsHtml(key, g, d) {
-    const leaders = ((d.detail || {}).leaders) || [];
+    const det = d.detail || {};
+    const leaders = window.MatchCore && window.MatchCore.visibleLeaders ? window.MatchCore.visibleLeaders(det.leaders || [], det.injuries || {}) : (det.leaders || []);
     const H = g.home, A = g.away;
     const rows = t => {
       const xs = leaders.filter(x => String(x.teamId) === String(t.id));
       if (!xs.length) return `<tr><td colspan="3">${NA}</td></tr>`;
-      return xs.map(x => `<tr><td>${esc(x.cat)}</td><td><span data-leader="${esc(x.player)}">${esc(x.player)}</span></td><td class="num">${esc(x.value)}</td></tr>`).join("");
+      return xs.map(x => `<tr><td>${esc(x.cat || "")}</td><td><span data-leader="${esc(x.player)}">${esc(x.player)}</span>${x.badge ? ` <span class="badge q">${esc(x.badge)}</span>` : ""}</td><td class="num">${esc(x.value || "")}</td></tr>`).join("");
     };
     const card = t => `<div class="card"><h3>${logo(t)}${esc(t.name)}</h3><table><tbody>${rows(t)}</tbody></table></div>`;
     const body = leaders.length ? `<div class="cols">${card(A)}${card(H)}</div>` : notAvail("Season leaders", "Not available");

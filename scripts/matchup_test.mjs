@@ -102,6 +102,87 @@ check(M.tier(1, 32) === "tough" && M.tier(11, 32) === "tough" && M.tier(12, 32) 
 check(String(M.leaderKey("nfl", "Receiving Yards", "TE")) === "TE,recy" && String(M.leaderKey("nfl", "Passing Yards")) === "QB,py" && M.leaderKey("nfl", "Sacks") === null, "game-page leader → defense stat (NFL)", "def");
 check(String(M.leaderKey("nba", "Points", "C")) === "C,pts" && M.leaderKey("nba", "Points", null) === null, "game-page leader → defense stat (NBA)", "def");
 
+// ---------- key matchups skip unavailable leaders and backfill
+const avail = s => M.injuryAvailability(s);
+for (const s of ["Out", "OUT", "out", "Out for season"]) check(avail(s) === "skip", `Out variant skipped (${s})`, "inj");
+for (const s of ["Doubtful", "DOUBTFUL", "doubtful"]) check(avail(s) === "skip", `Doubtful skipped (${s})`, "inj");
+for (const s of ["IR", "ir", "I.R.", "i.r", "Injured Reserve", "injured-reserve", "INJURED RESERVE", "60-Day-IL", "10-Day IL"]) check(avail(s) === "skip", `IR/IL variant skipped (${s})`, "inj");
+for (const s of ["Questionable", "questionable", "Day-To-Day", "day to day", "DTD"]) check(avail(s) === "badge", `kept with a badge (${s})`, "inj");
+check(avail("") === "ok" && avail("Probable") === "ok" && avail(null) === "ok", "blank and probable are not holds", "inj");
+check(M.injuryByName("Luka Doncic", [{ player: "luka doncic", status: "Out" }])?.status === "Out", "injury name match is case-insensitive, like the player page", "inj");
+check(M.injuryByName("Luka Doncic", [{ player: "Luka Doncic Jr", status: "Out" }]) == null, "a different name does not match", "inj");
+
+const lakerInj = {
+  "13": [
+    { player: "Quentin Grimes", pos: "G", status: "Day-To-Day", type: "Finger" },
+    { player: "Luka Doncic", pos: "G", status: "Out", type: "Back", detail: "Soreness" },
+  ],
+};
+const lakerLeaders = [
+  { teamId: "13", cat: "Points", player: "Luka Doncic", value: "40.1", id: "3945274", pos: "G" },
+  { teamId: "13", cat: "Assists", player: "Luka Doncic", value: "7.7", id: "3945274", pos: "G" },
+  { teamId: "13", cat: "Rebounds", player: "Walker Kessler", value: "10.4", id: "4433136", pos: "C" },
+];
+const lakers = M.pickKeyPlayers("nba", lakerLeaders, lakerInj, "13");
+check(lakers.map(p => p.name).join("|") === "Walker Kessler", `Out leader skipped; injury-report names are not used (${lakers.map(p => p.name).join("|")})`, "inj");
+check(!lakers.some(p => /luka|grimes/i.test(p.name)), "Luka and a day-to-day player who is not a leader are both left off", "inj");
+check(lakers.length === 1 && lakers[0].badge === "", "show fewer names when no other leader has a stat line", "inj");
+
+const catBackfill = M.pickKeyPlayers("nba", [
+  { teamId: "13", cat: "Points", player: "Luka Doncic", value: "40.1", id: "1", pos: "G" },
+  { teamId: "13", cat: "Points", player: "Austin Reaves", value: "28.0", id: "3", pos: "G" },
+  { teamId: "13", cat: "Assists", player: "Austin Reaves", value: "8.0", id: "3", pos: "G" },
+  { teamId: "13", cat: "Rebounds", player: "Walker Kessler", value: "10.4", id: "2", pos: "C" },
+], { "13": [{ player: "Luka Doncic", status: "Out" }] }, "13");
+check(catBackfill.map(p => p.name).join("|") === "Austin Reaves|Walker Kessler", `next leader in the category fills the Out slot (${catBackfill.map(p => p.name).join("|")})`, "inj");
+const fromOther = M.pickKeyPlayers("nba", [
+  { teamId: "2", cat: "Points", player: "Out Star", value: "30", id: "p", pos: "G" },
+  { teamId: "2", cat: "Rebounds", player: "Other Leader", value: "9", id: "a", pos: "F" },
+], { "2": [{ player: "Out Star", status: "Out" }, { player: "Day To Day Guy", status: "Day-To-Day", pos: "G" }] }, "2");
+check(fromOther.map(p => p.name).join("|") === "Other Leader", "an Out category is filled from another category's leader, not the injury report", "inj");
+const dtdLeader = M.pickKeyPlayers("nba", [
+  { teamId: "2", cat: "Points", player: "Stat Leader", value: "18.2", id: "s", pos: "G" },
+], { "2": [{ player: "Stat Leader", status: "Day-To-Day" }, { player: "Only Listed", status: "Day-To-Day", pos: "F" }] }, "2");
+check(dtdLeader.length === 1 && dtdLeader[0].name === "Stat Leader" && dtdLeader[0].badge === "Day-To-Day", "a day-to-day badge stays on a leader who has the stat line", "inj");
+
+const doubtful = M.pickKeyPlayers("nba", [
+  { teamId: "8", cat: "Points", player: "Doubt Guy", value: "22", id: "d", pos: "F" },
+  { teamId: "8", cat: "Points", player: "Next Points", value: "18", id: "n", pos: "G" },
+  { teamId: "8", cat: "Assists", player: "Playmaker", value: "8", id: "p", pos: "G" },
+  { teamId: "8", cat: "Rebounds", player: "Board Man", value: "9", id: "b", pos: "C" },
+], { "8": [{ player: "doubt guy", status: "Doubtful" }] }, "8");
+check(doubtful.map(p => p.name).join("|") === "Next Points|Playmaker|Board Man" && !doubtful.some(p => /doubt/i.test(p.name)), "Doubtful skipped, next leader used", "inj");
+
+const ir = M.pickKeyPlayers("nfl", [
+  { teamId: "4", cat: "Receiving Yards", player: "IR Guy", value: "80", id: "i", pos: "WR" },
+  { teamId: "4", cat: "Receiving Yards", player: "Next Rec", value: "60", id: "n2", pos: "WR" },
+  { teamId: "4", cat: "Passing Yards", player: "Reserve QB", value: "200", id: "q", pos: "QB" },
+  { teamId: "4", cat: "Rushing Yards", player: "Healthy RB", value: "90", id: "r", pos: "RB" },
+], { "4": [{ player: "IR Guy", status: "IR" }, { player: "Reserve QB", status: "Injured Reserve" }] }, "4");
+check(ir.map(p => p.name).join("|") === "Next Rec|Healthy RB", `IR and Injured Reserve skipped (${ir.map(p => p.name).join("|")})`, "inj");
+check(M.pickKeyPlayers("nfl", [
+  { teamId: "4", cat: "Passing Yards", player: "Dot IR", value: "10", id: "z", pos: "QB" },
+], { "4": [{ player: "Dot IR", status: "I.R." }] }, "4").length === 0, "I.R. variant skipped and nobody is invented", "inj");
+
+const qGame = M.pickKeyPlayers("nfl", [
+  { teamId: "12", cat: "Passing Yards", player: "Patrick Mahomes", value: "1795", id: "3139477", pos: "QB" },
+  { teamId: "12", cat: "Rushing Yards", player: "Kenneth Walker III", value: "770", id: "4567048", pos: "RB" },
+  { teamId: "12", cat: "Receiving Yards", player: "Travis Kelce", value: "410", id: "15847", pos: "TE" },
+  { teamId: "12", cat: "Sacks", player: "George Karlaftis", value: "2", id: "4426659", pos: "DE" },
+], { "12": [{ player: "Patrick Mahomes", pos: "QB", status: "Questionable" }] }, "12");
+check(qGame.map(p => p.name).join("|") === "Patrick Mahomes|Kenneth Walker III|Travis Kelce", "Questionable leader stays in the three", "inj");
+check(qGame[0].badge === "Questionable" && qGame[0].tone === "q" && qGame[1].badge === "", "Questionable gets the q badge; teammates do not", "inj");
+
+const none = M.pickKeyPlayers("nba", [
+  { teamId: "1", cat: "Points", player: "Only Out", value: "20", id: "o", pos: "G" },
+], { "1": [{ player: "Only Out", status: "Out" }] }, "1");
+check(none.length === 0, "when nobody healthy is left, the side is empty rather than showing the Out player", "inj");
+
+const vis = M.visibleLeaders(lakerLeaders, lakerInj);
+check(vis.map(p => p.name).join("|") === "Walker Kessler" && !vis.some(p => /luka/i.test(p.name)), "season-leader table drops Out rows and does not invent a category", "inj");
+const visQ = M.visibleLeaders([{ teamId: "12", cat: "Passing Yards", player: "Patrick Mahomes", value: "1795", id: "1", pos: "QB" }], { "12": [{ player: "Patrick Mahomes", status: "Questionable" }] });
+check(visQ.length === 1 && visQ[0].badge === "Questionable", "season-leader table badges Questionable", "inj");
+
 // ---------- no betting-encouragement language in the shipped UI copy
 const fs = await import("fs");
 const ui = fs.readFileSync(new URL("../site/assets/matchup.js", import.meta.url), "utf8") + fs.readFileSync(new URL("../site/assets/matchup-core.js", import.meta.url), "utf8");

@@ -36,7 +36,7 @@
   function injuryFor(ctx, det) {
     const { esc } = A();
     const rows = (((det || {}).detail || {}).injuries || {})[ctx.teamId] || [];
-    const me = rows.find(r => r.player && ctx.name && r.player.toLowerCase() === ctx.name.toLowerCase());
+    const me = M.injuryByName(ctx.name, rows);
     if (me) return `<div class="mu-inj"><span class="badge ${/out|reserve/i.test(me.status || "") ? "out" : "q"}">${esc(me.status || "Listed")}</span> ${esc([me.type, me.detail].filter(x => x && !/^not specified$/i.test(x)).join(" · "))} <span class="na">on the injury report</span></div>`;
     if (ctx.status) return `<div class="mu-inj"><span class="badge q">${esc(ctx.status)}</span></div>`;
     return "";
@@ -166,24 +166,32 @@
     const [mu, si] = await Promise.all([settle(getJSON(`data/matchups/${lg}.json`)), settle(app.sidx(lg))]);
     if (!alive()) return;
     const sides = [g.away, g.home];
-    const pick = t => {
-      const out = [], seen = new Set();
-      for (const l of (det.leaders || []).filter(x => String(x.teamId) === String(t.id))) {
-        let id = l.id, pos = l.pos;
-        if ((!id || !pos) && si) { const p = (si.byTeam[t.id] || []).find(p => p.name === l.player); if (p) { id = id || p.id; pos = pos || p.pos; } }
-        if (!id || seen.has(id) || !M.leaderKey(lg, l.cat, M.posBucket(lg, pos))) continue;
-        seen.add(id); out.push({ id, pos: pos || (si && si.byId[id] && si.byId[id].pos) || "", name: l.player, cat: l.cat, value: l.value });
-      }
-      return out.slice(0, 3);
+    const roster = (teamId, name) => {
+      if (!si || !si.byTeam || !name) return null;
+      const pool = si.byTeam[teamId] || si.byTeam[String(teamId)] || [];
+      return pool.find(p => p.name === name) || pool.find(p => p.name && p.name.toLowerCase() === String(name).toLowerCase()) || null;
     };
+    const leaders = (det.leaders || []).map(l => {
+      let id = l.id, pos = l.pos;
+      if (!id || !pos) { const p = roster(l.teamId, l.player); if (p) { id = id || p.id; pos = pos || p.pos; } }
+      return { ...l, id: id || "", pos: pos || "" };
+    });
+    const pick = t => M.pickKeyPlayers(lg, leaders, det.injuries || {}, t.id, { limit: 3 }).map(p => {
+      let id = p.id, pos = p.pos;
+      if (!id || !pos) { const hit = roster(t.id, p.name); if (hit) { id = id || hit.id; pos = pos || hit.pos; } }
+      return { ...p, id: id || "", pos: pos || "" };
+    });
     const row = (p, t, opp) => {
       const b = M.posBucket(lg, p.pos), lk = M.leaderKey(lg, p.cat, b);
       const d = lk && mu ? M.oppDefense(mu, opp.id, lk[0]) : null, x = d && d.pos.find(s => s.key === lk[1]);
-      const vs = x ? `<span class="mu-km-d">${esc(opp.abbr)} allows <b class="num">${f1(x.val)}</b> ${esc(x.label.toLowerCase())} to ${esc(BUCKET_NAME[lk[0]] || lk[0])} · <span class="mu-tier ${x.tier || "mid"}">${esc(M.ordinal(x.rank))}</span></span>` : `<span class="mu-km-d na">${esc(p.cat || "")}</span>`;
-      return `<a class="mu-km" href="#/p/${lg}/${esc(p.id)}/m"><span class="mu-km-n"><b>${esc(p.name)}</b> <span class="na">${esc(p.pos)}</span></span><span class="mu-km-go">Matchup ›</span><span class="mu-km-v"><span class="na">${esc(p.cat || "")}:</span> <span class="num">${esc(p.value || "")}</span></span>${vs}</a>`;
+      const vs = x ? `<span class="mu-km-d">${esc(opp.abbr)} allows <b class="num">${f1(x.val)}</b> ${esc(x.label.toLowerCase())} to ${esc(BUCKET_NAME[lk[0]] || lk[0])} · <span class="mu-tier ${x.tier || "mid"}">${esc(M.ordinal(x.rank))}</span></span>` : `<span class="mu-km-d na">${esc(p.cat)}</span>`;
+      const badge = p.badge ? `<span class="badge q">${esc(p.badge)}</span>` : "";
+      const val = `<span class="mu-km-v"><span class="na">${esc(p.cat)}:</span> <span class="num">${esc(p.value || "")}</span></span>`;
+      const inner = `<span class="mu-km-n"><b>${esc(p.name)}</b>${p.pos ? ` <span class="na">${esc(p.pos)}</span>` : ""}${badge}</span>${p.id ? `<span class="mu-km-go">Matchup ›</span>` : `<span class="mu-km-go"></span>`}${val}${vs}`;
+      return p.id ? `<a class="mu-km" href="#/p/${lg}/${esc(p.id)}/m">${inner}</a>` : `<div class="mu-krow">${inner}</div>`;
     };
     const blocks = sides.map((t, i) => { const opp = sides[1 - i], ps = pick(t); return ps.length ? `<div class="card mu-kmc"><h3>${t.logo ? `<img src="${esc(t.logo)}" alt="" onerror="this.remove()">` : ""}${esc(t.name)}</h3>${ps.map(p => row(p, t, opp)).join("")}</div>` : ""; }).join("");
-    el.innerHTML = blocks ? `<div class="section-title">Key player matchups</div><div class="cols">${blocks}</div><div class="note">Season leaders vs the opponent's defense against their position (rank 1 = fewest allowed). Tap a player for form, history vs this opponent and hit rates.</div>` : (app.notAvail ? app.notAvail("Key player matchups", "Not available") : `<div class="card na-card"><h3>Key player matchups</h3><div class="na">Not available</div></div>`);
+    el.innerHTML = blocks ? `<div class="section-title">Key player matchups</div><div class="cols">${blocks}</div><div class="note">Season leaders vs the opponent's defense against their position (rank 1 = fewest allowed). Out, Doubtful and injured-reserve players are left off; Questionable and day-to-day players stay, with a badge. Tap a player for form, history vs this opponent and hit rates.</div>` : (app.notAvail ? app.notAvail("Key player matchups", "Not available") : `<div class="card na-card"><h3>Key player matchups</h3><div class="na">Not available</div></div>`);
   }
 
   window.LSMatchup = { mount, keyMatchups, SUPPORTED };

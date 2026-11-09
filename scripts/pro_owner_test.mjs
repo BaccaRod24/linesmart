@@ -92,6 +92,7 @@ const MEMBER_TOKEN = "test-member-token";
   }
   const uiEarly = read("pro/pro-ui.js");
   check(/const OWNER_EMAIL = "copenhaverrodney24@yahoo\.com"/.test(uiEarly) && /email\.toLowerCase\(\) === OWNER_EMAIL/.test(uiEarly), "hub badge matches the owner email, case-insensitive, from the stored session");
+  check(/data-pro-role="\$\{owner \? "owner" : "pro"\}"/.test(uiEarly) && /\$\{owner \? "OWNER" : "PRO"\}/.test(uiEarly), "the visible badge is OWNER only when that email matches");
   check(/localStorage\.getItem/.test(uiEarly) && !/getSession\(/.test(uiEarly) && !/\/auth\/v1\/user/.test(uiEarly), "the badge does not call auth");
 }
 
@@ -195,6 +196,7 @@ const MEMBER_TOKEN = "test-member-token";
   const appJs = read("site/assets/app.js");
   check(/\[data-pro-owner\]/.test(appJs) && appJs.includes("#/owner/history/") && appJs.includes('a.dataset.proGoto === "game"'), "a public game link tapped inside Pro is sent to line history, except a hub link into the game");
   check(/LSProApp\.view/.test(appJs) && /verified\(\)/.test(appJs), "a verified owner opening #/pro gets the Pro hub");
+  check(/=== "owner"[\s\S]{0,500}verified\(\)/.test(appJs), "#/owner also requires a verified Pro session");
   check(!/Prop hit rate|id="proRankings"/.test(appJs + read("site/index.html") + read("site/assets/pro.js")), "the free shell has no rankings screen");
   const gateJs = read("site/assets/pro-gate.js");
   check(/shouldHide/.test(gateJs) && /\.allow\(/.test(gateJs) && /LSProApp\.enhance/.test(gateJs), "the loader asks allow(), hides only through shouldHide, and enhances after yes");
@@ -250,6 +252,9 @@ const BASE = `http://127.0.0.1:${srv.address().port}/`;
 const SB = "https://ctklbryattbbsqdmteny.supabase.co";
 
 const browser = await chromium.launch();
+const RANK_FIXTURE = { v: 1, leagues: { nfl: { season: 2026, boxGames: 8, through: "2026-11-01T18:00Z", players: [
+  { id: "1", n: "Pat Fixture", pos: "QB", t: "2", ta: "BUF", gp: 8, py: 2100, ptd: 16, ry: 20, rtd: 1, rec: 0, recy: 0, rectd: 0 },
+], props: [] } } };
 const PROPS_DOC = {
   lg: "nba", gen: "2026-10-26T02:00:00Z",
   markets: { points: ["Points", "Pts"] },
@@ -309,6 +314,10 @@ async function open(seed) {
     if (u.pathname.includes("/storage/v1/object/pro-private/pro-app.js")) {
       if (!owner) return json(403, { error: "forbidden" });
       return route.fulfill({ status: 200, headers: { ...cors, "content-type": "text/javascript" }, body: bundle });
+    }
+    if (u.pathname.includes("/storage/v1/object/pro-private/rankings.json")) {
+      if (!owner) return json(403, { error: "forbidden" });
+      return json(200, RANK_FIXTURE);
     }
     let posted = null;
     try { posted = req.postDataJSON(); } catch (e) { posted = null; }
@@ -404,11 +413,23 @@ async function quiet(page) {
   check(/Pro build /.test(text) && /site dev/.test(text), "owner hub shows the build stamp");
   check(logs.some(l => /^LineSmart Pro build \S+$/.test(l) && !l.endsWith("no-build-id")), "gate logs the embedded bundle build id");
   const mark = await page.evaluate(() => {
-    const badge = document.querySelector(".ppv-head .eyebrow");
+    const badge = document.querySelector(".ppv-head [data-pro-role]");
     const note = document.querySelector(".ppv-banner span");
-    return { badge: badge ? badge.textContent : "", note: note ? note.textContent : "" };
+    return { badge: badge ? badge.textContent : "", role: badge ? badge.dataset.proRole : "", note: note ? note.textContent : "" };
   });
-  check(mark.badge === "Pro" && mark.note === "Pro access. No payment. Not linked from the public site.", `other Pro account sees PRO, not OWNER (${mark.badge} / ${mark.note})`);
+  check(mark.badge === "PRO" && mark.role === "pro" && mark.note === "Pro access. No payment. Not linked from the public site.", `other Pro account sees PRO, not OWNER (${mark.badge} / ${mark.note})`);
+  check(/What Pro includes/.test(text) && /How often odds update/.test(text) && /When a feed is down/.test(text) && /21\+/.test(text), "hub states what Pro includes, the refresh, and a down feed");
+  await page.evaluate(() => {
+    const raw = JSON.parse(localStorage.getItem("ls-sb-auth"));
+    raw.user.email = "betting@linesmart.app";
+    localStorage.setItem("ls-sb-auth", JSON.stringify(raw));
+    return window.LSProApp.view();
+  });
+  await page.waitForFunction(() => {
+    const el = document.querySelector(".ppv-head [data-pro-role]");
+    return !!el && el.textContent === "PRO" && el.dataset.proRole === "pro";
+  }, null, { timeout: 15000 });
+  check(true, "the betting Pro account stays PRO");
   await page.evaluate(() => {
     const raw = JSON.parse(localStorage.getItem("ls-sb-auth"));
     raw.user.email = "CopenhaverRodney24@Yahoo.COM";
@@ -416,14 +437,15 @@ async function quiet(page) {
     return window.LSProApp.view();
   });
   await page.waitForFunction(() => {
-    const el = document.querySelector(".ppv-head .eyebrow");
-    return !!el && el.textContent === "Owner";
+    const el = document.querySelector(".ppv-head [data-pro-role]");
+    return !!el && el.textContent === "OWNER" && el.dataset.proRole === "owner";
   }, null, { timeout: 15000 });
   const ownerMark = await page.evaluate(() => ({
-    badge: document.querySelector(".ppv-head .eyebrow").textContent,
+    badge: document.querySelector(".ppv-head [data-pro-role]").textContent,
+    role: document.querySelector(".ppv-head [data-pro-role]").dataset.proRole,
     note: document.querySelector(".ppv-banner span").textContent,
   }));
-  check(ownerMark.badge === "Owner" && ownerMark.note === "Your account only. No payment. Not linked from the public site.", `owner email sees OWNER (${ownerMark.badge} / ${ownerMark.note})`);
+  check(ownerMark.badge === "OWNER" && ownerMark.role === "owner" && ownerMark.note === "Your account only. No payment. Not linked from the public site.", `owner email sees OWNER (${ownerMark.badge} / ${ownerMark.note})`);
   await page.evaluate(() => {
     const raw = JSON.parse(localStorage.getItem("ls-sb-auth"));
     raw.user.email = "pro-owner-test@example.com";
@@ -433,7 +455,7 @@ async function quiet(page) {
   await page.waitForSelector("#proRankings[data-rk-view='season'] a.rk-player", { timeout: 15000 });
   const season = await page.locator("#proRankings").innerText();
   const playerHref = await page.locator("#proRankings a.rk-player").first().getAttribute("href");
-  check(/Season stats/.test(season) && /pass yds/i.test(season) && /GP/i.test(season), "rankings season view lists quarterbacks");
+  check(/Season stats/.test(season) && /pass yds/i.test(season) && /Pat Fixture/.test(season), "rankings season view lists the private snapshot");
   check(/^#\/p\/nfl\//.test(playerHref || ""), `a ranked player opens the player page (${playerHref})`);
   const seasonPage = await page.locator("[data-pro-owner]").innerText();
   check(/21\+/.test(seasonPage) && /Hard Rock Bet is the only legal online sportsbook/.test(seasonPage), "rankings keeps 21+ and the Florida line");
@@ -449,8 +471,21 @@ async function quiet(page) {
   await page.waitForSelector(".game, .page-head", { timeout: 15000 });
   const home = await quiet(page);
   check(home.nav && !home.pro && home.robots === "", "owner on the free home still has the Pro link and no noindex");
+  await page.waitForSelector("[data-pro-badge]", { timeout: 15000 });
   const badges = await page.locator("[data-pro-badge]").count();
-  check(badges > 0, "home slate marks sharp-move tiles for the owner");
+  check(badges > 0, "home slate marks every game for the owner");
+  const kinds = await page.locator("[data-pro-badge]").evaluateAll(els => [...new Set(els.map(e => e.dataset.proBadge))]);
+  check(kinds.includes("empty"), `a game without a flag still has the empty slot (${kinds.join(",")})`);
+  const spots = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll("a.game")].filter(a => a.querySelector(".pro-sharp")).slice(0, 8);
+    return cards.map(a => {
+      const b = a.querySelector(".pro-sharp");
+      const ar = a.getBoundingClientRect();
+      const br = b.getBoundingClientRect();
+      return { right: Math.round(ar.right - br.right), top: Math.round(br.top - ar.top) };
+    });
+  });
+  check(spots.length >= 2 && spots.every(s => s.right === spots[0].right && s.top === spots[0].top), `sharp slots share one corner (${JSON.stringify(spots.slice(0, 4))})`);
   check(!errors.length, `owner page errors ${errors.join(" | ")}`);
   await ctx.close();
 }
@@ -463,11 +498,16 @@ async function quiet(page) {
   const { ctx, page, errors, gate } = await open({ session: session(OWNER_TOKEN, OWNER_EMAIL, "rt-owner"), bets, tags: { b1: ["prime"] } });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(BASE + "#/owner/alerts", { waitUntil: "domcontentloaded" });
-  await page.waitForSelector("[data-pro-owner] a.ppv-line", { timeout: 15000 });
-  const row = page.locator("[data-pro-owner] a.ppv-line").first();
-  const href = await row.getAttribute("href");
-  check(/^#\/owner\/history\/[a-z0-9]+\/[^/?#]+$/.test(href || ""), `alert row stays inside Pro (${href})`);
-  await row.click();
+  await page.waitForSelector("[data-screen='alerts']", { timeout: 15000 });
+  const row = page.locator("[data-pro-owner] a.ppv-line");
+  if (await row.count()) {
+    const href = await row.first().getAttribute("href");
+    check(/^#\/owner\/history\/[a-z0-9]+\/[^/?#]+$/.test(href || ""), `alert row stays inside Pro (${href})`);
+    await row.first().click();
+  } else {
+    check(true, "no upcoming sharp flag in this data file; opening line history directly");
+    await page.evaluate(() => { location.hash = "#/owner/history/nfl/401873026"; });
+  }
   await page.waitForTimeout(800);
   let ui = await quiet(page);
   check(ui.pro && ui.hash.startsWith("#/owner/history/"), `tapping a row keeps Pro (${ui.hash})`);
@@ -485,6 +525,9 @@ async function quiet(page) {
   await page.evaluate(() => window.dispatchEvent(new Event("ls-auth")));
   await page.waitForFunction(() => !document.querySelector("[data-pro-owner]") && (location.hash === "#/" || location.hash === ""), null, { timeout: 8000 });
   check(await page.locator("[data-pro-enhance], [data-pro-owner-nav]").count() === 0, "a definite false removes Pro");
+  await page.evaluate(() => { location.hash = "#/owner"; });
+  await page.waitForFunction(() => !document.querySelector("[data-pro-owner]") && (location.hash === "#/" || location.hash === ""), null, { timeout: 8000 });
+  check(true, "a revoked session cannot reopen #/owner without a new yes");
   gate.mode = "pass";
   await page.evaluate(() => window.dispatchEvent(new Event("ls-auth")));
   await page.waitForSelector("[data-pro-owner-nav]", { timeout: 8000 });

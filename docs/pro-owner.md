@@ -37,10 +37,12 @@ logs the same build id.
 After any change under `pro/`, pack again and replace that object. Do not upload the bundle from CI.
 
 Season rankings read `rankings.json` in the same private bucket, with the same signed-in request
-as the bundle. The 30-minute refresh writes that file outside `site/` and uploads it only when
-the Actions secret `SUPABASE_SERVICE_ROLE` is set. That secret is not in CI today. Until it is
-added in the repo settings (Supabase service role, never committed), the upload skips and the
-page keeps the snapshot packed into the bundle. The file is not published on GitHub Pages.
+as the bundle. The 30-minute refresh writes that file outside `site/` (`_private/rankings.json`,
+gitignored) and uploads it when the Actions secret `SUPABASE_SERVICE_ROLE` is set. The upload
+script skips, and does not fail the deploy, when the secret or the file is missing. The committed
+`pro/rankings-data.js` is an empty shell on purpose: a real player snapshot in that file is
+readable on the public GitHub repo even though GitHub Pages does not serve it. Do not commit
+player rows there. The file is not published on GitHub Pages.
 
 ## 4. Open Pro
 

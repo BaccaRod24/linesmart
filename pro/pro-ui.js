@@ -120,6 +120,10 @@
       return email.toLowerCase() === OWNER_EMAIL;
     } catch (e) { return false; }
   }
+  function roleMark() {
+    const owner = ownerAccount();
+    return `<span class="pro-role pro-pill" data-pro-role="${owner ? "owner" : "pro"}">${owner ? "OWNER" : "PRO"}</span>`;
+  }
   function banner() {
     const note = ownerAccount()
       ? "Your account only. No payment. Not linked from the public site."
@@ -128,7 +132,7 @@
   }
   const labelOf = k => { const row = ((window.ProCore && window.ProCore.FEATURES) || []).find(x => x[0] === k); return row ? row[1] : k; };
   function head(screen, title, sub) {
-    const mark = screen ? `<a class="lnk ppv-back" href="${href()}">Pro</a>` : `<span class="eyebrow">${ownerAccount() ? "Owner" : "Pro"}</span>`;
+    const mark = screen ? `<a class="lnk ppv-back" href="${href()}">Pro</a>` : roleMark();
     return `<div class="page-head ppv-head"><div>${mark}<h1>${esc(title)}</h1><div class="sub">${esc(sub)}</div></div></div>`;
   }
   function fine() {
@@ -225,8 +229,16 @@
     const offers = G() && G().offersHTML ? G().offersHTML("pro") : "";
     return shell("", "LineSmart Pro", "Today's line moves, sharp flags, and My Bets, from the files already on the site.",
       `${flNote()}${dash}<h2 class="ppv-h">${PILL} Tools</h2><div class="ppv-grid">${cards}</div>
+      ${guideSection()}
       <p class="note">Sharp-move flags, line charts, game lines, My Bets, hot props, and rankings use the data files. Nothing here calls the odds provider, takes a payment, or sends email. The public waitlist stays at <a href="#/pro">#/pro</a> for everyone else.</p>
       ${offers}${buildLine()}`);
+  }
+  function guideSection() {
+    const g = F().proGuide();
+    const list = rows => `<ul class="ppv-ul">${rows.map(t => `<li><span>${esc(t)}</span></li>`).join("")}</ul>`;
+    return `<section class="card pro-frame" id="proGuide"><h2 class="ppv-h">${PILL} What Pro includes</h2>${list(g.includes)}
+      <h3 class="ppv-h">How often odds update</h3>${list(g.updates)}
+      <h3 class="ppv-h">When a feed is down</h3>${list(g.down)}</section>`;
   }
 
   function lineRows(lg, g) {
@@ -366,7 +378,7 @@
     return shell("alerts", "Line alerts", labelOf("alerts_25"),
       `${flNote()}<section class="card pro-frame ppv-cap"><div class="ppv-cap-row"><b>${active} of ${cap}</b><span>active alerts for this account · free accounts stay at ${F().ACTIVE_FREE}</span></div>
         <div class="ppv-meter" aria-hidden="true"><i style="width:${Math.min(100, active / cap * 100)}%"></i></div>
-        <p class="note">The server allows ${cap} active alerts on an owner account after the migration. Emails still stop at ${F().EMAIL_FREE} a day. This page does not send email.</p></section>
+        <p class="note">The server allows ${cap} active alerts on a Pro account after the migration. Emails still stop at ${F().EMAIL_FREE} a day. This page does not send email.</p></section>
       ${sharp}${list}`);
   }
 
@@ -732,6 +744,7 @@
   }
 
   async function view() {
+    if (!proOn()) return;
     const app = document.getElementById("app"), api = A();
     if (!app || !api) return;
     if (window.LSLive && window.LSLive.stop) window.LSLive.stop();
@@ -902,10 +915,10 @@
     const idx = await api.getJSON(`data/${ctx.lg}/index.json`).catch(() => null);
     const kind = (idx && idx.league && idx.league.kind) || "";
     const meta = api.meta ? api.meta() : null;
-    const notes = (g.move && g.move.notable) || [];
-    const sharp = notes.length
-      ? panel("Sharp move", `<ul class="ppv-ul">${notes.map(n => `<li><span class="mvbadge">Sharp move</span> <span>${esc(n)}</span></li>`).join("")}</ul><p class="note">Same rule as the slate: a large spread move, a key number crossed, or a total that moved past the sport's bar. A description of the saved line, not a pick.</p>`)
-      : "";
+    const slot = F().sharpSlot(g, kind, ctx.lg);
+    const sharp = slot.show === "sharp"
+      ? panel("Sharp move", `<ul class="ppv-ul">${slot.why.split(" · ").map(n => `<li><span class="mvbadge">Sharp move</span> <span>${esc(n)}</span></li>`).join("")}</ul><p class="note">Same rule as the slate: a large spread move, a key number crossed, or a total that moved past the sport's bar. A description of the saved line, not a pick.</p>`)
+      : panel("Sharp move", `<p class="pro-empty">${esc(slot.why)}</p><p class="note">Same rule as the slate. A description of the saved line, not a pick.</p>`);
     const markets = F().historyMarkets(d.history);
     const spreadName = kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread";
     let charts = "";
@@ -1055,18 +1068,36 @@
     const html = `${clvBlock(clv)}${typeHtml}${tagHtml}${table}<p class="note">Tags stay in this browser. They don't turn Pro on. <span class="of-21">21+</span></p>`;
     place("pro-bets-panel", "bets", panel("My Bets extras", html), anchor);
   }
+  function slateSlot(a) {
+    const href = a.getAttribute("href") || a.dataset.h || "";
+    const m = /#\/g\/([a-z0-9]+)\/([^/?#]+)/.exec(href);
+    const api = A();
+    if (m && api && api.tile) {
+      let id = m[2];
+      try { id = decodeURIComponent(id); } catch (e) { /* keep the raw segment */ }
+      const t = api.tile(m[1], id);
+      if (t && t.g) return F().sharpSlot(t.g, t.kind, m[1]);
+    }
+    const top = a.querySelector(".game-top");
+    const pub = top && top.querySelector(".mvbadge");
+    if (pub) {
+      const why = (pub.getAttribute("title") || "").trim();
+      return { show: "sharp", label: "Sharp", why: why || "Saved line met the sharp-move flag." };
+    }
+    const state = a.querySelector(".status.live") ? "in" : a.querySelector(".status.final") ? "post" : "pre";
+    const odds = a.querySelector(".noline") ? null : {};
+    return F().sharpSlot({ state, odds }, "", "");
+  }
   function enhanceSlate() {
     document.querySelectorAll("a.game").forEach(a => {
       const top = a.querySelector(".game-top");
       if (!top || top.querySelector("[data-pro-badge]")) return;
-      const pub = top.querySelector(".mvbadge");
-      if (!pub) return;
+      const slot = slateSlot(a);
       const s = document.createElement("span");
-      s.className = "pro-sharp pro-frame";
-      s.dataset.proBadge = "1";
-      const why = (pub.getAttribute("title") || "").trim();
-      s.title = why ? "Pro · " + why : "Pro · sharp move";
-      s.innerHTML = `<span class="pro-pill">PRO</span><span class="pro-sharp-txt">Sharp</span>`;
+      s.className = "pro-sharp pro-frame" + (slot.show === "sharp" ? "" : " pro-sharp-empty");
+      s.dataset.proBadge = slot.show;
+      s.title = slot.show === "sharp" ? "Pro · " + slot.why : slot.why;
+      s.innerHTML = `<span class="pro-pill">PRO</span><span class="pro-sharp-txt">${esc(slot.label)}</span><span class="sr-only"> ${esc(slot.why)}</span>`;
       top.appendChild(s);
     });
   }

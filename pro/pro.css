@@ -177,16 +177,11 @@ body.app a.search-btn[data-pro-owner-nav]{display:inline-flex;align-items:center
 .ppv-line.pro-prop b,.ppv-line.pro-prop .vs-lg{color:#f4fff9;-webkit-text-fill-color:#f4fff9;font-weight:750}
 .ppv-line.pro-prop small{color:#e7fff4;-webkit-text-fill-color:#e7fff4}
 .ppv-line.pro-prop .num{color:#c8ffe4;-webkit-text-fill-color:#c8ffe4}
-/* Prop cards a Pro session sees on a game or player page, and the last-5 bubbles inside them.
-   The public homepage hot-props strip is a different card, so these rules do not reach it. */
-.pp-card{position:relative;isolation:isolate;border:1px solid transparent;
-  background:linear-gradient(180deg,rgba(184,255,220,.10),rgba(184,255,220,.02) 55%),color-mix(in srgb,var(--surface) 74%,transparent);
-  -webkit-backdrop-filter:saturate(160%) blur(8px);backdrop-filter:saturate(160%) blur(8px);
-  box-shadow:0 0 0 1px rgba(16,185,129,.7),0 0 14px -3px rgba(16,185,129,.55),inset 0 1px 0 rgba(200,255,228,.42)}
-.pp-card::before{content:"";position:absolute;inset:-1px;z-index:-1;border-radius:inherit;padding:1px;pointer-events:none;
-  background:linear-gradient(135deg,#d4ffe8 0%,#10b981 35%,#065f46 65%,#5eead4 100%);
-  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
-  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+/* Prop cards a Pro session sees on a game, player, or props page. The card itself is the
+   same surface and blue outline as a free card (site/assets/styles.css .pp-card): no emerald
+   tint, ring, glow, or gradient edge. Last-5 bubbles below keep their own edge. The public
+   homepage hot-props strip is a different card, so these rules do not reach it. */
+.pp-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
 /* Last-5 boxes. Hits keep the emerald 1px edge and the 0 0 glow. Misses (under) use a
    rose edge and the same glow shape in rose — never the emerald ring. The edge is the
    border itself, so all four corners share one radius. An earlier ::before sat 1px

@@ -77,6 +77,14 @@ check(/rgba\(255,214,220,\.18\),rgba\(244,63,94,\.14\)/.test(miss), "miss center
 check(!/16,185,129|#10b981|#5eead4|#d4ffe8|#881337/.test(miss), "misses do not keep an emerald edge or a solid rose fill");
 check(/rgba\(244,63,94/.test(missDay) && !/16,185,129/.test(missDay), "daylight misses stay rose");
 check(/backdrop-filter:saturate\(160%\) blur\(4px\)/.test(bubbles), "last-5 bubbles keep a short frosted blur");
+const cardAt = css.indexOf("\n.pp-card{");
+const cardRule = css.slice(cardAt, css.indexOf("}", cardAt));
+check(/background:var\(--surface\)/.test(cardRule) && /border:1px solid var\(--line\)/.test(cardRule) && /border-radius:var\(--r\)/.test(cardRule) && /box-shadow:var\(--shadow\)/.test(cardRule), "the big prop card uses the site surface and blue outline");
+check(!/16,185,129|184,255,220|#10b981|#5eead4|#d4ffe8|0 0 14px|backdrop-filter/.test(cardRule), "the big prop card has no emerald tint, ring, or glow");
+check(!/\.pp-card::before\{/.test(css), "the big prop card draws no gradient edge");
+const playerBlock = css.slice(css.indexOf(".ppv-player{"), css.indexOf("}", css.indexOf(".ppv-player{")));
+check(/border:1px solid var\(--line2\)/.test(playerBlock) && !/16,185,129|184,255,220|#10b981/.test(playerBlock), "the Pro player block outline stays the site line, not emerald");
+check(/\.ppv-players\{[^}]*gap:18px/.test(css) && /\.ppv-player-h\{[^}]*border-bottom:1px solid var\(--line2\)/.test(css), "Pro player blocks keep a header divider and space between players");
 check(!/#22c55e|#34d399/.test(propCss + bubbles), "the Pro prop treatment stays off the win greens");
 check(!/\.hc-prop/.test(css), "the free homepage hot-props strip is not restyled from Pro CSS");
 const freeCss = fs.readFileSync("site/assets/styles.css", "utf8");

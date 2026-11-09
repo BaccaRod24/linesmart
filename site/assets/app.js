@@ -79,6 +79,18 @@
   // keep-last-good fallback (scripts/lastgood.py): the build couldn't reach ESPN for this league, so these games are the
   // last good copy. st = index.stale or game.stale ({asOf, reason}).
   const staleNote = (st, what = "games") => st && st.asOf ? `<div class="stale-note" role="status"><b>Delayed data.</b> The ESPN feed didn't load on the latest refresh, so these ${esc(what)} are from the last good update (${esc(fullET(st.asOf))}). Times, scores and lines may be out of date; they'll update automatically once the feed is back.</div>` : "";
+  // Pull clock, not the build clock. staleAfterMin is max(90, 3x the current odds interval). Off-season leagues are not flagged.
+  const oddsOlderThan = iso => {
+    const mins = ((META && META.freshness) || {}).staleAfterMin || 90;
+    const t = new Date(iso).getTime();
+    return Number.isFinite(t) && (Date.now() - t) > mins * 60000;
+  };
+  const oddsStaleNote = key => {
+    const row = (((META && META.freshness) || {}).leagues || {})[key];
+    if (!row || !row.stale || !row.pulledAt) return "";
+    const every = (META.freshness || {}).gameInterval || 30;
+    return `<div class="stale-note" role="status"><b>Odds are stale.</b> The last Hard Rock Bet, FanDuel and DraftKings pull for this league was ${esc(fullET(row.pulledAt))}. Lines usually refresh about every ${every} min. This is a snapshot, not a live board.</div>`;
+  };
   const addStale = (st, what) => {   // views rendered by other modules (UFC): put the note under the page heading
     const h = staleNote(st, what); if (!h) return;
     const at = app.querySelector(".page-head, .match");
@@ -416,7 +428,7 @@
       <span class="chip"><b>${data.report.upcoming}</b> upcoming</span>
       <span class="chip"><b>${data.report.withOdds}</b> with lines</span>
       <span class="chip">Lines: <b>${esc((data.report.providers || []).join(", ") || "none")}</b></span>
-      <span class="chip">Next ${data.windowDays} days</span></div>${staleNote(data.stale)}`;
+      <span class="chip">Next ${data.windowDays} days</span></div>${staleNote(data.stale)}${oddsStaleNote(key)}`;
     const seg = leagueSeg(key, filter);
     const subLine = filter === "standings" ? "Standings by conference and division" : filter === "top25" ? `AP Top 25 games this week · times in ${TZL}` : `Upcoming games, lines and form · times in ${TZL}`;
     let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(data.league.full)}</h1><div class="sub">${subLine}</div></div>
@@ -922,13 +934,18 @@
     }).join("");
     const sub = bk => {
       const b = B[bk.key], sb = staleB[bk.key];
-      if (b && b.asOf) return `as of ${esc(fullET(b.asOf))}`;
+      if (b && b.asOf) return `${oddsOlderThan(b.asOf) ? "Stale · as of " : "as of "}${esc(fullET(b.asOf))}`;
       if (b) return esc(b.source || "");
       if (sb && sb.stale) return `closed · game started`;
       if (bk.key === "hardrockbet" || bk.key === "fanduel") return HR.asOf ? "not posted at last pull" : "no pull yet";
       return "no data";
     };
-    const head = books.map(bk => `<th${bookAvail(bk.key) ? "" : ' class="na-col"'}>${esc(bk.name)}${naTag(bk.key)}<span class="src">${sub(bk)}</span></th>`).join("");
+    const head = books.map(bk => {
+      const old = B[bk.key] && B[bk.key].asOf && oddsOlderThan(B[bk.key].asOf);
+      return `<th${bookAvail(bk.key) ? "" : ' class="na-col"'}>${esc(bk.name)}${naTag(bk.key)}<span class="src${old ? " src-stale" : ""}">${sub(bk)}</span></th>`;
+    }).join("");
+    const staleBooks = books.filter(bk => B[bk.key] && B[bk.key].asOf && oddsOlderThan(B[bk.key].asOf));
+    const staleBanner = staleBooks.length ? `<div class="stale-note" role="status"><b>Odds are stale.</b> ${staleBooks.map(bk => `${esc(bk.name)} as of ${esc(fullET(B[bk.key].asOf))}`).join("; ")}. These are the last successful pulls, not a live board.</div>` : "";
     const ev = GEO() ? GEO().current() : null, out = ev && ev.state ? books.map(b => b.key).filter(k => !bookAvail(k)) : [];   // only books with a column here (BetMGM has no odds data)
     const outNote = out.length ? ` ${out.map(k => BOOKNAME(k)).join(" and ")} ${out.length > 1 ? "aren't" : "isn't"} available in ${esc(ev.stateName)}; ${out.length > 1 ? "their" : "its"} odds are shown for price comparison only.` : "";
     const nHave = books.filter(bk => B[bk.key]).length;
@@ -947,7 +964,7 @@
       const why = closed ? "Pre-game lines closed when the game started." : HR.asOf ? "No sportsbook posted a line for this game at the last pull." : "No sportsbook lines yet.";
       return `<div class="card"><h3>Odds comparison</h3><div class="note">${why} ${hrNote}</div>${affLine()}</div>`;
     }
-    return `<div class="card"><h3>Odds comparison</h3>${pkCard(g, kind)}<div class="tbl-wrap"><table class="books${lvOn ? " lv-on" : ""}"><thead><tr><th>Market</th>${head}${lvOn ? `<th class="lv-fair">Fair line<span class="src">no-vig consensus</span></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>
+    return `<div class="card"><h3>Odds comparison</h3>${staleBanner}${pkCard(g, kind)}<div class="tbl-wrap"><table class="books${lvOn ? " lv-on" : ""}"><thead><tr><th>Market</th>${head}${lvOn ? `<th class="lv-fair">Fair line<span class="src">no-vig consensus</span></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>
       <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}${hrNote}${missNote} ${dkNote}${outNote}</div>${lvOn ? LV.note : ""}${affLine()}</div>`;
   }
 

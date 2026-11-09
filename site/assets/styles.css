@@ -219,6 +219,7 @@ td.pos{color:var(--pos);font-weight:650}td.neg{color:var(--neg);font-weight:650}
 .books .px{display:inline-block;min-width:84px;padding:6px 10px;border-radius:var(--r-xs);background:color-mix(in srgb,var(--tint) 3.5%,transparent);border:1px solid var(--line);font-weight:650}
 .books td.best .px{background:var(--best);border-color:var(--best-line);color:var(--bestTxt);font-weight:800}
 .books .src{display:block;font-size:10px;color:var(--dim);font-weight:500;letter-spacing:.02em;text-transform:none;margin-top:3px}
+.books .src-stale{color:var(--warn);font-size:12px;font-weight:750;line-height:1.35;letter-spacing:0}
 .note{font-size:12.5px;color:var(--dim);margin-top:12px;line-height:1.55}
 .stale-note{margin:12px 0;padding:10px 14px;border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);border-left:4px solid var(--warn);border-radius:10px;background:color-mix(in srgb,var(--warn) 9%,transparent);font-size:13px;line-height:1.5}
 .stale-note b{color:var(--warn)}
@@ -1135,6 +1136,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
   .books .px{display:inline-flex;flex-direction:column;align-items:center;min-width:58px;padding:5px 6px;font-size:13px;line-height:1.2}
   .books .px .na{font-size:11.5px}
   .books .src{font-size:9px}
+  .books .src-stale{font-size:12px}
 }
 .na-st-card h3{color:var(--mute)}
 .tfoot .bk.bk-na{opacity:.55;font-weight:500}

@@ -93,7 +93,7 @@ jobs:
             git -C _history checkout -q --orphan data-history
             git -C _history rm -rfq --ignore-unmatch .
           fi
-          mkdir -p _history/history _history/odds _history/rosters _history/matchups _history/weather _history/advstats
+          mkdir -p _history/history _history/odds _history/rosters _history/matchups _history/weather _history/advstats _history/health
           ls -la _history/history _history/odds _history/rosters _history/matchups _history/weather _history/advstats
 
       - name: Set up Python
@@ -144,6 +144,8 @@ jobs:
           # advanced stats: nflverse aggregate (refreshed ~daily) + ATS/O-U closing-line store
           ADV_CACHE_DIR: ${{ steps.hist.outcome == 'success' && '_history/advstats' || '' }}
           LINE_SNAP_DIR: .linehist-snap
+          # One JSON file per run on data-history (health/<run id>.json). No extra API calls.
+          RELIABILITY_DIR: ${{ steps.hist.outcome == 'success' && '_history/health' || '' }}
           # Keep-last-good fallback: when ESPN fails for a league (HTTP error, or an empty feed while the deployed copy
           # still had upcoming games), carry over that league's games from the currently deployed site, marked stale.
           # Gives up after LASTGOOD_MAX_H hours or once those games are over. LASTGOOD_SRC="" turns it off.
@@ -179,6 +181,13 @@ jobs:
                   print(f"::warning title=LineSmart fallback ({k})::{v.get('reason')} - showing last good data as of {v.get('asOf')}")
           else:
               print("fallback: none needed this run")
+          fresh = meta.get("freshness") or {}
+          print("freshness:", json.dumps({k: {"stale": v.get("stale"), "ageMin": v.get("ageMin"), "pulledAt": v.get("pulledAt"), "inWindow": v.get("inWindow")} for k, v in (fresh.get("leagues") or {}).items()}))
+          rel = meta.get("reliability") or {}
+          print("reliability:", json.dumps(rel.get("counts")))
+          for key, row in (fresh.get("leagues") or {}).items():
+              if row.get("stale"):
+                  print(f"::warning title=LineSmart stale odds ({key})::in-window pull is {row.get('ageMin')} min old (limit {fresh.get('staleAfterMin')} min), last pull {row.get('pulledAt')}")
           for f in glob.glob("site/data/*/index.json"):
               json.load(open(f))
           PY
@@ -229,7 +238,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           msg="line history snapshot $(date -u +%Y-%m-%dT%H:%MZ) (run ${{ github.run_id }})"
-          git add -A history odds rosters matchups weather advstats $( [ -d pages ] && echo pages )
+          git add -A history odds rosters matchups weather advstats health $( [ -d pages ] && echo pages )
           if git diff --cached --quiet; then echo "No history changes."; exit 0; fi
           git commit -qm "$msg"
           for i in 1 2 3 4 5; do
@@ -247,7 +256,8 @@ jobs:
             if [ -d ../.linehist-snap/_weather ]; then mkdir -p weather && cp -f ../.linehist-snap/_weather/*.json weather/; fi
             if [ -d ../.linehist-snap/_adv ]; then mkdir -p advstats && cp -f ../.linehist-snap/_adv/*.json advstats/; fi
             if [ -d ../.linehist-snap/_pages ]; then mkdir -p pages && cp -f ../.linehist-snap/_pages/*.json pages/; fi
-            git add -A history odds rosters matchups weather advstats $( [ -d pages ] && echo pages )
+            if [ -f ../.linehist-snap/reliability.json ]; then mkdir -p health && cp -f ../.linehist-snap/reliability.json health/reliability.json; fi
+            git add -A history odds rosters matchups weather advstats health $( [ -d pages ] && echo pages )
             if git diff --cached --quiet; then echo "Nothing left to push."; exit 0; fi
             git commit -qm "$msg"
           done
@@ -347,6 +357,7 @@ jobs:
           meta=$(find _proof -name meta.json -type f -print -quit)
           test -n "$meta"
           python3 scripts/verify_live_deploy.py --meta "$meta" --timeout 240
+          python3 scripts/reliability.py --meta "$meta" --fail-if-stale
 
   # Schedule and workflow_dispatch share the current main SHA, so this job creates one new commit
   # (a stamp, not the odds data) and dispatches a run on that commit to deploy the bundle.
@@ -513,7 +524,9 @@ jobs:
         uses: actions/deploy-pages@v5
 
       - name: Prove the live site is serving this build
-        run: python3 scripts/verify_live_deploy.py --meta site/data/meta.json --timeout 240
+        run: |
+          python3 scripts/verify_live_deploy.py --meta site/data/meta.json --timeout 240
+          python3 scripts/reliability.py --meta site/data/meta.json --fail-if-stale
 
   # IndexNow (Bing, Yandex, Seznam...): after a successful deploy of main, POST the new / changed SEO page URLs
   # (sitemap diff against the pre-deploy live sitemap) once, in one batch. The key file is site/<key>.txt.

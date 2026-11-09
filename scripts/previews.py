@@ -440,12 +440,132 @@ def props_card(lg, g, props):
             f'<div class="note">Showing {len(out)} of {len(rows)} prop lines. "Over-under this season" counts how often the player cleared the current line; it describes the past, not what will happen. All props are on the game page.</div></div>'), len(rows)
 
 
+def injury_availability(status):
+    """'skip', 'badge', or 'ok'. Keep in sync with injuryAvailability() in site/assets/matchup-core.js.
+
+    skip: Out, Doubtful, Injured Reserve / IR (any spacing or punctuation) and the injured-list rename (IL, 10/60-day IL).
+    badge: Questionable and Day-To-Day stay on the page with the q badge.
+    ok: not an availability hold.
+    """
+    raw = "" if status is None else str(status).strip()
+    if not raw:
+        return "ok"
+    s = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", raw.lower())).strip()
+    compact = s.replace(" ", "")
+    if re.search(r"(^| )out( |$)", s) or compact == "o":
+        return "skip"
+    if re.search(r"(^| )doubtful( |$)", s):
+        return "skip"
+    if compact in ("ir", "il") or s in ("i r", "i l") or re.search(r"\binjured reserve\b", s) or re.search(r"\binjured list\b", s) or re.search(r"\bir\b", s) or re.search(r"\bil\b", s):
+        return "skip"
+    if re.search(r"\bquestionable\b", s) or re.search(r"\bday to day\b", s) or compact == "dtd" or re.search(r"\bdtd\b", s):
+        return "badge"
+    return "ok"
+
+
+def injury_by_name(name, rows):
+    """Case-insensitive exact match, the same comparison the player page uses."""
+    if not name:
+        return None
+    n = str(name).lower()
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        p = r.get("player")
+        if p and str(p).lower() == n:
+            return r
+    return None
+
+
+def _injury_rows(injuries, team_id):
+    if not injuries:
+        return []
+    if isinstance(injuries, list):
+        return injuries
+    return injuries.get(str(team_id)) or injuries.get(team_id) or []
+
+
+def leader_rows(detail, per_team=3):
+    """Team-leader lines for a static game page.
+
+    One line per category, using the next stored leader when the top name is Out, Doubtful or IR.
+    Questionable and day-to-day names stay and carry a badge. When a side still has fewer than
+    `per_team` distinct names (the usual case: one athlete per category), fill from other
+    categories already kept and from Questionable / day-to-day athletes on that team's injury report.
+    """
+    detail = detail or {}
+    leaders = detail.get("leaders") or []
+    injuries = detail.get("injuries") or {}
+    teams, by = [], {}
+    for x in leaders:
+        if not isinstance(x, dict):
+            continue
+        tid = str(x.get("teamId"))
+        if tid not in by:
+            by[tid] = []
+            teams.append(tid)
+        by[tid].append(x)
+    out = []
+    for tid in teams:
+        rows = _injury_rows(injuries, tid)
+        cats, byc = [], {}
+        for x in by[tid]:
+            c = x.get("cat") or ""
+            if c not in byc:
+                byc[c] = []
+                cats.append(c)
+            byc[c].append(x)
+        chosen, seen = [], set()
+        for c in cats:
+            for x in byc[c]:
+                name = x.get("player") or ""
+                if not name:
+                    continue
+                inj = injury_by_name(name, rows)
+                av = injury_availability((inj or {}).get("status"))
+                if av == "skip":
+                    continue
+                chosen.append({
+                    "teamId": tid, "cat": x.get("cat") or "", "player": name,
+                    "value": "" if x.get("value") is None else x.get("value"),
+                    "pos": x.get("pos") or (inj or {}).get("pos") or "",
+                    "badge": str((inj or {}).get("status") or "") if av == "badge" else "",
+                })
+                seen.add(name.lower())
+                break
+        if len(seen) < per_team:
+            for r in rows:
+                if len(seen) >= per_team:
+                    break
+                if not isinstance(r, dict):
+                    continue
+                name = r.get("player") or ""
+                if not name or name.lower() in seen:
+                    continue
+                if injury_availability(r.get("status")) != "badge":
+                    continue
+                chosen.append({
+                    "teamId": tid, "cat": "", "player": name, "value": "",
+                    "pos": r.get("pos") or "", "badge": str(r.get("status") or ""),
+                })
+                seen.add(name.lower())
+        out.extend(chosen)
+    return out[:8]
+
+
 def leaders_card(detail):
-    L = (detail or {}).get("leaders") or []
-    if not L:
+    rows = leader_rows(detail)
+    if not rows:
         return ""
-    li = "".join(f"<li><span class=\"na\">{esc(x.get('cat'))}</span> <b>{esc(x.get('player'))}</b> {esc(x.get('value'))}</li>" for x in L[:8])
-    return f'<div class="card"><h3>Team leaders</h3><ul class="pv-list">{li}</ul></div>'
+    bits = []
+    for x in rows:
+        badge = f' <span class="badge q">{esc(x.get("badge"))}</span>' if x.get("badge") else ""
+        cat = f'<span class="na">{esc(x.get("cat"))}</span> ' if x.get("cat") else ""
+        val = f' {esc(x.get("value"))}' if x.get("value") not in (None, "") else ""
+        pos = f' <span class="na">{esc(x.get("pos"))}</span>' if (not x.get("cat") and x.get("pos")) else ""
+        bits.append(f"<li>{cat}<b>{esc(x.get('player'))}</b>{pos}{val}{badge}</li>")
+    note = '<div class="note">Out, Doubtful and injured-reserve players are left off. Questionable and day-to-day players stay, marked with a badge.</div>'
+    return f'<div class="card"><h3>Team leaders</h3><ul class="pv-list">{"".join(bits)}</ul>{note}</div>'
 
 
 # ---------------------------------------------------------------- page shell

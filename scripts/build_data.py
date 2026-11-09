@@ -357,10 +357,18 @@ def parse_summary(lg, g, m):
     for blk in m.get("leaders", []) or []:
         tid = (blk.get("team") or {}).get("id")
         for cat in blk.get("leaders", []) or []:
-            top = (cat.get("leaders") or [{}])[0]
-            ath = (top.get("athlete") or {}) if top else {}
-            if top: leaders.append(dict(teamId=tid, cat=cat.get("displayName"), player=ath.get("displayName"), value=top.get("displayValue"),
-                                        id=str(ath["id"]) if ath.get("id") else None, pos=(ath.get("position") or {}).get("abbreviation")))
+            # Keep a few athletes per category, not only the top one, so an Out leader can be
+            # replaced by the next name already in the summary. ESPN usually sends just the leader.
+            kept = 0
+            for top in (cat.get("leaders") or []):
+                if not top:
+                    continue
+                ath = (top.get("athlete") or {}) if isinstance(top, dict) else {}
+                leaders.append(dict(teamId=tid, cat=cat.get("displayName"), player=ath.get("displayName"), value=top.get("displayValue"),
+                                    id=str(ath["id"]) if ath.get("id") else None, pos=(ath.get("position") or {}).get("abbreviation")))
+                kept += 1
+                if kept >= 4:
+                    break
     det["leaders"] = leaders
     return det
 

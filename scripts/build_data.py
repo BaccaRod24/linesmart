@@ -7,8 +7,9 @@ static JSON files to site/data/ that the static front-end reads.
 
 Optional: if the env var ODDS_API_KEY is set (paid 100K plan), also pulls Hard Rock Bet + FanDuel game lines from
 The Odds API (v4) - bookmakers=hardrockbet,fanduel,draftkings is ONE region (up to 10 books = 1 region), so 3 credits per league
-request (h2h,spreads,totals), 0 when no events - every ~30 min, and Hard Rock + FanDuel + DraftKings NFL/NBA player props every ~2 h
-(scripts/odds_props.py). A budget guard (scripts/odds_budget.py) paces spending against an 80K/month budget.
+request (h2h,spreads,totals), 0 when no events - every ~30 min, and Hard Rock + FanDuel + DraftKings NFL/NBA player props
+(scripts/odds_props.py: core markets every ~2 h, the rest every ~6 h, NFL games out to the ESPN window every ~18 h).
+A budget guard (scripts/odds_budget.py) paces spending against an 80K/month budget.
 Every pull is persisted in --odds-cache-dir and merged into every build, so keyless runs keep showing it ("as of" the
 pull time). See docs/odds_api_budget.md for the cadence and credit math.
 
@@ -669,7 +670,7 @@ def odds_plan_run(key, want, cache, pcache, run_t):
                 evs, _ = odds_events(lg, key, now, ODDS_GAME_WINDOW_DAYS * 24)
                 active[lg["key"]] = len(evs or [])
                 if lg["key"] in OP.SUPPORTED:
-                    soon = now + dt.timedelta(hours=OP.WINDOW_H)
+                    soon = now + dt.timedelta(hours=OP.window_hours(lg["key"]))
                     prop_events[lg["key"]] = [e for e in evs or [] if now < dt.datetime.fromisoformat(str(e.get("commence_time")).replace("Z", "+00:00")) <= soon]
             except Exception as ex:
                 active[lg["key"]] = None; ev_err.append(f"{lg['key']}: {scrub(ex, key)[:120]}")   # unknown: assume active
@@ -677,7 +678,7 @@ def odds_plan_run(key, want, cache, pcache, run_t):
             cache["active"] = active   # 7-day event counts; 0 means this league is not an odds outage
     live = [l for l in pl if active.get(l["key"]) != 0]
     games_per_run = sum(l.get("odds_cost", ODDS_COST) for l in live)
-    props_per_run = sum(len(v) * OP.n_markets(k) for k, v in prop_events.items())
+    props_per_run = sum(OP.run_credits(k, v, now) for k, v in prop_events.items())
     budget = OB.plan(rem, used, now, billing_day=ODDS_BILLING_DAY, budget=ODDS_BUDGET, plan_credits=ODDS_PLAN_CREDITS,
                      floor=ODDS_MIN_CREDITS, games_per_run=games_per_run, props_per_run=props_per_run)
     log(f"[odds] credits remaining {rem} (used {used}); budget level {budget['level']}: {budget.get('reason')}; "
@@ -1049,7 +1050,7 @@ def main():
             if not (ODDS_FORCE or OB.due((prev or {}).get("pulledAt"), OP.PROPS_INTERVAL, dt.datetime.now(dt.timezone.utc))):
                 log(f"[{lg['key']}] odds props: not due (last {(prev or {}).get('pulledAt')})"); continue
             if not prop_events.get(lg["key"]):
-                log(f"[{lg['key']}] odds props: no events in the next {OP.WINDOW_H}h"); continue
+                log(f"[{lg['key']}] odds props: no events in the next {OP.window_hours(lg['key'])}h"); continue
             try:
                 idx = json.load(open(os.path.join(OUT, lg["key"], "index.json")))
                 entry, msg = OP.pull_league(lg, prop_events[lg["key"]], idx.get("games") or [], pull, run_t, get, match_event,
@@ -1156,7 +1157,7 @@ def main():
     meta["generated"] = dt.datetime.now(dt.timezone.utc).isoformat()
     lgs = (cache or {}).get("leagues", {})
     q = (cache or {}).get("quota") or {}
-    meta["hardrock"] = dict(book=ODDS_BOOK, books=list(ODDS_BOOKS), schedule="game lines about every 30 min; NFL/NBA props about every 2 h",
+    meta["hardrock"] = dict(book=ODDS_BOOK, books=list(ODDS_BOOKS), schedule="game lines about every 30 min; NFL/NBA core props about every 2 h, other prop markets about every 6 h, early-week NFL about every 18 h",
                             pulledThisRun=bool(pull and pull["pulled"]), asOf=(cache or {}).get("updated"),
                             leagues={k: v.get("pulledAt") for k, v in lgs.items()},
                             props={k: v.get("pulledAt") for k, v in ((pcache or {}).get("leagues") or {}).items()},

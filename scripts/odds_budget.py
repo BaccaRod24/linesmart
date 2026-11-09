@@ -10,7 +10,9 @@ Throttle (decided every run from the free /sports quota headers + free /events c
   days_left   = time until the next reset (min 1 hour)
   allowance   = budget_left / days_left                         credits/day we can afford from now on
   need_games  = games_per_run * runs/day at the 30-min cadence  (games_per_run = 3 credits x leagues with events in 7 days)
-  need_props  = props_per_run * props runs/day (every 2 h)      (props_per_run = markets x NFL/NBA events in the next 36 h)
+  need_props  = props_per_run * props runs/day (every 2 h)      (props_per_run = odds_props.run_credits:
+                                                                core markets on events inside 36 h, plus slower
+                                                                groups weighted by how rarely they are fetched)
   level "full"       allowance >= need_games + need_props       game lines every 30 min, props every 2 h
         "no-props"   allowance >= need_games                    step 1: props paused, game lines every 30 min
         "slow-games" otherwise                                  step 2: props paused, game lines every 60/90/120/180/240/360 min

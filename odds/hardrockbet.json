@@ -3,8 +3,8 @@
   "epl": 0,
   "mlb": 0,
   "mls": 0,
-  "nba": 11,
-  "ncaab": 69,
+  "nba": 9,
+  "ncaab": 67,
   "ncaaf": 67,
   "nfl": 13,
   "nhl": 10,
@@ -12,41 +12,6 @@
  },
  "book": "hardrockbet",
  "checks": [
-  {
-   "action": "pull",
-   "due": [
-    "nfl",
-    "nba",
-    "ncaaf",
-    "ncaab",
-    "nhl",
-    "epl",
-    "mls"
-   ],
-   "errors": [],
-   "gameInterval": 30,
-   "level": "full",
-   "props": [],
-   "pulled": [
-    "nfl",
-    "nba",
-    "ncaaf",
-    "ncaab",
-    "nhl",
-    "epl",
-    "mls"
-   ],
-   "remainingAfter": 90205,
-   "remainingBefore": 90226,
-   "skipped": [],
-   "spent": 21,
-   "spentBy": {
-    "games": 21
-   },
-   "t": "2026-11-07T09:15:23Z",
-   "used": 9774,
-   "usedAfter": 9795
-  },
   {
    "action": "pull",
    "due": [],
@@ -5577,6 +5542,23 @@
    },
    "t": "2026-11-10T02:49:06Z",
    "used": 14074,
+   "usedAfter": 14109
+  },
+  {
+   "action": "pull",
+   "due": [],
+   "errors": [],
+   "gameInterval": 30,
+   "level": "full",
+   "props": [],
+   "pulled": [],
+   "remainingAfter": 85891,
+   "remainingBefore": 85891,
+   "skipped": [],
+   "spent": 0,
+   "spentBy": {},
+   "t": "2026-11-10T03:15:22Z",
+   "used": 14109,
    "usedAfter": 14109
   }
  ],
@@ -13997,15 +13979,15 @@
   }
  },
  "quota": {
-  "allowancePerDay": 4132,
+  "allowancePerDay": 4134,
   "cycleEnd": "2026-11-26T00:00:00+00:00",
   "gameInterval": 30,
   "level": "full",
   "props": true,
   "reason": "on pace",
-  "remaining": 85926,
-  "t": "2026-11-10T02:49:06Z",
-  "used": 14074
+  "remaining": 85891,
+  "t": "2026-11-10T03:15:22Z",
+  "used": 14109
  },
  "updated": "2026-11-10T02:49:06Z",
  "usage": {
@@ -14056,8 +14038,8 @@
   "games": 9027,
   "paidRuns": 442,
   "props": 5067,
-  "runs": 658,
-  "t": "2026-11-10T02:49:06Z",
+  "runs": 659,
+  "t": "2026-11-10T03:15:22Z",
   "usedAtLastRun": 14109
  },
  "v": 1

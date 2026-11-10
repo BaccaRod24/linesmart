@@ -1,0 +1,108 @@
+{
+ "v": 1,
+ "runId": "42750790569",
+ "at": "2026-11-10T03:40:05Z",
+ "generated": "2026-11-10T03:40:04.831810+00:00",
+ "checkedAt": "2026-11-10T03:39:16Z",
+ "level": "full",
+ "gameInterval": 30,
+ "staleAfterMin": 90,
+ "notVerified": "Prices are not compared to the sportsbook's own site.",
+ "counts": {
+  "findings": 2,
+  "errors": 0,
+  "warnings": 2,
+  "keptLastGood": 0,
+  "staleLeagues": 0
+ },
+ "leagues": {
+  "nfl": {
+   "pulledAt": "2026-11-10T03:39:16Z",
+   "ageMin": 0,
+   "upcoming": 14,
+   "inWindow": true,
+   "stale": false
+  },
+  "epl": {
+   "pulledAt": "2026-11-08T18:15:21Z",
+   "ageMin": 2004,
+   "upcoming": 0,
+   "inWindow": false,
+   "stale": false
+  },
+  "nba": {
+   "pulledAt": "2026-11-10T03:39:16Z",
+   "ageMin": 0,
+   "upcoming": 68,
+   "inWindow": true,
+   "stale": false
+  },
+  "ncaaf": {
+   "pulledAt": "2026-11-10T03:39:16Z",
+   "ageMin": 0,
+   "upcoming": 72,
+   "inWindow": true,
+   "stale": false
+  },
+  "ncaab": {
+   "pulledAt": "2026-11-10T03:39:16Z",
+   "ageMin": 0,
+   "upcoming": 512,
+   "inWindow": true,
+   "stale": false
+  },
+  "nhl": {
+   "pulledAt": "2026-11-10T03:39:16Z",
+   "ageMin": 0,
+   "upcoming": 61,
+   "inWindow": true,
+   "stale": false
+  },
+  "mlb": {
+   "pulledAt": "2026-10-29T03:15:20Z",
+   "ageMin": 17304,
+   "upcoming": 0,
+   "inWindow": false,
+   "stale": false
+  },
+  "mls": {
+   "pulledAt": "2026-11-08T02:15:22Z",
+   "ageMin": 2964,
+   "upcoming": 0,
+   "inWindow": false,
+   "stale": false
+  },
+  "ucl": {
+   "pulledAt": "2026-11-04T21:45:18Z",
+   "ageMin": 7554,
+   "upcoming": 0,
+   "inWindow": false,
+   "stale": false
+  },
+  "ufc": {
+   "pulledAt": null,
+   "ageMin": null,
+   "upcoming": 40,
+   "inWindow": null,
+   "stale": false
+  }
+ },
+ "findings": [
+  {
+   "level": "warn",
+   "code": "invalid_odds",
+   "game": "401920718",
+   "book": "fanduel",
+   "detail": "homeML=-100000",
+   "league": "ncaab"
+  },
+  {
+   "level": "warn",
+   "code": "invalid_odds",
+   "game": "401921740",
+   "book": "fanduel",
+   "detail": "homeML=-30000",
+   "league": "ncaab"
+  }
+ ]
+}

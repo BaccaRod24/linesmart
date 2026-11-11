@@ -144,6 +144,15 @@
     return ok(box.away) || ok(box.home);
   }
 
+  /** Game JSON exists only for ids in the league index `games` list. Week-only rows and old links do not have a file. */
+  function hasFile(index, id) {
+    const want = String(id == null ? "" : id);
+    if (!want) return false;
+    const games = index && index.games;
+    if (!Array.isArray(games)) return false;
+    return games.some(g => g && String(g.id) === want);
+  }
+
   function periodLabel(kind, i, reg) {
     if (i < reg || kind === "baseball") return String(i + 1);
     if (kind === "soccer") return i === 2 ? "ET" : "PK";
@@ -175,5 +184,5 @@
     return `<div class="bx" data-box="1">${lineScore ? `<div class="card bx-lines-card">${lineScore}</div>` : ""}${teamTable ? `<div class="card bx-team-card">${teamTable}</div>` : ""}<div class="card bx-players-card">${toggle}${pa}${ph}</div><div class="note">Final stats from ESPN. Swipe a table sideways for the rest of the columns. The player name stays put.</div></div>`;
   }
 
-  return { compact, hasBox, html, esc };
+  return { compact, hasBox, hasFile, html, esc };
 });

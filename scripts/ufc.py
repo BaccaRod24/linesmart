@@ -183,6 +183,69 @@ def event_summary(ev, bouts):
                 bouts=[g["id"] for g in sorted(bouts, key=lambda g: (SEG_ORDER.get(g["segment"], 9), g.get("matchNo") or 99))],
                 mainEvent=main["id"] if main else None, withOdds=sum(1 for g in bouts if g.get("odds")))
 
+def methods_from_cache(cache):
+    """Every cached bout status that names a finish. Used to fill archived results that kept the round but not the method."""
+    out = {}
+    for cid, v in (cache.get("fights") or {}).items():
+        if not isinstance(v, dict):
+            continue
+        st = v.get("s") or {}
+        r = st.get("result") or {}
+        method = r.get("displayName") or r.get("shortDisplayName")
+        if not method:
+            continue
+        detail = r.get("description") or r.get("displayDescription")
+        if detail and str(detail).lower() == str(method).lower():
+            detail = None
+        out[str(cid)] = {"method": method, "detail": detail, "round": st.get("period"), "clock": st.get("displayClock")}
+    return out
+
+
+def backfill_missing_methods(getj, cache, log=print):
+    """ESPN status for archived bouts that have no finish method yet. No Odds API. Skipped when the pages archive is absent."""
+    path = os.environ.get("UFC_PAGES_ARCHIVE") or os.path.join("_history", "pages", "games-ufc.json")
+    if not os.path.isfile(path):
+        return 0
+    try:
+        with open(path) as fh:
+            games = json.load(fh)
+    except (OSError, ValueError):
+        return 0
+    need = []
+    for gid, g in (games or {}).items():
+        if not isinstance(g, dict) or g.get("state") != "post":
+            continue
+        if str((g.get("result") or {}).get("method") or "").strip():
+            continue
+        if str(gid) in (cache.get("fights") or {}):
+            continue
+        ev = ((g.get("event") or {}).get("id"))
+        if ev:
+            need.append((str(gid), str(ev)))
+    if not need:
+        return 0
+
+    def one(item):
+        cid, eid = item
+        try:
+            st = getj(f"{CORE_EV}/{eid}/competitions/{cid}/status?{Q}")
+        except Exception:
+            return cid, None
+        if not ((st or {}).get("type") or {}).get("completed"):
+            return cid, None
+        return cid, {"s": {k: st.get(k) for k in ("period", "displayClock", "type", "result")}, "c": {"id": cid}}
+
+    n = 0
+    with cf.ThreadPoolExecutor(8) as ex:
+        for cid, v in ex.map(one, need):
+            if v and ((v["s"].get("result") or {}).get("displayName") or (v["s"].get("result") or {}).get("shortDisplayName")):
+                cache.setdefault("fights", {})[cid] = v
+                n += 1
+    if n:
+        log(f"[ufc] filled finish methods for {n} archived bouts")
+    return n
+
+
 def form_entry(fid, comp, status, names):
     """core competition (+status) -> one fight in a fighter's history, from that fighter's point of view."""
     cs = comp.get("competitors") or []
@@ -364,6 +427,12 @@ def build_ufc(lg, getj, out_dir, search_dir, LH, pull=None, odds_pull=None, odds
         report["endpoints"]["fighterForm"] = f"{len(form)} fighters, {calls['n']} calls, {calls['err']} errors, {len(cache['fights'])} fights cached"
     except Exception as e:
         form = {}; report["endpoints"]["fighterForm"] = f"failed: {str(e)[:100]}"
+    try:
+        nfill = backfill_missing_methods(getj, cache, log)
+        if nfill:
+            report["endpoints"]["methodBackfill"] = nfill
+    except Exception as e:
+        log(f"[ufc] finish-method backfill skipped: {str(e)[:100]}")
     if cache_dir:
         try: _cache_save(cache_dir, cache)
         except OSError as e: log(f"[ufc] fight cache not saved: {e}")
@@ -392,6 +461,13 @@ def build_ufc(lg, getj, out_dir, search_dir, LH, pull=None, odds_pull=None, odds
                            history=hist["games"].get(g["id"])), fh, separators=(",", ":"))
     with open(os.path.join(ldir, "fighters.json"), "w") as fh:
         json.dump(dict(generated=now.isoformat(), formDays=FORM_DAYS, fighters=fighters), fh, separators=(",", ":"))
+    methods = methods_from_cache(cache)
+    for rows in form.values():
+        for h in rows or []:
+            if h.get("id") and h.get("method"):
+                methods.setdefault(str(h["id"]), {"method": h.get("method"), "detail": h.get("detail"), "round": h.get("round"), "clock": h.get("clock")})
+    with open(os.path.join(ldir, "fight-methods.json"), "w") as fh:
+        json.dump(dict(generated=now.isoformat(), bouts=methods), fh, separators=(",", ":"))
     upcoming = sum(1 for g in games if g["state"] == "pre"); with_odds = sum(1 for g in games if g.get("odds"))
     providers = sorted({g["odds"]["provider"] for g in games if g.get("odds")})
     report.update(games=len(games), upcoming=upcoming, withOdds=with_odds, providers=providers, events=len(events),

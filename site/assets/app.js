@@ -782,10 +782,19 @@
     focus = focus === "props" || focus === "stats" || focus === "box" ? focus : "";
     rememberLg(key);
     renderTabs(key);
-    if (!cache[`data/${key}/games/${id}.json`]) { showSkel(skelGame()); window.scrollTo(0, 0); }
+    const file = `data/${key}/games/${id}.json`;
+    if (!cache[file]) { showSkel(skelGame()); window.scrollTo(0, 0); }
     let d, idx;
-    try { [d, idx] = await Promise.all([getJSON(`data/${key}/games/${id}.json`), getJSON(`data/${key}/index.json`)]); }
-    catch (e) {
+    try { idx = await getJSON(`data/${key}/index.json`); }
+    catch (e) { idx = null; }
+    // Only games still in the index have a file. Requesting the rest is a 404 in the console
+    // (the page fetch and the service worker both log it) before the ESPN box fallback.
+    const listed = idx && window.BoxCore && window.BoxCore.hasFile(idx, id);
+    if (listed) {
+      try { d = await getJSON(file); }
+      catch (e) { d = null; }
+    }
+    if (!d || !idx) {
       if (focus === "box" && key !== "ufc") return viewBoxRemote(key, id);
       return (app.innerHTML = `<a class="back" href="#/l/${key}">← Back</a><div class="empty"><h3>Game not found</h3>It may have dropped out of the data window. Refresh the data.</div>`);
     }

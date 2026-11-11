@@ -218,9 +218,13 @@ jobs:
           shopt -s nullglob
           cp site/sitemap-*.xml _indexnow/new/
 
+      # IndexNow is nice-to-have. A stuck artifact upload (GitHub returning HTML error pages)
+      # must not spend the build's 20-minute budget. Two minutes is enough for these small files;
+      # a timeout or a storage error is a warning, and the site still publishes.
       - name: Upload IndexNow sitemaps
         if: steps.seo.outcome == 'success' && steps.hist.outcome == 'success' && github.ref == 'refs/heads/main'
         continue-on-error: true
+        timeout-minutes: 2
         uses: actions/upload-artifact@v7
         with:
           name: indexnow
@@ -327,8 +331,14 @@ jobs:
       # Scheduled and manual refreshes all check out one commit (data is not committed), so deploying
       # from this run reuses that commit as pages_build_version. Pages then reports success and can keep
       # serving the previous artifact. The publish run below deploys this exact bundle under a new SHA.
+      # The upload has its own 5-minute cap. GitHub storage sometimes answers with an HTML error page
+      # ("Unexpected token <") and the action retries until the job's 20-minute limit. One more try
+      # after a short pause. If both fail, this job stops and the live site is left as it is.
       - name: Upload site bundle for the publish run
+        id: site_bundle
         if: github.event_name != 'push'
+        continue-on-error: true
+        timeout-minutes: 5
         uses: actions/upload-artifact@v7
         with:
           name: site-bundle
@@ -336,6 +346,30 @@ jobs:
           retention-days: 1
           include-hidden-files: true
           if-no-files-found: error
+
+      - name: Wait before retrying the site bundle upload
+        if: github.event_name != 'push' && steps.site_bundle.outcome == 'failure'
+        run: sleep 20
+
+      - name: Retry the site bundle upload
+        id: site_bundle_retry
+        if: github.event_name != 'push' && steps.site_bundle.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-bundle
+          path: site
+          retention-days: 1
+          include-hidden-files: true
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Fail if the site bundle was not uploaded
+        if: github.event_name != 'push' && steps.site_bundle.outcome == 'failure' && steps.site_bundle_retry.outcome != 'success'
+        run: |
+          echo "::error::The site bundle did not upload. GitHub artifact storage returned an error. The live site was left unchanged."
+          exit 1
 
   deploy:
     needs: build

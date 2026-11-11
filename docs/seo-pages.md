@@ -157,12 +157,12 @@ Pro pages stay `noindex` the way they already are.
 
 - `sitemap.xml` is a sitemap index. Children, each a urlset under 50,000 URLs and with no URL repeated:
   - `sitemap-core.xml`: home, tool pages (about, responsible gambling, privacy, terms, affiliate disclosure), hubs, teams and fighters. Tool pages sit outside the generated block.
-  - `sitemap-live.xml`: upcoming and live games, props, and games that are postponed or canceled.
+  - `sitemap-live.xml`: upcoming and live games, player-prop pages that still have a line on a game that has not finished, and games that are postponed or canceled. A prop page kept for history after its last line ("No new lines posted") stays published and leaves this file.
   - `sitemap-games-<lg>-YYYY-MM.xml`: finished games (and finished UFC cards) for that month. A month that would pass 50,000 URLs is split into `…-2.xml`, `…-3.xml`.
   - `sitemap-results.xml`: `/<lg>/results/` and the month pages.
   `lastmod` comes from a content hash that ignores the cross-link blocks. A finished game's lastmod freezes when the final is recorded and moves only if the score or the closing line changes. The committed `sitemap.xml` points at `sitemap-core.xml`; the build rewrites the index and the children.
   A game or fight URL is added to a child sitemap only when this same build wrote that page's HTML, and it is removed in the build that stops writing the page. A redirect stub is never listed. `sitemap-games-*.xml` therefore never names a game before its page exists or after that page is gone.
-  The sitemap also leaves out thin URLs: past games with no odds (no posted line and no closing line) or no recorded score, postponed or canceled games with no odds, empty prop pages (no posted number), empty UFC cards, duplicate URLs, and any file whose canonical points somewhere else or that is a meta-refresh. Hubs, results, standings, team pages, upcoming and live games, and finished games that have odds and a score stay.
+  The sitemap also leaves out thin URLs: past games with no odds (no posted line and no closing line) or no recorded score, postponed or canceled games with no odds, empty prop pages (no posted number), prop pages with no current or upcoming line, UFC fighter pages with no booked upcoming bout (those pages stay up with `noindex`), empty UFC cards, duplicate URLs, and any file whose canonical points somewhere else or that is a meta-refresh. Hubs, results, standings, team pages, booked fighters, upcoming and live games, and finished games that have odds and a score stay.
 - `robots.txt`: points to the sitemap.
 - `index.html`: the homepage cards (top games, line moves, hot props with last-5 strips) are filled in between the
   `HOME` markers. The committed file keeps them empty.

@@ -99,7 +99,9 @@
   const unitWord = kind => ({ football: "Pts", basketball: "Pts", hockey: "Goals", soccer: "Goals", baseball: "Runs" }[kind] || "Pts");
   const formDots = f => (f ? `<span class="form" title="Last ${f.length}: ${esc(f)} (most recent first)">${[...f].map(c => `<i class="f-${c}"></i>`).join("")}</span>` : "");
   const rec = (a, kind) => (!a ? null : kind === "soccer" ? `${a.w}-${a.d}-${a.l}` : a.d ? `${a.w}-${a.l}-${a.d}` : `${a.w}-${a.l}`);
-  const logo = (t, cls = "") => (t && t.logo ? `<img class="${cls}" src="${esc(t.logo)}" alt="" onerror="this.style.visibility='hidden'">` : `<span class="${cls}"></span>`);
+  const logoPx = cls => (cls === "tl" ? 34 : 22);
+  const logoSrc = (url, px) => (window.LSLogo ? window.LSLogo.src(url, px) : url);
+  const logo = (t, cls = "") => (t && t.logo ? `<img class="${cls}" src="${esc(logoSrc(t.logo, logoPx(cls)))}" alt="" width="${logoPx(cls)}" height="${logoPx(cls)}" onerror="this.style.visibility='hidden'">` : `<span class="${cls}"></span>`);
 
   // ---------- nav
   // active: a league key, HOME (the dashboard: the "All" pill lights up, no league does) or null (no pill lit)
@@ -316,7 +318,7 @@
       },
     });
   }
-  const liveRef = (lg, g) => ({ lg, id: String(g.id), state: g.state, date: g.date });
+  const liveRef = (lg, g) => ({ lg, id: String(g.id), state: g.state, date: g.date, homeId: (g.home && g.home.id) || "", awayId: (g.away && g.away.id) || "" });
 
   // ---------- skeleton loaders (shown while JSON loads)
   const skTile = `<div class="skel-tile"><span class="sk" style="width:40%;height:12px"></span>${'<div class="r"><span class="sk"></span><span class="sk"></span><span class="sk c"></span><span class="sk c"></span><span class="sk c"></span></div>'.repeat(2)}</div>`;
@@ -1190,7 +1192,11 @@
   const initials = n => esc(String(n || "").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase());
   const hexOk = c => /^[0-9a-f]{6}$/i.test(c || "");
   const avatar = (img, name, color, cls = "") => `<span class="av ${cls}" aria-hidden="true"${hexOk(color) ? ` style="--tc:#${color}"` : ""}>${initials(name)}${img ? `<img src="${esc(img)}" alt="" loading="lazy" onerror="this.remove()">` : ""}</span>`;
-  const crest = (src, name, cls = "") => `<span class="av crest ${cls}" aria-hidden="true">${src ? `<img src="${esc(src)}" alt="" onerror="this.remove()">` : initials(name)}</span>`;
+  const crestPx = cls => (cls === "xs" ? 20 : cls === "sm" ? 36 : cls === "xl" ? 96 : 42);
+  const crest = (src, name, cls = "") => {
+    const n = crestPx(cls);
+    return `<span class="av crest ${cls}" aria-hidden="true">${src ? `<img src="${esc(logoSrc(src, n))}" alt="" width="${n}" height="${n}" onerror="this.remove()">` : initials(name)}</span>`;
+  };
   const notAvail = (title, why) => `<div class="card na-card"><h3>${esc(title)}</h3><div class="na">${esc(why || "Not available right now.")}</div></div>`;
   // "Back" returns to wherever the user came from inside the app; on a cold deep link it goes to Search
   const backLink = () => `<a class="back" href="#/search" data-back>← Back</a>`;
@@ -1895,6 +1901,7 @@
     return viewLeague(def, true);
   }
   async function route() {
+    if (window.LSLoad) { try { await window.LSLoad.prepare(location.hash, PAGE, PAGE_ROUTE); } catch (e) { console.warn(e); } }
     await routeBody();
     const P = window.LSProApp, Gt = window.LSProGate;
     if (!P || !P.enhance || !Gt || !Gt.context) return;

@@ -8,7 +8,12 @@
   const am = v => (isNum(v) ? (v > 0 ? "+" + v : String(v)) : null);
   const NA = '<span class="na">N/A</span>';
   const app = () => document.getElementById("app");
-  const flag = (f, cls = "uf-flag") => (f && f.logo ? `<img class="${cls}" src="${esc(f.logo)}" alt="${esc(f.country || "")}" title="${esc(f.country || "")}" loading="lazy" onerror="this.style.visibility='hidden'">` : `<span class="${cls}"></span>`);
+  const flagBox = cls => (/\blg\b/.test(cls) ? [72, 48] : /\bxs\b/.test(cls) ? [18, 12] : [30, 20]);
+  const flag = (f, cls = "uf-flag") => {
+    if (!f || !f.logo) return `<span class="${cls}"></span>`;
+    const box = flagBox(cls), src = window.LSLogo ? window.LSLogo.src(f.logo, Math.max(box[0], box[1])) : f.logo;
+    return `<img class="${cls}" src="${esc(src)}" alt="${esc(f.country || "")}" title="${esc(f.country || "")}" width="${box[0]}" height="${box[1]}" loading="lazy" onerror="this.style.visibility='hidden'">`;
+  };
   const dots = f => (f ? `<span class="form" title="Last ${f.length}: ${esc(f)} (most recent first)">${[...f].map(c => `<i class="f-${c === "W" ? "W" : c === "L" ? "L" : "D"}"></i>`).join("")}</span>` : "");
   const chip = (main, sub) => (main == null ? `<span class="oc na-oc" aria-label="not available">—</span>` : `<span class="oc"><b>${main}</b>${sub ? `<small>${sub}</small>` : ""}</span>`);
   const rnd = (r, c) => (r ? `R${r}${c ? " " + c : ""}` : "");

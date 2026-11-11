@@ -17,6 +17,14 @@ check(C.summaryUrl("nfl", "401873009") === "https://site.web.api.espn.com/apis/s
 check(Object.keys(C.LEAGUES).every(lg => C.scoreboardUrl(lg, "20261026").startsWith("https://site.web.api.espn.com/") && !C.scoreboardUrl(lg, "1").includes("//site.api.")), "every league uses site.web.api.espn.com");
 check(["nfl", "ncaaf", "nba", "ncaab", "nhl", "mlb", "epl", "mls", "ucl"].every(C.supported) && !C.supported("ufc"), "leagues covered (UFC excluded)");
 check(C.scoreboardUrl("ncaaf", "20261026").includes("groups=80") && C.scoreboardUrl("ncaab", "20261026").includes("groups=50"), "college groups match the build");
+check(C.useDirect("ncaab", [{ id: "1" }, { id: "2" }]) && C.useDirect("ncaaf", [{ id: "1" }]) && !C.useDirect("nba", [{ id: "1" }]) && !C.useDirect("ncaab", []), "college live polls stay off the full scoreboard when only a few games are on screen");
+check(!C.useDirect("ncaab", Array.from({ length: C.COLLEGE_DIRECT_MAX + 1 }, (_, i) => ({ id: String(i) }))), "a full college slate still uses one scoreboard");
+const du = C.directStatusUrl("ncaab", "401920982");
+check(du && du.startsWith("https://sports.core.api.espn.com/") && du.includes("/events/401920982/competitions/401920982/status") && !du.includes("limit=300") && !du.includes("site.api.espn.com"), "college status URL is the small core read");
+check(C.directScoreUrl("ncaab", "401920982", "150").includes("/competitors/150/score") && C.directCompetitionUrl("ncaaf", "9").includes("football/leagues/college-football"), "college score and competition URLs");
+const direct = C.parseDirect("ncaab", "401", { displayClock: "6:00", period: 1, type: { state: "in", completed: false, shortDetail: "6:00 - 1st" } }, { displayValue: "28", winner: false }, { displayValue: "32", winner: false }, "20", "10", AS_OF);
+check(direct && direct.state === "in" && direct.detail === "6:00 - 1st" && direct.home.score === "28" && direct.away.score === "32" && direct.home.id === "20" && direct.away.id === "10" && direct.period === 1, "per-game college read keeps the score and the clock");
+check(C.parseDirect("ncaab", "401", { type: {} }, {}, {}, "1", "2") === null, "per-game read without a state is ignored");
 
 // ET days
 check(C.etDay("2026-10-27T00:15:00Z") === "20261026", "8:15 PM ET kickoff (00:15Z next day) is on the Oct 26 ET scoreboard");

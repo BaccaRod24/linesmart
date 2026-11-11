@@ -53,3 +53,16 @@ window.SITE_CONFIG = {
     },
   },
 };
+// Team marks from ESPN. The /500/scoreboard/ files are full-size PNGs (Raiders is 4096px, about 570 KB)
+// even when the page draws them at 20–42px. Ask ESPN's combiner for a retina-sized copy instead.
+// cssPx is the on-screen size; the file is 3x that, snapped to a small set so repeats share a cache entry.
+window.LSLogo = {
+  src: function (url, cssPx) {
+    var s = String(url || ""), at = s.indexOf("a.espncdn.com/i/teamlogos/");
+    if (at < 0) return s;
+    var path = s.slice(at + "a.espncdn.com".length).split("?")[0];
+    var want = Math.ceil((+cssPx || 22) * 3);
+    var n = want <= 80 ? 80 : want <= 128 ? 128 : want <= 192 ? 192 : 256;
+    return "https://a.espncdn.com/combiner/i?img=" + path + "&w=" + n + "&h=" + n;
+  },
+};

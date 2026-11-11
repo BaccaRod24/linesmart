@@ -70,7 +70,9 @@ const SQL = rd("../supabase/migrations/20261027_pro_waitlist.sql"), JS = rd("../
 {
   const T = "wiring";
   const idx = rd("../site/index.html"), sw = rd("../site/sw.js"), app = rd("../site/assets/app.js"), bp = rd("./build_pages.py");
-  check(/assets\/pro-core\.js[\s\S]*assets\/pro\.js[\s\S]*assets\/app\.js/.test(idx), "scripts loaded before app.js", T);
+  const loader = rd("../site/assets/load.js");
+  check(/assets\/pro-core\.js[\s\S]*assets\/pro\.js[\s\S]*assets\/pro-gate-core\.js[\s\S]*assets\/pro-gate\.js/.test(loader), "pro scripts load core, then the page, then the gate", T);
+  check(/LSLoad/.test(app) && /prepare\(/.test(app), "router waits for the scripts that route needs", T);
   check(sw.includes('"assets/pro-core.js"') && sw.includes('"assets/pro.js"'), "service worker precaches the Pro files", T);
   check(/h\[0\]\.split\("\?"\)\[0\] === "pro"/.test(app) && /LSPro\.view\(\)/.test(app), "router handles #/pro", T);
   check(!/data-nav="pro"|href="#\/pro"/.test((idx.match(/<nav[^>]*id="bnav"[\s\S]*?<\/nav>/) || [""])[0]), "no bottom-nav item", T);

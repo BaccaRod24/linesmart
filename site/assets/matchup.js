@@ -190,7 +190,7 @@
       const inner = `<span class="mu-km-n"><b>${esc(p.name)}</b>${p.pos ? ` <span class="na">${esc(p.pos)}</span>` : ""}${badge}</span>${p.id ? `<span class="mu-km-go">Matchup ›</span>` : `<span class="mu-km-go"></span>`}${val}${vs}`;
       return p.id ? `<a class="mu-km" href="#/p/${lg}/${esc(p.id)}/m">${inner}</a>` : `<div class="mu-krow">${inner}</div>`;
     };
-    const blocks = sides.map((t, i) => { const opp = sides[1 - i], ps = pick(t); return ps.length ? `<div class="card mu-kmc"><h3>${t.logo ? `<img src="${esc(t.logo)}" alt="" onerror="this.remove()">` : ""}${esc(t.name)}</h3>${ps.map(p => row(p, t, opp)).join("")}</div>` : ""; }).join("");
+    const blocks = sides.map((t, i) => { const opp = sides[1 - i], ps = pick(t); const src = t.logo && window.LSLogo ? window.LSLogo.src(t.logo, 28) : t.logo; return ps.length ? `<div class="card mu-kmc"><h3>${src ? `<img src="${esc(src)}" alt="" width="28" height="28" onerror="this.remove()">` : ""}${esc(t.name)}</h3>${ps.map(p => row(p, t, opp)).join("")}</div>` : ""; }).join("");
     el.innerHTML = blocks ? `<div class="section-title">Key player matchups</div><div class="cols">${blocks}</div><div class="note">Season leaders vs the opponent's defense against their position (rank 1 = fewest allowed). Out, Doubtful and injured-reserve players are left off; Questionable and day-to-day players stay, with a badge. Tap a player for form, history vs this opponent and hit rates.</div>` : (app.notAvail ? app.notAvail("Key player matchups", "Not available") : `<div class="card na-card"><h3>Key player matchups</h3><div class="na">Not available</div></div>`);
   }
 

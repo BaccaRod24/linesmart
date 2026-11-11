@@ -1248,7 +1248,33 @@ def sitemap_trim_tests():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def logo_and_cap_tests():
+    class _L:
+        lg, hub, base_url = "nfl", "nfl/", SP.BASE_URL
+        players = {
+            "1": {"path": "nfl/props/josh-allen/", "p": {"n": "Josh Allen", "ta": "BUF"}},
+            "2": {"path": "nfl/props/patrick-mahomes/", "p": {"n": "Patrick Mahomes", "ta": "KC"}},
+        }
+    sh = SP.Shell((ROOT / "site" / "index.html").read_text(), SP.BASE_URL)
+    html, title = SP.props_index_page(_L(), sh)
+    check("nfl/props/josh-allen/" in html and "nfl/props/patrick-mahomes/" in html, "props index links the player pages")
+    check('rel="canonical" href="https://linesmart.app/nfl/props/"' in html, "props index canonical")
+    check("Player Props" in title and len(title) <= SP.TITLE_MAX, f"props index title ({title})")
+    check('name="description"' in html and "DraftKings" in html and "FanDuel" in html and "Hard Rock Bet" in html, "props index description names the books")
+    check("21+" in html and "1-800-GAMBLER" in html, "props index keeps the 21+ notice")
+    check("florida" not in html.lower() or "1-833-PLAYWISE" in html, "props index does not claim a book is legal in Florida")
+    src = pv.logo_src("https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/lv.png", 22)
+    check(src == "https://a.espncdn.com/combiner/i?img=/i/teamlogos/nfl/500/scoreboard/lv.png&w=80&h=80", f"22px logo asks the combiner for 80px ({src})")
+    check(pv.logo_src("https://a.espncdn.com/i/teamlogos/nfl/500/gb.png", 42).endswith("w=128&h=128"), "42px logo asks for 128px")
+    check(pv.logo_src("https://a.espncdn.com/i/teamlogos/ncaa/500/150.png", 96).endswith("w=256&h=256"), "96px logo asks for 256px")
+    check(pv.logo_src("https://example.com/x.png", 22) == "https://example.com/x.png", "non-ESPN logos stay put")
+    shown, rest = SP._split_cap(list(range(80)), SP.HUB_GAME_CAP)
+    check(shown == list(range(SP.HUB_GAME_CAP)) and rest == list(range(SP.HUB_GAME_CAP, 80)), "a long slate keeps a window and a remainder")
+    check(SP._split_cap(list(range(3)), SP.HUB_GAME_CAP)[1] == [], "a short slate is not split")
+
+
 def main():
+    logo_and_cap_tests()
     sitemap_game_guard_tests()
     sitemap_trim_tests()
     title_limit_tests()
@@ -1412,20 +1438,38 @@ def main():
         for lg, hub in man["l"].items():
             hh = html_of(hub)
             check(f'href="{lg}/results/"' in hh and (site / lg / "results" / "index.html").exists(), f"{lg} hub links /{lg}/results/")
+            # A long slate keeps the hub light: overflow games, teams and players live on directory pages the hub links.
+            extra = ""
+            for rel_extra in (f"{lg}/props/", f"{lg}/teams/", f"{lg}/schedule/"):
+                if f'href="{rel_extra}"' not in hh:
+                    continue
+                folder = site / rel_extra
+                if folder.is_dir():
+                    extra += "\n" + "\n".join(p.read_text() for p in folder.rglob("index.html"))
+            blob = hh + extra
             for kind in ("g", "t", "p"):
                 for pid, p in (man[kind].get(lg) or {}).items():
                     if kind == "g":
                         # finals older than the hub's 14-day list live on the results archive, which the hub links
                         continue
-                    if f'href="{p}"' not in hh:
-                        check(False, f"{lg} hub links {p}")
+                    if f'href="{p}"' not in blob:
+                        check(False, f"{lg} hub (or its directory) links {p}")
             res_html = ""
             rdir = site / lg / "results"
             if rdir.is_dir():
                 res_html = "\n".join(p.read_text() for p in rdir.rglob("index.html"))
             for p in (man["g"].get(lg) or {}).values():
-                if f'href="{p}"' not in hh and f'href="{p}"' not in res_html:
-                    check(False, f"{lg} hub or results archive links {p}")
+                if f'href="{p}"' not in blob and f'href="{p}"' not in res_html:
+                    check(False, f"{lg} hub, schedule or results archive links {p}")
+            if lg in SP.PROP_INDEX_LGS and any("/props/" in p for p in (man.get("p") or {}).get(lg, {}).values()):
+                ph = (site / lg / "props" / "index.html").read_text()
+                pd = parse(ph)
+                check(pd.links.get("canonical") == SP.BASE_URL + f"{lg}/props/", f"{lg} props index canonical")
+                check(pd.title and "Player Props" in pd.title and len(pd.title) <= SP.TITLE_MAX, f"{lg} props index title ({pd.title})")
+                check(pd.meta.get("description") and pd.meta.get("og:description") == pd.meta.get("description"), f"{lg} props index description")
+                check(f'href="{lg}/props/"' in hh, f"{lg} hub links the props index")
+                check("21+" in ph and "1-800-GAMBLER" in ph, f"{lg} props index keeps the 21+ notice")
+                check(not PROMO_RE.search(pd.meta.get("description") or ""), f"{lg} props index description has no promo wording")
         check(True, "hubs link teams, players, the results archive, and (with the archive) their games")
         # every result row on a sample of team pages is a link; the archive, not ESPN's last-5 text, is the source
         sample = []

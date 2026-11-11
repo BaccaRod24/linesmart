@@ -38,6 +38,23 @@ import line_history as LH  # noqa: E402  (even-money-aware moneyline move)
 
 ROOT = Path(__file__).resolve().parent.parent
 ET = ZoneInfo("America/New_York")
+
+
+def logo_src(url, css_px=22):
+    """ESPN team-logo URL sized for the screen. /500/scoreboard/ PNGs are the full file
+    (the Raiders mark is 4096px). The combiner returns a small PNG and keeps the transparency."""
+    s = str(url or "")
+    key = "a.espncdn.com/i/teamlogos/"
+    i = s.find(key)
+    if i < 0:
+        return s
+    path = s[i + len("a.espncdn.com"):].split("?", 1)[0]
+    try:
+        want = int(css_px) * 3
+    except (TypeError, ValueError):
+        want = 66
+    n = 80 if want <= 80 else 128 if want <= 128 else 192 if want <= 192 else 256
+    return f"https://a.espncdn.com/combiner/i?img={path}&w={n}&h={n}"
 BASE_URL = build_pages.BASE_URL
 MARK_START, MARK_END = "<!-- previews:start -->", "<!-- previews:end -->"
 
@@ -738,7 +755,7 @@ def game_page(lg, league, g, detail, teams, props, path, siblings, base_url, val
         desc = desc[:157].rsplit(" ", 1)[0] + "…"
     game_href = f"#/g/{lg}/{g['id']}"
     team_link = lambda t: f'<a class="tlink" href="#/p/ufc/{esc(t.get("id"))}">{esc(t.get("name"))}</a>' if kind == "mma" else f'<a class="tlink" href="#/t/{lg}/{esc(t.get("id"))}">{esc(t.get("name"))}</a>'
-    logo = lambda t: f'<img src="{esc(t.get("logo"))}" alt="" width="56" height="56" loading="lazy" class="pv-logo">' if t.get("logo") else ""
+    logo = lambda t: f'<img src="{esc(logo_src(t.get("logo"), 64))}" alt="" width="64" height="64" loading="lazy" class="pv-logo">' if t.get("logo") else ""
     meta_bits = [x for x in [g.get("venue"), ", ".join(x for x in [g.get("city"), g.get("venueState")] if x), ", ".join(g.get("broadcasts") or [])] if x]
     if kind == "mma":
         meta_bits = [x for x in [(g.get("event") or {}).get("name"), " · ".join(x for x in [g.get("weightClass"), f"{g.get('rounds')} rounds" if g.get("rounds") else ""] if x)] if x] + meta_bits

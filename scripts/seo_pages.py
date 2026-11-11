@@ -764,7 +764,7 @@ class Shell:
         t = re.sub(r'<noscript><style>#app \.loading.*?</noscript>\s*', "", t, count=1, flags=re.S)
         t = re.sub(r'<main class="wrap" id="app">.*?</main>', "\x00MAIN\x00", t, count=1, flags=re.S)
         t = t.replace("<body class=\"app\">", "\x00BODY\x00", 1)
-        t = re.sub(r'(<script src="assets/app\.js[^"]*"></script>)', r'<script src="assets/preview.js"></script>\n\1', t, count=1)
+        t = re.sub(r'(<script src="assets/app\.js[^"]*"[^>]*></script>)', r'<script src="assets/preview.js" defer></script>\n\1', t, count=1)
         if "\x00MAIN\x00" not in t or "\x00BODY\x00" not in t:
             raise SystemExit("seo_pages: site/index.html changed shape (main#app / body.app not found)")
         self.t, self.base_url = t, base_url
@@ -1336,7 +1336,7 @@ def hero(L: League, g):
     sep = "VS" if L.lg == "ufc" or g.get("neutral") else "@"
     # Eager, with an onerror hide: loading=lazy inside overflow:hidden (.match) makes iOS Safari
     # paint the broken-image "?" and never fire the request. Same trap as the home cards.
-    logo = lambda t: f'<img src="{esc(t.get("logo"))}" alt="" width="56" height="56" class="pv-logo" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else ""
+    logo = lambda t: f'<img src="{esc(pv.logo_src(t.get("logo"), 64))}" alt="" width="64" height="64" class="pv-logo" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else ""
     sc = lambda t: f'<div class="sx-score{" win" if t.get("winner") else ""}">{esc(num(t.get("score")))}</div>' if L.lg != "ufc" and (final or g.get("state") == "in") and isnum(t.get("score")) else ""
     meta_bits = [x for x in [g.get("venue"), ", ".join(x for x in [g.get("city"), g.get("venueState")] if x), ", ".join(g.get("broadcasts") or [])] if x]
     if L.lg == "ufc":
@@ -2607,7 +2607,7 @@ def team_page(L: League, sh: Shell, tid):
         desc = f"{name} ({t.get('record') or ts.get('recordSummary') or 'record n/a'}) betting odds" + (f" for {L.matchup(nx, short=True)} {short_day(parse_dt(nx['date']), False)}" if nx else "") + ", schedule, recent results with closing lines, splits and player props."
         h1 = f"{esc(name)} odds, schedule &amp; results"
     desc = cut(desc)
-    logo = f'<img class="sx-tlogo" src="{esc(t.get("logo"))}" alt="" width="48" height="48" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else ""
+    logo = f'<img class="sx-tlogo" src="{esc(pv.logo_src(t.get("logo"), 56))}" alt="" width="56" height="56" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else ""
     app_link = f"#/t/{L.lg}/{esc(tid)}/all" if L.lg != "ufc" else f"#/p/ufc/{esc(tid)}/log"
     main = f"""<article class="pv sx-team">
 {crumbs((L.hub, NAMES[L.lg]), (None, name))}
@@ -2982,7 +2982,7 @@ def game_tile(L: League, gid, g, with_lg=False):
     # No loading=lazy. These marks sit in .hc-scroll (overflow-x: auto). iOS Safari treats that
     # scroller as the lazy root, never fetches the PNG, and paints a "?" box because alt is empty.
     # onerror covers a real 404 the same way the in-app tiles do (app.js logo()).
-    logo = lambda t: f'<img class="hc-logo" src="{esc(t.get("logo"))}" alt="" width="22" height="22" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else '<span class="hc-nologo"></span>'
+    logo = lambda t: f'<img class="hc-logo" src="{esc(pv.logo_src(t.get("logo"), 22))}" alt="" width="22" height="22" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else '<span class="hc-nologo"></span>'
     when = "LIVE" if g.get("state") == "in" else et(parse_dt(g["date"])).strftime("%-I:%M %p ET") if day_et(parse_dt(g["date"])) == day_et(L.now) else et(parse_dt(g["date"])).strftime("%a %-I:%M %p")
     nm = (lambda t: t.get("last") or t.get("short") or tname(t)) if L.lg == "ufc" else (lambda t: t.get("abbr") or tname(t))
     return (f'<a class="hc-card hc-game" href="{esc(L.paths[gid])}"><div class="hc-top">{lg_tag}<span class="hc-when{" live" if g.get("state") == "in" else ""}">{esc(when)}</span></div>'
@@ -3041,6 +3041,22 @@ HUB_LINK_TEXT = {
 }
 HOME_DISCOVER_GAMES = 3    # soonest upcoming games linked from the homepage, per league
 HUB_DISCOVER_GAMES = 12    # soonest upcoming games linked from that league page
+# A full college Saturday used to inline every game, team and recent result into /ncaab/ (~322 KB).
+# The hub keeps a window. The rest stay on the schedule directory, the teams directory, the props
+# index, or the results archive, and the app still draws the full slate from the data file.
+HUB_GAME_CAP = 36
+HUB_TEAM_CAP = 40
+HUB_PLAYER_CAP = 24
+HUB_RESULT_CAP = 16
+SCHED_PAGE = 40
+PROP_INDEX_LGS = ("nfl", "nba")
+
+
+def _split_cap(items, cap):
+    """(shown, rest). rest is empty when the list fits, so a short slate is unchanged."""
+    if not cap or len(items) <= cap:
+        return list(items), []
+    return list(items[:cap]), list(items[cap:])
 
 
 def _discover_when(g, now):
@@ -3151,8 +3167,10 @@ def hub_lead(L: League, n_up):
 def hub_page(L: League, sh: Shell, Ls):
     path = L.hub
     up = upcoming(L)
+    up_linked = [(gid, g) for gid, g in up if gid in L.paths]
+    up_show, up_rest = _split_cap(up_linked, None if L.lg == "ufc" else HUB_GAME_CAP)
     by_day = {}
-    for gid, g in up:
+    for gid, g in up_show:
         by_day.setdefault(day_et(parse_dt(g["date"])), []).append((gid, g))
     days, sched_items = [], []
     for d, gs in list(by_day.items())[:10]:
@@ -3181,7 +3199,10 @@ def hub_page(L: League, sh: Shell, Ls):
         slate, slate_t = [], f"Today's {NAMES[L.lg]} {words}"
     s_items = [(L.paths[gid], L.matchup(g), " · ".join(x for x in [(L.score_line(g) if L.is_final(g) else "LIVE" if g.get("state") == "in" else et(parse_dt(g["date"])).strftime("%-I:%M %p ET")),
                                                                  "" if L.is_final(g) else L.lines_brief(g)] if x)) for gid, g in slate if gid in L.paths]
+    s_items, _s_rest = _split_cap(s_items, None if L.lg == "ufc" else HUB_GAME_CAP)
     today_html = section("today", esc(slate_t), link_list(s_items, "pv-list sx-today") if s_items else f'<p class="na sx-none">No {words} today.</p>')
+    props_top = f' · <a href="{L.lg}/props/">{SHORT[L.lg]} player props</a>' if L.lg in PROP_INDEX_LGS and L.players else ""
+    sched_more = f'<p class="note"><a href="{L.lg}/schedule/">Full {esc(NAMES[L.lg])} schedule</a> ({len(up_linked)} games)</p>' if up_rest else ""
     if L.lg == "ufc":
         evs = section("events", "Fight cards", link_list(sorted([(e["path"], e["name"], short_day(parse_dt(e["date"]), False)) for e in L.ev.values()], key=lambda x: x[0])))
     main = f"""<article class="pv sx-hub">
@@ -3189,10 +3210,11 @@ def hub_page(L: League, sh: Shell, Ls):
 <h1 class="pv-h1">{h1}</h1>
 <p class="pv-lead">{esc(lead)}</p>
 {discover_nav(Ls, L.lg, games=False)}
-<p class="note"><a href="{BEST_LINES}">Best lines today</a></p>
+<p class="note"><a href="{BEST_LINES}">Best lines today</a>{props_top}</p>
 {today_html}
 {evs}
 {section("schedule", "Upcoming " + ("bouts" if L.lg == "ufc" else "games"), "".join(days) or '<div class="empty">No games in the next few days. Check back after the next data refresh.</div>')}
+{sched_more}
 <p class="note"><a href="{L.lg}/results/">Results archive</a>{f' · <a href="{L.lg}/standings/">Standings</a>' if L.lg in ST_STAND.LEAGUES else ""} · <a href="states/">Sports betting by state</a></p>
 <p class="note pv-upd">{stamp("Updated " + esc(fmt_et(L.generated)))}. For adults 21+; odds are for reference only.</p>
 </article>"""
@@ -3201,15 +3223,20 @@ def hub_page(L: League, sh: Shell, Ls):
     past = sorted([(gid, g) for gid, g in L.games.items() if L.is_final(g) and gid in L.paths], key=lambda kv: kv[1]["date"], reverse=True)
     recent_cut = L.now - timedelta(days=RESULTS_DAYS)
     res_items = [(L.paths[gid], L.matchup(g), f"{short_day(parse_dt(g['date']), False)} · {L.score_line(g)}") for gid, g in past if parse_dt(g["date"]) >= recent_cut]
+    res_items, _res_rest = _split_cap(res_items, HUB_RESULT_CAP)
     teams = sorted([(p, tname(L.team_info[tid]), L.team_info[tid].get("record") or "") for tid, p in L.team_paths.items()], key=lambda x: x[1])
+    team_show, team_rest = _split_cap(teams, None if L.lg == "ufc" else HUB_TEAM_CAP)
     players = sorted([(e["path"], e["p"].get("n"), e["p"].get("ta") or "") for e in L.players.values()], key=lambda x: (x[2], x[1]))
+    player_show, player_rest = _split_cap(players, HUB_PLAYER_CAP if L.lg in PROP_INDEX_LGS else None)
+    player_note = f'<p class="note"><a href="{L.lg}/props/">All {SHORT[L.lg]} player props</a> ({len(players)} players)</p>' if player_rest else ""
+    team_note = f'<p class="note"><a href="{L.lg}/teams/">All {SHORT[L.lg]} teams</a> ({len(teams)} teams)</p>' if team_rest else ""
     more = "\n".join(x for x in [
         discover_nav(Ls, L.lg, games=True),
         section("moves", "Biggest line moves", link_list([(L.paths[x[2]], L.matchup(x[3], short=True), f"{x[4]} {x[5]}") for x in moves])),
         section("hot", "Hot props (4 of last 5 over or better)", link_list([(L.players[x[5]]["path"], f"{x[6].get('n')} {(L.markets.get(x[7][1]) or [x[7][1], x[7][1]])[1]} {line_text(x[7][1], x[7][2]).replace('O/U ', '')}", f"{rate(x[6].get('log'), x[7][1], x[7][2])['o']}/{rate(x[6].get('log'), x[7][1], x[7][2])['n']} over") for x in hp])),
         section("results", "Recent results &amp; closing lines", link_list(res_items) + f'<p class="note"><a href="{L.lg}/results/">Results archive</a></p>'),
-        section("players", "Player props by player", link_list(players, "pv-list sx-grid")),
-        section("teams-l", "Fighters" if L.lg == "ufc" else "Teams", link_list(teams, "pv-list sx-grid")),
+        section("players", "Player props by player", link_list(player_show, "pv-list sx-grid") + player_note),
+        section("teams-l", "Fighters" if L.lg == "ufc" else "Teams", link_list(team_show, "pv-list sx-grid") + team_note),
     ] if x)
     if L.lg == "ufc":
         title = fit("UFC Odds: Fight Cards, Moneylines & Results", "UFC Odds: Cards & Results", "UFC Odds Today")
@@ -3241,6 +3268,112 @@ def hub_page(L: League, sh: Shell, Ls):
         cp["mainEntity"] = games_ld
     ld = [cp, crumbs_ld(L.base_url, [(path, NAMES[L.lg])])]
     return sh.page(path, title, desc, main, more, kind="hub", lg=L.lg, route=f"l/{L.lg}" if getattr(L, "has_data", True) else "", ld=ld, og_type="website"), title
+
+
+def _dir_more(L):
+    bits = [f'<a href="{L.hub}">{esc(NAMES[L.lg])} odds</a>', f'<a href="{L.lg}/results/">Results</a>']
+    if L.lg in ST_STAND.LEAGUES:
+        bits.append(f'<a href="{L.lg}/standings/">Standings</a>')
+    if L.lg in PROP_INDEX_LGS and L.players:
+        bits.append(f'<a href="{L.lg}/props/">{esc(SHORT[L.lg])} player props</a>')
+    return "<p class=\"note\">" + " · ".join(bits) + "</p>"
+
+
+def props_index_page(L: League, sh: Shell):
+    """Crawlable /nfl/props/ and /nba/props/. Same players as the individual pages. Free tier only."""
+    path = f"{L.lg}/props/"
+    players = sorted([(e["path"], e["p"].get("n") or "Player", e["p"].get("ta") or "") for e in L.players.values() if e.get("path")], key=lambda x: (x[2], x[1]))
+    groups = {}
+    for href, name, ta in players:
+        groups.setdefault(ta or "Other", []).append((href, name, ""))
+    blocks = []
+    for ta in sorted(groups):
+        blocks.append(f'<h2 class="sx-seg">{esc(ta)}</h2>{link_list(groups[ta])}')
+    title = fit(f"{SHORT[L.lg]} Player Props by Player", f"{SHORT[L.lg]} Player Props")
+    desc = cut(f"{NAMES[L.lg]} player props by player: lines from DraftKings, Hard Rock Bet and FanDuel, with last-5 hit rates on each player page.")
+    h1 = f"{esc(NAMES[L.lg])} player props"
+    main = f"""<article class="pv sx-hub">
+{crumbs((L.hub, NAMES[L.lg]), (None, "Player props"))}
+<h1 class="pv-h1">{h1}</h1>
+<p class="pv-lead">{esc(desc)} {plural(len(players), "player")} with a page. Odds are for reference, not a prediction.</p>
+{''.join(blocks) or '<p class="na">No player props are posted right now.</p>'}
+<p class="note"><a href="{L.hub}">Back to {esc(NAMES[L.lg])} odds</a></p>
+<p class="note pv-upd">For adults 21+; odds are for reference only.</p>
+</article>"""
+    ld = [{"@context": "https://schema.org", "@type": "CollectionPage", "name": bare_title(title), "url": L.base_url + path, "description": desc},
+          crumbs_ld(L.base_url, [(L.hub, NAMES[L.lg]), (path, "Player props")])]
+    return sh.page(path, title, desc, main, _dir_more(L), kind="props", lg=L.lg, ld=ld, og_type="website"), title
+
+
+def schedule_page(L: League, sh: Shell, chunk, index, pages):
+    path = f"{L.lg}/schedule/" if index == 1 else f"{L.lg}/schedule/{index}/"
+    noun = "bouts" if L.lg == "ufc" else "games"
+    title = fit(f"{SHORT[L.lg]} Schedule, Odds & Lines" if index == 1 else f"{SHORT[L.lg]} Schedule, Page {index}",
+                f"{SHORT[L.lg]} Schedule" if index == 1 else f"{SHORT[L.lg]} Schedule {index}")
+    topic = "odds, lines and spreads" if L.lg in ("ncaaf", "ncaab") else "odds and lines"
+    books = "DraftKings" if L.lg == "ufc" else "DraftKings, Hard Rock Bet and FanDuel"
+    desc = cut(f"{NAMES[L.lg]} schedule, page {index} of {pages}: {topic} for upcoming {noun}. Compare {books}.")
+    nav = []
+    if index > 1:
+        prev = f"{L.lg}/schedule/" if index == 2 else f"{L.lg}/schedule/{index - 1}/"
+        nav.append(f'<a href="{prev}">Previous</a>')
+    if index < pages:
+        nav.append(f'<a href="{L.lg}/schedule/{index + 1}/">Next</a>')
+    nav.append(f'<a href="{L.hub}">{esc(NAMES[L.lg])} odds</a>')
+    label = "Schedule" if index == 1 else f"Schedule, page {index}"
+    main = f"""<article class="pv sx-hub">
+{crumbs((L.hub, NAMES[L.lg]), (None, label))}
+<h1 class="pv-h1">{esc(SHORT[L.lg])} schedule</h1>
+<p class="pv-lead">{esc(desc)} This page lists the games. The league page shows the full slate once it loads.</p>
+{link_list(chunk)}
+<p class="note">{' · '.join(nav)}</p>
+<p class="note pv-upd">For adults 21+; odds are for reference only.</p>
+</article>"""
+    cp = {"@context": "https://schema.org", "@type": "CollectionPage", "name": bare_title(title), "url": L.base_url + path, "description": desc}
+    ld = [cp, crumbs_ld(L.base_url, [(L.hub, NAMES[L.lg]), (path, label)])]
+    return sh.page(path, title, desc, main, _dir_more(L), kind="schedule", lg=L.lg, ld=ld, og_type="website"), title
+
+
+def teams_directory_page(L: League, sh: Shell, teams):
+    path = f"{L.lg}/teams/"
+    title = fit(f"{SHORT[L.lg]} Teams, Odds & Schedule", f"{SHORT[L.lg]} Teams")
+    desc = cut(f"Every {NAMES[L.lg]} team on LineSmart: odds, schedule and recent results. Compare DraftKings, Hard Rock Bet and FanDuel.")
+    main = f"""<article class="pv sx-hub">
+{crumbs((L.hub, NAMES[L.lg]), (None, "Teams"))}
+<h1 class="pv-h1">{esc(NAMES[L.lg])} teams</h1>
+<p class="pv-lead">{esc(desc)} {len(teams)} teams.</p>
+{link_list(teams, "pv-list sx-grid")}
+<p class="note"><a href="{L.hub}">Back to {esc(NAMES[L.lg])} odds</a></p>
+<p class="note pv-upd">For adults 21+; odds are for reference only.</p>
+</article>"""
+    ld = [{"@context": "https://schema.org", "@type": "CollectionPage", "name": bare_title(title), "url": L.base_url + path, "description": desc},
+          crumbs_ld(L.base_url, [(L.hub, NAMES[L.lg]), (path, "Teams")])]
+    return sh.page(path, title, desc, main, _dir_more(L), kind="teams", lg=L.lg, ld=ld, og_type="website"), title
+
+
+def extra_hub_pages(L: League, sh: Shell):
+    """Props index, and the schedule/teams directories when the hub list is capped."""
+    out = []
+    if L.lg in PROP_INDEX_LGS and L.players:
+        html, t = props_index_page(L, sh)
+        out.append((f"{L.lg}/props/", html, t, "props"))
+    up_linked = [(gid, g) for gid, g in upcoming(L) if gid in L.paths]
+    if L.lg != "ufc" and len(up_linked) > HUB_GAME_CAP:
+        items = []
+        for gid, g in up_linked:
+            when = "LIVE" if g.get("state") == "in" else (et(parse_dt(g["date"])).strftime("%-I:%M %p ET") if parse_dt(g["date"]) else "")
+            note = " · ".join(x for x in [when, L.lines_brief(g)] if x)
+            items.append((L.paths[gid], L.matchup(g), note))
+        chunks = [items[i:i + SCHED_PAGE] for i in range(0, len(items), SCHED_PAGE)]
+        for i, chunk in enumerate(chunks, 1):
+            path = f"{L.lg}/schedule/" if i == 1 else f"{L.lg}/schedule/{i}/"
+            html, t = schedule_page(L, sh, chunk, i, len(chunks))
+            out.append((path, html, t, "schedule"))
+    teams = sorted([(p, tname(L.team_info[tid]), L.team_info[tid].get("record") or "") for tid, p in L.team_paths.items()], key=lambda x: x[1])
+    if L.lg != "ufc" and len(teams) > HUB_TEAM_CAP:
+        html, t = teams_directory_page(L, sh, teams)
+        out.append((f"{L.lg}/teams/", html, t, "teams"))
+    return out
 
 
 def _standings_cell(text):
@@ -4117,6 +4250,12 @@ def sitemap_index_of(Ls):
     out = {}
     for lg, L in Ls.items():
         out[L.hub] = ("core", lg, None)
+        if lg in PROP_INDEX_LGS and L.players:
+            out[f"{lg}/props/"] = ("core", lg, None)
+        if lg != "ufc" and len([gid for gid, g in upcoming(L) if gid in L.paths]) > HUB_GAME_CAP:
+            out[f"{lg}/schedule/"] = ("core", lg, None)
+        if lg != "ufc" and len(L.team_paths) > HUB_TEAM_CAP:
+            out[f"{lg}/teams/"] = ("core", lg, None)
         for p in L.team_paths.values():
             out[p] = ("core", lg, None)
         for gid, p in L.paths.items():
@@ -4236,7 +4375,7 @@ def sitemap_content_reason(rel, Ls):
     if rel == "preview" or rel.startswith("preview/"):
         return "duplicate redirect"
     for lg, L in Ls.items():
-        if rel in (L.hub, f"{lg}/results/", f"{lg}/standings/") or rel.startswith(f"{lg}/results/"):
+        if rel in (L.hub, f"{lg}/results/", f"{lg}/standings/", f"{lg}/props/", f"{lg}/teams/", f"{lg}/schedule/") or rel.startswith(f"{lg}/results/") or rel.startswith(f"{lg}/schedule/"):
             return None
         if rel in L.team_paths.values():
             if lg == "ufc" and not fighter_booked(L, rel):
@@ -4415,6 +4554,8 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
         html, t = hub_page(L, sh, Ls)
         put(L.hub, html, t, "hub", lg)
         manifest["l"][lg] = L.hub
+        for extra_path, extra_html, extra_title, extra_kind in extra_hub_pages(L, sh):
+            put(extra_path, extra_html, extra_title, extra_kind, lg)
         for gid in L.games:
             html, t = game_page(L, sh, gid)
             put(L.paths[gid], html, t, "past" if L.is_final(L.games[gid]) else "game", lg)

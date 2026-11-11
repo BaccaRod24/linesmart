@@ -4,9 +4,10 @@
  * (site.web.api.espn.com sends Access-Control-Allow-Origin; site.api.espn.com does NOT, so never use that host here) and
  * this module turns those responses into small overlays the page can merge onto the static game objects.
  *
- * Bandwidth (gzip, measured Oct 26 2026): scoreboard?dates=<one day> is ~3 KB for one NFL game, ~10-15 KB for a full NBA
- * night; a game summary (box score) is ~30 KB. Scoreboards are polled only for leagues that have a live game, summaries only
- * on an open game page, and nothing at all when no game is live or the tab is hidden. */
+ * Bandwidth (gzip): an NFL or NBA scoreboard for one day is a few KB to ~15 KB. A college scoreboard with
+ * groups=50&limit=300 is the whole Division I day (about 300 games, ~90 KB). Live updates for a handful of
+ * college games use the core API status + score reads instead of that board. A game summary (box score) is
+ * still fetched only on an open game page. Nothing is polled when no game is live or the tab is hidden. */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) module.exports = factory();
   else root.LiveCore = factory();
@@ -41,6 +42,31 @@
   }
   const scoreboardUrl = (lg, day) => (supported(lg) ? `${HOST}${LEAGUES[lg][0]}/scoreboard?dates=${day}${LEAGUES[lg][1]}` : null);
   const summaryUrl = (lg, id) => (supported(lg) ? `${HOST}${LEAGUES[lg][0]}/summary?event=${encodeURIComponent(id)}` : null);
+  // College live polls. The public scoreboard for one day is the whole division. A few games on screen
+  // (the home ticker is at most 24) read each game's status and score from the core API instead.
+  // sports.core.api.espn.com sends Access-Control-Allow-Origin: *. site.api.espn.com does not.
+  const CORE = "https://sports.core.api.espn.com/v2/sports/";
+  const CORE_LEAGUE = { ncaab: "basketball/leagues/mens-college-basketball", ncaaf: "football/leagues/college-football" };
+  const COLLEGE_DIRECT_MAX = 24;
+  const coreBase = (lg, id) => (CORE_LEAGUE[lg] && id ? `${CORE}${CORE_LEAGUE[lg]}/events/${encodeURIComponent(id)}/competitions/${encodeURIComponent(id)}` : null);
+  const directStatusUrl = (lg, id) => { const b = coreBase(lg, id); return b ? `${b}/status?lang=en&region=us` : null; };
+  const directScoreUrl = (lg, id, teamId) => { const b = coreBase(lg, id); return b && teamId ? `${b}/competitors/${encodeURIComponent(teamId)}/score?lang=en&region=us` : null; };
+  const directCompetitionUrl = (lg, id) => { const b = coreBase(lg, id); return b ? `${b}?lang=en&region=us` : null; };
+  const useDirect = (lg, games) => !!(CORE_LEAGUE[lg] && games && games.length > 0 && games.length <= COLLEGE_DIRECT_MAX);
+  function parseDirect(lg, id, status, homeScore, awayScore, homeId, awayId, asOf = new Date().toISOString()) {
+    const st = (status && status.type) || {};
+    if (!st.state || !homeId || !awayId) return null;
+    const side = (tid, sc) => ({
+      id: String(tid), abbr: "",
+      score: !sc ? null : sc.displayValue != null ? String(sc.displayValue) : sc.value != null ? String(sc.value) : null,
+      winner: sc && sc.winner != null ? !!sc.winner : null, linescores: [],
+    });
+    return {
+      lg, id: String(id), asOf, state: st.state, completed: !!st.completed,
+      detail: st.shortDetail || st.detail || st.description || "", clock: status.displayClock || null, period: num(status.period),
+      home: side(homeId, homeScore), away: side(awayId, awayScore), situation: null,
+    };
+  }
 
   // Does this game need live polling right now? g = {lg, id, state, date}; ov = latest live overlay for it (if any).
   function needsLive(g, now = Date.now(), ov = null) {
@@ -222,6 +248,7 @@
     return /^\d+$/.test(x) ? x + " inn" : x;
   }
 
-  return { HOST, LEAGUES, SCORE_MS, SUMMARY_MS, SAVE_DATA_SUMMARY_MS, MAX_BACKOFF_MS, supported, kindOf, etDay, scoreboardUrl, summaryUrl, needsLive, plan, key,
+  return { HOST, LEAGUES, SCORE_MS, SUMMARY_MS, SAVE_DATA_SUMMARY_MS, MAX_BACKOFF_MS, COLLEGE_DIRECT_MAX, supported, kindOf, etDay, scoreboardUrl, summaryUrl, needsLive, plan, key,
+           directStatusUrl, directScoreUrl, directCompetitionUrl, useDirect, parseDirect,
            situation, parseScoreboard, parseSummary, mergeGame, mergeTicker, sig, intervals, fresher, finalLabel, finalSuffix };
 });

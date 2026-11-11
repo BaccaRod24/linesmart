@@ -17,7 +17,7 @@ import shutil
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -812,12 +812,17 @@ def state_built_checks(site):
     check("only legal online sportsbook" in fl_main and "Hard Rock Bet" in fl_main, "Florida says Hard Rock Bet is the only legal online sportsbook")
     check("DraftKings" not in fl_main and "FanDuel" not in fl_main, "Florida main does not name DraftKings or FanDuel")
     check("BetMGM" not in fl_main and "betmgm" not in fl_main.lower(), "BetMGM never appears on the Florida page")
-    check("https://www.hardrock.bet/" in fl_main and "as of" in fl_main.lower() or "October 26, 2026" in fl_main, "Florida has the as-of date")
+    check("https://www.hardrock.bet/" in fl_main, "Florida links the Hard Rock Bet official site")
+    check("Online sports betting is legal in Florida." in fl_main, "Florida says online betting is legal as its own sentence")
+    check("legal in Florida as of" not in fl_main and "is legal as of" not in fl_main, "Florida does not glue the word legal to the verification date")
+    check("Last verified October 26, 2026" in fl_main, "Florida keeps a clear verification date")
+    check("best price among Hard Rock Bet" not in fl_main and "The lines are the Hard Rock Bet price." in fl_main, "one book reads as that book's price")
     check("October 26, 2026" in fl_main and "https://www.americangaming.org/" in fl_main, "Florida shows asOf and a source link")
     check("1-833-PLAYWISE" in fl_main and "1-800-GAMBLER" in fl_main, "Florida helpline is 1-833-PLAYWISE plus 1-800-GAMBLER")
     check('data-page="state"' in fl and 'data-route="' not in fl, "Florida page stays static")
     ny = _main_text((site / "new-york" / "index.html").read_text())
     check("DraftKings" in ny and "FanDuel" in ny and "BetMGM" in ny, "New York lists its books")
+    check("The lines are the best price among DraftKings, FanDuel and BetMGM." in ny, "several books still say best price among")
     check("Status unconfirmed" not in ny and "1-877-8-HOPENY" in ny, "New York is a straight legal page with its helpline")
     la = _main_text((site / "louisiana" / "index.html").read_text())
     check("Status unconfirmed" in la and "parishes" in la, "Louisiana shows the note and status unconfirmed")
@@ -831,6 +836,57 @@ def state_built_checks(site):
     check('href="states/"' in hub, "NFL hub links to /states/")
     idx = (site / "states" / "index.html").read_text()
     check(idx.count('href="florida/"') >= 1 and "texas/" not in idx and "wisconsin/" not in idx, "index lists legal states only")
+
+
+def college_title_tests():
+    """College team titles keep the school name and a short NCAAF/NCAAB label. No URL slug."""
+    samples = [
+        ("Duke Blue Devils", "ncaab"),
+        ("Kentucky Wildcats", "ncaab"),
+        ("Arkansas-Pine Bluff Golden Lions", "ncaab"),
+        ("North Carolina Central Eagles", "ncaab"),
+        ("North Carolina Tar Heels", "ncaab"),
+        ("Duke Blue Devils", "ncaaf"),
+    ]
+    titles = []
+    for name, lg in samples:
+        title = SP.college_team_title(name, lg)
+        bare = SP.bare_title(title)
+        slug = name.lower().replace(" ", "-")
+        check(len(title) <= SP.TITLE_MAX, f"{name} title fits ({len(title)}: {title})")
+        check(f"({SP.SHORT[lg]})" in bare, f"{name} title names {SP.SHORT[lg]} ({title})")
+        check(name in bare, f"{name} is not clipped ({title})")
+        check(f"({slug})" not in bare and slug not in bare, f"{name} title has no slug ({title})")
+        titles.append(title)
+    check(len(set(titles)) == len(titles), f"sample college titles are unique ({titles})")
+
+
+def fight_method_tests():
+    g = {"away": {"name": "Islam Makhachev", "winner": True}, "home": {"name": "Ian Machado Garry", "winner": False},
+         "result": {"round": 5, "clock": "5:00"}, "statusDetail": "Final"}
+    bare = SP.ufc_result_line(g)
+    check("won by in round" not in bare and bare == "Islam Makhachev won in round 5 at 5:00", f"missing method is not 'won by in round' ({bare})")
+    decision = SP.ufc_result_line(SP.apply_fight_method(g, {"method": "Decision - Unanimous", "round": 5, "clock": "5:00"}))
+    check(decision == "Islam Makhachev won by Decision - Unanimous in round 5 at 5:00", f"decision method ({decision})")
+    bare_ko = {"away": g["away"], "home": g["home"], "result": {}, "statusDetail": "Final"}
+    ko = SP.ufc_result_line(SP.apply_fight_method(bare_ko, {"method": "KO/TKO", "detail": "Punches", "round": 3, "clock": "3:20"}))
+    check(ko == "Islam Makhachev won by KO/TKO (Punches) in round 3 at 3:20", f"ko method ({ko})")
+    split = SP.ufc_result_line(SP.apply_fight_method(g, {"method": "Decision - Split"}))
+    check(split == "Islam Makhachev won by Decision - Split in round 5 at 5:00", f"split decision keeps the stored round ({split})")
+
+
+def state_date_tests():
+    """The states index 'as of' is the build. The book-list date stays labeled as last verified."""
+    doc = json.loads(json.dumps(SP.load_books()))
+    doc["asOf"] = "2026-10-26"
+    sh = SP.Shell((ROOT / "site" / "index.html").read_text(), SP.BASE_URL)
+    now = datetime(2026, 11, 11, 18, 0, tzinfo=timezone.utc)
+    html, _title = SP.states_index(doc, sh, {}, now)
+    main = re.sub(r"<!--.*?-->", "", _main_text(html), flags=re.S)
+    check(f"as of {SP.built_long(now)}" in main, f"states page as-of is the build day ({SP.built_long(now)})")
+    check(f"Last verified {SP.asof_long(doc)}" in main, "states page still names when the book list was checked")
+    check(f"as of {SP.asof_long(doc)}" not in main, "the older verification date is not the page as-of")
+    check("Book list verified October 26, 2026" in html, "the description keeps the book-list date")
 
 
 def state_unit_tests():
@@ -1131,6 +1187,7 @@ def sitemap_trim_tests():
         "good": {"path": "nfl/props/good/", "rows": [("up", ["good", "rush_yds", 55.5])], "archived": False, "p": {"n": "Good"}},
         "empty": {"path": "nfl/props/empty/", "rows": [], "archived": False, "p": {"n": "Empty"}},
         "blank": {"path": "nfl/props/blank/", "rows": [("up", ["blank", "rush_yds", None])], "archived": False, "p": {"n": "Blank"}},
+        "stale": {"path": "nfl/props/stale/", "rows": [("fin", ["stale", "rush_yds", 40])], "archived": True, "p": {"n": "Stale"}},
     }
     L.team_paths = {"1": "nfl/teams/away/"}
     L.ev = {}
@@ -1140,7 +1197,7 @@ def sitemap_trim_tests():
     pages = [
         "nfl/", "nfl/results/", "nfl/standings/", "nfl/teams/away/",
         "nfl/games/up/", "nfl/games/fin/", "nfl/games/thin/", "nfl/games/noscore/", "nfl/games/held/",
-        "nfl/props/good/", "nfl/props/empty/", "nfl/props/blank/",
+        "nfl/props/good/", "nfl/props/empty/", "nfl/props/blank/", "nfl/props/stale/",
         "ufc/events/empty-card/", "nfl/teams/canon/",
     ]
     tmp = Path(tempfile.mkdtemp(prefix="seotrim-"))
@@ -1168,7 +1225,7 @@ def sitemap_trim_tests():
         stats = SP.update_sitemap(tmp, entries, {"nfl": L, "ufc": U}, lm)
         urls = set(sitemap_page_urls(tmp))
         keep = ["nfl/", "nfl/results/", "nfl/standings/", "nfl/teams/away/", "nfl/games/up/", "nfl/games/fin/", "nfl/props/good/"]
-        drop = ["nfl/games/thin/", "nfl/games/noscore/", "nfl/games/held/", "nfl/props/empty/", "nfl/props/blank/",
+        drop = ["nfl/games/thin/", "nfl/games/noscore/", "nfl/games/held/", "nfl/props/empty/", "nfl/props/blank/", "nfl/props/stale/",
                 "ufc/events/empty-card/", "nfl/teams/old/", "nfl/games/moved/", "nfl/games/missing/", "preview/nfl/", "nfl/teams/canon/"]
         for rel in keep:
             check(SP.BASE_URL + rel in urls, f"sitemap keeps {rel}")
@@ -1200,6 +1257,9 @@ def main():
     best_lines_filter_tests()
     wtw_tests()
     state_unit_tests()
+    state_date_tests()
+    college_title_tests()
+    fight_method_tests()
     # last-5 prop strip: boxes render oldest -> newest (newest on the right), each with its M/D date under it; the stats stay latest first
     lg5 = [["2026-10-25", "DDD", "vs", {}], ["2026-10-24", "CCC", "@", {"points": 20}], ["2026-10-22", "BBB", "vs", {"points": 30}],
            ["2026-10-20", "EEE", "@", {"points": 24.5}], ["2026-10-18", "FFF", "vs", {"points": 28}], ["2026-10-16", "GGG", "vs", {"points": 40}]]
@@ -1273,11 +1333,26 @@ def main():
             desc_len = len(d.meta.get("description") or "")
             check(40 <= desc_len <= SP.DESC_MAX, f"{rel}: description length {desc_len} (max {SP.DESC_MAX})")
             check(d.title and len(d.title) <= SP.TITLE_MAX, f"{rel}: title <= {SP.TITLE_MAX} including the brand ({len(d.title)}: {d.title})")
+            if rel.startswith(("ncaaf/teams/", "ncaab/teams/")) and d.body.get("data-page") == "team":
+                label = "NCAAF" if rel.startswith("ncaaf/") else "NCAAB"
+                bare = SP.bare_title(d.title or "")
+                slug = rel.strip("/").rsplit("/", 1)[-1]
+                h1m = re.search(r'class="pv-h1">(.*?)</h1>', h)
+                h1 = html.unescape(re.sub(r"<[^>]+>", "", h1m.group(1))) if h1m else ""
+                school = re.sub(r" odds, schedule & results$", "", h1, flags=re.I)
+                check(f"({label})" in bare, f"{rel}: title names {label} ({d.title})")
+                check(not re.search(r"\([a-z0-9]+(?:-[a-z0-9]+)+\)", bare) and slug not in bare, f"{rel}: title has no url slug ({d.title})")
+                if school and len(school) + len(f" ({label})") <= SP.TITLE_MAX:
+                    check(school in bare, f"{rel}: school name is not clipped ({d.title})")
             check(not d.title.endswith(SP.SUFFIX) or len(SP.bare_title(d.title)) <= SP.TITLE_MAX - len(SP.SUFFIX), f"{rel}: suffix only when the phrase fits ({d.title})")
             check(not PROMO_RE.search(d.meta.get("description") or ""), f"{rel}: description has no promo wording")
             check(d.meta.get("og:title") == d.title == d.meta.get("twitter:title"), f"{rel}: og:title / twitter:title match <title>")
             check_page_ld(rel, h, d.hrefs, d.body.get("data-page") or "")
-            check("noindex" not in (d.meta.get("robots") or ""), f"{rel}: indexable")
+            robots = d.meta.get("robots") or ""
+            if d.body.get("data-page") == "fighter" and "noindex" in robots:
+                pass
+            else:
+                check("noindex" not in robots, f"{rel}: indexable")
             check(any(s.endswith("assets/app.js") for s in d.scripts), f"{rel}: loads the app JS")
             check(d.meta.get("_base") == "../" * rel.count("/"), f"{rel}: <base> points at the site root")
             check("21+" in h and "1-800-GAMBLER" in h, f"{rel}: 21+ and 1-800-GAMBLER")
@@ -1721,11 +1796,45 @@ def main():
         # ---- UFC fight + event pages: SportsEvent JSON-LD (the committed snapshot has no UFC data)
         site4 = build_copy(tmp, "site4")
         (site4 / "data" / "ufc").mkdir(parents=True, exist_ok=True)
-        (site4 / "data" / "ufc" / "index.json").write_text(json.dumps(ufc_fixture(now)))
+        fix = ufc_fixture(now)
+        old_bout = {
+            "id": "401old", "date": SP.iso(now - timedelta(days=40)),
+            "name": "Islam Makhachev vs. Ian Machado Garry", "state": "post", "statusDetail": "Final", "completed": True,
+            "away": {"id": "21", "name": "Islam Makhachev", "short": "Makhachev", "last": "Makhachev", "record": "27-1-0", "winner": True},
+            "home": {"id": "22", "name": "Ian Machado Garry", "short": "Garry", "last": "Garry", "record": "16-1-0", "winner": False},
+            "event": {"id": "900002", "name": "UFC 999: Charlie vs. Delta"}, "segment": "main", "segmentName": "Main Card", "matchNo": 2,
+            "weightClass": "Lightweight", "rounds": 5, "mainEvent": True,
+            "result": {"winner": "away", "round": 5, "clock": "5:00"}, "books": {}, "odds": None,
+        }
+        fix["games"].append(old_bout)
+        (site4 / "data" / "ufc" / "index.json").write_text(json.dumps(fix))
+        (site4 / "data" / "ufc" / "fighters.json").write_text(json.dumps({
+            "fighters": {"21": {"id": "21", "name": "Islam Makhachev", "hist": [
+                {"id": "401old", "method": "Decision - Unanimous", "round": 5, "clock": "5:00", "opp": "Ian Machado Garry"},
+            ]}},
+        }))
         SP.build(site4, site4 / "data", now, archive_dir=None)
         man4 = json.loads((site4 / "data" / "pages.json").read_text())
         fights = list((man4["g"].get("ufc") or {}).values())
-        check(len(fights) == 3, f"UFC fixture: 3 fight pages ({fights})")
+        check(len(fights) == 4, f"UFC fixture: 4 fight pages ({fights})")
+        fighter_pages = list((site4 / "ufc" / "fighters").glob("*/index.html"))
+        booked = no_book = 0
+        core4 = (site4 / "sitemap-core.xml").read_text() if (site4 / "sitemap-core.xml").exists() else ""
+        for fp in fighter_pages:
+            rel = "ufc/fighters/" + fp.parent.name + "/"
+            page = fp.read_text()
+            noindex = 'content="noindex, nofollow"' in page
+            listed = SP.BASE_URL + rel in core4
+            if "islam-makhachev" in rel:
+                check("won by Decision - Unanimous in round 5 at 5:00" in page and "won by in round" not in page, "fighter page uses the stored finish method")
+                check(noindex and not listed, "a fighter with no upcoming bout is noindex and off the sitemap")
+            if noindex:
+                no_book += 1
+                check(not listed, f"{rel}: noindex fighter is not in sitemap-core")
+            else:
+                booked += 1
+                check(listed, f"{rel}: booked fighter stays in sitemap-core")
+        check(booked >= 1 and no_book >= 1, f"ufc fixture splits booked and unbooked fighters ({booked} booked, {no_book} noindex)")
         for rel in fights:
             fev = event_ld_ok(rel, (site4 / rel / "index.html").read_text(), "ufc", "game")
             check(fev and (fev.get("superEvent") or {}).get("url", "").startswith(SP.BASE_URL + "ufc/events/"), f"{rel}: fight links its card (superEvent)")

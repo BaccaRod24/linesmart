@@ -1,6 +1,7 @@
 // Box score render + compact, and week grouping / links. No browser, no network.
 // Run: node scripts/box_test.mjs
 import { createRequire } from "module";
+import { readFileSync } from "fs";
 const require = createRequire(import.meta.url);
 const B = require("../site/assets/box-core.js");
 const W = require("../site/assets/week-core.js");
@@ -59,6 +60,13 @@ check(desc.map(d => d.games[0].id).join() === "mnf,sun,thu", "week group: daily 
 check(W.href("nfl", games[0]) === "#/g/nfl/sun/box" && W.href("nfl", games[1]) === "#/g/nfl/mnf", "finals link to the box tab; upcoming games link to the line page");
 check(W.href("nba", { id: "a b", state: "post" }) === "#/g/nba/a%20b/box", "ids are encoded");
 check(W.dayKey("2026-11-09T01:20Z") === "2026-11-08" && W.dayKey("2026-11-10T01:15Z") === "2026-11-09", "Sunday night and Monday night stay on their ET dates");
+
+const index = { games: [{ id: "401873052" }, { id: 12 }], week: { games: [{ id: "401873037", state: "post" }] } };
+check(B.hasFile(index, "401873052") && B.hasFile(index, 12), "a game in the index has a file");
+check(!B.hasFile(index, "401873037") && !B.hasFile(index, "") && !B.hasFile(null, "1") && !B.hasFile({}, "1"), "week-only and missing ids have no game file");
+const app = readFileSync(new URL("../site/assets/app.js", import.meta.url), "utf8");
+const view = app.slice(app.indexOf("async function viewGame"), app.indexOf("async function viewGame") + 1600);
+check(view.includes("BoxCore.hasFile") && view.indexOf("hasFile") < view.indexOf("getJSON(file)"), "the box route checks the index before it requests a game file");
 
 if (fails.length) { console.log(`\n${fails.length} failed`); process.exit(1); }
 console.log("\nbox_test: all passed");

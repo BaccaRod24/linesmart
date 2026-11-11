@@ -317,6 +317,25 @@ def with_extra(base, extra, limit=TITLE_MAX):
     return tail[:limit]
 
 
+def college_team_title(name, lg):
+    """NCAAF/NCAAB titles keep a short league label and the whole team name.
+    The long 'Odds, Schedule & Results' phrase is what gets shortened, not the school.
+    The URL slug is never added: that is what clipped 'North Carolina Central' to 'North Carolina'."""
+    label = SHORT.get(lg) or str(lg).upper()
+    tag = f" ({label})"
+    phrases = [
+        f"{name} Odds, Schedule & Results{tag}",
+        f"{name} Odds & Schedule{tag}",
+        f"{name} Odds & Results{tag}",
+        f"{name} Odds{tag}",
+        f"{name}{tag}",
+    ]
+    hit = prefer_title(phrases)
+    if hit and name in bare_title(hit):
+        return hit
+    return with_extra(name, tag)
+
+
 def cut(desc, n=DESC_MAX):
     """Meta description cap. Cuts on a word boundary and keeps the result within `n`."""
     desc = " ".join((desc or "").split())
@@ -437,6 +456,109 @@ class Archive:
 GAME_KEYS = ["id", "date", "name", "state", "statusDetail", "finalLabel", "completed", "venue", "city", "venueState", "venueCountry", "neutral",
              "broadcasts", "note", "event", "segment", "segmentName", "matchNo", "weightClass", "rounds", "mainEvent", "title", "result", "weather"]
 SIDE_KEYS = ["id", "abbr", "name", "short", "last", "logo", "color", "record", "score", "winner", "form", "rank", "country"]
+
+
+def ufc_result_line(g):
+    """'Name won by Decision - Unanimous in round 5 at 5:00'.
+    A finish method is required before the word 'by'. Round and clock alone read 'won in round 5',
+    never 'won by in round'."""
+    a, h = g.get("away") or {}, g.get("home") or {}
+    w = h if h.get("winner") else a if a.get("winner") else None
+    res = g.get("result") or {}
+    if not w:
+        return g.get("statusDetail") or "Final"
+    method = str(res.get("method") or "").strip()
+    detail = str(res.get("detail") or "").strip()
+    if detail and method and detail.lower() == method.lower():
+        detail = ""
+    bits = []
+    if method:
+        bits.append(method)
+    if detail:
+        bits.append(f"({detail})")
+    if res.get("round") not in (None, ""):
+        bits.append(f"in round {res['round']}")
+    if res.get("clock") not in (None, ""):
+        bits.append(f"at {res['clock']}")
+    how = " ".join(bits)
+    if method or detail:
+        return f"{tname(w)} won by {how}" if how else f"{tname(w)} won"
+    if how:
+        return f"{tname(w)} won {how}"
+    return f"{tname(w)} won"
+
+
+def apply_fight_method(g, info):
+    """Copy a stored finish onto a bout whose archived result kept the round but lost the method."""
+    if not isinstance(g, dict) or not isinstance(info, dict):
+        return g
+    method = str(info.get("method") or "").strip()
+    if not method:
+        return g
+    res = dict(g.get("result") or {})
+    if str(res.get("method") or "").strip():
+        return g
+    res["method"] = method
+    if info.get("detail") and not res.get("detail"):
+        res["detail"] = info.get("detail")
+    for k in ("round", "clock"):
+        if res.get(k) in (None, "") and info.get(k) not in (None, ""):
+            res[k] = info[k]
+    out = dict(g)
+    out["result"] = res
+    return out
+
+
+def load_fight_methods(data_dir):
+    """bout id -> finish, from fight-methods.json and each fighter's history in fighters.json."""
+    out = {}
+    data_dir = Path(data_dir)
+
+    def take(k, v):
+        if isinstance(v, dict) and str(v.get("method") or "").strip():
+            out.setdefault(str(k), {"method": v.get("method"), "detail": v.get("detail"), "round": v.get("round"), "clock": v.get("clock")})
+
+    doc = load_json(data_dir / "ufc" / "fight-methods.json") or {}
+    if isinstance(doc, dict):
+        bouts = doc.get("bouts") if isinstance(doc.get("bouts"), dict) else doc
+        for k, v in bouts.items():
+            if k not in ("generated", "bouts"):
+                take(k, v)
+    fighters = load_json(data_dir / "ufc" / "fighters.json") or {}
+    for e in (fighters.get("fighters") or {}).values() if isinstance(fighters, dict) else []:
+        if not isinstance(e, dict):
+            continue
+        for h in e.get("hist") or []:
+            if isinstance(h, dict) and h.get("id"):
+                take(h["id"], h)
+    return out
+
+
+def prop_is_live(L, e):
+    """A prop page is live only while one of its lines is on a game that has not finished."""
+    if not e or e.get("archived"):
+        return False
+    for row in e.get("rows") or []:
+        gid = row[0] if isinstance(row, (list, tuple)) and row else None
+        g = L.games.get(str(gid)) if gid is not None else None
+        if g and not abnormal(g) and not L.is_final(g):
+            return True
+    return False
+
+
+def fighter_booked(L, rel):
+    """True when this fighter page has a bout that is still to be fought (or is live)."""
+    tid = next((t for t, p in (L.team_paths or {}).items() if p == rel), None)
+    if tid is None:
+        return False
+    tid = str(tid)
+    for g in L.games.values():
+        if abnormal(g) or L.is_final(g):
+            continue
+        sides = (str((g.get("home") or {}).get("id") or ""), str((g.get("away") or {}).get("id") or ""))
+        if tid in sides:
+            return True
+    return False
 
 
 def score_num(v):
@@ -955,6 +1077,7 @@ class League:
         self.team_info = {}  # team id -> side dict (name/abbr/logo/...)
         self.event_paths = {}
         self.hub = f"{lg}/"
+        self.fight_methods = {}
 
     def is_final(self, g):
         """A finished result. Postponed and canceled games stay up, but they are not finals and have no score."""
@@ -1022,6 +1145,17 @@ class League:
             gg.update(books=(cl or {}).get("books") or {}, odds=(cl or {}).get("odds"), _closing=bool(cl),
                       _closedAt=(cl or {}).get("closedAt"), _archived=True)
             self.games[gid] = gg
+        if self.lg == "ufc" and self.fight_methods:
+            stored = self.arch.games.setdefault(self.lg, {}) if self.arch.dir else None
+            for gid, g in list(self.games.items()):
+                filled = apply_fight_method(g, self.fight_methods.get(str(gid)))
+                if filled is g:
+                    continue
+                self.games[gid] = filled
+                if stored is not None and isinstance(stored.get(gid), dict):
+                    prev = stored[gid].get("result") or {}
+                    if not str(prev.get("method") or "").strip():
+                        stored[gid]["result"] = filled.get("result")
 
     def assign_paths(self):
         stored = self.arch.state.setdefault("paths", {}).setdefault(self.lg, {}) if self.arch.dir else {}
@@ -1185,8 +1319,7 @@ class League:
         if self.lg == "ufc":
             w = h if h.get("winner") else a if a.get("winner") else None
             res = g.get("result") or {}
-            how = " ".join(str(x) for x in [res.get("method"), f"({res['detail']})" if res.get("detail") else "", f"in round {res['round']}" if res.get("round") else "", f"at {res['clock']}" if res.get("clock") else ""] if x)
-            return f"{tname(w)} won{(' by ' + how) if how else ''}" if w else (g.get("statusDetail") or "Final")
+            return ufc_result_line(g) if w or res else (g.get("statusDetail") or "Final")
         sfx = FL.suffix(FL.of_game(g)) if self.is_final(g) else ""
         return f"{a.get('abbr')} {num(a.get('score'))}, {h.get('abbr')} {num(h.get('score'))}" + (f" ({sfx})" if sfx else "")
 
@@ -2459,6 +2592,11 @@ def team_page(L: League, sh: Shell, tid):
         dk = any(page_books(g, "ufc") for _, g in up)   # name only books actually shown (UFC lines are DraftKings only)
         desc = f"{name} ({t.get('record') or 'record n/a'}{', ' + t['country'] if t.get('country') else ''}): " + ("upcoming fight odds at DraftKings, record and recent results." if dk else "next fight, record and recent results." if up else "record and recent fight results.")
         h1 = f"{esc(name)}: fight odds &amp; results"
+    elif L.lg in ("ncaaf", "ncaab"):
+        title = college_team_title(name, L.lg)
+        nx = up[0][1] if up else None
+        desc = f"{name} ({t.get('record') or ts.get('recordSummary') or 'record n/a'}) betting odds" + (f" for {L.matchup(nx, short=True)} {short_day(parse_dt(nx['date']), False)}" if nx else "") + ", schedule, recent results with closing lines, splits and player props."
+        h1 = f"{esc(name)} odds, schedule &amp; results"
     else:
         title = fit(
             f"{name} Odds, Schedule & Results ({SHORT[L.lg]})", f"{name} Odds, Schedule & Results",
@@ -2498,7 +2636,9 @@ def team_page(L: League, sh: Shell, tid):
     if games_ld:
         page_ld["mainEntity"] = games_ld
     ld = [{"@context": "https://schema.org", "@graph": [entity, page_ld]}, crumbs_ld(L.base_url, [(L.hub, NAMES[L.lg]), (path, name)])]
-    return sh.page(path, title, desc, main, more, kind="fighter" if L.lg == "ufc" else "team", lg=L.lg, ld=ld, og_type="profile"), title
+    # A fighter with no booked upcoming bout stays on the site for history, but is not a landing page.
+    robots = "noindex, nofollow" if L.lg == "ufc" and not up else None
+    return sh.page(path, title, desc, main, more, kind="fighter" if L.lg == "ufc" else "team", lg=L.lg, ld=ld, og_type="profile", robots=robots), title
 
 
 def event_page(L: League, sh: Shell, eid):
@@ -3233,6 +3373,12 @@ def asof_long(doc):
     return f"{d.strftime('%B')} {d.day}, {d.year}"
 
 
+def built_long(now):
+    """Calendar day of this page build, in US Eastern. The book list's own date is asof_long()."""
+    d = et(now)
+    return f"{d.strftime('%B')} {d.day}, {d.year}"
+
+
 def status_source(doc):
     """First https URL on the online-legal source list."""
     for s in ((doc.get("sources") or {}).get("onlineLegal") or []):
@@ -3271,13 +3417,15 @@ def legal_copy(doc, code, st):
             parts.append("LineSmart lists none of the books we compare there.")
         parts.append(f"Checked {asof}.")
     elif not books:
-        parts.append(f"Online sports betting is legal in {name} as of {asof}, and LineSmart lists none of the books we compare there.")
+        parts.append(f"Online sports betting is legal in {name}, and LineSmart lists none of the books we compare there.")
         if note:
             parts.append(note)
+        parts.append(f"Last verified {asof}.")
     else:
-        parts.append(f"Online sports betting is legal in {name} as of {asof}. Books we compare: {and_list(books)}.")
+        parts.append(f"Online sports betting is legal in {name}. Books we compare: {and_list(books)}.")
         if note:
             parts.append(note)
+        parts.append(f"Last verified {asof}.")
     return " ".join(parts)
 
 
@@ -3296,7 +3444,10 @@ def state_faqs(doc, code, st):
         help_a = f"{name}: call {h.get('name')}{sms} ({h.get('label') or h.get('url') or ''}). You can also call {gam.get('name')}."
     else:
         help_a = f"{name} uses {gam.get('name')}."
-    if books:
+    if len(books) == 1:
+        lines_q = (f"Where do the {name} lines on this page come from?",
+                   f"The lines are the {listed} price. Each game links to its page.")
+    elif books:
         lines_q = (f"Where do the {name} lines on this page come from?",
                    f"The lines are the best price among {listed}. Each game links to its page.")
     else:
@@ -3328,9 +3479,9 @@ def state_desc(doc, st):
     if st.get("uncertain"):
         d = f"{name} sports betting status is unconfirmed as of {asof}. Books we compare and the state helpline. 21+."
     elif not books:
-        d = f"{name} sports betting is legal as of {asof}. LineSmart lists none of the books we compare there. 21+."
+        d = f"{name} sports betting is legal. LineSmart lists none of the books we compare there. Verified {asof}. 21+."
     else:
-        d = f"{name} sports betting: {and_list(books)} as of {asof}. Lines, helpline and sources. 21+."
+        d = f"{name} sports betting: {and_list(books)}. Verified {asof}. Lines, helpline and sources. 21+."
     return cut(d)
 
 
@@ -3610,10 +3761,15 @@ def state_page(doc, code, st, slug, sh: Shell, Ls, now):
     return sh.page(path, title, desc, main, more, kind="state", route="", ld=ld, og_type="website"), title
 
 
-def states_index(doc, sh: Shell, Ls):
+def states_index(doc, sh: Shell, Ls, now=None):
     path = "states/"
     title = fit("Sports Betting by State", "Betting by State")
-    desc = cut(f"Sports betting by state: the books LineSmart compares, as of {asof_long(doc)}. Helplines and odds. 21+.")
+    # The book list's date is asOf (when that file was checked). This HTML is rebuilt every
+    # data run, so the page's own "as of" is the build, not the older verification date.
+    now = now or datetime.now(timezone.utc)
+    built = built_long(now)
+    verified = asof_long(doc)
+    desc = cut(f"Sports betting by state: the books LineSmart compares. Book list verified {verified}. Helplines and odds. 21+.")
     rows = []
     for code, st, slug in legal_states(doc):
         books = book_names(doc, st.get("books") or [])
@@ -3629,7 +3785,7 @@ def states_index(doc, sh: Shell, Ls):
     main = f"""<article class="pv sx-state">
 {crumbs((None, "States"))}
 <h1 class="pv-h1">{esc(bare_title(title))}</h1>
-<p class="pv-lead">LineSmart compares legal online sportsbooks in these states, as of {esc(asof_long(doc))}.{link}</p>
+<p class="pv-lead">LineSmart compares legal online sportsbooks in these states, as of {stamp(esc(built))}. The book list was last verified {esc(verified)}.{link}</p>
 {section("list", "States", link_list(rows, "pv-list"))}
 {source_line(doc)}
 </article>"""
@@ -3967,7 +4123,8 @@ def sitemap_index_of(Ls):
             g = L.games[gid]
             out[p] = ("final" if L.is_final(g) else "live", lg, g)
         for e in L.players.values():
-            if e.get("path"):
+            # History-only prop pages stay published. They are not live lines.
+            if e.get("path") and not e.get("archived") and prop_is_live(L, e):
                 out[e["path"]] = ("live", lg, None)
         for ev in getattr(L, "ev", {}).values():
             bouts = [L.games[b] for b in ev.get("bouts") or [] if b in L.games]
@@ -4082,6 +4239,8 @@ def sitemap_content_reason(rel, Ls):
         if rel in (L.hub, f"{lg}/results/", f"{lg}/standings/") or rel.startswith(f"{lg}/results/"):
             return None
         if rel in L.team_paths.values():
+            if lg == "ufc" and not fighter_booked(L, rel):
+                return "fighter with no upcoming bout"
             return None
         for ev in getattr(L, "ev", {}).values():
             if ev.get("path") != rel:
@@ -4112,6 +4271,8 @@ def sitemap_content_reason(rel, Ls):
                 continue
             if not any(_prop_posted(r) for r in (e.get("rows") or [])):
                 return "empty prop page"
+            if e.get("archived") or not prop_is_live(L, e):
+                return "stale prop page"
             return None
     return None
 
@@ -4226,6 +4387,8 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
         props = load_json(data_dir / "props" / f"{lg}.json") if lg != "ufc" else None
         L = League(lg, ix, props, arch, now, base_url)
         L.data_dir = data_dir
+        if lg == "ufc":
+            L.fight_methods = load_fight_methods(data_dir)
         L.has_data = bool(raw)
         merge_archive(arch, lg, ix.get("games") or [], L.teams, now)
         L.select()
@@ -4285,7 +4448,7 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
     for code, st, slug in legal_states(books_doc):
         html, t = state_page(books_doc, code, st, slug, sh, Ls, now)
         put(f"{slug}/", html, t, "state", "states")
-    html, t = states_index(books_doc, sh, Ls)
+    html, t = states_index(books_doc, sh, Ls, now)
     put("states/", html, t, "states", "states")
     html, t = best_lines_page(Ls, sh, now, base_url)
     put(BEST_LINES, html, t, "core", None)
@@ -4316,6 +4479,13 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
         if len(ps) > 1:
             base = bare_title(t)
             for p in ps[1:]:
+                # College titles already carry NCAAF/NCAAB. The URL slug is what clipped school names.
+                if p.startswith(("ncaaf/teams/", "ncaab/teams/")):
+                    label = "NCAAF" if p.startswith("ncaaf/") else "NCAAB"
+                    if f"({label})" in base:
+                        continue
+                    retitle(p, t, with_extra(base, f" ({label})"))
+                    continue
                 retitle(p, t, with_extra(base, f" ({p.strip('/').rsplit('/', 1)[-1]})"))
     # redirects: old /preview/ URLs and older paths of rescheduled games
     redirects = {}

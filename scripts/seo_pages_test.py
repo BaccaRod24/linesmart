@@ -112,9 +112,9 @@ LD_TYPES = {
     "hub": {"CollectionPage", "BreadcrumbList"},
     "team": {"SportsTeam", "CollectionPage", "BreadcrumbList"},
     "fighter": {"Person", "CollectionPage", "BreadcrumbList"},
-    "game": {"SportsEvent", "BreadcrumbList"},
+    "game": {"ItemPage", "BreadcrumbList"},
     "player": {"ProfilePage", "Person", "BreadcrumbList"},
-    "event": {"SportsEvent", "BreadcrumbList"},
+    "event": {"ItemPage", "BreadcrumbList"},
     "results": {"CollectionPage", "ItemList", "BreadcrumbList"},
     "state": {"WebPage", "BreadcrumbList", "FAQPage"},
     "states": {"CollectionPage", "BreadcrumbList", "ItemList"},
@@ -166,7 +166,13 @@ def check_page_ld(rel, h, hrefs, kind):
     missing = LD_TYPES.get(kind, set()) - types
     check(not missing, f"{rel}: JSON-LD types {sorted(types)} missing {sorted(missing)}")
     check("SearchAction" not in types, f"{rel}: no SearchAction")
-    games = visible_game_paths(hrefs)
+    # The week crawl block sits above #app and repeats game URLs so new pages get found. The ItemList is the
+    # hub's own schedule and results, in that order, so those extra links are not part of the comparison.
+    scan_hrefs = hrefs
+    if kind == "hub" and 'class="wrap sx-week"' in h:
+        body = re.sub(r'<div class="wrap sx-week">.*?(?=<main)', "", h, count=1, flags=re.S)
+        scan_hrefs = re.findall(r'href="([^"]*)"', body)
+    games = visible_game_paths(scan_hrefs)
     lists = [n for n in nodes if n.get("@type") == "ItemList"]
     if kind in ("hub", "team", "fighter"):
         if not games:
@@ -266,9 +272,10 @@ def title_limit_tests():
     sample = "Free NFL odds comparison: spreads, totals and moneylines from DraftKings, Hard Rock Bet and FanDuel, line movement and final scores."
     check(len(sample) <= SP.DESC_MAX and not PROMO_RE.search(sample) and "Florida" not in sample, "comparison description: no promo wording and no Florida availability claim")
     check(SP.hub_books() == "DraftKings, Hard Rock Bet and FanDuel", "hub book list is the odds-table book list")
-    check(SP.hub_custom_lead("nba", 0) is None and SP.hub_custom_lead("nfl", 4) is None, "shared hubs and an empty slate keep the existing intro")
+    check(SP.hub_custom_lead("nba", 0) is None and SP.hub_custom_lead("nfl", 0) is None, "an empty slate keeps the shared empty intro")
     books = SP.hub_books()
     for lg, one, many in (
+        ("nfl", "1 upcoming game", "3 upcoming games"),
         ("nba", "1 upcoming game", "3 upcoming games"),
         ("ncaaf", "1 upcoming NCAAF game", "3 upcoming NCAAF games"),
         ("ncaab", "1 upcoming NCAAB game", "3 upcoming NCAAB games"),
@@ -282,9 +289,17 @@ def title_limit_tests():
         check(many in lead and books in lead and lead.startswith("Today's"), f"{lg} intro uses the count and the book list")
         check(not PROMO_RE.search(title + " " + desc + " " + h1 + " " + lead), f"{lg} hub copy has no promo wording")
         check(not FL_CLAIM.search(title + " " + desc + " " + h1 + " " + lead), f"{lg} hub copy does not place a book in Florida")
-        if lg in ("ncaaf", "ncaab"):
-            check(has_query_words(spec["title"]) and has_query_words(spec["desc"]) and has_query_words(spec["h1"]) and has_query_words(lead),
-                  f"{lg} hub title, description, h1 and intro say lines, spreads and odds ({title} / {desc})")
+        blob = f"{spec['title']} {spec['h1']}".lower()
+        if lg == "nfl":
+            check("nfl spreads" in blob and "betting lines" in blob, f"nfl hub targets spreads and betting lines ({title} / {h1})")
+        elif lg == "nba":
+            check(spec["title"].lower().startswith("nba odds") and spec["h1"].lower().startswith("nba odds"), f"nba hub leads with NBA odds ({title} / {h1})")
+        elif lg == "ncaaf":
+            check("college football" in blob and "lines" in blob and "spreads" in blob and "ncaaf odds" in blob, f"ncaaf hub targets college football lines and NCAAF odds ({title} / {h1})")
+            check(has_query_words(spec["desc"]) and has_query_words(lead), f"ncaaf description and intro still say lines, spreads and odds")
+        elif lg == "ncaab":
+            check("ncaab lines" in blob and "college basketball spreads" in blob, f"ncaab hub targets NCAAB lines and college basketball spreads ({title} / {h1})")
+            check(has_query_words(spec["desc"]) and has_query_words(lead), f"ncaab description and intro still say lines, spreads and odds")
 
 
 def _fixture_league(lg):
@@ -295,17 +310,17 @@ def _fixture_league(lg):
 
 
 def game_title_tests():
-    """Upcoming titles name the matchup, the date and the three-book comparison. Finished titles stay result titles."""
+    """Upcoming titles lead with the matchup and the date, then odds and line movement. Finished titles lead with the score."""
     cases = [
-        ("ncaaf", "401856734", "Florida vs Georgia Odds: DK, FD & HR (Oct 31) | LineSmart"),
-        ("nfl", "401873026", "Ravens vs Bills Odds: DK, FD & HR (Nov 1) | LineSmart"),
-        ("nfl", "401873024", "Cardinals vs Cowboys Odds: DK, FD & HR (Nov 1) | LineSmart"),
-        ("ncaab", "401906769", "Miami vs Florida Odds: DK, FD & HR (Nov 2) | LineSmart"),
-        ("ncaaf", "401866454", "Buffalo vs Miami OH Odds: DK, FD & HR (Nov 3) | LineSmart"),
-        ("ncaaf", "401858509", "Ohio State vs USC Odds: DK, FD & HR (Oct 31) | LineSmart"),
-        ("nba", "401909903", "Celtics vs Magic Odds: DK, FD & HR (Nov 1) | LineSmart"),
-        ("nba", "401909895", "Grizzlies vs Blazers Odds: DK, FD & HR (Oct 29) | LineSmart"),
-        ("nba", "401909893", "Cavaliers vs Hawks Odds: DK, FD & HR (Oct 29) | LineSmart"),
+        ("ncaaf", "401856734", "Florida vs Georgia Oct 31: Odds & Line Movement | LineSmart"),
+        ("nfl", "401873026", "Ravens vs Bills Nov 1: Odds & Line Movement | LineSmart"),
+        ("nfl", "401873024", "Cardinals vs Cowboys Nov 1: Odds & Line Movement | LineSmart"),
+        ("ncaab", "401906769", "Miami vs Florida Nov 2: Odds & Line Movement | LineSmart"),
+        ("ncaaf", "401866454", "Buffalo vs Miami OH Nov 3: Odds & Line Movement | LineSmart"),
+        ("ncaaf", "401858509", "Ohio State vs USC Oct 31: Odds & Line Movement | LineSmart"),
+        ("nba", "401909903", "Celtics vs Magic Nov 1: Odds & Line Movement | LineSmart"),
+        ("nba", "401909895", "Grizzlies vs Blazers Oct 29: Odds & Line Movement"),
+        ("nba", "401909893", "Cavaliers vs Hawks Oct 29: Odds & Line Movement | LineSmart"),
     ]
     leagues = {}
     seen_desc = {}
@@ -314,7 +329,8 @@ def game_title_tests():
         g = L.cur[gid]
         title, desc = SP.game_meta(L, g, gid)
         check(title == want, f"{lg} {gid} title ({title})")
-        snippet_ok(title, desc, f"{lg} {gid}")
+        snippet_ok(title, desc, f"{lg} {gid}", title_books=False)
+        check(title.startswith(f"{SP.title_side(g['away'])} vs ") and "Line" in title, f"{lg} {gid} title leads with the matchup and the page ({title})")
         check(SP.title_side(g["away"]) in title and SP.title_side(g["home"]) in title, f"{lg} {gid} title names both teams ({title})")
         if lg in ("ncaaf", "ncaab"):
             check(has_query_words(desc), f"{lg} {gid} description says lines, spreads and odds ({desc})")
@@ -328,7 +344,7 @@ def game_title_tests():
     Lnb = _fixture_league("ncaab")
     long_t, long_d = SP.game_meta(Lnb, Lnb.cur["401906791"], "401906791")
     check(long_t.startswith("Tennessee Tech vs Mississippi St ") and len(long_t) <= SP.TITLE_MAX, f"long matchup stays readable ({long_t})")
-    snippet_ok(long_t, long_d, "Tennessee Tech")
+    snippet_ok(long_t, long_d, "Tennessee Tech", title_books=False)
     # No line and a posted line share the comparison title. The description adds the number only when a line is up.
     L = leagues["ncaaf"]
     bare_t, bare_d = SP.game_meta(L, L.cur["401866454"], "401866454")
@@ -336,9 +352,9 @@ def game_title_tests():
     buffalo["books"] = {"draftkings": {"homeSpread": -3.5, "awaySpread": 3.5, "homeSpreadOdds": -110, "awaySpreadOdds": -110,
                                        "total": 48.5, "overOdds": -110, "underOdds": -110, "homeML": -160, "awayML": 140}}
     lined, lined_desc = SP.game_meta(L, buffalo, "401866454")
-    check(lined == bare_t and "DK, FD & HR" in lined, f"Buffalo title is stable once a line posts ({lined})")
+    check(lined == bare_t and "Odds" in lined and "Line" in lined, f"Buffalo title is stable once a line posts ({lined})")
     check("total 48.5" in lined_desc and all(b in lined_desc for b in BOOKS3), f"Buffalo lined description names the number and the books ({lined_desc})")
-    snippet_ok(lined, lined_desc, "Buffalo lined")
+    snippet_ok(lined, lined_desc, "Buffalo lined", title_books=False)
     check("Miami OH" in bare_d and "total 48.5" not in bare_d, "Buffalo without a line does not invent a number")
     check(has_query_words(bare_d), f"NCAAF game with no number yet still says lines, spreads and odds ({bare_d})")
     done = json.loads(json.dumps(leagues["ncaaf"].cur["401856734"]))
@@ -348,7 +364,7 @@ def game_title_tests():
     done["home"]["winner"] = True
     done["_closing"] = True
     fin_t, fin_d = SP.game_meta(leagues["ncaaf"], done, "401856734")
-    check("Result" in fin_t and has_query_words(fin_d), f"finished NCAAF game with a closing line says lines, spreads and odds ({fin_d})")
+    check("Final Score" in fin_t and "Box Score" in fin_t and has_query_words(fin_d), f"finished NCAAF game with a closing line says lines, spreads and odds ({fin_d})")
     bare_fin = json.loads(json.dumps(done))
     bare_fin["books"], bare_fin["odds"], bare_fin["_closing"] = {}, None, False
     _, bare_fin_d = SP.game_meta(leagues["ncaaf"], bare_fin, "401856734")
@@ -361,9 +377,9 @@ def game_title_tests():
     check("neutral site" in intro and "favored by" in intro and "should win" not in intro.lower(), f"Florida intro is the line, not a pick ({intro[:80]})")
     check(not pv.FORBIDDEN.search(intro) and not PROMO_RE.search(intro), "intro has no pick or promo wording")
     finished = {
-        "401873012": "Bengals vs Ravens Final Score: 35-13 | LineSmart",
-        "401873011": "Steelers vs Saints Final Score: 16-10 | LineSmart",
-        "401873016": "Giants vs Texans Final Score: 27-21, OT | LineSmart",
+        "401873012": "Bengals vs Ravens Oct 25: Final Score 35-13 & Box Score",
+        "401873011": "Steelers vs Saints Oct 25: Final Score 16-10 & Box Score",
+        "401873016": "Giants vs Texans Oct 25: Final Score 27-21, OT & Box Score",
     }
     nfl = leagues["nfl"]
     for gid, want in finished.items():
@@ -421,6 +437,32 @@ def _slate_league(lg, games, now):
     return L
 
 
+def discover_link_tests():
+    """Homepage and a hub link this week's games and the prop pages that have a number on them."""
+    now = pv.parse_dt("2026-10-31T20:00:00Z")
+    week = [_slate_game(f"g{i}", "2026-11-01T23:00:00Z") for i in range(1, 4)]
+    far = _slate_game("far", "2026-11-20T23:00:00Z")
+    L = _slate_league("nfl", week + [far], now)
+    L.props = {"games": {"g1": {"props": [["p1", "rush_yds", 60.5]]}, "far": {"props": [["p2", "rush_yds", 40]]}}, "players": {}}
+    L.players = {
+        "p1": {"path": "nfl/props/josh-allen/", "p": {"n": "Josh Allen", "ta": "BUF"}},
+        "p2": {"path": "nfl/props/later/", "p": {"n": "Later Back", "ta": "DAL"}},
+    }
+    nba = _slate_league("nba", [], now)
+    home = SP.discover_nav({"nfl": L, "nba": nba}, None, games=True, props=True)
+    check('href="nfl/games/g1/"' in home and 'href="nfl/props/josh-allen/"' in home, "homepage links this week's game and its prop page")
+    check('href="nfl/games/far/"' not in home and 'href="nfl/props/later/"' not in home, "homepage does not pull a game or prop from outside the week when the week already fills the floor")
+    check("Games this week" in home and "Player props this week" in home and 'href="nba/"' in home, "homepage headings and the other league")
+    check(home.count("<a ") == home.lower().count("<a href="), "discover links are plain href anchors")
+    hub = SP.discover_nav({"nfl": L, "nba": nba}, "nfl", games=True, props=True, leagues=False)
+    check('href="nfl/games/g1/"' in hub and 'href="nfl/props/josh-allen/"' in hub and 'href="nba/"' not in hub, "hub week nav is that sport's games and props")
+    check("NFL games this week" in hub and "NFL player props this week" in hub, "hub headings name the sport")
+    # a league with nothing this week still links its soonest game (the old floor)
+    later = _slate_league("ncaab", [_slate_game("c1", "2026-11-20T23:00:00Z")], now)
+    thin = SP.discover_nav({"ncaab": later}, None, games=True, props=False, leagues=False)
+    check('href="ncaab/games/c1/"' in thin, "an empty week still links the soonest game")
+
+
 def best_lines_filter_tests():
     """Started, live, final, and no-line games are not listed. A partial line stays, with the missing markets blank.
     Next up skips a day whose games have no posted number."""
@@ -470,8 +512,12 @@ DATE_RE = re.compile(r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\
 BOOKS3 = ("DraftKings", "FanDuel", "Hard Rock Bet")
 
 
-def snippet_ok(title, desc, who, books=True):
-    """Length, the three books, a date, and none of the banned or Florida-availability phrases."""
+def snippet_ok(title, desc, who, books=True, title_books=True):
+    """Length, the three books in the description, a date, and none of the banned or Florida-availability phrases.
+
+    Game titles spend the 60 characters on the matchup, the date and the page contents, so they pass title_books=False.
+    Player-prop titles still name the three-book comparison.
+    """
     blob = f"{title or ''}\n{desc or ''}"
     check(bool(title) and len(title) <= SP.TITLE_MAX, f"{who}: title length {len(title or '')} ({title})")
     check(bool(desc) and 40 <= len(desc) <= SP.DESC_MAX, f"{who}: description length {len(desc or '')}")
@@ -483,7 +529,8 @@ def snippet_ok(title, desc, who, books=True):
     if books:
         missing = [b for b in BOOKS3 if b not in (desc or "")]
         check(not missing, f"{who}: description missing {missing} ({desc})")
-        check(SP.TITLE_BOOKS in (title or "") or all(b in (title or "") for b in BOOKS3), f"{who}: title does not name the comparison ({title})")
+        if title_books:
+            check(SP.TITLE_BOOKS in (title or "") or all(b in (title or "") for b in BOOKS3), f"{who}: title does not name the comparison ({title})")
         check(DATE_RE.search(title or "") and DATE_RE.search(desc or ""), f"{who}: title and description need a date ({title} / {desc})")
 BAD_NAME = re.compile(r"\bRod\b|Rodney", re.I)
 
@@ -492,63 +539,64 @@ EV_DUR = {"nfl": 3.5, "ncaaf": 3.5, "nba": 2.5, "ncaab": 2.5, "nhl": 2.5, "mlb":
 ISO_OFF = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d)?[+-]\d\d:\d\d$")
 
 
-def offer_ld_ok(rel, ev):
-    """Free odds-page offer: price 0 on the canonical URL. Not a ticket and not a sportsbook."""
-    off = ev.get("offers") or {}
-    if isinstance(off, list):
-        off = off[0] if off else {}
-    blob = json.dumps(off)
-    check(off.get("@type") == "Offer" and off.get("url") == ev.get("url"), f"{rel}: offers.url is the canonical page ({off.get('url')})")
-    check(off.get("price") == 0 and off.get("priceCurrency") == "USD", f"{rel}: free offer is 0 USD ({off.get('price')} {off.get('priceCurrency')})")
-    check(off.get("availability") == "https://schema.org/InStock", f"{rel}: offers.availability InStock")
-    check(ISO_OFF.match(off.get("validFrom") or ""), f"{rel}: offers.validFrom with offset ({off.get('validFrom')})")
-    check(off.get("name") == "Free odds and stats" and "not a ticket" in (off.get("description") or "").lower(), f"{rel}: offer names the free page, not a ticket ({off.get('name')})")
-    check(not PROMO_RE.search(blob) and not re.search(r"draftkings|fanduel|hard rock|betmgm|sportsbook", blob, re.I), f"{rel}: offer JSON-LD has no promo or sportsbook wording")
+def _coverage(rel, node):
+    """(start, end) from temporalCoverage, an ISO 8601 interval."""
+    raw = node.get("temporalCoverage") or ""
+    parts = raw.split("/")
+    check(len(parts) == 2 and ISO_OFF.match(parts[0]) and ISO_OFF.match(parts[1]), f"{rel}: temporalCoverage is an ISO interval ({raw})")
+    return pv.parse_dt(parts[0]), pv.parse_dt(parts[1])
+
+
+def _no_event_offers(rel, nodes):
+    """The offers warning comes from Event rich results. Odds pages are not events and do not invent an offer."""
+    for node in nodes:
+        t = node.get("@type")
+        types = t if isinstance(t, list) else [t]
+        check(not any(x in SP.EVENT_TYPES or x == "Offer" for x in types), f"{rel}: no Event or Offer type ({types})")
+        check("offers" not in node, f"{rel}: no offers property ({node.get('@type')} {node.get('name')})")
 
 
 def event_ld_ok(rel, h, lg, kind):
-    """Google Event structured data on a game / fight / UFC event page: required fields (name, startDate, location)
-    plus the recommended ones Search Console flagged (offers, endDate, performer, organizer.url)."""
+    """ItemPage JSON-LD for a game, fight or UFC card. Validates as a WebPage subtype, which does not expect offers."""
     lds = [json.loads(x.replace("<\\/", "</")) for x in re.findall(r'<script type="application/ld\+json">(.*?)</script>', h, re.S)]
-    evs = [x for x in lds if x.get("@type") == "SportsEvent"]
-    check(len(evs) == 1, f"{rel}: one SportsEvent JSON-LD ({len(evs)})")
+    nodes = walk_nodes(lds)
+    _no_event_offers(rel, nodes)
+    evs = [x for x in lds if x.get("@type") == "ItemPage"]
+    check(len(evs) == 1, f"{rel}: one ItemPage JSON-LD ({len(evs)})")
     if not evs:
         return None
     ev = evs[0]
-    st, en = pv.parse_dt(ev.get("startDate")), pv.parse_dt(ev.get("endDate"))
-    check(ev.get("name") and ev.get("url") == SP.BASE_URL + rel and ISO_OFF.match(ev.get("startDate") or ""), f"{rel}: name, url, startDate with offset")
-    check(isinstance(ev.get("description"), str) and ev["description"].strip(), f"{rel}: SportsEvent description ({ev.get('description')!r})")
-    for node in walk_nodes(lds):
-        if node.get("@type") in ("Event", "SportsEvent"):
-            check(isinstance(node.get("description"), str) and node["description"].strip(), f"{rel}: every Event has a description ({node.get('name')})")
-    check(ISO_OFF.match(ev.get("endDate") or "") and st and en and en > st, f"{rel}: endDate with offset after startDate ({ev.get('startDate')} -> {ev.get('endDate')})")
+    st, en = _coverage(rel, ev)
+    check(ev.get("name") and ev.get("url") == SP.BASE_URL + rel, f"{rel}: name and canonical url")
+    check(isinstance(ev.get("description"), str) and ev["description"].strip(), f"{rel}: ItemPage description ({ev.get('description')!r})")
+    check(st and en and en > st, f"{rel}: coverage ends after it starts")
     if kind != "event":
-        check(bool(st and en) and en - st == timedelta(hours=EV_DUR[lg]), f"{rel}: endDate = start + {EV_DUR[lg]}h for {lg}")
-    loc = ev.get("location") or {}
-    check(loc.get("@type") == "Place" and (loc.get("address") or {}).get("@type") == "PostalAddress" and (loc.get("address") or {}).get("addressCountry"), f"{rel}: location Place + PostalAddress")
+        check(bool(st and en) and en - st == timedelta(hours=EV_DUR[lg]), f"{rel}: coverage = start + {EV_DUR[lg]}h for {lg}")
+    loc = ev.get("contentLocation") or {}
+    check(loc.get("@type") == "Place" and (loc.get("address") or {}).get("@type") == "PostalAddress" and (loc.get("address") or {}).get("addressCountry"), f"{rel}: contentLocation Place + PostalAddress")
     check(loc.get("name") not in ("TBD", ""), f"{rel}: no placeholder venue name")
-    org = ev.get("organizer") or {}
-    check(org.get("name") and str(org.get("url") or "").startswith("https://") and org.get("url") == SP.ORGANIZER[lg][2], f"{rel}: organizer name + official url ({org})")
-    perf = ev.get("performer") or []
+    org = ev.get("mentions") or {}
+    check(org.get("@type") == "SportsOrganization" and org.get("name") and str(org.get("url") or "").startswith("https://") and org.get("url") == SP.ORGANIZER[lg][2], f"{rel}: mentions the league ({org})")
+    about = ev.get("about") or []
     want = "Person" if lg == "ufc" else "SportsTeam"
-    check(len(perf) >= 2 and (kind == "event" or len(perf) == 2) and all(p.get("@type") == want and p.get("name") for p in perf), f"{rel}: performer {want}s with names")
-    check(all(str(p.get("url", SP.BASE_URL)).startswith(SP.BASE_URL) for p in perf) and any(p.get("url") for p in perf), f"{rel}: performers link LineSmart team/fighter pages")
-    check(ev.get("eventStatus", "").startswith("https://schema.org/Event") and ev.get("eventAttendanceMode") == "https://schema.org/OfflineEventAttendanceMode", f"{rel}: eventStatus + attendance mode")
-    offer_ld_ok(rel, ev)
+    check(len(about) >= 2 and (kind == "event" or len(about) == 2) and all(p.get("@type") == want and p.get("name") for p in about), f"{rel}: about is {want}s with names")
+    check(all(str(p.get("url", SP.BASE_URL)).startswith(SP.BASE_URL) for p in about) and any(p.get("url") for p in about), f"{rel}: teams or fighters link LineSmart pages")
     visible = re.sub(r"<script\b.*?</script>", " ", h, flags=re.S)
-    check("Free odds and stats" not in visible and "Not a ticket" not in visible, f"{rel}: offer wording stays in JSON-LD")
-    se = ev.get("superEvent")
-    if isinstance(se, dict):
-        check(se.get("@type") == "SportsEvent" and se.get("name") and str(se.get("url") or "").startswith(SP.BASE_URL + "ufc/events/"), f"{rel}: superEvent is the card")
-        check(isinstance(se.get("description"), str) and se["description"].strip(), f"{rel}: superEvent description ({se.get('description')!r})")
-        check(ISO_OFF.match(se.get("endDate") or "") and ISO_OFF.match(se.get("startDate") or ""), f"{rel}: superEvent startDate and endDate")
-        sorg = se.get("organizer") or {}
-        check(sorg.get("name") and sorg.get("url") == SP.ORGANIZER["ufc"][2], f"{rel}: superEvent organizer url")
-        sperf = se.get("performer") or []
-        check(len(sperf) >= 2 and all(p.get("@type") == "Person" and p.get("name") for p in sperf), f"{rel}: superEvent performers")
-        offer_ld_ok(rel + " superEvent", se)
-    if lg != "ufc":
-        check(ev.get("homeTeam", {}).get("name") and ev.get("awayTeam", {}).get("name") and len(ev.get("competitor") or []) == 2, f"{rel}: homeTeam / awayTeam / competitor kept")
+    check("Free odds and stats" not in visible and "Not a ticket" not in visible, f"{rel}: no invented offer wording")
+    part = ev.get("isPartOf")
+    if isinstance(part, dict):
+        check(part.get("@type") == "ItemPage" and part.get("name") and str(part.get("url") or "").startswith(SP.BASE_URL + "ufc/events/"), f"{rel}: isPartOf is the card")
+        check(isinstance(part.get("description"), str) and part["description"].strip(), f"{rel}: card description ({part.get('description')!r})")
+        pst, pen = _coverage(rel + " card", part)
+        check(pst and pen and pen > pst, f"{rel}: card coverage")
+        sorg = part.get("mentions") or {}
+        check(sorg.get("name") and sorg.get("url") == SP.ORGANIZER["ufc"][2], f"{rel}: card mentions UFC")
+        pabout = part.get("about") or []
+        check(len(pabout) >= 2 and all(p.get("@type") == "Person" and p.get("name") for p in pabout), f"{rel}: card about the fighters")
+        check("offers" not in part, f"{rel}: card has no offers")
+    if lg != "ufc" and kind != "event":
+        names = [p.get("name") for p in about]
+        check(len(names) == 2 and all(names), f"{rel}: both teams named ({names})")
     return ev
 
 
@@ -739,16 +787,16 @@ def edge_cases(tmp):
     rel, h = page("pp-lined")
     check("Closing lines" in h and "Closed at" in h and 'class="card sx-result"' in h, "final with lines shows the closing table and the closed-at time")
     ev = event_ld_ok(rel, h, "nfl", "game")
-    check(ev and ev.get("eventStatus") == "https://schema.org/EventScheduled", "lined final keeps EventScheduled")
+    check(ev and ev.get("@type") == "ItemPage" and "offers" not in ev and "eventStatus" not in ev, "lined final is an ItemPage with no offers or event status")
     rel, h = page("pp-post")
     check("Postponed" in h and "Final score" not in h and 'class="sx-score' not in h, "postponed page stays up and is not a final")
     ev = event_ld_ok(rel, h, "nfl", "game")
-    check(ev and ev.get("eventStatus") == "https://schema.org/EventPostponed", "postponed JSON-LD is EventPostponed")
+    check(ev and ev.get("@type") == "ItemPage" and "offers" not in ev and "eventStatus" not in ev, "postponed JSON-LD is not an Event and has no offers")
     check(f'href="{rel}"' not in (site / "nfl" / "results" / "index.html").read_text().split('id="recent-s"', 1)[-1].split('id="by-team"', 1)[0], "postponed game is not listed as a result")
     rel, h = page("pp-can")
     check("Canceled" in h and "No score" in h and 'class="sx-score' not in h, "canceled page stays up and shows no score")
     ev = event_ld_ok(rel, h, "nfl", "game")
-    check(ev and ev.get("eventStatus") == "https://schema.org/EventCancelled", "canceled JSON-LD is EventCancelled")
+    check(ev and ev.get("@type") == "ItemPage" and "offers" not in ev and "eventStatus" not in ev, "canceled JSON-LD is not an Event and has no offers")
     check((site / "nfl" / "results" / "index.html").exists() and "CollectionPage" in (site / "nfl" / "results" / "index.html").read_text(), "results index has CollectionPage")
     # reschedule: old slug becomes a stub
     old_pre = gman["pp-pre"]
@@ -1279,6 +1327,7 @@ def main():
     sitemap_trim_tests()
     title_limit_tests()
     game_title_tests()
+    discover_link_tests()
     snippet_copy_tests()
     best_lines_filter_tests()
     wtw_tests()
@@ -1303,7 +1352,7 @@ def main():
         st = SP.build(site, data, now, archive_dir=tmp / "arch")
         print(f"snapshot build: {st['pages']} pages + {st['redirects']} redirects, {st['bytes'] / 1e6:.1f} MB, {st['seconds']}s {st['total']}")
         check(st["pages"] > 50, f"snapshot builds a real number of pages ({st['pages']})")
-        for lg in ("nba", "ncaaf", "ncaab"):
+        for lg in ("nfl", "nba", "ncaaf", "ncaab"):
             h = (site / lg / "index.html").read_text()
             d = parse(h)
             spec = SP.HUB_COPY[lg]
@@ -1313,20 +1362,24 @@ def main():
             check(d.title == spec["title"] + SP.SUFFIX and len(d.title) <= SP.TITLE_MAX, f"{lg} rendered title {len(d.title)}")
             check(d.meta.get("description") == spec["desc"] and len(spec["desc"]) <= SP.DESC_MAX, f"{lg} rendered description {len(spec['desc'])}")
             check(h1 == spec["h1"], f"{lg} rendered h1")
+            check(f'data-seo-h1="{html.escape(spec["h1"], quote=True)}"' in h, f"{lg}: app keeps this H1 after it replaces #app")
             check(cp.get("name") == spec["title"] and cp.get("description") == spec["desc"], f"{lg} CollectionPage name and description follow the new copy")
             check(SP.hub_books() in lead, f"{lg} intro names the books from the book table")
             if lg in ("ncaaf", "ncaab"):
-                check(has_query_words(d.title) and has_query_words(d.meta.get("description") or ""), f"{lg} rendered title and description say lines, spreads and odds")
+                check(has_query_words(d.meta.get("description") or "") and has_query_words(lead), f"{lg} rendered description and intro say lines, spreads and odds")
         for lg in SP.ORDER:
             h = (site / lg / "index.html").read_text()
             main_h = h.split('id="app">', 1)[1].split("</main>", 1)[0]
             more_h = h.split("</main>", 1)[1].split("<footer", 1)[0]
             check('class="sx-discover"' in main_h and 'class="sx-discover"' in more_h, f"{lg}: crawlable league links in the page and again outside #app")
             check(all(f'href="{o}/"' in more_h for o in SP.ORDER if o != lg), f"{lg}: other league hubs are plain links outside #app")
+            lead_h = h.split("<main", 1)[0]
             today = re.search(r'class="pv-list sx-today">(.*?)</ul>', main_h, re.S)
             if today:
                 hrefs = re.findall(r'href="([^"]+)"', today.group(1))
-                check(hrefs and any(href in more_h for href in hrefs), f"{lg}: an upcoming game is linked outside #app")
+                if hrefs:
+                    check('class="wrap sx-week"' in lead_h and "games this week" in lead_h, f"{lg}: this week's links sit above #app")
+                    check(any(href in lead_h for href in hrefs), f"{lg}: an upcoming game is linked above #app")
         man = json.loads((data / "pages.json").read_text())
         meta2 = json.loads((data / "meta.json").read_text())
         check(meta2.get("pages", {}).get("count") == st["pages"] and "previews" not in meta2, "meta.json: pages count, no previews block")
@@ -1409,12 +1462,12 @@ def main():
         check(all(len(v) == 1 for v in canon.values()), "canonicals unique")
         check(sum(len(v) > 1 for v in descs.values()) <= len(real) // 50, f"descriptions (nearly) unique ({sum(len(v) > 1 for v in descs.values())} dupes)")
         ev_lgs = {r.split("/")[0] for r in event_pages}
-        check({"nfl", "nba", "nhl", "ncaaf"} <= ev_lgs and len(event_pages) == sum(len(v) for v in man["g"].values()), f"SportsEvent JSON-LD checked on every game page ({len(event_pages)}, {sorted(ev_lgs)})")
+        check({"nfl", "nba", "nhl", "ncaaf"} <= ev_lgs and len(event_pages) == sum(len(v) for v in man["g"].values()), f"ItemPage JSON-LD checked on every game page ({len(event_pages)}, {sorted(ev_lgs)})")
         nfl_ix = json.loads((data / "nfl" / "index.json").read_text())
         past = [g for g in nfl_ix["games"] if g.get("state") == "post" and g["id"] in man["g"].get("nfl", {})]
         if past:
             pev = event_ld_ok(man["g"]["nfl"][past[0]["id"]], (site / man["g"]["nfl"][past[0]["id"]] / "index.html").read_text(), "nfl", "game")
-            check(pev and pev["eventStatus"] == "https://schema.org/EventScheduled", "finished game keeps EventScheduled (schema.org has no 'completed')")
+            check(pev and pev.get("@type") == "ItemPage" and "offers" not in pev and "SportsEvent" not in json.dumps(pev), "finished game is an ItemPage and does not invent offers")
         check(SP.event_status({"statusDetail": "Postponed"}).endswith("EventPostponed") and SP.event_status({"statusDetail": "Canceled"}).endswith("EventCancelled")
               and SP.event_status({"statusDetail": "Final/OT"}).endswith("EventScheduled"), "event_status(): postponed / canceled / final")
         check(SP.place_ld({"city": "Miami"}) == {"@type": "Place", "address": {"@type": "PostalAddress", "addressLocality": "Miami", "addressCountry": "US"}}, "place_ld(): no venue -> no placeholder name")
@@ -1659,12 +1712,11 @@ def main():
         check(game_n > 0 and not stub_games, f"sitemap game URLs are pages this build wrote ({game_n}, stubs {stub_games[:2]})")
         robots = (site / "robots.txt").read_text()
         check("Sitemap: https://linesmart.app/sitemap.xml" in robots, "robots.txt points at the sitemap")
-        # rebuild with nothing changed: same lastmods (content-hash driven), and the free-page offer keeps its first validFrom
+        # rebuild with nothing changed: same lastmods (content-hash driven). JSON-LD still has no offers.
         sample_rel = next(iter(man["g"]["nfl"].values()))
-        vf_before = event_ld_ok(sample_rel, (site / sample_rel / "index.html").read_text(), "nfl", "game")["offers"]["validFrom"]
+        event_ld_ok(sample_rel, (site / sample_rel / "index.html").read_text(), "nfl", "game")
         st_b = SP.build(site, data, now + timedelta(minutes=30), archive_dir=tmp / "arch")
-        vf_after = json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>', (site / sample_rel / "index.html").read_text(), re.S).group(1).replace("<\\/", "</"))["offers"]["validFrom"]
-        check(vf_before and vf_before == vf_after, f"offers.validFrom stays on the first publish time ({vf_before} -> {vf_after})")
+        event_ld_ok(sample_rel, (site / sample_rel / "index.html").read_text(), "nfl", "game")
         lm1 = dict(locs)
         lm2 = {}
         for p in sorted((site).glob("sitemap-*.xml")):
@@ -1677,9 +1729,10 @@ def main():
         check([n for n, _ in parts] == ["sitemap-games-nba-2026-10.xml", "sitemap-games-nba-2026-10-2.xml", "sitemap-games-nba-2026-10-3.xml"]
               and all(len(rows) <= 2 for _, rows in parts) and sum(len(rows) for _, rows in parts) == 5, f"sitemap split stays under the cap ({[n for n, _ in parts]})")
 
-        # ---- game / fight / prop snippets. Upcoming team-sport pages name the three-book comparison even when a
-        # column is still empty (the page compares that set; a missing column is "no line yet"). Finished pages and
-        # UFC still name only a book that is actually on the page. UFC is DraftKings only.
+        # ---- game / fight / prop snippets. Upcoming team-sport descriptions name the three books even when a
+        # column is still empty (the page compares that set; a missing column is "no line yet"). The title leads
+        # with the matchup and the date. Finished pages and UFC still name only a book that is actually on the page.
+        # UFC is DraftKings only.
         snip_desc = {}
         for lg, gmap in man["g"].items():
             ixg = {str(x["id"]): x for x in (json.loads((data / lg / "index.json").read_text()).get("games") or [])} if (data / lg / "index.json").exists() else {}
@@ -1696,7 +1749,7 @@ def main():
                 if lg == "ufc":
                     check(named <= {"DraftKings"}, f"{rel}: UFC names DraftKings only ({t})")
                 elif upcoming:
-                    snippet_ok(t, desc, rel)
+                    snippet_ok(t, desc, rel, title_books=False)
                     check(d.meta.get("og:title") == t == d.meta.get("twitter:title"), f"{rel}: og/twitter title")
                     check(d.meta.get("og:description") == desc == d.meta.get("twitter:description"), f"{rel}: og/twitter description")
                     snip_desc.setdefault(desc, []).append(rel)
@@ -1725,8 +1778,8 @@ def main():
         check(not dupes, f"upcoming game and prop descriptions are unique ({dupes[:2]})")
         nfl_t = [parse((site / r / "index.html").read_text()).title for r in man["g"].get("nfl", {}).values()]
         pre_t = [x for x in nfl_t if "Final Score" not in x and "Result" not in x and "Canceled" not in x and "Postponed" not in x]
-        check(pre_t and all(SP.TITLE_BOOKS in x and DATE_RE.search(x) for x in pre_t), f"NFL upcoming titles name the date and the comparison ({pre_t[:2]})")
-        check(all("Final Score" in x or "Result" in x or "Canceled" in x or "Postponed" in x or SP.TITLE_BOOKS in x for x in nfl_t), f"NFL titles are a result or a comparison ({[x for x in nfl_t if SP.TITLE_BOOKS not in x and 'Final' not in x][:2]})")
+        check(pre_t and all(DATE_RE.search(x) and "Odds" in x and "Line" in x for x in pre_t), f"NFL upcoming titles name the date, odds and line movement ({pre_t[:2]})")
+        check(all("Final Score" in x or "Result" in x or "Canceled" in x or "Postponed" in x or "Odds" in x for x in nfl_t), f"NFL titles are a result or odds ({[x for x in nfl_t if 'Odds' not in x and 'Final' not in x and 'Result' not in x][:2]})")
         check(SP.and_list(["Hard Rock", "DraftKings", "FanDuel"]) == "Hard Rock, DraftKings and FanDuel" and SP.and_list(["FanDuel"]) == "FanDuel", "and_list()")
         g0 = {"odds": {"provider": "DraftKings", "homeML": -150, "awayML": 130}, "books": {}}
         check(SP.page_books({"odds": {"provider": "ESPN BET", "homeML": -150, "awayML": 130}}, "nba") == [] and
@@ -1749,7 +1802,7 @@ def main():
         check(all(n.get("@type") != "SearchAction" and (not isinstance(n.get("potentialAction"), dict) or n["potentialAction"].get("@type") != "SearchAction") for n in home_nodes), "homepage has no SearchAction")
         block = ih.split(SP.HOME_START, 1)[1].split(SP.HOME_END, 1)[0]
         check("home-cards" in block and "Top games" in block, "homepage cards filled in")
-        check('class="sx-discover"' in block and "Upcoming games" in block and "Leagues" in block, "homepage lists upcoming games and league hubs in static HTML")
+        check('class="sx-discover"' in block and "Games this week" in block and "Leagues" in block, "homepage lists this week's games and league hubs in static HTML")
         check('href="ncaaf/"' in block and 'href="ncaab/"' in block and block.lower().count("odds, lines and spreads") >= 2, "homepage links NCAAF and NCAAB with lines, spreads and odds")
         disc = block.split('class="sx-discover"', 1)[1].split('class="home-cards"', 1)[0]
         game_hrefs = re.findall(r'href="([^"]*/(?:games|fights)/[^"]*)"', disc)
@@ -1795,7 +1848,7 @@ def main():
             check(man2["g"]["nfl"].get(g["id"]) == path, f"finished game keeps its URL ({man2['g']['nfl'].get(g['id'])})")
             ph = (site2 / path / "index.html").read_text()
             pd = parse(ph)
-            check("Result" in pd.title and " vs " in pd.title and "17-31" in pd.title and pd.title.startswith(pv.side_name(g["away"]) + " vs "), f"past-game title: away vs home, Result, final score ({pd.title})")
+            check("Final Score" in pd.title and " vs " in pd.title and "17-31" in pd.title and pd.title.startswith(pv.side_name(g["away"]) + " vs "), f"past-game title: away vs home, final score ({pd.title})")
             check(pd.meta.get("og:title") == pd.title == pd.meta.get("twitter:title") and "result" in (pd.meta.get("description") or ""), "past-game og/twitter titles + description follow")
             check("Closing lines" in ph and 'class="card sx-result"' in ph, "past-game page: result card + closing lines")
             check(f'href="#/g/nfl/{g["id"]}/box"' in ph, "past-game page links to the box score")
@@ -1881,7 +1934,7 @@ def main():
         check(booked >= 1 and no_book >= 1, f"ufc fixture splits booked and unbooked fighters ({booked} booked, {no_book} noindex)")
         for rel in fights:
             fev = event_ld_ok(rel, (site4 / rel / "index.html").read_text(), "ufc", "game")
-            check(fev and (fev.get("superEvent") or {}).get("url", "").startswith(SP.BASE_URL + "ufc/events/"), f"{rel}: fight links its card (superEvent)")
+            check(fev and (fev.get("isPartOf") or {}).get("url", "").startswith(SP.BASE_URL + "ufc/events/"), f"{rel}: fight links its card (isPartOf)")
         evs = sorted(p.parent for p in (site4 / "ufc" / "events").glob("*/index.html"))
         check(len(evs) == 2, f"UFC fixture: 2 event pages ({len(evs)})")
         for p in evs:
@@ -1889,8 +1942,9 @@ def main():
             eev = event_ld_ok(rel, (p / "index.html").read_text(), "ufc", "event")
             if eev and "alpha" in rel:
                 main_start = pv.parse_dt(ufc_fixture(now)["events"][0]["segments"][0]["start"])
-                check(pv.parse_dt(eev["endDate"]) == main_start + timedelta(hours=SP.UFC_CARD_TAIL_H) and len(eev["performer"]) == 4,
-                      f"{rel}: card ends {SP.UFC_CARD_TAIL_H}h after the main card starts; every fighter is a performer")
+                card_end = pv.parse_dt((eev.get("temporalCoverage") or "").split("/")[-1])
+                check(card_end == main_start + timedelta(hours=SP.UFC_CARD_TAIL_H) and len(eev.get("about") or []) == 4,
+                      f"{rel}: card ends {SP.UFC_CARD_TAIL_H}h after the main card starts; every fighter is listed")
 
         # ---- "What to watch": only on upcoming pages that hydrate, clean wording, and the JSON-LD is identical without it
         ld = lambda h: re.findall(r'<script type="application/ld\+json">(.*?)</script>', h, re.S)

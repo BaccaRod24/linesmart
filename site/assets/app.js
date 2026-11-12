@@ -437,7 +437,9 @@
       <span class="chip">Next ${data.windowDays} days</span></div>${staleNote(data.stale)}${oddsStaleNote(key)}`;
     const seg = leagueSeg(key, filter);
     const subLine = filter === "standings" ? "Standings by conference and division" : filter === "top25" ? `AP Top 25 games this week · times in ${TZL}` : filter === "all" ? `${weekLabel} · times in ${TZL}` : `Upcoming games, lines and form · times in ${TZL}`;
-    let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(data.league.full)}</h1><div class="sub">${subLine}</div></div>
+    // Generated hub pages set data-seo-h1. The app replaces #app, so the visible H1 has to be that same heading.
+    const hubH1 = document.body.dataset.page === "hub" && document.body.dataset.seoH1;
+    let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(hubH1 || data.league.full)}</h1><div class="sub">${subLine}</div></div>
       ${seg}</div>${filter === "top25" || filter === "standings" ? "" : chips}`;
     if (filter === "top25") {
       let rankDoc = null;

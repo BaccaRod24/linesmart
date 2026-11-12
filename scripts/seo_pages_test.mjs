@@ -125,6 +125,14 @@ try {
     check(tiles.some(([h]) => !h.startsWith("#/")), "some hub tiles link real URLs");
     tiles.splice(0, tiles.length, ...tiles.map(([h]) => h));
     check(tiles.includes(gpath), `hub tile links ${gpath}`);
+    const hubFold = await page.evaluate(() => {
+      const d = document.querySelector(".sx-week details[data-week='games']");
+      if (!d) return null;
+      const summary = d.querySelector("summary");
+      return { open: d.open, n: d.querySelectorAll("a[href]").length, h: summary ? summary.getBoundingClientRect().height : 0,
+        label: (d.querySelector("h2") || {}).textContent.replace(/\s+/g, " ").trim() };
+    });
+    check(hubFold && hubFold.open === false && hubFold.n > 0 && /\(\d+\)/.test(hubFold.label) && hubFold.h >= 44, `hub week list starts collapsed, links in the HTML, tap target ${hubFold && hubFold.h}px (${hubFold && hubFold.label})`);
     // tapping a tile goes to the game's page
     await page.click(`#app a.game[href="${gpath}"]`);
     await page.waitForURL(u => u.pathname === "/" + gpath, { timeout: 10000 }).catch(() => {});
@@ -174,21 +182,58 @@ try {
   await setState("NJ"); await page.goto(BASE);
   const hc = await page.evaluate(() => [...document.querySelectorAll(".home-cards a")].map(a => a.getAttribute("href")));
   check(hc.length > 0 && hc.every(h => !h.startsWith("#/")), `homepage cards link real pages (${hc.length})`);
+  const homeHtml = fs.readFileSync(path.join(site, "index.html"), "utf8");
+  const gamesHtml = (homeHtml.match(/<details\b[^>]*data-week="games"[^>]*>[\s\S]*?<\/details>/) || [""])[0];
+  check(gamesHtml && !/\bopen\b/.test(gamesHtml.slice(0, gamesHtml.indexOf(">"))) && /<a href="[^"]+\/(?:games|fights)\//.test(gamesHtml.split("</summary>")[1] || ""), "built homepage keeps game links inside a closed details");
+  const folded = await page.evaluate(() => {
+    const games = document.querySelector("details[data-week='games']");
+    const props = [...document.querySelectorAll("details.sx-fold")].find(d => /player props/i.test((d.querySelector("h2") || {}).textContent || ""));
+    const leagues = document.querySelector(".sx-pills");
+    const box = games && games.querySelector("summary") ? games.querySelector("summary").getBoundingClientRect() : { height: 0 };
+    return {
+      gamesOpen: games ? games.open : null,
+      gamesN: games ? games.querySelectorAll("a[href]").length : 0,
+      gamesLabel: games ? (games.querySelector("h2") || {}).textContent.replace(/\s+/g, " ").trim() : "",
+      propsOpen: props ? props.open : null,
+      propsN: props ? props.querySelectorAll("a[href]").length : 0,
+      summaryH: box.height,
+      leaguesInDetails: !!(leagues && leagues.closest("details")),
+    };
+  });
+  check(folded.gamesOpen === false && folded.gamesN > 0 && /\(\d+\)/.test(folded.gamesLabel), `games list collapsed with links in the HTML (${folded.gamesN}, ${folded.gamesLabel})`);
+  const propsInHtml = homeHtml.includes("Player props this week");
+  check(!propsInHtml || (folded.propsOpen === false && folded.propsN > 0), `props list collapsed with links in the HTML (${folded.propsN}; snapshot has the list: ${propsInHtml})`);
+  check(folded.summaryH >= 44, `games heading tap target is at least 44px (${folded.summaryH})`);
+  check(!folded.leaguesInDetails, "league pills are not inside a disclosure");
+  await page.locator("details[data-week='games'] summary").focus();
+  await page.keyboard.press("Enter");
+  check(await page.evaluate(() => document.querySelector("details[data-week='games']").open), "Enter on the games heading expands the list");
+  await page.keyboard.press("Enter");
+  check(await page.evaluate(() => !document.querySelector("details[data-week='games']").open), "Enter again collapses the games list");
   const marked = await page.evaluate(() => {
     if (!window.WeekLive) return null;
     const host = document.createElement("div");
     const start = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     const future = new Date(Date.now() + 864e5).toISOString();
-    host.innerHTML = `<ul class="sx-discover-games"><li><a href="nfl/games/x/" data-lg="nfl" data-id="x" data-start="${start}" data-state="pre" data-when="1:00 PM ET"><span class="sx-dl">A at B</span><span class="sx-dt">1:00 PM ET</span></a></li><li><a href="nfl/games/y/" data-lg="nfl" data-id="y" data-start="${future}" data-state="pre" data-when="Sun 4:00 PM ET"><span class="sx-dl">C at D</span><span class="sx-dt">Sun 4:00 PM ET</span></a></li><li><a href="nfl/games/z/" data-lg="nfl" data-id="z" data-start="${start}" data-state="post" data-when="1:00 PM ET"><span class="sx-dl">E at F</span><span class="sx-dt">1:00 PM ET</span></a></li></ul>`;
+    const row = (href, id, when, state, kick) => `<li><a href="${href}" data-lg="nfl" data-id="${id}" data-start="${kick}" data-state="${state}" data-when="${when}"><span class="sx-dl">${id}</span><span class="sx-dt">${when}</span></a></li>`;
+    host.innerHTML = `<details class="sx-fold" data-week="games"><summary><h2><span class="sx-fold-title">Games this week <span class="sx-fold-n">(3)</span></span><span class="sx-chev" aria-hidden="true"></span></h2></summary><ul class="sx-discover-games">${row("nfl/games/x/", "x", "1:00 PM ET", "pre", start)}${row("nfl/games/y/", "y", "Sun 4:00 PM ET", "pre", future)}${row("nfl/games/z/", "z", "1:00 PM ET", "post", start)}</ul></details>`;
     document.body.appendChild(host);
     window.WeekLive.paint(host);
     const rows = [...host.querySelectorAll("li")].map(li => ({ live: li.classList.contains("sx-live"), text: li.querySelector(".sx-dt").textContent, href: li.querySelector("a").getAttribute("href") }));
+    const liveN = (host.querySelector(".sx-fold-live") || {}).textContent || "";
     host.remove();
-    return rows;
+    const quiet = document.createElement("div");
+    quiet.innerHTML = `<details data-week="games"><summary><h2><span class="sx-fold-live">1 live</span><span class="sx-chev"></span></h2></summary><ul>${row("nfl/games/q/", "q", "Sun 4:00 PM ET", "pre", future)}</ul></details>`;
+    document.body.appendChild(quiet);
+    window.WeekLive.paint(quiet);
+    const cleared = !quiet.querySelector(".sx-fold-live");
+    quiet.remove();
+    return { rows, liveN, cleared };
   });
-  check(marked && marked[0].live && marked[0].text === "LIVE" && marked[0].href === "nfl/games/x/", `client marks a started game LIVE (${JSON.stringify(marked && marked[0])})`);
-  check(marked && !marked[1].live && marked[1].text === "Sun 4:00 PM ET", `client leaves a future game as the time (${JSON.stringify(marked && marked[1])})`);
-  check(marked && !marked[2].live && marked[2].text === "Final", `client shows Final, not LIVE, for a finished game (${JSON.stringify(marked && marked[2])})`);
+  check(marked && marked.rows[0].live && marked.rows[0].text === "LIVE" && marked.rows[0].href === "nfl/games/x/", `client marks a started game LIVE (${JSON.stringify(marked && marked.rows[0])})`);
+  check(marked && !marked.rows[1].live && marked.rows[1].text === "Sun 4:00 PM ET", `client leaves a future game as the time (${JSON.stringify(marked && marked.rows[1])})`);
+  check(marked && !marked.rows[2].live && marked.rows[2].text === "Final", `client shows Final, not LIVE, for a finished game (${JSON.stringify(marked && marked.rows[2])})`);
+  check(marked && marked.liveN === "1 live" && marked.cleared, `collapsed heading shows 1 live and clears when none are (${marked && marked.liveN}, cleared ${marked && marked.cleared})`);
   check(!errs.length, `no page errors ${errs.join(" | ")}`);
   check(!geoCalls.length, "no geo-IP lookup when a state is picked");
   check(!cf.length, "no Cloudflare analytics off the production host");

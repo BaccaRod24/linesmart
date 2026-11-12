@@ -3,6 +3,7 @@
  *   - LSLive overlay when the page is already polling that game (same store as the tiles)
  *   - otherwise kickoff vs now, same 2 min before / 7 h after window as LiveCore.needsLive
  * A finished game (state post, or the live overlay says so) says Final, never LIVE.
+ * The collapsed games heading shows "N live" from those same rows. Nothing is fetched.
  * Browser: window.WeekLive. Node: require("./week-live.js"). */
 (function (root, factory) {
   var api = factory();
@@ -57,6 +58,27 @@
     if (dt.textContent !== text) dt.textContent = text;
   }
 
+  function paintCounts(scope) {
+    var folds = [];
+    if (scope.matches && scope.matches('details[data-week="games"]')) folds.push(scope);
+    var found = scope.querySelectorAll('details[data-week="games"]');
+    for (var i = 0; i < found.length; i++) folds.push(found[i]);
+    for (var j = 0; j < folds.length; j++) {
+      var d = folds[j], n = d.querySelectorAll("li.sx-live").length;
+      var slot = d.querySelector(".sx-fold-live");
+      if (!n) { if (slot) slot.remove(); continue; }
+      var text = n + " live";
+      if (!slot) {
+        slot = document.createElement("span");
+        slot.className = "sx-fold-live";
+        var chev = d.querySelector(".sx-chev");
+        if (chev) chev.parentNode.insertBefore(slot, chev);
+        else (d.querySelector("h2") || d.querySelector("summary")).appendChild(slot);
+      }
+      if (slot.textContent !== text) slot.textContent = text;
+    }
+  }
+
   function paint(root, now) {
     var scope = root && root.querySelectorAll ? root : (typeof document !== "undefined" ? document : null);
     if (!scope) return;
@@ -66,6 +88,7 @@
       var a = nodes[i];
       apply(a, status({ state: a.getAttribute("data-state"), start: a.getAttribute("data-start") }, t, overlayFor(a)));
     }
+    paintCounts(scope);
   }
 
   return { status: status, paint: paint, GRACE: GRACE, MAX: MAX };

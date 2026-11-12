@@ -3,6 +3,7 @@
  *   - LSLive overlay when the page is already polling that game (same store as the tiles)
  *   - otherwise kickoff vs now, same 2 min before / 7 h after window as LiveCore.needsLive
  * A finished game (state post, or the live overlay says so) says Final, never LIVE.
+ * The closed "Games this week" heading shows "N live" from those same rows.
  * Browser: window.WeekLive. Node: require("./week-live.js"). */
 (function (root, factory) {
   var api = factory();
@@ -57,6 +58,18 @@
     if (dt.textContent !== text) dt.textContent = text;
   }
 
+  function paintCounts(scope) {
+    var marks = scope.querySelectorAll(".sx-fold-live");
+    for (var i = 0; i < marks.length; i++) {
+      var el = marks[i];
+      var fold = el.closest ? el.closest("details") : null;
+      var n = fold ? fold.querySelectorAll("li.sx-live").length : 0;
+      var text = n ? n + " live" : "";
+      if (el.textContent !== text) el.textContent = text;
+      if (el.hidden !== !n) el.hidden = !n;
+    }
+  }
+
   function paint(root, now) {
     var scope = root && root.querySelectorAll ? root : (typeof document !== "undefined" ? document : null);
     if (!scope) return;
@@ -66,6 +79,7 @@
       var a = nodes[i];
       apply(a, status({ state: a.getAttribute("data-state"), start: a.getAttribute("data-start") }, t, overlayFor(a)));
     }
+    paintCounts(scope);
   }
 
   return { status: status, paint: paint, GRACE: GRACE, MAX: MAX };

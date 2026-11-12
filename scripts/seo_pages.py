@@ -3174,6 +3174,21 @@ def _anchor_list(items, cls):
     return f'<ul class="{cls}">{"".join(lis)}</ul>'
 
 
+def _fold(title, inner, live=None):
+    """Closed <details> around a this-week list. Links stay in the HTML; nothing is fetched to read them.
+
+    The heading is the summary: the title, the link count, and (for games) how many are in progress.
+    live is that count, or None for a list that has no live state. Zero still leaves a hidden slot so
+    assets/week-live.js can fill it when a game tips off after the build.
+    """
+    # A plain row is "<li>". A live row is "<li class=...>". Counting only "<li>" skips the live ones.
+    n = inner.count("<li>") + inner.count("<li ")
+    label = f'{esc(title)} <span class="sx-fold-n">({n})</span>'
+    if live is not None:
+        label += f'<span class="sx-fold-live">{int(live)} live</span>' if live else '<span class="sx-fold-live" hidden></span>'
+    return f'<div class="sx-discover-block"><details class="sx-fold"><summary><h2>{label}</h2></summary>{inner}</details></div>'
+
+
 def _in_week(g, now, days=WEEK_DAYS):
     dt = parse_dt((g or {}).get("date"))
     if not dt:
@@ -3229,6 +3244,8 @@ def discover_nav(Ls, focus=None, games=True, props=False, leagues=True):
 
     focus=None is the homepage. focus=<lg> is that league page. games links this week's games (topped up
     to a small floor when the week is thin). props links player pages that have a number on those games.
+    Both lists are closed <details> elements (heading, count, and a live tally on the games heading).
+    League pills stay open: they are one short row.
     """
     blocks = []
     if leagues:
@@ -3254,7 +3271,8 @@ def discover_nav(Ls, focus=None, games=True, props=False, leagues=True):
             if rows:
                 title = "Games this week" if not focus else f"{NAMES[focus]} games this week"
                 lis = "".join(_week_game_li(h, lab, g, now, lg) for _, _, _, h, lab, g, lg, now in rows)
-                blocks.append('<div class="sx-discover-block"><h2>' + esc(title) + '</h2><ul class="sx-discover-games">' + lis + "</ul></div>")
+                live_n = sum(1 for _dt, _ord, _gid, _h, _lab, g, _lg, _now in rows if _week_state(g) == "in")
+                blocks.append(_fold(title, f'<ul class="sx-discover-games">{lis}</ul>', live_n))
         if props:
             prop_rows = []
             for lg, L in sources:
@@ -3263,7 +3281,7 @@ def discover_nav(Ls, focus=None, games=True, props=False, leagues=True):
                     prop_rows.append((href, label, note))
             if prop_rows:
                 title = "Player props this week" if not focus else f"{NAMES[focus]} player props this week"
-                blocks.append('<div class="sx-discover-block"><h2>' + esc(title) + "</h2>" + _anchor_list(prop_rows, "sx-discover-games") + "</div>")
+                blocks.append(_fold(title, _anchor_list(prop_rows, "sx-discover-games")))
     if not blocks:
         return ""
     if focus and not leagues:

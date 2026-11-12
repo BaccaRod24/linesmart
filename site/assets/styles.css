@@ -2135,6 +2135,24 @@ a.contact-cta:hover{color:var(--accent)}
 .sx-live-tx{display:inline-block;padding:1px 7px;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;font-weight:800;letter-spacing:.06em;line-height:1.65}
 .sx-live-badge .live-dot{width:6px;height:6px;background:#ef4444}
 @media (prefers-reduced-motion:reduce){.sx-live-badge .live-dot{animation:none}}
+/* This-week games and props: tap the heading to open. Closed in CSS too, because display:grid on the
+   list would override the browser's details hide. The chevron does not move when motion is reduced. */
+.sx-fold{border:1px solid var(--line2);border-radius:12px;background:var(--surface)}
+.sx-fold>summary{display:block;position:relative;cursor:pointer;min-height:48px;padding:12px 14px 12px 36px;touch-action:manipulation;list-style:none}
+.sx-fold>summary::-webkit-details-marker{display:none}
+.sx-fold>summary::marker{content:none}
+.sx-fold>summary::before{content:"";position:absolute;left:14px;top:50%;width:8px;height:8px;margin-top:-6px;border-right:2px solid var(--mute);border-bottom:2px solid var(--mute);transform:rotate(-45deg);transition:transform .15s ease}
+.sx-fold[open]>summary{box-shadow:inset 0 -1px 0 var(--line)}
+.sx-fold[open]>summary::before{transform:rotate(45deg);margin-top:-3px}
+.sx-fold>summary:hover{background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.sx-fold>summary:focus-visible{outline:none;box-shadow:var(--ring)}
+.sx-fold>summary h2{margin:0;display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;font-size:13.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--txt);line-height:1.3}
+.sx-fold-n{color:var(--mute);font-weight:750;letter-spacing:0}
+.sx-fold-live{display:inline-flex;align-items:center;padding:1px 7px;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;font-weight:800;letter-spacing:.04em;line-height:1.65;text-transform:none}
+.sx-fold-live[hidden]{display:none}
+.sx-fold:not([open])>:not(summary){display:none}
+.sx-fold[open] .sx-discover-games{padding:2px 8px 10px}
+@media (prefers-reduced-motion:reduce){.sx-fold>summary::before{transition:none}}
 @media (min-width:700px){
   .sx-discover-games{grid-template-columns:1fr 1fr}
 }

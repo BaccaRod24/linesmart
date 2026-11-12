@@ -2116,7 +2116,8 @@ a.contact-cta:hover{color:var(--accent)}
 .hc-hubs::-webkit-scrollbar{display:none}
 .hc-hubs a{flex:none;height:30px;display:inline-flex;align-items:center;padding:0 12px;border-radius:999px;border:1px solid var(--line2);color:var(--mute);font-size:12.5px;font-weight:700}
 .hc-hubs a:hover{color:var(--txt);border-color:var(--accent-line)}
-/* Plain crawlable league + upcoming-game links (scripts/seo_pages.py discover_nav). Wraps on a phone; nothing is clipped. */
+/* Plain crawlable league, this-week game and prop links (scripts/seo_pages.py discover_nav). Wraps on a phone; nothing is clipped. */
+.sx-week{padding-top:10px;padding-bottom:2px}
 .sx-discover{display:grid;gap:12px;margin:12px 0 4px}
 .sx-discover-block h2{margin:0 0 6px;font-size:12.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--mute)}
 .sx-pills,.sx-discover-games{list-style:none;margin:0;padding:0}

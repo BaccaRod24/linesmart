@@ -33,25 +33,26 @@ App-only sub-routes such as `#/l/nfl/all` stay hash routes.
 ## What is on a page
 
 - A unique title, description, canonical, Open Graph and Twitter tags, plus JSON-LD.
-- Game, fight and UFC event pages carry a `SportsEvent` (Google Event structured data): a description (the page
-  snippet, or a factual sentence from the teams, time and place when that snippet is blank), startDate plus an estimated endDate
-  (`EVENT_HOURS` per league; UFC cards end `UFC_CARD_TAIL_H` after the main card starts), eventStatus, attendance mode,
-  venue location, the league as organizer (name + official site), and the teams/fighters as performer (linked to their
-  LineSmart pages). A fight's `superEvent` is the full card and carries the same description as the card page. `offers` is free access to that odds and stats page: `price` 0 USD, `priceCurrency` USD,
-  `availability` InStock, `url` the canonical page, and `validFrom` the first time that URL was built (kept in the
-  archive; an existing page uses its stored lastmod the first time). The offer name is "Free odds and stats". It is
-  not a ticket and not a sportsbook offer, and it is not visible on the page. The nested card uses those same fields,
-  including description, so it is not a second incomplete item.
+- Game, fight and UFC event pages carry an `ItemPage` (a `WebPage`), not a `SportsEvent`. Google's Event rich result
+  warns on `offers` for every Event subtype, and these pages do not sell tickets. The JSON-LD does not invent a price,
+  a ticket, or an `offers` property. The description is the page snippet (or a factual sentence from the teams, time and
+  place when that snippet is blank). The game window is `temporalCoverage` (an ISO 8601 interval: start plus `EVENT_HOURS`
+  per league; a UFC card runs until `UFC_CARD_TAIL_H` after its last segment starts). The venue is `contentLocation`.
+  The league is `mentions` (name + official site). The teams or fighters are `about`, linked to their LineSmart pages.
+  A fight's `isPartOf` is the card page, with the same description and no offer.
 - Real text content in `main#app`: matchup, time and venue, lines by book, movement, weather, injuries, form, props and result.
 - The persistent internal links in `section.seo-more`:
   - game ↔ props, teams, weather, movement and related games;
   - player ↔ game and their other props;
   - the hubs link to everything;
   - the footer links the hubs.
-- **Discover links** (`nav.sx-discover`): plain `<a href>` links, in the static HTML, to league hubs and the soonest upcoming
-  game pages. The homepage lists every league (NCAAF and NCAAB anchors say "odds, lines and spreads") and up to three
-  soonest games per league. Each league page repeats the other leagues under the lead, and lists its soonest games again
-  in `section.seo-more` so the links are still in the HTML after the app replaces `#app`. The list wraps on a phone.
+- **Discover links** (`nav.sx-discover`): plain `<a href>` links, in the static HTML. The homepage lists every league
+  (NCAAF and NCAAB anchors say "odds, lines and spreads"), this week's games (up to 12 per league, topped up to 3 when
+  the week is empty), and player-prop pages that have a number on those games (up to 8 per league). Each league page
+  repeats the other leagues under the lead and again outside `#app`. This week's games and prop pages for that sport
+  sit in `div.sx-week` above `#app`, under the headings "Games this week" and "Player props this week" (up to 80 games, topped up to 12; up to 24 prop pages), so they stay in the HTML
+  after the app replaces `#app`. The list wraps on a phone. Caps keep the homepage from growing back toward the old
+  multi-megabyte size.
 - Plain-HTML internal links near the top (crawlable without JS; only pages that exist in this build):
   - **Hub: today's slate** (`#today-s`, `ul.sx-today`) right under the lead: today's games (ET) with time / LIVE / score,
     or, when today is done or empty, the next day that has games ("Next NFL games: Thursday, October 29"). With no
@@ -79,27 +80,31 @@ characters (`TITLE_MAX`). `fit()` takes the first candidate that fits with the s
 `prefer_title()` instead: the first phrase that fits in 60 wins, and the suffix stays only when that phrase still fits
 with it. Long names fall back to abbreviations or a last name only after the readable form no longer fits.
 
-- Upcoming or live game, away team first: `Grizzlies vs Blazers Odds: DK, FD & HR (Oct 29) | LineSmart`. The title names
-  the matchup, the date (ET), and that the page compares DraftKings, FanDuel and Hard Rock Bet (`DK, FD & HR` is the
-  form that fits in 60 characters). `prefer_title()` keeps a long readable name that fits in 60 ahead of an abbreviation
-  that would have kept the brand suffix. `Trail Blazers` is `Blazers` in the title and the description. The same title
-  is used before lines are posted, so it does not change when the number arrives.
-- Description: `Compare Grizzlies vs Blazers NBA odds for Thu, Oct 29, 10:00 PM ET across DraftKings, FanDuel and Hard Rock Bet.`
-  A posted spread or total is added when it fits (`Bills -2.5, total 48.5.`). Neutral comparison only: no pick, and
-  nothing that says DraftKings or FanDuel is legal or available in Florida.
+- Upcoming or live game, away team first: `Ravens vs Bills Nov 1: Odds & Line Movement | LineSmart`. The title leads
+  with the matchup and the date (ET), then what the page has: odds and line movement, and player props when a prop is
+  posted (`Odds, Line Moves & Props`). A live game says `Live Odds & Line Moves`. `prefer_title()` keeps a long readable
+  name that fits in 60 ahead of an abbreviation that would have kept the brand suffix. `Trail Blazers` is `Blazers` in
+  the title and the description. The same title is used before lines are posted, so it does not change when the number
+  arrives. The three books stay in the description, not the title.
+- Description: `Ravens vs Bills on Sun, Nov 1, 1:00 PM ET: NFL odds and line movement. Compare DraftKings, FanDuel and Hard Rock Bet.`
+  A posted spread or total is added when it fits (`Bills -3.5, total 53.5.`). College games say odds, lines and spreads.
+  Neutral comparison only: no pick, and nothing that says DraftKings or FanDuel is legal or available in Florida.
 - Player props: `Josh Jacobs (GB) Props: DK, FD & HR (Oct 29) | LineSmart`. The description names the player, the date
   and the same three books. A long name drops to the last name before it drops the date.
 - UFC fight: `Fighter vs Fighter Odds (Nov 7)` (last names if the full names don't fit). DraftKings is the only book named.
-- Finished game: `X vs Y Result & Closing Odds (97-111)`, then `Result & Odds`. With no closing lines: `X vs Y Final Score: 97-111`.
-- Finished-game description: `X vs Y result, Tue, Oct 27: DET 97, NY 111. Closing odds from ..., line movement and
-  how the spread and total graded.` At most 155 characters (`DESC_MAX`), including the homepage.
+- Finished game: `Bengals vs Ravens Oct 25: Final Score 35-13 & Box Score`. The matchup and date come first, then the
+  final score and box score. Overtime stays in the score (`27-21, OT`). UFC keeps `Result` (and `Result & Odds` when a
+  closing line was recorded).
+- Finished-game description: `Bengals vs Ravens result, Sun, Oct 25: CIN 35, BAL 13. Box score. No lines were recorded before the start.`
+  With a closing line: box score, closing odds, and how the spread graded. At most 155 characters (`DESC_MAX`), including the homepage.
 - League hubs and team/fighter pages add an `ItemList` of the game or fight URLs linked on the page (hub: inside the
   `CollectionPage`; team: `mainEntity` of the page about the `SportsTeam` or fighter `Person`). The homepage
   `Organization` has `sameAs` and `alternateName`. No `SearchAction`.
-- NCAAB and NCAAF hubs: `NCAAB Odds, Lines & Spreads Today | LineSmart` and `NCAAF Odds, Lines & Spreads Today | LineSmart`.
-  The meta description also says lines, spreads and odds (NCAAB leads with "NCAA basketball lines"). Upcoming game titles
-  for those sports stay `Matchup Odds: DK, FD & HR (date)` because 60 characters cannot also fit "lines" and "spreads"
-  plus the book comparison. The game meta description carries all three words.
+- Hub titles and H1s follow the queries those pages already show for. `/nfl/`: `NFL Spreads & Betting Lines Today`,
+  H1 `NFL spreads and betting lines`. `/nba/`: `NBA Odds Today: Spreads, Totals & Props`, H1 `NBA odds today`.
+  `/ncaaf/`: `College Football Lines, Spreads & NCAAF Odds`, H1 `College football lines, spreads and NCAAF odds`.
+  `/ncaab/`: `NCAAB Lines & College Basketball Spreads`, H1 `NCAAB lines and college basketball spreads`.
+  College game descriptions still say lines, spreads and odds. The game title stays the matchup, the date, and odds.
 - Team, fighter and event pages: `<Team> Odds & Schedule (NFL)`, `<Fighter> UFC Odds, Record & Fight Results`.
   Player-prop pages use the props title above.
 - `og:title` and `twitter:title` always equal `<title>`. `og:description` and `twitter:description` always equal the meta

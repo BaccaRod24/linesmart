@@ -3115,16 +3115,49 @@ def _split_cap(items, cap):
     return list(items[:cap]), list(items[cap:])
 
 
-def _discover_when(g, now):
+def _week_when(g, now):
+    """Kickoff text for a week-list row. The client puts LIVE or Final in its place."""
     dt = parse_dt((g or {}).get("date"))
     if not dt:
         return ""
-    if g.get("state") == "in":
-        return "LIVE"
     clock = et(dt).strftime("%-I:%M %p ET")
     if day_et(dt) == day_et(now):
         return clock
     return et(dt).strftime("%a ") + clock
+
+
+def _week_state(g):
+    st = (g or {}).get("state") or "pre"
+    return st if st in ("pre", "in", "post") else "pre"
+
+
+# White "LIVE" on #dc2626. The dot is the site's red live dot (assets/styles.css).
+_LIVE_BADGE = '<span class="sx-live-badge"><span class="live-dot" aria-hidden="true"></span><span class="sx-live-tx">LIVE</span></span>'
+
+
+def _week_game_li(href, label, g, now, lg):
+    """One crawlable game row. In progress at build time is already a LIVE badge.
+
+    data-start / data-state / data-when let assets/week-live.js correct the row after kickoff
+    without another request. A finished game says Final, never LIVE.
+    """
+    when = _week_when(g, now)
+    st = _week_state(g)
+    dt = parse_dt((g or {}).get("date"))
+    start = et(dt).isoformat(timespec="minutes") if dt else ""
+    if st == "post":
+        note = "Final"
+    elif st == "in":
+        note = _LIVE_BADGE
+    else:
+        note = esc(when)
+    cls = ' class="sx-live"' if st == "in" else ""
+    attrs = (
+        f' data-lg="{esc(lg)}" data-id="{esc((g or {}).get("id"))}" data-start="{esc(start)}"'
+        f' data-state="{esc(st)}" data-when="{esc(when)}"'
+    )
+    inner = f'<span class="sx-dl">{esc(label)}</span><span class="sx-dt">{note}</span>'
+    return f'<li{cls}><a href="{esc(href)}"{attrs}>{inner}</a></li>'
 
 
 def _anchor_list(items, cls):
@@ -3215,12 +3248,13 @@ def discover_nav(Ls, focus=None, games=True, props=False, leagues=True):
             for lg, L in sources:
                 for gid, g in week_game_rows(L, game_limit, game_floor):
                     label = L.matchup(g) if focus else f"{SHORT[lg]}: {L.matchup(g)}"
-                    rows.append((parse_dt(g["date"]) or L.now, ORDER.index(lg) if lg in ORDER else 99, gid, L.paths[gid], label, _discover_when(g, L.now)))
+                    rows.append((parse_dt(g["date"]) or L.now, ORDER.index(lg) if lg in ORDER else 99, gid, L.paths[gid], label, g, lg, L.now))
             if not focus:
                 rows.sort(key=lambda r: (r[0], r[1], r[2]))
             if rows:
                 title = "Games this week" if not focus else f"{NAMES[focus]} games this week"
-                blocks.append('<div class="sx-discover-block"><h2>' + esc(title) + "</h2>" + _anchor_list([(h, lab, note) for _, _, _, h, lab, note in rows], "sx-discover-games") + "</div>")
+                lis = "".join(_week_game_li(h, lab, g, now, lg) for _, _, _, h, lab, g, lg, now in rows)
+                blocks.append('<div class="sx-discover-block"><h2>' + esc(title) + '</h2><ul class="sx-discover-games">' + lis + "</ul></div>")
         if props:
             prop_rows = []
             for lg, L in sources:

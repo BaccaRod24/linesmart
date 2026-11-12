@@ -52,7 +52,10 @@ App-only sub-routes such as `#/l/nfl/all` stay hash routes.
   repeats the other leagues under the lead and again outside `#app`. This week's games and prop pages for that sport
   sit in `div.sx-week` above `#app`, under the headings "Games this week" and "Player props this week" (up to 80 games, topped up to 12; up to 24 prop pages), so they stay in the HTML
   after the app replaces `#app`. The list wraps on a phone. Caps keep the homepage from growing back toward the old
-  multi-megabyte size.
+  multi-megabyte size. A game the build already has in progress shows a red LIVE badge instead of the start time, and the
+  row is tinted. `assets/week-live.js` (no extra requests) keeps that correct between builds: it uses the live overlay
+  the page is already polling when one exists, otherwise the kickoff against the same 2-minute / 7-hour window as the
+  live scores. A finished game says Final, not LIVE. The pulse is off when the visitor prefers reduced motion.
 - Plain-HTML internal links near the top (crawlable without JS; only pages that exist in this build):
   - **Hub: today's slate** (`#today-s`, `ul.sx-today`) right under the lead: today's games (ET) with time / LIVE / score,
     or, when today is done or empty, the next day that has games ("Next NFL games: Thursday, October 29"). With no

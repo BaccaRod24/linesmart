@@ -463,6 +463,36 @@ def discover_link_tests():
     check('href="ncaab/games/c1/"' in thin, "an empty week still links the soonest game")
 
 
+def week_live_tests():
+    """In-progress week rows are a LIVE badge. A later kickoff stays a time. A final is not LIVE."""
+    now = pv.parse_dt("2026-10-31T20:00:00Z")  # 4:00 PM ET
+    live = _slate_game("live1", "2026-10-31T19:00:00Z", "in")
+    later = _slate_game("later1", "2026-11-01T18:00:00Z")
+    done = _slate_game("done1", "2026-10-31T17:00:00Z", "post")
+    L = _slate_league("nfl", [live, later, done], now)
+    home = SP.discover_nav({"nfl": L}, None, games=True, props=False, leagues=False)
+    when_live = SP._week_when(live, now)
+    check('href="nfl/games/live1/"' in home and 'class="sx-live"' in home and "sx-live-badge" in home and ">LIVE<" in home, "in-progress game is a LIVE badge")
+    check('data-state="in"' in home and 'data-lg="nfl"' in home and 'data-id="live1"' in home, "live row carries league, id and state")
+    check(f'data-when="{when_live}"' in home and "data-start=" in home, f"live row keeps the kickoff for the client ({when_live})")
+    row_later = home.split('href="nfl/games/later1/"', 1)[1].split("</li>", 1)[0]
+    check("sx-live" not in row_later and "LIVE" not in row_later and "PM ET" in row_later and 'data-state="pre"' in row_later, "a game that has not started stays a time")
+    check('href="nfl/games/done1/"' not in home and home.count(">LIVE<") == 1, "a finished game is not listed and does not say LIVE")
+    check(home.count("<a ") == home.lower().count("<a href="), "live rows stay plain href anchors")
+    done_li = SP._week_game_li("nfl/games/done1/", "Away Team at Home Team", done, now, "nfl")
+    check("LIVE" not in done_li and ">Final<" in done_li and 'data-state="post"' in done_li and "sx-live" not in done_li, "a finished row says Final")
+    hub = SP.discover_nav({"nfl": L}, "nfl", games=True, props=False, leagues=False)
+    check("NFL games this week" in hub and 'class="sx-live"' in hub and ">LIVE<" in hub and 'href="nfl/games/later1/"' in hub, "hub week list badges the live game and keeps the later one")
+    js = (ROOT / "site" / "assets" / "week-live.js").read_text()
+    check("the-odds-api" not in js.lower() and "fetch(" not in js and "WeekLive" in js, "week-live.js does not fetch and does not call the Odds API")
+    check("2 * 60 * 1000" in js and "7 * 3600 * 1000" in js, "client uses the same 2 min / 7 h window as live scores")
+    css = (ROOT / "site" / "assets" / "styles.css").read_text()
+    check(".sx-live-badge" in css and "#dc2626" in css and ".sx-live-badge .live-dot{animation:none}" in css, "LIVE badge, red row, and no pulse under reduced motion")
+    shell = (ROOT / "site" / "index.html").read_text()
+    check('src="assets/week-live.js"' in shell and shell.index("week-live.js") < shell.index('src="assets/app.js"'), "shell loads week-live.js")
+    check('"assets/week-live.js"' in (ROOT / "site" / "sw.js").read_text(), "service worker caches week-live.js")
+
+
 def best_lines_filter_tests():
     """Started, live, final, and no-line games are not listed. A partial line stays, with the missing markets blank.
     Next up skips a day whose games have no posted number."""
@@ -1328,6 +1358,7 @@ def main():
     title_limit_tests()
     game_title_tests()
     discover_link_tests()
+    week_live_tests()
     snippet_copy_tests()
     best_lines_filter_tests()
     wtw_tests()
@@ -1380,6 +1411,11 @@ def main():
                 if hrefs:
                     check('class="wrap sx-week"' in lead_h and "games this week" in lead_h, f"{lg}: this week's links sit above #app")
                     check(any(href in lead_h for href in hrefs), f"{lg}: an upcoming game is linked above #app")
+                    week = lead_h.split('class="wrap sx-week"', 1)[-1]
+                    if "/games/" in week or "/fights/" in week:
+                        check('data-start="' in week and 'data-state="' in week and 'data-when="' in week, f"{lg}: week rows carry start and state for the live badge")
+                        if "sx-live" in week:
+                            check("sx-live-badge" in week and ">LIVE<" in week, f"{lg}: an in-progress week row is a LIVE badge")
         man = json.loads((data / "pages.json").read_text())
         meta2 = json.loads((data / "meta.json").read_text())
         check(meta2.get("pages", {}).get("count") == st["pages"] and "previews" not in meta2, "meta.json: pages count, no previews block")

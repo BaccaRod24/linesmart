@@ -5,6 +5,7 @@
 // Chromium. Offline apart from the local server; geo-IP lookup is never called (state is picked via localStorage).
 // Usage: node scripts/seo_pages_test.mjs            (needs playwright; DATA_DIR=/path/to/data to test with fresher data)
 import { chromium } from "playwright";
+import { createRequire } from "module";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -13,6 +14,23 @@ import { execFileSync } from "child_process";
 
 let fail = 0, pass = 0;
 const check = (ok, msg) => { ok ? pass++ : (fail++, console.log(`FAIL ${msg}`)); };
+const WL = createRequire(import.meta.url)("../site/assets/week-live.js");
+{
+  const t0 = Date.parse("2026-10-31T20:00:00Z");
+  const kick = "2026-10-31T19:00:00Z";
+  check(WL.status({ state: "in", start: kick }, t0, null) === "live", "build state in is live");
+  check(WL.status({ state: "pre", start: kick }, t0, null) === "live", "kickoff already passed: live");
+  check(WL.status({ state: "pre", start: "2026-11-02T18:00:00Z" }, t0, null) === "time", "future game stays a time");
+  check(WL.status({ state: "post", start: kick }, t0, null) === "final", "post is final, not live");
+  check(WL.status({ state: "in", start: kick }, t0, { state: "post", completed: true }) === "final", "live overlay final clears LIVE");
+  check(WL.status({ state: "pre", start: kick }, t0, { state: "pre" }) === "time", "overlay still pre (delay) is not LIVE");
+  check(WL.status({ state: "pre", start: "2026-10-31T10:00:00Z" }, t0, null) === "time", "more than 7h after start is not LIVE");
+  check(WL.status({ state: "in", start: "2026-10-31T10:00:00Z" }, t0, null) === "final", "stale in-progress past the window is final");
+  check(WL.status({ state: "in", start: "2026-10-31T10:00:00Z" }, t0, { state: "in" }) === "live", "overlay still in stays live past the window");
+  check(WL.status({ state: "pre", start: new Date(t0 + 90 * 1000).toISOString() }, t0, null) === "live", "within 2 min of kickoff is live");
+  check(WL.status({ state: "pre", start: new Date(t0 + 5 * 60 * 1000).toISOString() }, t0, null) === "time", "more than 2 min out stays a time");
+  check(!/fetch\s*\(|the-odds-api/i.test(fs.readFileSync("site/assets/week-live.js", "utf8")), "week-live.js makes no request");
+}
 const GEN = ["nfl", "nba", "mlb", "nhl", "ncaaf", "ncaab", "ufc", "preview"];
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "seojs-"));
 const site = path.join(tmp, "site");
@@ -156,6 +174,21 @@ try {
   await setState("NJ"); await page.goto(BASE);
   const hc = await page.evaluate(() => [...document.querySelectorAll(".home-cards a")].map(a => a.getAttribute("href")));
   check(hc.length > 0 && hc.every(h => !h.startsWith("#/")), `homepage cards link real pages (${hc.length})`);
+  const marked = await page.evaluate(() => {
+    if (!window.WeekLive) return null;
+    const host = document.createElement("div");
+    const start = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const future = new Date(Date.now() + 864e5).toISOString();
+    host.innerHTML = `<ul class="sx-discover-games"><li><a href="nfl/games/x/" data-lg="nfl" data-id="x" data-start="${start}" data-state="pre" data-when="1:00 PM ET"><span class="sx-dl">A at B</span><span class="sx-dt">1:00 PM ET</span></a></li><li><a href="nfl/games/y/" data-lg="nfl" data-id="y" data-start="${future}" data-state="pre" data-when="Sun 4:00 PM ET"><span class="sx-dl">C at D</span><span class="sx-dt">Sun 4:00 PM ET</span></a></li><li><a href="nfl/games/z/" data-lg="nfl" data-id="z" data-start="${start}" data-state="post" data-when="1:00 PM ET"><span class="sx-dl">E at F</span><span class="sx-dt">1:00 PM ET</span></a></li></ul>`;
+    document.body.appendChild(host);
+    window.WeekLive.paint(host);
+    const rows = [...host.querySelectorAll("li")].map(li => ({ live: li.classList.contains("sx-live"), text: li.querySelector(".sx-dt").textContent, href: li.querySelector("a").getAttribute("href") }));
+    host.remove();
+    return rows;
+  });
+  check(marked && marked[0].live && marked[0].text === "LIVE" && marked[0].href === "nfl/games/x/", `client marks a started game LIVE (${JSON.stringify(marked && marked[0])})`);
+  check(marked && !marked[1].live && marked[1].text === "Sun 4:00 PM ET", `client leaves a future game as the time (${JSON.stringify(marked && marked[1])})`);
+  check(marked && !marked[2].live && marked[2].text === "Final", `client shows Final, not LIVE, for a finished game (${JSON.stringify(marked && marked[2])})`);
   check(!errs.length, `no page errors ${errs.join(" | ")}`);
   check(!geoCalls.length, "no geo-IP lookup when a state is picked");
   check(!cf.length, "no Cloudflare analytics off the production host");

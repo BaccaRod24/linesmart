@@ -2128,6 +2128,13 @@ a.contact-cta:hover{color:var(--accent)}
 .sx-discover-games a{display:flex;justify-content:space-between;align-items:baseline;gap:8px;width:100%;min-width:0;border-radius:12px}
 .sx-discover-games .sx-dl{min-width:0;flex:1 1 auto}
 .sx-discover-games .sx-dt{flex:none;color:var(--dim);font-size:12px;font-weight:650;white-space:nowrap}
+/* In progress: bright red LIVE badge, red dot, light red row. #fff on #dc2626 is about 4.8:1. */
+.sx-discover-games li.sx-live>a{align-items:center;background:color-mix(in srgb,#dc2626 13%,var(--surface));border-color:color-mix(in srgb,#dc2626 50%,var(--line2))}
+.sx-discover-games li.sx-live>a:hover{border-color:#dc2626}
+.sx-live-badge{display:inline-flex;align-items:center;gap:5px}
+.sx-live-tx{display:inline-block;padding:1px 7px;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;font-weight:800;letter-spacing:.06em;line-height:1.65}
+.sx-live-badge .live-dot{width:6px;height:6px;background:#ef4444}
+@media (prefers-reduced-motion:reduce){.sx-live-badge .live-dot{animation:none}}
 @media (min-width:700px){
   .sx-discover-games{grid-template-columns:1fr 1fr}
 }

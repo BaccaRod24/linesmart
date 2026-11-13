@@ -1540,11 +1540,16 @@ def alert_cta(L: League, g, gid):
 
 
 def prop_alert_cta(L: League, g, gid, pid, mk, name, label):
-    """Same entry on a prop card: opens the sheet pre-filled for this player + market ([data-al-prop])."""
+    """Same entry on a prop card: opens the sheet pre-filled for this player + market ([data-al-prop]).
+
+    A button, not a link. The old href was the in-app player route (#/p/<lg>/<id>/log, the same address as
+    "Open in the app"), and these pages do not load the alert script until something asks for an app route,
+    so the tap followed the link and left the prop page.
+    """
     if not g or g.get("state") != "pre" or gid not in L.current or L.is_final(g):
         return ""
-    return (f'<div class="al-cta al-cta-prop"><a class="al-cta-btn" href="#/p/{esc(L.lg)}/{esc(pid)}/log" rel="nofollow" data-al-prop="{esc("|".join([L.lg, str(gid), str(pid), str(mk)]))}" '
-            f'data-name="{esc(name)}" data-label="{esc(label)}" aria-label="{esc(f"Get a line alert: {name} {label}")}"><span aria-hidden="true">🔔</span> Get a line alert</a>'
+    return (f'<div class="al-cta al-cta-prop"><button type="button" class="al-cta-btn" data-al-prop="{esc("|".join([L.lg, str(gid), str(pid), str(mk)]))}" '
+            f'data-name="{esc(name)}" data-label="{esc(label)}" aria-label="{esc(f"Get a line alert: {name} {label}")}"><span aria-hidden="true">🔔</span> Get a line alert</button>'
             f'<span class="al-cta-note">Email when this line moves. Free account, up to 5 alerts a day.</span></div>')
 
 

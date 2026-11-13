@@ -43,7 +43,9 @@
   }
   function groupsFor(hash, page, route) {
     var key = keyOf(hash, route);
-    if (!key && page) return []; // static page: state, legal-style, team, fighter. Shell only.
+    // Static pages (state, team, fighter) stay shell-only. A player prop page has no app route, but its
+    // "Get a line alert" button is the same sheet as the app, so it needs the alert scripts (and account, so a signed-in visitor gets the form rather than the sign-in prompt).
+    if (!key && page) return page === "player" ? ["alerts", "account"] : [];
     var parts = key.split("/"), k = parts[0], g = [];
     if (k === "bets") return ["bets", "slip", "live", "propsCore", "alerts", "pro"];
     if (k === "account") return ["account", "alerts", "pro"];
@@ -55,7 +57,7 @@
     if (k === "search") return [];
     if (k === "g") return ["live", "box", "line", "alerts", "account", "props", "matchup", "weather", "adv", "bets", "pickem"];
     if (k === "t") return ["live", "matchup", "adv", "alerts", "week"];
-    if (k === "p") return parts[1] === "ufc" ? ["ufc"] : ["props", "matchup", "adv", "alerts"];
+    if (k === "p") return parts[1] === "ufc" ? ["ufc"] : ["props", "matchup", "adv", "alerts", "account"];
     if (k === "l" && parts[1] === "ufc") return ["ufc"];
     // Home and a league hub: scores, bells, weather chips, the pick'em note. Not the tracker.
     add(g, "live"); add(g, "week"); add(g, "alerts"); add(g, "account"); add(g, "propsCore");

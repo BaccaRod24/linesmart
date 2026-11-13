@@ -200,6 +200,12 @@ fs.rmSync(dir, { recursive: true, force: true });
   ok(appPlayer.includes("alerts") && appPlayer.includes("account"), "in-app player route loads alerts and account");
   const game = LS.groupsFor("", "game", "g/nfl/1");
   ok(game.includes("alerts") && game.includes("account"), "game page still loads the working alert sheet");
+  ok(!game.includes("ufc"), "NFL game page does not load ufc.js");
+  const ufcFight = LS.groupsFor("", "game", "g/ufc/401913646");
+  ok(ufcFight.includes("ufc") && ufcFight.includes("alerts") && ufcFight.includes("bets"), "static UFC fight page loads ufc.js with the game scripts");
+  ok(LS.groupsFor("#/g/ufc/401913646", "game", "g/ufc/401913646").includes("ufc"), "cold #/g/ufc fight route loads ufc.js");
+  ok(LS.groupsFor("#/g/ufc/401913646/stats", "", "").includes("ufc"), "UFC fight stats tab loads ufc.js");
+  ok(!LS.groupsFor("", "game", "g/nba/1").includes("ufc") && !LS.groupsFor("#/g/nhl/9", "", "").includes("ufc"), "other leagues' game pages do not load ufc.js");
   eq(LS.groupsFor("#/p/ufc/1", "fighter", ""), ["ufc"], "ufc fighter route unchanged");
 }
 

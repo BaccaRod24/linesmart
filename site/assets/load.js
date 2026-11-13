@@ -55,7 +55,13 @@
     if (k === "props") return ["access", "props", "alerts", "pickem"];
     if (k === "stats") return ["access", "matchup", "propsCore"];
     if (k === "search") return [];
-    if (k === "g") return ["live", "box", "line", "alerts", "account", "props", "matchup", "weather", "adv", "bets", "pickem"];
+    if (k === "g") {
+      // Cold fight pages (/ufc/fights/… and #/g/ufc/…) never visited the hub, so the UFC renderer
+      // has to load here or Last 5 fights never runs. Other leagues stay on the game set.
+      var game = ["live", "box", "line", "alerts", "account", "props", "matchup", "weather", "adv", "bets", "pickem"];
+      if (parts[1] === "ufc") add(game, "ufc");
+      return game;
+    }
     if (k === "t") return ["live", "matchup", "adv", "alerts", "week"];
     if (k === "p") return parts[1] === "ufc" ? ["ufc"] : ["props", "matchup", "adv", "alerts", "account"];
     if (k === "l" && parts[1] === "ufc") return ["ufc"];

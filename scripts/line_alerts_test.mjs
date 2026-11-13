@@ -186,5 +186,22 @@ fs.rmSync(dir, { recursive: true, force: true });
   ok(/enabled\s+boolean\s+not null\s+default\s+false/i.test(sql), "database switch defaults to off");
 }
 
+// Static prop pages have no app route, so the loader used to skip every script and the "Get a line alert"
+// control fell through to its href. The sheet has to be on the page, and account has to be too, or a signed-in visitor gets the sign-in prompt.
+{
+  const src = fs.readFileSync("site/assets/load.js", "utf8");
+  const window = {};
+  const LS = new Function("window", src + "\nreturn window.LSLoad;")(window);
+  eq(LS.groupsFor("", "player", ""), ["alerts", "account"], "static prop page loads the alert sheet and account");
+  eq(LS.groupsFor("#lines-s", "player", ""), ["alerts", "account"], "in-page anchor on a prop page still loads the sheet");
+  eq(LS.groupsFor("", "team", ""), [], "static team page stays shell-only");
+  eq(LS.groupsFor("", "fighter", ""), [], "static fighter page stays shell-only");
+  const appPlayer = LS.groupsFor("#/p/nfl/4038941", "player", "");
+  ok(appPlayer.includes("alerts") && appPlayer.includes("account"), "in-app player route loads alerts and account");
+  const game = LS.groupsFor("", "game", "g/nfl/1");
+  ok(game.includes("alerts") && game.includes("account"), "game page still loads the working alert sheet");
+  eq(LS.groupsFor("#/p/ufc/1", "fighter", ""), ["ufc"], "ufc fighter route unchanged");
+}
+
 console.log(fails.length ? `\n${fails.length}/${n} FAILED` : `line alerts: ${n}/${n} passed`);
 process.exit(fails.length ? 1 : 0);

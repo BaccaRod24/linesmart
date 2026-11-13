@@ -1681,7 +1681,13 @@ def main():
                 for m in re.finditer(r'data-al-prop="([^"]+)"', h):
                     plg, pgid, ppid, mk = m.group(1).split("|")
                     check(plg == lg and ppid == pid and mk and states.get(pgid) == "pre", f"{rel}: prop alert entry pre-filled for an upcoming game ({m.group(1)})")
+                    start = h.rfind("<", 0, m.start())
+                    end = h.find(">", m.start())
+                    tag = h[start:end + 1] if start >= 0 and end > start else ""
+                    check(tag.startswith("<button") and "href=" not in tag and "/log" not in tag, f"{rel}: prop alert is a button, not the in-app /log link ({tag[:140]})")
                     n_pcta += 1
+                if 'class="pv-live"' in h:
+                    check(re.search(r'class="pv-live" href="#/p/[^"]+/log"', h) is not None, f"{rel}: open-in-app link still uses the /log route")
         check(not man["p"] or n_pcta, f"prop pages carry prop alert entries ({n_pcta})")
         for rel in real:
             h = html_of(rel)

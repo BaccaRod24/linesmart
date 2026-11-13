@@ -292,6 +292,22 @@ def _cache_save(d, c):
     with open(tmp, "w") as fh: json.dump(c, fh, separators=(",", ":"))
     os.replace(tmp, p)
 
+def _comps(v):
+    """Competitors on a full cached bout. None for a method-only stub (c has no competitors)."""
+    c = v.get("c") if isinstance(v, dict) else None
+    cs = c.get("competitors") if isinstance(c, dict) else None
+    return cs if isinstance(cs, list) else None
+
+def _keep_stub_finish(prev, v):
+    """Full competition replaces a method stub. Keep the stub's finish when the fresh status has none."""
+    ps = prev.get("s") if isinstance(prev, dict) else None
+    if not isinstance(ps, dict): return
+    fresh, old = v["s"].get("result") or {}, ps.get("result") or {}
+    if fresh.get("displayName") or fresh.get("shortDisplayName") or not (old.get("displayName") or old.get("shortDisplayName")): return
+    v["s"]["result"] = old
+    for k in ("period", "displayClock"):
+        if v["s"].get(k) is None: v["s"][k] = ps.get(k)
+
 def fighter_form(fids, getj, cache, log=print, workers=12):
     """{fighter_id: [last FORM_N finished fights, newest first]} via eventlog -> competition + status (finished fights cached)."""
     calls = dict(n=0, err=0)
@@ -307,7 +323,7 @@ def fighter_form(fids, getj, cache, log=print, workers=12):
     for fid, rs in refs.items():
         for r in rs[:FORM_N + 2]:   # a couple spare in case one has no result
             cid = _ref_id(r, "competitions")
-            if cid and cid not in cache["fights"]: need[cid] = r
+            if cid and _comps(cache["fights"].get(cid)) is None: need[cid] = r   # method-only stubs count as uncached
     def comp(cid_ref):
         cid, ref = cid_ref
         try:
@@ -317,13 +333,15 @@ def fighter_form(fids, getj, cache, log=print, workers=12):
         except Exception: calls["err"] += 1; return cid, None
     with cf.ThreadPoolExecutor(workers) as ex:
         for cid, v in ex.map(comp, need.items()):
-            if v and ((v["s"].get("type") or {}).get("completed")): cache["fights"][cid] = v
-    opp = {x["id"] for v in cache["fights"].values() for x in v["c"]["competitors"]} - set(cache["names"])
+            if not (v and ((v["s"].get("type") or {}).get("completed"))): continue
+            _keep_stub_finish(cache["fights"].get(cid), v)   # don't drop a stub's method when the fresh status omits it
+            cache["fights"][cid] = v
+    opp = {x["id"] for v in cache["fights"].values() for x in (_comps(v) or []) if isinstance(x, dict) and x.get("id")} - set(cache["names"])
     want_opp = set()
     for fid, rs in refs.items():
         for r in rs[:FORM_N + 2]:
-            v = cache["fights"].get(_ref_id(r, "competitions"))
-            if v: want_opp |= {x["id"] for x in v["c"]["competitors"] if x["id"] != str(fid)}
+            cs = _comps(cache["fights"].get(_ref_id(r, "competitions")))
+            if cs: want_opp |= {x["id"] for x in cs if isinstance(x, dict) and x.get("id") and x["id"] != str(fid)}
     def nm(aid):
         try: a = gj(f"{CORE}/athletes/{aid}?{Q}"); return aid, a.get("displayName") or a.get("fullName")
         except Exception: calls["err"] += 1; return aid, None
@@ -335,8 +353,8 @@ def fighter_form(fids, getj, cache, log=print, workers=12):
         h = []
         for r in rs:
             v = cache["fights"].get(_ref_id(r, "competitions"))
-            if not v: continue
-            e = form_entry(fid, v["c"], v["s"], cache["names"])
+            if _comps(v) is None: continue
+            e = form_entry(fid, v["c"], v.get("s"), cache["names"])
             if e: h.append(e)
             if len(h) >= FORM_N: break
         out[fid] = sorted(h, key=lambda e: e.get("date") or "", reverse=True)

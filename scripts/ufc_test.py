@@ -172,5 +172,60 @@ check("hard rock: prices land on the right fighter (swapped corners too)", ok_si
 import matchups as MU, props as PR
 check("matchups / props skip ufc", "ufc" not in MU.SUPPORTED and "ufc" not in PR.SUPPORTED)
 
+# ---------- PR #60 method stubs ({s, c:{id}}) must not blank fighter form
+def _stub(cid, method, period=2, clock="3:11"):
+    return {"s": {"period": period, "displayClock": clock, "type": {"completed": True},
+                  "result": {"displayName": method, "description": "Rear Naked Choke"}}, "c": {"id": cid}}
+def _full(cid, date, opp, method="Decision"):
+    return {"c": {"$ref": f"http://x/events/1/competitions/{cid}", "id": cid, "date": date, "type": {"text": "Lightweight"},
+                  "competitors": [{"id": "3028863", "winner": True}, {"id": opp, "winner": False}]},
+            "s": {"period": 3, "displayClock": "5:00", "type": {"completed": True, "name": "STATUS_FINAL"},
+                  "result": {"displayName": method, "description": "Unanimous"}}}
+STUB, FULL, OTHER = "401861581", "401772650", "999000111"
+seed = dict(v=1, names={"9001": "Cached Opp"}, fights={
+    STUB: _stub(STUB, "Submission"),
+    FULL: _full(FULL, "2026-07-01T00:00Z", "9001"),
+    OTHER: _stub(OTHER, "KO/TKO", 1, "0:42")})
+seen = []
+def thin_status(url):
+    seen.append(url)
+    assert "the-odds-api" not in url and "odds-api" not in url
+    if f"/competitions/{STUB}/status" in url:
+        return {"type": {"completed": True, "name": "STATUS_FINAL"}, "period": None, "displayClock": None, "result": {}}
+    return fake(url)
+raised = None
+try:
+    form_s, form_calls = UF.fighter_form(["3028863"], thin_status, seed, log=lambda *a: None, workers=4)
+except Exception as e:
+    form_s, form_calls, raised = {}, {}, e
+hist = (form_s or {}).get("3028863") or []
+by_id = {x["id"]: x for x in hist}
+check("stub rows do not raise", raised is None, raised)
+check("form/hist still builds beside a method stub", 1 <= len(hist) <= 5 and all(x["res"] in ("W", "L", "D", "NC") for x in hist), hist[:2])
+check("method stub refetched into hist", STUB in by_id and by_id[STUB]["res"] == "L", by_id.get(STUB))
+check("refetch keeps the stub finish when status omits it",
+      by_id.get(STUB, {}).get("method") == "Submission" and by_id.get(STUB, {}).get("round") == 2 and by_id.get(STUB, {}).get("clock") == "3:11",
+      by_id.get(STUB))
+check("stub row gains competitors without dropping the method",
+      "competitors" in ((seed["fights"].get(STUB) or {}).get("c") or {}) and UF.methods_from_cache(seed).get(STUB, {}).get("method") == "Submission")
+check("complete cached fight kept (not refetched)",
+      by_id.get(FULL, {}).get("method") == "Decision" and by_id.get(FULL, {}).get("oppId") == "9001" and by_id.get(FULL, {}).get("opp") == "Cached Opp",
+      by_id.get(FULL))
+check("complete fight was not fetched again", not any(f"/competitions/{FULL}?" in u and "/status" not in u for u in seen))
+check("unrelated method stub still supplies its finish", UF.methods_from_cache(seed).get(OTHER, {}).get("method") == "KO/TKO" and "competitors" not in (seed["fights"][OTHER].get("c") or {}))
+check("form fetch had no errors", form_calls.get("err") == 0, form_calls)
+cdir2 = tempfile.mkdtemp(prefix="ufc_stub_")
+with open(os.path.join(cdir2, UF.CACHE_FILE), "w") as fh:
+    json.dump(dict(v=1, names={"9001": "Cached Opp"}, fights={STUB: _stub(STUB, "Submission"), FULL: _full(FULL, "2026-07-01T00:00Z", "9001"), OTHER: _stub(OTHER, "KO/TKO", 1, "0:42")}), fh)
+out2, sdir2, hdir2 = (os.path.join(cdir2, x) for x in ("data", "data/search", "hist"))
+rep2 = UF.build_ufc(lg, fake, out2, sdir2, LH, hist_dir=hdir2, cache_dir=cdir2, log=lambda *a: None, now=now)
+h2 = (json.load(open(os.path.join(out2, "ufc", "fighters.json")))["fighters"].get("3028863") or {}).get("hist") or []
+saved = json.load(open(os.path.join(cdir2, UF.CACHE_FILE)))
+check("build form does not fail on method stubs", not str((rep2.get("endpoints") or {}).get("fighterForm", "")).startswith("failed"), rep2.get("endpoints", {}).get("fighterForm"))
+check("fighters.json hist built from a stub cache", len(h2) >= 1 and all(x.get("opp") for x in h2), [x.get("id") for x in h2])
+check("saved cache keeps the unrelated stub method", UF.methods_from_cache(saved).get(OTHER, {}).get("method") == "KO/TKO")
+check("saved cache replaced the stub with competitors and a finish",
+      "competitors" in ((saved["fights"].get(STUB) or {}).get("c") or {}) and bool(UF.methods_from_cache(saved).get(STUB, {}).get("method")))
+
 print(f"ufc_test: {ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)

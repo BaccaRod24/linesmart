@@ -14,23 +14,6 @@
  "checks": [
   {
    "action": "pull",
-   "due": [],
-   "errors": [],
-   "gameInterval": 30,
-   "level": "full",
-   "props": [],
-   "pulled": [],
-   "remainingAfter": 85399,
-   "remainingBefore": 85399,
-   "skipped": [],
-   "spent": 0,
-   "spentBy": {},
-   "t": "2026-11-10T14:42:31Z",
-   "used": 14601,
-   "usedAfter": 14601
-  },
-  {
-   "action": "pull",
    "due": [
     "nfl",
     "nba",
@@ -5435,6 +5418,43 @@
    "t": "2026-11-13T10:45:18Z",
    "used": 18386,
    "usedAfter": 18404
+  },
+  {
+   "action": "pull",
+   "due": [
+    "nfl",
+    "nba",
+    "ncaaf",
+    "ncaab",
+    "nhl",
+    "mls"
+   ],
+   "errors": [],
+   "gameInterval": 30,
+   "level": "full",
+   "props": [
+    "nfl",
+    "nba"
+   ],
+   "pulled": [
+    "nfl",
+    "nba",
+    "ncaaf",
+    "ncaab",
+    "nhl",
+    "mls"
+   ],
+   "remainingAfter": 81518,
+   "remainingBefore": 81596,
+   "skipped": [],
+   "spent": 78,
+   "spentBy": {
+    "games": 18,
+    "props": 60
+   },
+   "t": "2026-11-13T11:15:21Z",
+   "used": 18404,
+   "usedAfter": 18482
   }
  ],
  "leagues": {
@@ -5483,29 +5503,29 @@
       "awayML": 165,
       "drawML": 300,
       "homeML": 125,
-      "updated": "2026-11-13T10:45:39Z"
+      "updated": "2026-11-13T11:13:33Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 145,
        "drawML": 280,
        "homeML": 140,
-       "updated": "2026-11-13T10:44:44Z"
+       "updated": "2026-11-13T11:15:02Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 150,
        "drawML": 300,
        "homeML": 140,
-       "updated": "2026-11-13T10:45:21Z"
+       "updated": "2026-11-13T11:14:27Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 165,
        "drawML": 300,
        "homeML": 125,
-       "updated": "2026-11-13T10:45:39Z"
+       "updated": "2026-11-13T11:13:33Z"
       }
      }
     },
@@ -5517,36 +5537,36 @@
       "awayML": 275,
       "drawML": 300,
       "homeML": -130,
-      "updated": "2026-11-13T10:45:39Z"
+      "updated": "2026-11-13T11:13:33Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 235,
        "drawML": 265,
        "homeML": -110,
-       "updated": "2026-11-13T10:44:44Z"
+       "updated": "2026-11-13T11:15:02Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 250,
        "drawML": 280,
        "homeML": -105,
-       "updated": "2026-11-13T10:45:21Z"
+       "updated": "2026-11-13T11:14:27Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 275,
        "drawML": 300,
        "homeML": -130,
-       "updated": "2026-11-13T10:45:39Z"
+       "updated": "2026-11-13T11:13:33Z"
       }
      }
     }
    },
    "matched": 2,
-   "pulledAt": "2026-11-13T10:45:18Z",
-   "remainingAfter": 81596,
+   "pulledAt": "2026-11-13T11:15:21Z",
+   "remainingAfter": 81578,
    "unmatched": 0
   },
   "nba": {
@@ -5568,15 +5588,15 @@
       "awaySpreadOdds": -115,
       "homeML": 225,
       "homeSpread": 6.5,
-      "homeSpreadOdds": -105,
+      "homeSpreadOdds": 100,
       "overOdds": -110,
       "total": 219.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:43:48Z"
+      "updated": "2026-11-13T11:15:20Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -269,
        "awaySpread": -7.5,
        "awaySpreadOdds": -103,
@@ -5586,10 +5606,10 @@
        "overOdds": -107,
        "total": 219.5,
        "underOdds": -113,
-       "updated": "2026-11-13T10:44:22Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -270,
        "awaySpread": -7.5,
        "awaySpreadOdds": -104,
@@ -5599,20 +5619,20 @@
        "overOdds": -114,
        "total": 219.5,
        "underOdds": -106,
-       "updated": "2026-11-13T10:45:01Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -275,
        "awaySpread": -6.5,
        "awaySpreadOdds": -115,
        "homeML": 225,
        "homeSpread": 6.5,
-       "homeSpreadOdds": -105,
+       "homeSpreadOdds": 100,
        "overOdds": -110,
        "total": 219.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:48Z"
+       "updated": "2026-11-13T11:15:20Z"
       }
      }
     },
@@ -5630,11 +5650,11 @@
       "overOdds": -110,
       "total": 223.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:43:48Z"
+      "updated": "2026-11-13T11:15:20Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 300,
        "awaySpread": 9.5,
        "awaySpreadOdds": -110,
@@ -5644,10 +5664,10 @@
        "overOdds": -108,
        "total": 223.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:44:22Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 320,
        "awaySpread": 8.5,
        "awaySpreadOdds": -104,
@@ -5657,10 +5677,10 @@
        "overOdds": -110,
        "total": 223.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:01Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 300,
        "awaySpread": 9.5,
        "awaySpreadOdds": -115,
@@ -5670,7 +5690,7 @@
        "overOdds": -110,
        "total": 223.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:48Z"
+       "updated": "2026-11-13T11:15:20Z"
       }
      }
     },
@@ -5688,24 +5708,24 @@
       "overOdds": -110,
       "total": 235.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:43:48Z"
+      "updated": "2026-11-13T11:15:20Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 114,
        "awaySpread": 2.5,
        "awaySpreadOdds": -112,
        "homeML": -135,
        "homeSpread": -2.5,
        "homeSpreadOdds": -108,
-       "overOdds": -108,
+       "overOdds": -105,
        "total": 236.5,
-       "underOdds": -112,
-       "updated": "2026-11-13T10:44:22Z"
+       "underOdds": -115,
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 114,
        "awaySpread": 2.5,
        "awaySpreadOdds": -118,
@@ -5715,10 +5735,10 @@
        "overOdds": -110,
        "total": 235.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:01Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 110,
        "awaySpread": 2.5,
        "awaySpreadOdds": -115,
@@ -5728,7 +5748,7 @@
        "overOdds": -110,
        "total": 235.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:48Z"
+       "updated": "2026-11-13T11:15:20Z"
       }
      }
     },
@@ -5746,11 +5766,11 @@
       "overOdds": -110,
       "total": 245.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:43:48Z"
+      "updated": "2026-11-13T11:15:20Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -277,
        "awaySpread": -7.5,
        "awaySpreadOdds": -108,
@@ -5760,10 +5780,10 @@
        "overOdds": -112,
        "total": 245.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:44:22Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -275,
        "awaySpread": -7.5,
        "awaySpreadOdds": -105,
@@ -5773,10 +5793,10 @@
        "overOdds": -110,
        "total": 245.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:01Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -275,
        "awaySpread": -7.5,
        "awaySpreadOdds": -110,
@@ -5786,7 +5806,7 @@
        "overOdds": -110,
        "total": 245.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:48Z"
+       "updated": "2026-11-13T11:15:20Z"
       }
      }
     },
@@ -5804,11 +5824,11 @@
       "overOdds": -115,
       "total": 234.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:43:48Z"
+      "updated": "2026-11-13T11:15:20Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -166,
        "awaySpread": -3.5,
        "awaySpreadOdds": -110,
@@ -5818,10 +5838,10 @@
        "overOdds": -112,
        "total": 235.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:44:22Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -154,
        "awaySpread": -3.5,
        "awaySpreadOdds": -110,
@@ -5831,10 +5851,10 @@
        "overOdds": -105,
        "total": 235.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:01Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -160,
        "awaySpread": -3.5,
        "awaySpreadOdds": -110,
@@ -5844,7 +5864,7 @@
        "overOdds": -115,
        "total": 234.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:43:48Z"
+       "updated": "2026-11-13T11:15:20Z"
       }
      }
     },
@@ -5862,11 +5882,11 @@
       "overOdds": -110,
       "total": 219.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:43:48Z"
+      "updated": "2026-11-13T11:15:20Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 900,
        "awaySpread": 17.5,
        "awaySpreadOdds": -117,
@@ -5876,10 +5896,10 @@
        "overOdds": -110,
        "total": 219.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:22Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 900,
        "awaySpread": 17.5,
        "awaySpreadOdds": -114,
@@ -5889,10 +5909,10 @@
        "overOdds": -110,
        "total": 219.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:01Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1000,
        "awaySpread": 17.5,
        "awaySpreadOdds": -115,
@@ -5902,7 +5922,7 @@
        "overOdds": -110,
        "total": 219.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:48Z"
+       "updated": "2026-11-13T11:15:20Z"
       }
      }
     },
@@ -5911,20 +5931,20 @@
      "date": "2026-11-14T02:30Z",
      "home": "SA",
      "line": {
-      "awayML": 550,
+      "awayML": 525,
       "awaySpread": 12.5,
       "awaySpreadOdds": -105,
-      "homeML": -800,
+      "homeML": -750,
       "homeSpread": -12.5,
       "homeSpreadOdds": -115,
       "overOdds": -115,
       "total": 219.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:43:48Z"
+      "updated": "2026-11-13T11:15:20Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 530,
        "awaySpread": 12.5,
        "awaySpreadOdds": -105,
@@ -5934,33 +5954,33 @@
        "overOdds": -113,
        "total": 219.5,
        "underOdds": -107,
-       "updated": "2026-11-13T10:44:22Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
-       "awayML": 640,
-       "awaySpread": 13.5,
-       "awaySpreadOdds": -114,
-       "homeML": -950,
-       "homeSpread": -13.5,
-       "homeSpreadOdds": -106,
+       "asOf": "2026-11-13T11:15:21Z",
+       "awayML": 490,
+       "awaySpread": 12.5,
+       "awaySpreadOdds": -110,
+       "homeML": -700,
+       "homeSpread": -12.5,
+       "homeSpreadOdds": -110,
        "overOdds": -114,
        "total": 219.5,
        "underOdds": -106,
-       "updated": "2026-11-13T10:45:01Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
-       "awayML": 550,
+       "asOf": "2026-11-13T11:15:21Z",
+       "awayML": 525,
        "awaySpread": 12.5,
        "awaySpreadOdds": -105,
-       "homeML": -800,
+       "homeML": -750,
        "homeSpread": -12.5,
        "homeSpreadOdds": -115,
        "overOdds": -115,
        "total": 219.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:43:48Z"
+       "updated": "2026-11-13T11:15:20Z"
       }
      }
     },
@@ -5978,11 +5998,11 @@
       "overOdds": -115,
       "total": 229.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:43:48Z"
+      "updated": "2026-11-13T11:15:20Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -515,
        "awaySpread": -10.5,
        "awaySpreadOdds": -112,
@@ -5992,10 +6012,10 @@
        "overOdds": -110,
        "total": 229.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:22Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -590,
        "awaySpread": -10.5,
        "awaySpreadOdds": -120,
@@ -6005,10 +6025,10 @@
        "overOdds": -110,
        "total": 230.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:01Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -575,
        "awaySpread": -10.5,
        "awaySpreadOdds": -115,
@@ -6018,14 +6038,14 @@
        "overOdds": -115,
        "total": 229.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:43:48Z"
+       "updated": "2026-11-13T11:15:20Z"
       }
      }
     }
    },
    "matched": 8,
-   "pulledAt": "2026-11-13T10:45:18Z",
-   "remainingAfter": 81608,
+   "pulledAt": "2026-11-13T11:15:21Z",
+   "remainingAfter": 81590,
    "unmatched": 1
   },
   "ncaab": {
@@ -6048,14 +6068,14 @@
       "homeML": -165,
       "homeSpread": -2.5,
       "homeSpreadOdds": -115,
-      "overOdds": -110,
-      "total": 159.5,
-      "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "overOdds": 100,
+      "total": 161.5,
+      "underOdds": -120,
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 136,
        "awaySpread": 3.5,
        "awaySpreadOdds": -110,
@@ -6065,10 +6085,10 @@
        "overOdds": -108,
        "total": 160.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 132,
        "awaySpread": 2.5,
        "awaySpreadOdds": -104,
@@ -6078,20 +6098,20 @@
        "overOdds": -115,
        "total": 160.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 130,
        "awaySpread": 2.5,
        "awaySpreadOdds": -105,
        "homeML": -165,
        "homeSpread": -2.5,
        "homeSpreadOdds": -115,
-       "overOdds": -110,
-       "total": 159.5,
-       "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "overOdds": 100,
+       "total": 161.5,
+       "underOdds": -120,
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6109,11 +6129,11 @@
       "overOdds": -110,
       "total": 156.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1200,
        "awaySpread": 17.5,
        "awaySpreadOdds": -115,
@@ -6123,10 +6143,10 @@
        "overOdds": -110,
        "total": 156.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1200,
        "awaySpread": 16.5,
        "awaySpreadOdds": -102,
@@ -6136,10 +6156,10 @@
        "overOdds": -110,
        "total": 156.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1000,
        "awaySpread": 16.5,
        "awaySpreadOdds": -110,
@@ -6149,7 +6169,7 @@
        "overOdds": -110,
        "total": 156.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6165,11 +6185,11 @@
       "overOdds": -110,
       "total": 143.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 37.5,
        "awaySpreadOdds": -108,
        "homeSpread": -37.5,
@@ -6177,10 +6197,10 @@
        "overOdds": -112,
        "total": 143.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 37.5,
        "awaySpreadOdds": -110,
        "homeSpread": -37.5,
@@ -6188,10 +6208,10 @@
        "overOdds": -110,
        "total": 143.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 37.5,
        "awaySpreadOdds": -105,
        "homeSpread": -37.5,
@@ -6199,7 +6219,7 @@
        "overOdds": -110,
        "total": 143.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6217,11 +6237,11 @@
       "overOdds": -125,
       "total": 161.5,
       "underOdds": 100,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 160,
        "awaySpread": 4.5,
        "awaySpreadOdds": -115,
@@ -6231,10 +6251,10 @@
        "overOdds": -108,
        "total": 163.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 155,
        "awaySpread": 4.5,
        "awaySpreadOdds": -114,
@@ -6244,10 +6264,10 @@
        "overOdds": -115,
        "total": 162.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 150,
        "awaySpread": 3.5,
        "awaySpreadOdds": -105,
@@ -6257,7 +6277,7 @@
        "overOdds": -125,
        "total": 161.5,
        "underOdds": 100,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6275,11 +6295,11 @@
       "overOdds": -110,
       "total": 165.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -175,
        "awaySpread": -3.5,
        "awaySpreadOdds": -115,
@@ -6289,10 +6309,10 @@
        "overOdds": -105,
        "total": 165.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -162,
        "awaySpread": -3.5,
        "awaySpreadOdds": -106,
@@ -6302,10 +6322,10 @@
        "overOdds": -110,
        "total": 165.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -180,
        "awaySpread": -3.5,
        "awaySpreadOdds": -110,
@@ -6315,7 +6335,7 @@
        "overOdds": -110,
        "total": 165.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6331,22 +6351,22 @@
       "overOdds": -105,
       "total": 147.5,
       "underOdds": -115,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 31.5,
        "awaySpreadOdds": -105,
        "homeSpread": -31.5,
        "homeSpreadOdds": -115,
-       "overOdds": -115,
+       "overOdds": -105,
        "total": 147.5,
-       "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "underOdds": -115,
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 31.5,
        "awaySpreadOdds": -110,
        "homeSpread": -31.5,
@@ -6354,10 +6374,10 @@
        "overOdds": -110,
        "total": 146.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 31.5,
        "awaySpreadOdds": -110,
        "homeSpread": -31.5,
@@ -6365,7 +6385,7 @@
        "overOdds": -105,
        "total": 147.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6381,11 +6401,11 @@
       "overOdds": -105,
       "total": 156.5,
       "underOdds": -115,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 4000,
        "awaySpread": 29.5,
        "awaySpreadOdds": -110,
@@ -6394,10 +6414,10 @@
        "overOdds": -115,
        "total": 156.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 29.5,
        "awaySpreadOdds": -102,
        "homeSpread": -29.5,
@@ -6405,10 +6425,10 @@
        "overOdds": -115,
        "total": 156.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 29.5,
        "awaySpreadOdds": -110,
        "homeSpread": -29.5,
@@ -6416,7 +6436,7 @@
        "overOdds": -105,
        "total": 156.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6434,11 +6454,11 @@
       "overOdds": -105,
       "total": 140.5,
       "underOdds": -115,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -118,
        "awaySpread": -1.5,
        "awaySpreadOdds": 100,
@@ -6448,10 +6468,10 @@
        "overOdds": -108,
        "total": 139.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -122,
        "awaySpread": -1.5,
        "awaySpreadOdds": -110,
@@ -6461,10 +6481,10 @@
        "overOdds": -115,
        "total": 139.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -130,
        "awaySpread": -1.5,
        "awaySpreadOdds": -110,
@@ -6474,7 +6494,7 @@
        "overOdds": -105,
        "total": 140.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6492,11 +6512,11 @@
       "overOdds": -105,
       "total": 147.5,
       "underOdds": -115,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 160,
        "awaySpread": 4.5,
        "awaySpreadOdds": -112,
@@ -6506,10 +6526,10 @@
        "overOdds": -115,
        "total": 145.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 162,
        "awaySpread": 4.5,
        "awaySpreadOdds": -110,
@@ -6519,10 +6539,10 @@
        "overOdds": -112,
        "total": 146.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 165,
        "awaySpread": 4.5,
        "awaySpreadOdds": -110,
@@ -6532,7 +6552,7 @@
        "overOdds": -105,
        "total": 147.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6548,11 +6568,11 @@
       "overOdds": -105,
       "total": 149.5,
       "underOdds": -115,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 44.5,
        "awaySpreadOdds": -110,
        "homeSpread": -44.5,
@@ -6560,10 +6580,10 @@
        "overOdds": -115,
        "total": 148.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 44.5,
        "awaySpreadOdds": -110,
        "homeSpread": -44.5,
@@ -6571,10 +6591,10 @@
        "overOdds": -110,
        "total": 148.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 44.5,
        "awaySpreadOdds": -110,
        "homeSpread": -44.5,
@@ -6582,7 +6602,7 @@
        "overOdds": -105,
        "total": 149.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6598,11 +6618,11 @@
       "overOdds": 100,
       "total": 149.5,
       "underOdds": -120,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1800,
        "awaySpread": 22.5,
        "awaySpreadOdds": -112,
@@ -6612,10 +6632,10 @@
        "overOdds": -112,
        "total": 148.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 2500,
        "awaySpread": 22.5,
        "awaySpreadOdds": -114,
@@ -6625,10 +6645,10 @@
        "overOdds": -110,
        "total": 148.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 22.5,
        "awaySpreadOdds": -115,
        "homeSpread": -22.5,
@@ -6636,7 +6656,7 @@
        "overOdds": 100,
        "total": 149.5,
        "underOdds": -120,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6654,11 +6674,11 @@
       "overOdds": -110,
       "total": 158.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -155,
        "awaySpread": -3.5,
        "awaySpreadOdds": -102,
@@ -6668,10 +6688,10 @@
        "overOdds": -110,
        "total": 159.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -146,
        "awaySpread": -2.5,
        "awaySpreadOdds": -112,
@@ -6681,10 +6701,10 @@
        "overOdds": -110,
        "total": 158.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -180,
        "awaySpread": -3.5,
        "awaySpreadOdds": -110,
@@ -6694,7 +6714,7 @@
        "overOdds": -110,
        "total": 158.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6704,7 +6724,7 @@
      "home": "SMU",
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 2000,
        "awaySpread": 23.5,
        "awaySpreadOdds": -108,
@@ -6714,10 +6734,10 @@
        "overOdds": -110,
        "total": 153.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 2500,
        "awaySpread": 22.5,
        "awaySpreadOdds": -102,
@@ -6727,7 +6747,7 @@
        "overOdds": -115,
        "total": 152.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       }
      }
     },
@@ -6743,11 +6763,11 @@
       "overOdds": -110,
       "total": 172.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 36.5,
        "awaySpreadOdds": -110,
        "homeSpread": -36.5,
@@ -6755,10 +6775,10 @@
        "overOdds": -105,
        "total": 173.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 36.5,
        "awaySpreadOdds": -110,
        "homeSpread": -36.5,
@@ -6766,10 +6786,10 @@
        "overOdds": -110,
        "total": 171.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 36.5,
        "awaySpreadOdds": -110,
        "homeSpread": -36.5,
@@ -6777,7 +6797,7 @@
        "overOdds": -110,
        "total": 172.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6795,11 +6815,11 @@
       "overOdds": -110,
       "total": 153.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -238,
        "awaySpread": -5.5,
        "awaySpreadOdds": -112,
@@ -6809,10 +6829,10 @@
        "overOdds": -108,
        "total": 153.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -230,
        "awaySpread": -5.5,
        "awaySpreadOdds": -106,
@@ -6822,10 +6842,10 @@
        "overOdds": -112,
        "total": 153.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -260,
        "awaySpread": -5.5,
        "awaySpreadOdds": -110,
@@ -6835,7 +6855,7 @@
        "overOdds": -110,
        "total": 153.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6853,11 +6873,11 @@
       "overOdds": -110,
       "total": 146.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 500,
        "awaySpread": 11.5,
        "awaySpreadOdds": -112,
@@ -6867,10 +6887,10 @@
        "overOdds": -110,
        "total": 147.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 490,
        "awaySpread": 10.5,
        "awaySpreadOdds": -102,
@@ -6880,10 +6900,10 @@
        "overOdds": -110,
        "total": 147.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 450,
        "awaySpread": 11.5,
        "awaySpreadOdds": -110,
@@ -6893,7 +6913,7 @@
        "overOdds": -110,
        "total": 146.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6911,11 +6931,11 @@
       "overOdds": -110,
       "total": 152.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 220,
        "awaySpread": 5.5,
        "awaySpreadOdds": -102,
@@ -6925,10 +6945,10 @@
        "overOdds": -115,
        "total": 151.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 210,
        "awaySpread": 5.5,
        "awaySpreadOdds": -102,
@@ -6938,10 +6958,10 @@
        "overOdds": -115,
        "total": 151.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 210,
        "awaySpread": 5.5,
        "awaySpreadOdds": 100,
@@ -6951,7 +6971,7 @@
        "overOdds": -110,
        "total": 152.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -6969,11 +6989,11 @@
       "overOdds": -110,
       "total": 147.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 600,
        "awaySpread": 13.5,
        "awaySpreadOdds": -108,
@@ -6983,10 +7003,10 @@
        "overOdds": -112,
        "total": 147.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 760,
        "awaySpread": 13.5,
        "awaySpreadOdds": -110,
@@ -6996,10 +7016,10 @@
        "overOdds": -110,
        "total": 148.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 650,
        "awaySpread": 13.5,
        "awaySpreadOdds": -105,
@@ -7009,7 +7029,7 @@
        "overOdds": -110,
        "total": 147.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7027,11 +7047,24 @@
       "overOdds": -110,
       "total": 150.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
+      "draftkings": {
+       "asOf": "2026-11-13T11:15:21Z",
+       "awayML": 260,
+       "awaySpread": 7.5,
+       "awaySpreadOdds": -112,
+       "homeML": -325,
+       "homeSpread": -7.5,
+       "homeSpreadOdds": -108,
+       "overOdds": -105,
+       "total": 150.5,
+       "underOdds": -115,
+       "updated": "2026-11-13T11:14:42Z"
+      },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 260,
        "awaySpread": 7.5,
        "awaySpreadOdds": -110,
@@ -7041,10 +7074,10 @@
        "overOdds": -110,
        "total": 150.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 275,
        "awaySpread": 7.5,
        "awaySpreadOdds": 100,
@@ -7054,7 +7087,7 @@
        "overOdds": -110,
        "total": 150.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7070,11 +7103,11 @@
       "overOdds": -115,
       "total": 160.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 2500,
        "awaySpread": 25.5,
        "awaySpreadOdds": -110,
@@ -7084,10 +7117,10 @@
        "overOdds": -105,
        "total": 161.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 4000,
        "awaySpread": 25.5,
        "awaySpreadOdds": -104,
@@ -7096,10 +7129,10 @@
        "overOdds": -115,
        "total": 160.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 26.5,
        "awaySpreadOdds": -120,
        "homeSpread": -26.5,
@@ -7107,7 +7140,7 @@
        "overOdds": -115,
        "total": 160.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7123,11 +7156,11 @@
       "overOdds": -105,
       "total": 151.5,
       "underOdds": -115,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 32.5,
        "awaySpreadOdds": -115,
        "homeSpread": -32.5,
@@ -7135,10 +7168,10 @@
        "overOdds": -105,
        "total": 150.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 32.5,
        "awaySpreadOdds": -110,
        "homeSpread": -32.5,
@@ -7146,10 +7179,10 @@
        "overOdds": -115,
        "total": 149.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 32.5,
        "awaySpreadOdds": -110,
        "homeSpread": -32.5,
@@ -7157,7 +7190,7 @@
        "overOdds": -105,
        "total": 151.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7173,11 +7206,11 @@
       "overOdds": -110,
       "total": 148.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1800,
        "awaySpread": 22.5,
        "awaySpreadOdds": -108,
@@ -7187,10 +7220,10 @@
        "overOdds": -115,
        "total": 148.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 2400,
        "awaySpread": 22.5,
        "awaySpreadOdds": -110,
@@ -7200,10 +7233,10 @@
        "overOdds": -110,
        "total": 148.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 22.5,
        "awaySpreadOdds": -110,
        "homeSpread": -22.5,
@@ -7211,7 +7244,7 @@
        "overOdds": -110,
        "total": 148.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7227,11 +7260,11 @@
       "overOdds": -110,
       "total": 158.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 2000,
        "awaySpread": 23.5,
        "awaySpreadOdds": -110,
@@ -7241,10 +7274,10 @@
        "overOdds": -110,
        "total": 158.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 3000,
        "awaySpread": 23.5,
        "awaySpreadOdds": -110,
@@ -7254,10 +7287,10 @@
        "overOdds": -110,
        "total": 158.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 23.5,
        "awaySpreadOdds": -110,
        "homeSpread": -23.5,
@@ -7265,7 +7298,7 @@
        "overOdds": -110,
        "total": 158.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7279,11 +7312,11 @@
       "overOdds": 100,
       "total": 167.5,
       "underOdds": -120,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 105,
        "awaySpread": 1.5,
        "awaySpreadOdds": -110,
@@ -7293,10 +7326,10 @@
        "overOdds": -110,
        "total": 167.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -102,
        "awaySpread": 1.5,
        "awaySpreadOdds": -114,
@@ -7306,16 +7339,16 @@
        "overOdds": -114,
        "total": 166.5,
        "underOdds": -106,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 100,
        "homeML": -125,
        "overOdds": 100,
        "total": 167.5,
        "underOdds": -120,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7333,11 +7366,11 @@
       "overOdds": -105,
       "total": 148.5,
       "underOdds": -115,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1000,
        "awaySpread": 17.5,
        "awaySpreadOdds": -108,
@@ -7347,10 +7380,10 @@
        "overOdds": -112,
        "total": 148.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1000,
        "awaySpread": 15.5,
        "awaySpreadOdds": -110,
@@ -7360,10 +7393,10 @@
        "overOdds": -115,
        "total": 149.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 850,
        "awaySpread": 15.5,
        "awaySpreadOdds": -105,
@@ -7373,7 +7406,7 @@
        "overOdds": -105,
        "total": 148.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7391,11 +7424,11 @@
       "overOdds": -110,
       "total": 156.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 750,
        "awaySpread": 13.5,
        "awaySpreadOdds": -112,
@@ -7405,10 +7438,10 @@
        "overOdds": -115,
        "total": 156.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 720,
        "awaySpread": 13.5,
        "awaySpreadOdds": -110,
@@ -7418,10 +7451,10 @@
        "overOdds": -110,
        "total": 156.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 600,
        "awaySpread": 13.5,
        "awaySpreadOdds": -110,
@@ -7431,7 +7464,7 @@
        "overOdds": -110,
        "total": 156.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7447,11 +7480,11 @@
       "overOdds": -110,
       "total": 149.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 4000,
        "awaySpread": 28.5,
        "awaySpreadOdds": -105,
@@ -7460,10 +7493,10 @@
        "overOdds": -110,
        "total": 150.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 28.5,
        "awaySpreadOdds": -110,
        "homeSpread": -28.5,
@@ -7471,10 +7504,10 @@
        "overOdds": -110,
        "total": 149.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 28.5,
        "awaySpreadOdds": -110,
        "homeSpread": -28.5,
@@ -7482,7 +7515,7 @@
        "overOdds": -110,
        "total": 149.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7500,11 +7533,11 @@
       "overOdds": -110,
       "total": 153.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -135,
        "awaySpread": -2.5,
        "awaySpreadOdds": -105,
@@ -7514,10 +7547,10 @@
        "overOdds": -110,
        "total": 154.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -134,
        "awaySpread": -2.5,
        "awaySpreadOdds": -105,
@@ -7527,10 +7560,10 @@
        "overOdds": -115,
        "total": 153.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -135,
        "awaySpread": -1.5,
        "awaySpreadOdds": -110,
@@ -7540,7 +7573,7 @@
        "overOdds": -110,
        "total": 153.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7558,11 +7591,11 @@
       "overOdds": -110,
       "total": 151.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 130,
        "awaySpread": 2.5,
        "awaySpreadOdds": -108,
@@ -7572,10 +7605,10 @@
        "overOdds": -105,
        "total": 151.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 128,
        "awaySpread": 2.5,
        "awaySpreadOdds": -102,
@@ -7585,10 +7618,10 @@
        "overOdds": -110,
        "total": 150.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 120,
        "awaySpread": 2.5,
        "awaySpreadOdds": -110,
@@ -7598,7 +7631,7 @@
        "overOdds": -110,
        "total": 151.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7614,11 +7647,11 @@
       "overOdds": -110,
       "total": 163.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1800,
        "awaySpread": 23.5,
        "awaySpreadOdds": -115,
@@ -7628,10 +7661,10 @@
        "overOdds": -108,
        "total": 163.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 2400,
        "awaySpread": 22.5,
        "awaySpreadOdds": -110,
@@ -7641,10 +7674,10 @@
        "overOdds": -110,
        "total": 163.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 22.5,
        "awaySpreadOdds": -110,
        "homeSpread": -22.5,
@@ -7652,7 +7685,7 @@
        "overOdds": -110,
        "total": 163.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7670,31 +7703,31 @@
       "overOdds": -115,
       "total": 153.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
-       "awayML": 145,
+       "asOf": "2026-11-13T11:15:21Z",
+       "awayML": 140,
        "awaySpread": 3.5,
-       "awaySpreadOdds": -115,
-       "homeML": -175,
+       "awaySpreadOdds": -108,
+       "homeML": -166,
        "homeSpread": -3.5,
-       "homeSpreadOdds": -105,
+       "homeSpreadOdds": -112,
        "overOdds": -115,
        "total": 153.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "overOdds": -110,
        "total": 153.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 140,
        "awaySpread": 3.5,
        "awaySpreadOdds": -110,
@@ -7704,7 +7737,7 @@
        "overOdds": -115,
        "total": 153.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7722,11 +7755,11 @@
       "overOdds": -110,
       "total": 134.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 245,
        "awaySpread": 7.5,
        "awaySpreadOdds": -112,
@@ -7736,10 +7769,10 @@
        "overOdds": -115,
        "total": 133.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 255,
        "awaySpread": 7.5,
        "awaySpreadOdds": -110,
@@ -7749,10 +7782,10 @@
        "overOdds": -115,
        "total": 133.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 260,
        "awaySpread": 7.5,
        "awaySpreadOdds": -115,
@@ -7762,7 +7795,7 @@
        "overOdds": -110,
        "total": 134.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7778,11 +7811,11 @@
       "overOdds": -110,
       "total": 151.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 34.5,
        "awaySpreadOdds": -115,
        "homeSpread": -34.5,
@@ -7790,10 +7823,10 @@
        "overOdds": -115,
        "total": 151.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 34.5,
        "awaySpreadOdds": -110,
        "homeSpread": -34.5,
@@ -7801,10 +7834,10 @@
        "overOdds": -115,
        "total": 151.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 35.5,
        "awaySpreadOdds": -130,
        "homeSpread": -35.5,
@@ -7812,7 +7845,7 @@
        "overOdds": -110,
        "total": 151.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7826,11 +7859,11 @@
       "overOdds": -110,
       "total": 153.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -115,
        "awaySpread": -1.5,
        "awaySpreadOdds": 100,
@@ -7840,10 +7873,10 @@
        "overOdds": -115,
        "total": 153.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -111,
        "awaySpread": -1.5,
        "awaySpreadOdds": -102,
@@ -7853,16 +7886,16 @@
        "overOdds": -110,
        "total": 153.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -120,
        "homeML": -105,
        "overOdds": -110,
        "total": 153.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7878,11 +7911,11 @@
       "overOdds": -110,
       "total": 155.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 35.5,
        "awaySpreadOdds": -115,
        "homeSpread": -35.5,
@@ -7890,10 +7923,10 @@
        "overOdds": -110,
        "total": 155.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 34.5,
        "awaySpreadOdds": -102,
        "homeSpread": -34.5,
@@ -7901,10 +7934,10 @@
        "overOdds": -110,
        "total": 155.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 35.5,
        "awaySpreadOdds": -110,
        "homeSpread": -35.5,
@@ -7912,7 +7945,7 @@
        "overOdds": -110,
        "total": 155.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7928,11 +7961,11 @@
       "overOdds": -110,
       "total": 152.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 40.5,
        "awaySpreadOdds": -115,
        "homeSpread": -40.5,
@@ -7940,10 +7973,10 @@
        "overOdds": -110,
        "total": 152.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 38.5,
        "awaySpreadOdds": -110,
        "homeSpread": -38.5,
@@ -7951,10 +7984,10 @@
        "overOdds": -115,
        "total": 152.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 39.5,
        "awaySpreadOdds": -110,
        "homeSpread": -39.5,
@@ -7962,7 +7995,7 @@
        "overOdds": -110,
        "total": 152.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -7980,11 +8013,11 @@
       "overOdds": -110,
       "total": 158.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 140,
        "awaySpread": 2.5,
        "awaySpreadOdds": -110,
@@ -7994,10 +8027,10 @@
        "overOdds": -110,
        "total": 157.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 130,
        "awaySpread": 3.5,
        "awaySpreadOdds": -115,
@@ -8007,10 +8040,10 @@
        "overOdds": -110,
        "total": 157.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 145,
        "awaySpread": 3.5,
        "awaySpreadOdds": -110,
@@ -8020,7 +8053,7 @@
        "overOdds": -110,
        "total": 158.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8036,11 +8069,11 @@
       "overOdds": -110,
       "total": 149.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 2000,
        "awaySpread": 22.5,
        "awaySpreadOdds": -105,
@@ -8050,10 +8083,10 @@
        "overOdds": -115,
        "total": 149.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 2400,
        "awaySpread": 22.5,
        "awaySpreadOdds": -110,
@@ -8063,10 +8096,10 @@
        "overOdds": -110,
        "total": 149.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 22.5,
        "awaySpreadOdds": -110,
        "homeSpread": -22.5,
@@ -8074,7 +8107,7 @@
        "overOdds": -110,
        "total": 149.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8092,11 +8125,11 @@
       "overOdds": -110,
       "total": 145.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -192,
        "awaySpread": -5.5,
        "awaySpreadOdds": -110,
@@ -8106,10 +8139,10 @@
        "overOdds": -112,
        "total": 145.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -184,
        "awaySpread": -4.5,
        "awaySpreadOdds": -105,
@@ -8119,10 +8152,10 @@
        "overOdds": -115,
        "total": 145.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -220,
        "awaySpread": -4.5,
        "awaySpreadOdds": -110,
@@ -8132,7 +8165,7 @@
        "overOdds": -110,
        "total": 145.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8150,11 +8183,11 @@
       "overOdds": 100,
       "total": 133.5,
       "underOdds": -120,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 110,
        "awaySpread": 1.5,
        "awaySpreadOdds": -102,
@@ -8164,10 +8197,10 @@
        "overOdds": -118,
        "total": 132.5,
        "underOdds": -102,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 106,
        "awaySpread": 1.5,
        "awaySpreadOdds": -102,
@@ -8177,10 +8210,10 @@
        "overOdds": -115,
        "total": 133.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 105,
        "awaySpread": 1.5,
        "awaySpreadOdds": -110,
@@ -8190,7 +8223,7 @@
        "overOdds": 100,
        "total": 133.5,
        "underOdds": -120,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8208,11 +8241,11 @@
       "overOdds": -110,
       "total": 152.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1000,
        "awaySpread": 14.5,
        "awaySpreadOdds": -112,
@@ -8222,10 +8255,10 @@
        "overOdds": -105,
        "total": 151.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 890,
        "awaySpread": 14.5,
        "awaySpreadOdds": -110,
@@ -8235,10 +8268,10 @@
        "overOdds": -110,
        "total": 152.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 650,
        "awaySpread": 14.5,
        "awaySpreadOdds": -110,
@@ -8248,7 +8281,7 @@
        "overOdds": -110,
        "total": 152.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8264,11 +8297,11 @@
       "overOdds": -110,
       "total": 154.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 33.5,
        "awaySpreadOdds": -110,
        "homeSpread": -33.5,
@@ -8276,10 +8309,10 @@
        "overOdds": -108,
        "total": 154.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 33.5,
        "awaySpreadOdds": -110,
        "homeSpread": -33.5,
@@ -8287,10 +8320,10 @@
        "overOdds": -115,
        "total": 152.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 33.5,
        "awaySpreadOdds": -110,
        "homeSpread": -33.5,
@@ -8298,7 +8331,7 @@
        "overOdds": -110,
        "total": 154.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8314,11 +8347,11 @@
       "overOdds": -110,
       "total": 155.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 5000,
        "awaySpread": 28.5,
        "awaySpreadOdds": -105,
@@ -8327,10 +8360,10 @@
        "overOdds": -115,
        "total": 154.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 28.5,
        "awaySpreadOdds": -110,
        "homeSpread": -28.5,
@@ -8338,10 +8371,10 @@
        "overOdds": -110,
        "total": 155.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 29.5,
        "awaySpreadOdds": -110,
        "homeSpread": -29.5,
@@ -8349,7 +8382,7 @@
        "overOdds": -110,
        "total": 155.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8367,11 +8400,11 @@
       "overOdds": -110,
       "total": 129.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 280,
        "awaySpread": 7.5,
        "awaySpreadOdds": -108,
@@ -8381,10 +8414,10 @@
        "overOdds": -112,
        "total": 129.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 265,
        "awaySpread": 7.5,
        "awaySpreadOdds": -105,
@@ -8394,10 +8427,10 @@
        "overOdds": -115,
        "total": 129.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 275,
        "awaySpread": 7.5,
        "awaySpreadOdds": -110,
@@ -8407,7 +8440,7 @@
        "overOdds": -110,
        "total": 129.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8425,11 +8458,11 @@
       "overOdds": -110,
       "total": 156.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -122,
        "awaySpread": -1.5,
        "awaySpreadOdds": -105,
@@ -8439,10 +8472,10 @@
        "overOdds": -110,
        "total": 156.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -125,
        "awaySpread": -1.5,
        "awaySpreadOdds": -110,
@@ -8452,10 +8485,10 @@
        "overOdds": -110,
        "total": 156.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -130,
        "awaySpread": -1.5,
        "awaySpreadOdds": -110,
@@ -8465,7 +8498,7 @@
        "overOdds": -110,
        "total": 156.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8474,18 +8507,17 @@
      "date": "2026-11-14T00:00Z",
      "home": "PUR",
      "line": {
+      "awayML": 1600,
       "awaySpread": 19.5,
-      "awaySpreadOdds": -105,
+      "awaySpreadOdds": -110,
+      "homeML": -10000,
       "homeSpread": -19.5,
-      "homeSpreadOdds": -115,
-      "overOdds": -110,
-      "total": 152.5,
-      "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "homeSpreadOdds": -110,
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1500,
        "awaySpread": 19.5,
        "awaySpreadOdds": -108,
@@ -8495,10 +8527,10 @@
        "overOdds": -115,
        "total": 152.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1600,
        "awaySpread": 19.5,
        "awaySpreadOdds": -110,
@@ -8508,18 +8540,17 @@
        "overOdds": -110,
        "total": 152.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:00Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
+       "awayML": 1600,
        "awaySpread": 19.5,
-       "awaySpreadOdds": -105,
+       "awaySpreadOdds": -110,
+       "homeML": -10000,
        "homeSpread": -19.5,
-       "homeSpreadOdds": -115,
-       "overOdds": -110,
-       "total": 152.5,
-       "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "homeSpreadOdds": -110,
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8537,11 +8568,11 @@
       "overOdds": -110,
       "total": 145.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 180,
        "awaySpread": 5.5,
        "awaySpreadOdds": -108,
@@ -8551,10 +8582,10 @@
        "overOdds": -112,
        "total": 146.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 180,
        "awaySpread": 5.5,
        "awaySpreadOdds": -115,
@@ -8564,10 +8595,10 @@
        "overOdds": -115,
        "total": 145.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 190,
        "awaySpread": 5.5,
        "awaySpreadOdds": -115,
@@ -8577,7 +8608,7 @@
        "overOdds": -110,
        "total": 145.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8595,11 +8626,11 @@
       "overOdds": -110,
       "total": 136.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1100,
        "awaySpread": 17.5,
        "awaySpreadOdds": -112,
@@ -8609,10 +8640,10 @@
        "overOdds": -115,
        "total": 136.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1200,
        "awaySpread": 17.5,
        "awaySpreadOdds": -110,
@@ -8622,10 +8653,10 @@
        "overOdds": -115,
        "total": 136.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1200,
        "awaySpread": 17.5,
        "awaySpreadOdds": -110,
@@ -8635,7 +8666,7 @@
        "overOdds": -110,
        "total": 136.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8653,11 +8684,11 @@
       "overOdds": -110,
       "total": 161.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 750,
        "awaySpread": 13.5,
        "awaySpreadOdds": -112,
@@ -8667,10 +8698,10 @@
        "overOdds": -112,
        "total": 161.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 720,
        "awaySpread": 13.5,
        "awaySpreadOdds": -115,
@@ -8678,12 +8709,12 @@
        "homeSpread": -13.5,
        "homeSpreadOdds": -105,
        "overOdds": -110,
-       "total": 160.5,
+       "total": 159.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 600,
        "awaySpread": 13.5,
        "awaySpreadOdds": -110,
@@ -8693,7 +8724,7 @@
        "overOdds": -110,
        "total": 161.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8711,11 +8742,11 @@
       "overOdds": -110,
       "total": 147.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -155,
        "awaySpread": -2.5,
        "awaySpreadOdds": -115,
@@ -8725,10 +8756,10 @@
        "overOdds": -115,
        "total": 147.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -152,
        "awaySpread": -2.5,
        "awaySpreadOdds": -114,
@@ -8738,10 +8769,10 @@
        "overOdds": -115,
        "total": 147.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -155,
        "awaySpread": -2.5,
        "awaySpreadOdds": -110,
@@ -8751,7 +8782,7 @@
        "overOdds": -110,
        "total": 147.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8767,11 +8798,11 @@
       "overOdds": -110,
       "total": 161.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 3500,
        "awaySpread": 27.5,
        "awaySpreadOdds": -110,
@@ -8781,10 +8812,10 @@
        "overOdds": -108,
        "total": 161.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 4000,
        "awaySpread": 25.5,
        "awaySpreadOdds": -104,
@@ -8793,10 +8824,10 @@
        "overOdds": -110,
        "total": 161.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 27.5,
        "awaySpreadOdds": -115,
        "homeSpread": -27.5,
@@ -8804,7 +8835,7 @@
        "overOdds": -110,
        "total": 161.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8822,11 +8853,11 @@
       "overOdds": -110,
       "total": 154.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 160,
        "awaySpread": 4.5,
        "awaySpreadOdds": -110,
@@ -8836,10 +8867,10 @@
        "overOdds": -112,
        "total": 155.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 168,
        "awaySpread": 4.5,
        "awaySpreadOdds": -106,
@@ -8849,10 +8880,10 @@
        "overOdds": -110,
        "total": 154.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 170,
        "awaySpread": 4.5,
        "awaySpreadOdds": -105,
@@ -8862,7 +8893,7 @@
        "overOdds": -110,
        "total": 154.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     },
@@ -8880,11 +8911,11 @@
       "overOdds": -110,
       "total": 142.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:20Z"
+      "updated": "2026-11-13T11:14:47Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 500,
        "awaySpread": 11.5,
        "awaySpreadOdds": -120,
@@ -8894,10 +8925,10 @@
        "overOdds": -115,
        "total": 142.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:35Z"
+       "updated": "2026-11-13T11:14:42Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 450,
        "awaySpread": 10.5,
        "awaySpreadOdds": -110,
@@ -8907,10 +8938,10 @@
        "overOdds": -115,
        "total": 142.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:42Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 500,
        "awaySpread": 11.5,
        "awaySpreadOdds": -110,
@@ -8920,14 +8951,14 @@
        "overOdds": -110,
        "total": 142.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:20Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     }
    },
    "matched": 53,
-   "pulledAt": "2026-11-13T10:45:18Z",
-   "remainingAfter": 81602,
+   "pulledAt": "2026-11-13T11:15:21Z",
+   "remainingAfter": 81584,
    "unmatched": 2
   },
   "ncaaf": {
@@ -8953,11 +8984,11 @@
       "overOdds": -115,
       "total": 48.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 130,
        "awaySpread": 3.0,
        "awaySpreadOdds": -108,
@@ -8967,10 +8998,10 @@
        "overOdds": -108,
        "total": 48.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 130,
        "awaySpread": 3.5,
        "awaySpreadOdds": -120,
@@ -8980,10 +9011,10 @@
        "overOdds": -110,
        "total": 48.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 135,
        "awaySpread": 3.5,
        "awaySpreadOdds": -120,
@@ -8993,7 +9024,7 @@
        "overOdds": -115,
        "total": 48.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9011,11 +9042,11 @@
       "overOdds": -110,
       "total": 48.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 230,
        "awaySpread": 7.5,
        "awaySpreadOdds": -112,
@@ -9025,10 +9056,10 @@
        "overOdds": -110,
        "total": 49.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 230,
        "awaySpread": 7.5,
        "awaySpreadOdds": -115,
@@ -9038,10 +9069,10 @@
        "overOdds": -115,
        "total": 48.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 230,
        "awaySpread": 7.5,
        "awaySpreadOdds": -110,
@@ -9051,7 +9082,7 @@
        "overOdds": -110,
        "total": 48.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9069,11 +9100,11 @@
       "overOdds": -110,
       "total": 59.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 124,
        "awaySpread": 3.0,
        "awaySpreadOdds": -112,
@@ -9083,10 +9114,10 @@
        "overOdds": -105,
        "total": 59.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 120,
        "awaySpread": 2.5,
        "awaySpreadOdds": 105,
@@ -9096,10 +9127,10 @@
        "overOdds": -110,
        "total": 59.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 120,
        "awaySpread": 2.5,
        "awaySpreadOdds": 100,
@@ -9109,7 +9140,7 @@
        "overOdds": -110,
        "total": 59.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9127,11 +9158,11 @@
       "overOdds": -115,
       "total": 51.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -375,
        "awaySpread": -9.5,
        "awaySpreadOdds": -108,
@@ -9141,10 +9172,10 @@
        "overOdds": -102,
        "total": 51.5,
        "underOdds": -118,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -385,
        "awaySpread": -9.5,
        "awaySpreadOdds": -110,
@@ -9154,10 +9185,10 @@
        "overOdds": -105,
        "total": 51.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -400,
        "awaySpread": -9.5,
        "awaySpreadOdds": -115,
@@ -9167,7 +9198,7 @@
        "overOdds": -115,
        "total": 51.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9185,11 +9216,11 @@
       "overOdds": -110,
       "total": 67.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 120,
        "awaySpread": 3.0,
        "awaySpreadOdds": -115,
@@ -9199,10 +9230,10 @@
        "overOdds": -112,
        "total": 67.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 120,
        "awaySpread": 2.5,
        "awaySpreadOdds": 105,
@@ -9212,10 +9243,10 @@
        "overOdds": -110,
        "total": 68.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 125,
        "awaySpread": 2.5,
        "awaySpreadOdds": 100,
@@ -9225,7 +9256,7 @@
        "overOdds": -110,
        "total": 67.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9243,11 +9274,11 @@
       "overOdds": -115,
       "total": 44.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 310,
        "awaySpread": 10.5,
        "awaySpreadOdds": -112,
@@ -9257,10 +9288,10 @@
        "overOdds": -115,
        "total": 44.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 320,
        "awaySpread": 10.5,
        "awaySpreadOdds": -110,
@@ -9270,10 +9301,10 @@
        "overOdds": -110,
        "total": 44.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 350,
        "awaySpread": 11.5,
        "awaySpreadOdds": -110,
@@ -9283,7 +9314,7 @@
        "overOdds": -115,
        "total": 44.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9301,11 +9332,11 @@
       "overOdds": -110,
       "total": 73.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 142,
        "awaySpread": 3.5,
        "awaySpreadOdds": -115,
@@ -9315,10 +9346,10 @@
        "overOdds": -105,
        "total": 73.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 132,
        "awaySpread": 3.5,
        "awaySpreadOdds": -115,
@@ -9328,10 +9359,10 @@
        "overOdds": -110,
        "total": 73.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 130,
        "awaySpread": 3.5,
        "awaySpreadOdds": -120,
@@ -9341,7 +9372,7 @@
        "overOdds": -110,
        "total": 73.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9359,11 +9390,11 @@
       "overOdds": -110,
       "total": 54.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -135,
        "awaySpread": -2.5,
        "awaySpreadOdds": -115,
@@ -9373,10 +9404,10 @@
        "overOdds": -110,
        "total": 54.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -134,
        "awaySpread": -2.5,
        "awaySpreadOdds": -110,
@@ -9386,10 +9417,10 @@
        "overOdds": -110,
        "total": 54.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -145,
        "awaySpread": -2.5,
        "awaySpreadOdds": -115,
@@ -9399,7 +9430,7 @@
        "overOdds": -110,
        "total": 54.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9417,11 +9448,11 @@
       "overOdds": -105,
       "total": 51.5,
       "underOdds": -115,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -325,
        "awaySpread": -7.5,
        "awaySpreadOdds": -112,
@@ -9431,10 +9462,10 @@
        "overOdds": -112,
        "total": 51.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -335,
        "awaySpread": -8.5,
        "awaySpreadOdds": -110,
@@ -9444,10 +9475,10 @@
        "overOdds": -105,
        "total": 51.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -350,
        "awaySpread": -8.5,
        "awaySpreadOdds": 105,
@@ -9457,7 +9488,7 @@
        "overOdds": -105,
        "total": 51.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9475,11 +9506,11 @@
       "overOdds": -110,
       "total": 47.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 525,
        "awaySpread": 16.5,
        "awaySpreadOdds": -112,
@@ -9489,10 +9520,10 @@
        "overOdds": -115,
        "total": 47.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 530,
        "awaySpread": 15.5,
        "awaySpreadOdds": -110,
@@ -9502,10 +9533,10 @@
        "overOdds": -105,
        "total": 48.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 550,
        "awaySpread": 15.5,
        "awaySpreadOdds": -110,
@@ -9515,7 +9546,7 @@
        "overOdds": -110,
        "total": 47.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9533,11 +9564,11 @@
       "overOdds": -110,
       "total": 52.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 140,
        "awaySpread": 3.5,
        "awaySpreadOdds": -120,
@@ -9547,10 +9578,10 @@
        "overOdds": -112,
        "total": 52.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 128,
        "awaySpread": 3.5,
        "awaySpreadOdds": -120,
@@ -9560,10 +9591,10 @@
        "overOdds": -115,
        "total": 52.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 135,
        "awaySpread": 2.5,
        "awaySpreadOdds": 105,
@@ -9573,7 +9604,7 @@
        "overOdds": -110,
        "total": 52.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9591,11 +9622,11 @@
       "overOdds": -110,
       "total": 46.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 154,
        "awaySpread": 4.0,
        "awaySpreadOdds": -110,
@@ -9605,10 +9636,10 @@
        "overOdds": -105,
        "total": 46.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 150,
        "awaySpread": 3.5,
        "awaySpreadOdds": 100,
@@ -9618,10 +9649,10 @@
        "overOdds": -110,
        "total": 46.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 145,
        "awaySpread": 3.5,
        "awaySpreadOdds": -105,
@@ -9631,7 +9662,7 @@
        "overOdds": -110,
        "total": 46.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9649,11 +9680,11 @@
       "overOdds": -110,
       "total": 50.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -142,
        "awaySpread": -2.5,
        "awaySpreadOdds": -115,
@@ -9663,10 +9694,10 @@
        "overOdds": -110,
        "total": 50.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -142,
        "awaySpread": -2.5,
        "awaySpreadOdds": -120,
@@ -9676,10 +9707,10 @@
        "overOdds": -110,
        "total": 50.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -130,
        "awaySpread": -2.5,
        "awaySpreadOdds": -110,
@@ -9689,7 +9720,7 @@
        "overOdds": -110,
        "total": 50.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9707,11 +9738,11 @@
       "overOdds": -110,
       "total": 49.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -108,
        "awaySpread": 1.5,
        "awaySpreadOdds": -118,
@@ -9721,10 +9752,10 @@
        "overOdds": -108,
        "total": 49.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -104,
        "awaySpread": -1.5,
        "awaySpreadOdds": 110,
@@ -9734,10 +9765,10 @@
        "overOdds": -110,
        "total": 49.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -115,
        "awaySpread": -1.5,
        "awaySpreadOdds": 100,
@@ -9747,7 +9778,7 @@
        "overOdds": -110,
        "total": 49.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9765,11 +9796,11 @@
       "overOdds": -110,
       "total": 43.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -135,
        "awaySpread": -2.5,
        "awaySpreadOdds": -115,
@@ -9779,10 +9810,10 @@
        "overOdds": -105,
        "total": 44.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -142,
        "awaySpread": -2.5,
        "awaySpreadOdds": -115,
@@ -9792,10 +9823,10 @@
        "overOdds": -115,
        "total": 43.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -135,
        "awaySpread": -2.5,
        "awaySpreadOdds": -105,
@@ -9805,7 +9836,7 @@
        "overOdds": -110,
        "total": 43.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9823,11 +9854,11 @@
       "overOdds": -110,
       "total": 50.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -950,
        "awaySpread": -17.5,
        "awaySpreadOdds": -102,
@@ -9837,10 +9868,10 @@
        "overOdds": -108,
        "total": 50.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -1000,
        "awaySpread": -17.5,
        "awaySpreadOdds": -110,
@@ -9850,10 +9881,10 @@
        "overOdds": -110,
        "total": 50.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -900,
        "awaySpread": -16.5,
        "awaySpreadOdds": -115,
@@ -9863,7 +9894,7 @@
        "overOdds": -110,
        "total": 50.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9881,11 +9912,11 @@
       "overOdds": -115,
       "total": 52.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 142,
        "awaySpread": 3.5,
        "awaySpreadOdds": -112,
@@ -9895,10 +9926,10 @@
        "overOdds": -112,
        "total": 52.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 138,
        "awaySpread": 3.5,
        "awaySpreadOdds": -115,
@@ -9908,10 +9939,10 @@
        "overOdds": -110,
        "total": 52.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 140,
        "awaySpread": 3.5,
        "awaySpreadOdds": -110,
@@ -9921,7 +9952,7 @@
        "overOdds": -115,
        "total": 52.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9937,11 +9968,11 @@
       "overOdds": -110,
       "total": 52.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1800,
        "awaySpread": 29.5,
        "awaySpreadOdds": -112,
@@ -9951,10 +9982,10 @@
        "overOdds": -105,
        "total": 52.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 2000,
        "awaySpread": 29.5,
        "awaySpreadOdds": -110,
@@ -9964,10 +9995,10 @@
        "overOdds": -110,
        "total": 52.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awaySpread": 30.5,
        "awaySpreadOdds": -110,
        "homeSpread": -30.5,
@@ -9975,7 +10006,7 @@
        "overOdds": -110,
        "total": 52.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -9993,11 +10024,11 @@
       "overOdds": -120,
       "total": 46.5,
       "underOdds": 100,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 320,
        "awaySpread": 10.0,
        "awaySpreadOdds": -108,
@@ -10007,10 +10038,10 @@
        "overOdds": -112,
        "total": 46.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 320,
        "awaySpread": 10.5,
        "awaySpreadOdds": -120,
@@ -10020,10 +10051,10 @@
        "overOdds": -110,
        "total": 46.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 325,
        "awaySpread": 10.5,
        "awaySpreadOdds": -110,
@@ -10033,7 +10064,7 @@
        "overOdds": -120,
        "total": 46.5,
        "underOdds": 100,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10051,11 +10082,11 @@
       "overOdds": -110,
       "total": 54.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 410,
        "awaySpread": 13.5,
        "awaySpreadOdds": -108,
@@ -10065,10 +10096,10 @@
        "overOdds": -112,
        "total": 54.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 420,
        "awaySpread": 13.5,
        "awaySpreadOdds": -110,
@@ -10078,10 +10109,10 @@
        "overOdds": -110,
        "total": 54.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 450,
        "awaySpread": 13.5,
        "awaySpreadOdds": -110,
@@ -10091,7 +10122,7 @@
        "overOdds": -110,
        "total": 54.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10109,11 +10140,11 @@
       "overOdds": -115,
       "total": 48.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 425,
        "awaySpread": 14.0,
        "awaySpreadOdds": -112,
@@ -10123,10 +10154,10 @@
        "overOdds": -110,
        "total": 48.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 460,
        "awaySpread": 13.5,
        "awaySpreadOdds": 100,
@@ -10136,10 +10167,10 @@
        "overOdds": -110,
        "total": 48.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 375,
        "awaySpread": 13.5,
        "awaySpreadOdds": -110,
@@ -10149,7 +10180,7 @@
        "overOdds": -115,
        "total": 48.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10167,11 +10198,11 @@
       "overOdds": -105,
       "total": 58.5,
       "underOdds": -115,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -180,
        "awaySpread": -3.5,
        "awaySpreadOdds": -110,
@@ -10181,10 +10212,10 @@
        "overOdds": -112,
        "total": 58.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -170,
        "awaySpread": -3.5,
        "awaySpreadOdds": -115,
@@ -10194,10 +10225,10 @@
        "overOdds": -105,
        "total": 59.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -165,
        "awaySpread": -3.5,
        "awaySpreadOdds": -105,
@@ -10207,7 +10238,7 @@
        "overOdds": -105,
        "total": 58.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10225,11 +10256,11 @@
       "overOdds": -110,
       "total": 57.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 500,
        "awaySpread": 15.5,
        "awaySpreadOdds": -110,
@@ -10239,10 +10270,10 @@
        "overOdds": -105,
        "total": 57.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 500,
        "awaySpread": 15.5,
        "awaySpreadOdds": -110,
@@ -10252,10 +10283,10 @@
        "overOdds": -110,
        "total": 57.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 550,
        "awaySpread": 15.5,
        "awaySpreadOdds": -110,
@@ -10265,7 +10296,7 @@
        "overOdds": -110,
        "total": 57.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10283,11 +10314,11 @@
       "overOdds": -110,
       "total": 53.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -148,
        "awaySpread": -3.0,
        "awaySpreadOdds": -105,
@@ -10297,10 +10328,10 @@
        "overOdds": -108,
        "total": 53.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -142,
        "awaySpread": -2.5,
        "awaySpreadOdds": -120,
@@ -10310,10 +10341,10 @@
        "overOdds": -110,
        "total": 53.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -140,
        "awaySpread": -2.5,
        "awaySpreadOdds": -115,
@@ -10323,7 +10354,7 @@
        "overOdds": -110,
        "total": 53.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10341,11 +10372,11 @@
       "overOdds": -110,
       "total": 60.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -105,
        "awaySpread": 1.5,
        "awaySpreadOdds": -115,
@@ -10355,10 +10386,10 @@
        "overOdds": -110,
        "total": 60.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -104,
        "awaySpread": 1.5,
        "awaySpreadOdds": -110,
@@ -10368,10 +10399,10 @@
        "overOdds": -110,
        "total": 60.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 100,
        "awaySpread": 1.5,
        "awaySpreadOdds": -110,
@@ -10381,7 +10412,7 @@
        "overOdds": -110,
        "total": 60.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10399,11 +10430,11 @@
       "overOdds": -110,
       "total": 50.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 270,
        "awaySpread": 8.5,
        "awaySpreadOdds": -110,
@@ -10413,10 +10444,10 @@
        "overOdds": -108,
        "total": 50.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 260,
        "awaySpread": 8.5,
        "awaySpreadOdds": -110,
@@ -10426,10 +10457,10 @@
        "overOdds": -110,
        "total": 50.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 260,
        "awaySpread": 8.5,
        "awaySpreadOdds": -105,
@@ -10439,7 +10470,7 @@
        "overOdds": -110,
        "total": 50.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10457,11 +10488,11 @@
       "overOdds": -110,
       "total": 47.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 625,
        "awaySpread": 17.5,
        "awaySpreadOdds": -112,
@@ -10471,10 +10502,10 @@
        "overOdds": -112,
        "total": 47.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 720,
        "awaySpread": 17.5,
        "awaySpreadOdds": -120,
@@ -10484,10 +10515,10 @@
        "overOdds": -110,
        "total": 47.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 600,
        "awaySpread": 17.5,
        "awaySpreadOdds": -110,
@@ -10497,7 +10528,7 @@
        "overOdds": -110,
        "total": 47.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10515,11 +10546,11 @@
       "overOdds": -110,
       "total": 42.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -345,
        "awaySpread": -8.5,
        "awaySpreadOdds": -112,
@@ -10529,10 +10560,10 @@
        "overOdds": -108,
        "total": 42.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -335,
        "awaySpread": -9.5,
        "awaySpreadOdds": -110,
@@ -10542,10 +10573,10 @@
        "overOdds": -110,
        "total": 42.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -350,
        "awaySpread": -8.5,
        "awaySpreadOdds": -110,
@@ -10555,7 +10586,7 @@
        "overOdds": -110,
        "total": 42.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10573,11 +10604,11 @@
       "overOdds": -120,
       "total": 42.5,
       "underOdds": 100,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -170,
        "awaySpread": -3.5,
        "awaySpreadOdds": -105,
@@ -10587,10 +10618,10 @@
        "overOdds": -102,
        "total": 44.5,
        "underOdds": -118,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -160,
        "awaySpread": -3.5,
        "awaySpreadOdds": -105,
@@ -10600,10 +10631,10 @@
        "overOdds": -110,
        "total": 43.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -165,
        "awaySpread": -3.5,
        "awaySpreadOdds": -110,
@@ -10613,7 +10644,7 @@
        "overOdds": -120,
        "total": 42.5,
        "underOdds": 100,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10631,11 +10662,11 @@
       "overOdds": -110,
       "total": 44.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 410,
        "awaySpread": 14.0,
        "awaySpreadOdds": -110,
@@ -10645,10 +10676,10 @@
        "overOdds": -102,
        "total": 44.5,
        "underOdds": -118,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 460,
        "awaySpread": 13.5,
        "awaySpreadOdds": 100,
@@ -10658,10 +10689,10 @@
        "overOdds": -110,
        "total": 44.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 400,
        "awaySpread": 13.5,
        "awaySpreadOdds": -105,
@@ -10671,7 +10702,7 @@
        "overOdds": -110,
        "total": 44.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10689,11 +10720,11 @@
       "overOdds": -110,
       "total": 38.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 330,
        "awaySpread": 10.5,
        "awaySpreadOdds": -110,
@@ -10703,10 +10734,10 @@
        "overOdds": -112,
        "total": 38.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 330,
        "awaySpread": 10.5,
        "awaySpreadOdds": -110,
@@ -10716,10 +10747,10 @@
        "overOdds": -110,
        "total": 38.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 300,
        "awaySpread": 10.5,
        "awaySpreadOdds": -115,
@@ -10729,7 +10760,7 @@
        "overOdds": -110,
        "total": 38.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10747,11 +10778,11 @@
       "overOdds": -110,
       "total": 42.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 280,
        "awaySpread": 9.5,
        "awaySpreadOdds": -108,
@@ -10761,10 +10792,10 @@
        "overOdds": -112,
        "total": 41.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 280,
        "awaySpread": 9.5,
        "awaySpreadOdds": -110,
@@ -10774,10 +10805,10 @@
        "overOdds": -120,
        "total": 41.5,
        "underOdds": 100,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 275,
        "awaySpread": 9.5,
        "awaySpreadOdds": -110,
@@ -10787,7 +10818,7 @@
        "overOdds": -110,
        "total": 42.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10805,11 +10836,11 @@
       "overOdds": -110,
       "total": 51.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -675,
        "awaySpread": -15.5,
        "awaySpreadOdds": -105,
@@ -10819,10 +10850,10 @@
        "overOdds": -115,
        "total": 51.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -750,
        "awaySpread": -14.5,
        "awaySpreadOdds": -115,
@@ -10832,10 +10863,10 @@
        "overOdds": -110,
        "total": 51.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -750,
        "awaySpread": -14.5,
        "awaySpreadOdds": -110,
@@ -10845,7 +10876,7 @@
        "overOdds": -110,
        "total": 51.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10863,11 +10894,11 @@
       "overOdds": -110,
       "total": 47.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 310,
        "awaySpread": 10.0,
        "awaySpreadOdds": -110,
@@ -10877,10 +10908,10 @@
        "overOdds": -115,
        "total": 47.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 275,
        "awaySpread": 9.5,
        "awaySpreadOdds": -110,
@@ -10890,10 +10921,10 @@
        "overOdds": -115,
        "total": 47.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 275,
        "awaySpread": 9.5,
        "awaySpreadOdds": -105,
@@ -10903,7 +10934,7 @@
        "overOdds": -110,
        "total": 47.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10921,11 +10952,11 @@
       "overOdds": -110,
       "total": 64.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 470,
        "awaySpread": 14.5,
        "awaySpreadOdds": -110,
@@ -10935,10 +10966,10 @@
        "overOdds": -105,
        "total": 63.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 520,
        "awaySpread": 14.5,
        "awaySpreadOdds": 100,
@@ -10948,10 +10979,10 @@
        "overOdds": -115,
        "total": 62.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 500,
        "awaySpread": 16.5,
        "awaySpreadOdds": -110,
@@ -10961,7 +10992,7 @@
        "overOdds": -110,
        "total": 64.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -10979,11 +11010,11 @@
       "overOdds": -105,
       "total": 42.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -142,
        "awaySpread": -2.5,
        "awaySpreadOdds": -118,
@@ -10993,10 +11024,10 @@
        "overOdds": -108,
        "total": 42.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -146,
        "awaySpread": -2.5,
        "awaySpreadOdds": -120,
@@ -11006,10 +11037,10 @@
        "overOdds": -110,
        "total": 42.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -150,
        "awaySpread": -2.5,
        "awaySpreadOdds": -115,
@@ -11019,7 +11050,7 @@
        "overOdds": -105,
        "total": 42.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11037,11 +11068,11 @@
       "overOdds": -110,
       "total": 60.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 295,
        "awaySpread": 9.5,
        "awaySpreadOdds": -108,
@@ -11051,10 +11082,10 @@
        "overOdds": -112,
        "total": 59.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 280,
        "awaySpread": 9.5,
        "awaySpreadOdds": 100,
@@ -11064,10 +11095,10 @@
        "overOdds": -110,
        "total": 59.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 275,
        "awaySpread": 9.5,
        "awaySpreadOdds": -105,
@@ -11077,7 +11108,7 @@
        "overOdds": -110,
        "total": 60.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11095,11 +11126,11 @@
       "overOdds": -110,
       "total": 66.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 270,
        "awaySpread": 8.5,
        "awaySpreadOdds": -110,
@@ -11109,10 +11140,10 @@
        "overOdds": -112,
        "total": 66.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 275,
        "awaySpread": 8.5,
        "awaySpreadOdds": -108,
@@ -11122,10 +11153,10 @@
        "overOdds": -110,
        "total": 66.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 260,
        "awaySpread": 8.5,
        "awaySpreadOdds": -110,
@@ -11135,7 +11166,7 @@
        "overOdds": -110,
        "total": 66.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11153,11 +11184,11 @@
       "overOdds": -110,
       "total": 57.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -192,
        "awaySpread": -4.0,
        "awaySpreadOdds": -112,
@@ -11167,10 +11198,10 @@
        "overOdds": -108,
        "total": 57.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -182,
        "awaySpread": -3.5,
        "awaySpreadOdds": -120,
@@ -11180,10 +11211,10 @@
        "overOdds": -110,
        "total": 57.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -190,
        "awaySpread": -4.5,
        "awaySpreadOdds": -110,
@@ -11193,7 +11224,7 @@
        "overOdds": -110,
        "total": 57.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11211,11 +11242,11 @@
       "overOdds": -110,
       "total": 45.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -455,
        "awaySpread": -12.5,
        "awaySpreadOdds": -108,
@@ -11225,10 +11256,10 @@
        "overOdds": -105,
        "total": 45.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -450,
        "awaySpread": -11.5,
        "awaySpreadOdds": -105,
@@ -11238,10 +11269,10 @@
        "overOdds": -110,
        "total": 45.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -500,
        "awaySpread": -11.5,
        "awaySpreadOdds": -110,
@@ -11251,7 +11282,7 @@
        "overOdds": -110,
        "total": 45.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11269,11 +11300,11 @@
       "overOdds": -110,
       "total": 73.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 180,
        "awaySpread": 5.5,
        "awaySpreadOdds": -108,
@@ -11283,10 +11314,10 @@
        "overOdds": -108,
        "total": 74.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 184,
        "awaySpread": 5.5,
        "awaySpreadOdds": 100,
@@ -11296,10 +11327,10 @@
        "overOdds": -110,
        "total": 74.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 170,
        "awaySpread": 5.5,
        "awaySpreadOdds": -110,
@@ -11309,7 +11340,7 @@
        "overOdds": -110,
        "total": 73.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11327,11 +11358,11 @@
       "overOdds": -110,
       "total": 76.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -125,
        "awaySpread": -2.5,
        "awaySpreadOdds": -108,
@@ -11341,10 +11372,10 @@
        "overOdds": -108,
        "total": 76.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -125,
        "awaySpread": -2.5,
        "awaySpreadOdds": -110,
@@ -11354,10 +11385,10 @@
        "overOdds": -110,
        "total": 76.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -135,
        "awaySpread": -2.5,
        "awaySpreadOdds": -110,
@@ -11367,7 +11398,7 @@
        "overOdds": -110,
        "total": 76.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11385,11 +11416,11 @@
       "overOdds": -110,
       "total": 48.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 114,
        "awaySpread": 2.5,
        "awaySpreadOdds": -110,
@@ -11399,10 +11430,10 @@
        "overOdds": -108,
        "total": 48.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 110,
        "awaySpread": 2.5,
        "awaySpreadOdds": -110,
@@ -11412,10 +11443,10 @@
        "overOdds": -110,
        "total": 48.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 110,
        "awaySpread": 2.5,
        "awaySpreadOdds": -105,
@@ -11425,7 +11456,7 @@
        "overOdds": -110,
        "total": 48.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11443,11 +11474,11 @@
       "overOdds": -110,
       "total": 47.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 114,
        "awaySpread": 2.5,
        "awaySpreadOdds": -105,
@@ -11457,10 +11488,10 @@
        "overOdds": -110,
        "total": 47.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 110,
        "awaySpread": 2.5,
        "awaySpreadOdds": -115,
@@ -11470,10 +11501,10 @@
        "overOdds": -110,
        "total": 47.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 105,
        "awaySpread": 2.5,
        "awaySpreadOdds": -115,
@@ -11483,7 +11514,7 @@
        "overOdds": -110,
        "total": 47.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11501,11 +11532,11 @@
       "overOdds": -115,
       "total": 46.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -270,
        "awaySpread": -7.0,
        "awaySpreadOdds": -105,
@@ -11515,10 +11546,10 @@
        "overOdds": -108,
        "total": 47.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -245,
        "awaySpread": -6.5,
        "awaySpreadOdds": -115,
@@ -11528,10 +11559,10 @@
        "overOdds": -110,
        "total": 47.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -275,
        "awaySpread": -6.5,
        "awaySpreadOdds": -115,
@@ -11541,7 +11572,7 @@
        "overOdds": -115,
        "total": 46.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11559,11 +11590,11 @@
       "overOdds": -105,
       "total": 38.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -245,
        "awaySpread": -6.5,
        "awaySpreadOdds": -112,
@@ -11573,10 +11604,10 @@
        "overOdds": -105,
        "total": 38.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -240,
        "awaySpread": -6.5,
        "awaySpreadOdds": -115,
@@ -11586,10 +11617,10 @@
        "overOdds": -110,
        "total": 38.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -260,
        "awaySpread": -6.5,
        "awaySpreadOdds": -110,
@@ -11599,7 +11630,7 @@
        "overOdds": -105,
        "total": 38.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11617,11 +11648,11 @@
       "overOdds": -110,
       "total": 47.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 360,
        "awaySpread": 12.5,
        "awaySpreadOdds": -112,
@@ -11631,10 +11662,10 @@
        "overOdds": -118,
        "total": 47.5,
        "underOdds": -102,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 390,
        "awaySpread": 12.5,
        "awaySpreadOdds": -110,
@@ -11644,10 +11675,10 @@
        "overOdds": -110,
        "total": 47.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 350,
        "awaySpread": 11.5,
        "awaySpreadOdds": -110,
@@ -11657,7 +11688,7 @@
        "overOdds": -110,
        "total": 47.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11675,11 +11706,11 @@
       "overOdds": -115,
       "total": 46.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 455,
        "awaySpread": 14.5,
        "awaySpreadOdds": -115,
@@ -11689,10 +11720,10 @@
        "overOdds": -110,
        "total": 46.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 500,
        "awaySpread": 14.5,
        "awaySpreadOdds": -110,
@@ -11702,10 +11733,10 @@
        "overOdds": -115,
        "total": 46.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 500,
        "awaySpread": 15.5,
        "awaySpreadOdds": -110,
@@ -11715,7 +11746,7 @@
        "overOdds": -115,
        "total": 46.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11733,11 +11764,11 @@
       "overOdds": -115,
       "total": 40.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -325,
        "awaySpread": -8.5,
        "awaySpreadOdds": -105,
@@ -11747,10 +11778,10 @@
        "overOdds": -110,
        "total": 40.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -350,
        "awaySpread": -7.5,
        "awaySpreadOdds": -120,
@@ -11760,10 +11791,10 @@
        "overOdds": -105,
        "total": 40.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -350,
        "awaySpread": -7.5,
        "awaySpreadOdds": -110,
@@ -11773,7 +11804,7 @@
        "overOdds": -115,
        "total": 40.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11783,7 +11814,7 @@
      "home": "OHIO",
      "lines": {
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 265,
        "awaySpread": 8.5,
        "awaySpreadOdds": -110,
@@ -11793,7 +11824,7 @@
        "overOdds": -110,
        "total": 49.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       }
      }
     },
@@ -11803,7 +11834,7 @@
      "home": "WMU",
      "lines": {
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 440,
        "awaySpread": 13.5,
        "awaySpreadOdds": -110,
@@ -11813,7 +11844,7 @@
        "overOdds": -110,
        "total": 46.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       }
      }
     },
@@ -11823,7 +11854,7 @@
      "home": "KENT",
      "lines": {
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -295,
        "awaySpread": -7.5,
        "awaySpreadOdds": -110,
@@ -11833,7 +11864,7 @@
        "overOdds": -110,
        "total": 46.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       }
      }
     },
@@ -11843,7 +11874,7 @@
      "home": "BUFF",
      "lines": {
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 116,
        "awaySpread": 2.5,
        "awaySpreadOdds": 100,
@@ -11853,7 +11884,7 @@
        "overOdds": -110,
        "total": 43.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       }
      }
     },
@@ -11871,11 +11902,11 @@
       "overOdds": -110,
       "total": 53.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -120,
        "awaySpread": -1.5,
        "awaySpreadOdds": -112,
@@ -11885,10 +11916,10 @@
        "overOdds": -105,
        "total": 54.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -120,
        "awaySpread": -1.5,
        "awaySpreadOdds": -110,
@@ -11898,10 +11929,10 @@
        "overOdds": -110,
        "total": 53.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -125,
        "awaySpread": -1.5,
        "awaySpreadOdds": -115,
@@ -11911,7 +11942,7 @@
        "overOdds": -110,
        "total": 53.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11929,11 +11960,11 @@
       "overOdds": -110,
       "total": 51.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -102,
        "awaySpread": 1.5,
        "awaySpreadOdds": -112,
@@ -11943,10 +11974,10 @@
        "overOdds": -108,
        "total": 51.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -106,
        "awaySpread": 1.5,
        "awaySpreadOdds": -115,
@@ -11956,10 +11987,10 @@
        "overOdds": -110,
        "total": 51.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 105,
        "awaySpread": 1.5,
        "awaySpreadOdds": -105,
@@ -11969,7 +12000,7 @@
        "overOdds": -110,
        "total": 51.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -11987,11 +12018,11 @@
       "overOdds": -110,
       "total": 56.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -225,
        "awaySpread": -6.0,
        "awaySpreadOdds": -112,
@@ -12001,10 +12032,10 @@
        "overOdds": -110,
        "total": 56.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -235,
        "awaySpread": -6.5,
        "awaySpreadOdds": -110,
@@ -12014,10 +12045,10 @@
        "overOdds": -110,
        "total": 56.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -210,
        "awaySpread": -5.5,
        "awaySpreadOdds": -110,
@@ -12027,7 +12058,7 @@
        "overOdds": -110,
        "total": 56.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -12045,11 +12076,11 @@
       "overOdds": -115,
       "total": 53.5,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -298,
        "awaySpread": -7.5,
        "awaySpreadOdds": -108,
@@ -12059,10 +12090,10 @@
        "overOdds": -108,
        "total": 54.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -295,
        "awaySpread": -7.5,
        "awaySpreadOdds": 100,
@@ -12072,10 +12103,10 @@
        "overOdds": 100,
        "total": 55.5,
        "underOdds": -120,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -275,
        "awaySpread": -7.5,
        "awaySpreadOdds": -105,
@@ -12085,7 +12116,7 @@
        "overOdds": -115,
        "total": 53.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -12103,11 +12134,11 @@
       "overOdds": -110,
       "total": 46.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -278,
        "awaySpread": -7.0,
        "awaySpreadOdds": -112,
@@ -12117,10 +12148,10 @@
        "overOdds": -110,
        "total": 46.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -300,
        "awaySpread": -7.5,
        "awaySpreadOdds": -110,
@@ -12130,10 +12161,10 @@
        "overOdds": -110,
        "total": 46.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -300,
        "awaySpread": -7.5,
        "awaySpreadOdds": -105,
@@ -12143,7 +12174,7 @@
        "overOdds": -110,
        "total": 46.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -12161,11 +12192,11 @@
       "overOdds": -110,
       "total": 48.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 100,
        "awaySpread": 1.5,
        "awaySpreadOdds": -112,
@@ -12175,10 +12206,10 @@
        "overOdds": -105,
        "total": 49.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -102,
        "awaySpread": 1.5,
        "awaySpreadOdds": -110,
@@ -12188,10 +12219,10 @@
        "overOdds": -105,
        "total": 49.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 105,
        "awaySpread": 1.5,
        "awaySpreadOdds": -105,
@@ -12201,7 +12232,7 @@
        "overOdds": -110,
        "total": 48.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -12219,11 +12250,11 @@
       "overOdds": -110,
       "total": 54.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 170,
        "awaySpread": 4.5,
        "awaySpreadOdds": -110,
@@ -12233,10 +12264,10 @@
        "overOdds": -115,
        "total": 53.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 158,
        "awaySpread": 4.5,
        "awaySpreadOdds": -110,
@@ -12246,10 +12277,10 @@
        "overOdds": -110,
        "total": 54.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 155,
        "awaySpread": 4.5,
        "awaySpreadOdds": -110,
@@ -12259,7 +12290,7 @@
        "overOdds": -110,
        "total": 54.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -12277,11 +12308,11 @@
       "overOdds": -105,
       "total": 54.5,
       "underOdds": -115,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 950,
        "awaySpread": 21.0,
        "awaySpreadOdds": -110,
@@ -12291,10 +12322,10 @@
        "overOdds": -108,
        "total": 53.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1060,
        "awaySpread": 21.5,
        "awaySpreadOdds": -120,
@@ -12304,10 +12335,10 @@
        "overOdds": -110,
        "total": 53.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 1100,
        "awaySpread": 21.5,
        "awaySpreadOdds": -110,
@@ -12317,7 +12348,7 @@
        "overOdds": -105,
        "total": 54.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -12335,11 +12366,11 @@
       "overOdds": -105,
       "total": 55.5,
       "underOdds": -115,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 625,
        "awaySpread": 17.5,
        "awaySpreadOdds": -112,
@@ -12349,10 +12380,10 @@
        "overOdds": -110,
        "total": 56.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 590,
        "awaySpread": 16.5,
        "awaySpreadOdds": -105,
@@ -12362,10 +12393,10 @@
        "overOdds": -110,
        "total": 56.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 600,
        "awaySpread": 17.5,
        "awaySpreadOdds": -110,
@@ -12375,7 +12406,7 @@
        "overOdds": -105,
        "total": 55.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     },
@@ -12393,11 +12424,11 @@
       "overOdds": -110,
       "total": 55.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:26Z"
+      "updated": "2026-11-13T11:15:07Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 130,
        "awaySpread": 3.0,
        "awaySpreadOdds": -105,
@@ -12407,10 +12438,10 @@
        "overOdds": -112,
        "total": 55.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:43:36Z"
+       "updated": "2026-11-13T11:15:05Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 122,
        "awaySpread": 2.5,
        "awaySpreadOdds": 100,
@@ -12420,10 +12451,10 @@
        "overOdds": -110,
        "total": 55.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:15:24Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 145,
        "awaySpread": 3.5,
        "awaySpreadOdds": -130,
@@ -12433,14 +12464,14 @@
        "overOdds": -110,
        "total": 55.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:26Z"
+       "updated": "2026-11-13T11:15:07Z"
       }
      }
     }
    },
    "matched": 63,
-   "pulledAt": "2026-11-13T10:45:18Z",
-   "remainingAfter": 81605,
+   "pulledAt": "2026-11-13T11:15:21Z",
+   "remainingAfter": 81587,
    "unmatched": 1
   },
   "nfl": {
@@ -12459,31 +12490,31 @@
      "line": {
       "awayML": 130,
       "awaySpread": 3.0,
-      "awaySpreadOdds": -110,
+      "awaySpreadOdds": -115,
       "homeML": -150,
       "homeSpread": -3.0,
-      "homeSpreadOdds": -110,
+      "homeSpreadOdds": -105,
       "overOdds": -110,
       "total": 50.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 124,
        "awaySpread": 2.5,
        "awaySpreadOdds": 100,
        "homeML": -148,
        "homeSpread": -2.5,
        "homeSpreadOdds": -120,
-       "overOdds": -102,
-       "total": 50.5,
-       "underOdds": -118,
-       "updated": "2026-11-13T10:44:31Z"
+       "overOdds": -118,
+       "total": 49.5,
+       "underOdds": -102,
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 128,
        "awaySpread": 2.5,
        "awaySpreadOdds": 100,
@@ -12493,20 +12524,20 @@
        "overOdds": -110,
        "total": 50.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 130,
        "awaySpread": 3.0,
-       "awaySpreadOdds": -110,
+       "awaySpreadOdds": -115,
        "homeML": -150,
        "homeSpread": -3.0,
-       "homeSpreadOdds": -110,
+       "homeSpreadOdds": -105,
        "overOdds": -110,
        "total": 50.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -12524,24 +12555,24 @@
       "overOdds": -115,
       "total": 51.0,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
-       "awayML": -440,
+       "asOf": "2026-11-13T11:15:21Z",
+       "awayML": -425,
        "awaySpread": -8.5,
        "awaySpreadOdds": -108,
-       "homeML": 340,
+       "homeML": 330,
        "homeSpread": 8.5,
        "homeSpreadOdds": -112,
        "overOdds": -118,
        "total": 50.5,
        "underOdds": -102,
-       "updated": "2026-11-13T10:44:31Z"
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -420,
        "awaySpread": -7.5,
        "awaySpreadOdds": 100,
@@ -12551,10 +12582,10 @@
        "overOdds": -120,
        "total": 50.5,
        "underOdds": 100,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -475,
        "awaySpread": -8.0,
        "awaySpreadOdds": -110,
@@ -12564,7 +12595,7 @@
        "overOdds": -115,
        "total": 51.0,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -12582,11 +12613,11 @@
       "overOdds": -110,
       "total": 49.0,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 114,
        "awaySpread": 2.5,
        "awaySpreadOdds": -112,
@@ -12596,10 +12627,10 @@
        "overOdds": -112,
        "total": 48.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:44:31Z"
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 118,
        "awaySpread": 1.5,
        "awaySpreadOdds": 100,
@@ -12609,10 +12640,10 @@
        "overOdds": -115,
        "total": 48.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 115,
        "awaySpread": 2.0,
        "awaySpreadOdds": -110,
@@ -12622,7 +12653,7 @@
        "overOdds": -110,
        "total": 49.0,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -12640,24 +12671,24 @@
       "overOdds": -110,
       "total": 40.0,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
-       "awayML": -225,
+       "asOf": "2026-11-13T11:15:21Z",
+       "awayML": -238,
        "awaySpread": -4.5,
-       "awaySpreadOdds": -110,
-       "homeML": 185,
+       "awaySpreadOdds": -115,
+       "homeML": 195,
        "homeSpread": 4.5,
-       "homeSpreadOdds": -110,
+       "homeSpreadOdds": -105,
        "overOdds": -108,
        "total": 40.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:44:31Z"
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -235,
        "awaySpread": -4.5,
        "awaySpreadOdds": -115,
@@ -12667,10 +12698,10 @@
        "overOdds": -105,
        "total": 40.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -240,
        "awaySpread": -5.0,
        "awaySpreadOdds": -110,
@@ -12680,7 +12711,7 @@
        "overOdds": -110,
        "total": 40.0,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -12698,24 +12729,24 @@
       "overOdds": -110,
       "total": 46.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
-       "awayML": -600,
+       "asOf": "2026-11-13T11:15:21Z",
+       "awayML": -650,
        "awaySpread": -10.5,
        "awaySpreadOdds": -112,
-       "homeML": 440,
+       "homeML": 470,
        "homeSpread": 10.5,
        "homeSpreadOdds": -108,
        "overOdds": -110,
        "total": 46.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:31Z"
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -700,
        "awaySpread": -10.5,
        "awaySpreadOdds": -110,
@@ -12725,10 +12756,10 @@
        "overOdds": 100,
        "total": 46.5,
        "underOdds": -120,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -700,
        "awaySpread": -10.5,
        "awaySpreadOdds": -110,
@@ -12738,7 +12769,7 @@
        "overOdds": -110,
        "total": 46.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -12756,11 +12787,11 @@
       "overOdds": -110,
       "total": 47.0,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -185,
        "awaySpread": -3.0,
        "awaySpreadOdds": -120,
@@ -12770,10 +12801,10 @@
        "overOdds": -102,
        "total": 47.5,
        "underOdds": -118,
-       "updated": "2026-11-13T10:44:31Z"
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -174,
        "awaySpread": -3.5,
        "awaySpreadOdds": 100,
@@ -12783,10 +12814,10 @@
        "overOdds": -105,
        "total": 47.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -180,
        "awaySpread": -3.5,
        "awaySpreadOdds": 100,
@@ -12796,7 +12827,7 @@
        "overOdds": -110,
        "total": 47.0,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -12814,11 +12845,11 @@
       "overOdds": -110,
       "total": 38.0,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 170,
        "awaySpread": 3.5,
        "awaySpreadOdds": -102,
@@ -12828,10 +12859,10 @@
        "overOdds": -105,
        "total": 38.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:44:31Z"
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 176,
        "awaySpread": 3.5,
        "awaySpreadOdds": -105,
@@ -12841,10 +12872,10 @@
        "overOdds": -105,
        "total": 38.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 175,
        "awaySpread": 4.0,
        "awaySpreadOdds": -110,
@@ -12854,7 +12885,7 @@
        "overOdds": -110,
        "total": 38.0,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -12872,24 +12903,24 @@
       "overOdds": -110,
       "total": 42.0,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
-       "awayML": 124,
+       "asOf": "2026-11-13T11:15:21Z",
+       "awayML": 130,
        "awaySpread": 3.0,
        "awaySpreadOdds": -115,
-       "homeML": -148,
+       "homeML": -155,
        "homeSpread": -3.0,
        "homeSpreadOdds": -105,
-       "overOdds": -115,
-       "total": 41.5,
-       "underOdds": -105,
-       "updated": "2026-11-13T10:44:31Z"
+       "overOdds": -105,
+       "total": 42.5,
+       "underOdds": -115,
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 138,
        "awaySpread": 3.0,
        "awaySpreadOdds": -110,
@@ -12899,10 +12930,10 @@
        "overOdds": -105,
        "total": 42.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 135,
        "awaySpread": 3.0,
        "awaySpreadOdds": -110,
@@ -12912,7 +12943,7 @@
        "overOdds": -110,
        "total": 42.0,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -12921,7 +12952,7 @@
      "date": "2026-11-15T21:05Z",
      "home": "ARI",
      "line": {
-      "awayML": -525,
+      "awayML": -500,
       "awaySpread": -9.5,
       "awaySpreadOdds": -110,
       "homeML": 375,
@@ -12930,11 +12961,11 @@
       "overOdds": -110,
       "total": 39.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -500,
        "awaySpread": -9.5,
        "awaySpreadOdds": -112,
@@ -12944,10 +12975,10 @@
        "overOdds": -108,
        "total": 39.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:44:31Z"
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -510,
        "awaySpread": -9.5,
        "awaySpreadOdds": -110,
@@ -12957,11 +12988,11 @@
        "overOdds": -110,
        "total": 39.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
-       "awayML": -525,
+       "asOf": "2026-11-13T11:15:21Z",
+       "awayML": -500,
        "awaySpread": -9.5,
        "awaySpreadOdds": -110,
        "homeML": 375,
@@ -12970,7 +13001,7 @@
        "overOdds": -110,
        "total": 39.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -12988,11 +13019,11 @@
       "overOdds": -110,
       "total": 40.5,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -298,
        "awaySpread": -6.5,
        "awaySpreadOdds": -112,
@@ -13002,10 +13033,10 @@
        "overOdds": -112,
        "total": 40.5,
        "underOdds": -108,
-       "updated": "2026-11-13T10:44:31Z"
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -300,
        "awaySpread": -6.5,
        "awaySpreadOdds": -110,
@@ -13015,10 +13046,10 @@
        "overOdds": -110,
        "total": 40.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -325,
        "awaySpread": -6.5,
        "awaySpreadOdds": -110,
@@ -13028,7 +13059,7 @@
        "overOdds": -110,
        "total": 40.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -13046,24 +13077,24 @@
       "overOdds": -110,
       "total": 56.0,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -205,
        "awaySpread": -3.5,
-       "awaySpreadOdds": -115,
+       "awaySpreadOdds": -118,
        "homeML": 170,
        "homeSpread": 3.5,
-       "homeSpreadOdds": -105,
+       "homeSpreadOdds": -102,
        "overOdds": -118,
        "total": 55.5,
        "underOdds": -102,
-       "updated": "2026-11-13T10:44:31Z"
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -210,
        "awaySpread": -4.5,
        "awaySpreadOdds": 100,
@@ -13073,10 +13104,10 @@
        "overOdds": -115,
        "total": 55.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -210,
        "awaySpread": -4.0,
        "awaySpreadOdds": -110,
@@ -13086,7 +13117,7 @@
        "overOdds": -110,
        "total": 56.0,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -13104,11 +13135,11 @@
       "overOdds": -115,
       "total": 49.0,
       "underOdds": -105,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 150,
        "awaySpread": 3.5,
        "awaySpreadOdds": -110,
@@ -13118,10 +13149,10 @@
        "overOdds": -108,
        "total": 49.5,
        "underOdds": -112,
-       "updated": "2026-11-13T10:44:31Z"
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 156,
        "awaySpread": 3.5,
        "awaySpreadOdds": -110,
@@ -13131,10 +13162,10 @@
        "overOdds": -110,
        "total": 49.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 155,
        "awaySpread": 3.5,
        "awaySpreadOdds": -115,
@@ -13144,7 +13175,7 @@
        "overOdds": -115,
        "total": 49.0,
        "underOdds": -105,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -13162,24 +13193,24 @@
       "overOdds": -110,
       "total": 39.0,
       "underOdds": -110,
-      "updated": "2026-11-13T10:45:06Z"
+      "updated": "2026-11-13T11:14:12Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
-       "awayML": 190,
+       "asOf": "2026-11-13T11:15:21Z",
+       "awayML": 180,
        "awaySpread": 4.5,
        "awaySpreadOdds": -112,
-       "homeML": -230,
+       "homeML": -218,
        "homeSpread": -4.5,
        "homeSpreadOdds": -108,
        "overOdds": -110,
        "total": 38.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:31Z"
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 188,
        "awaySpread": 4.5,
        "awaySpreadOdds": -110,
@@ -13189,10 +13220,10 @@
        "overOdds": -115,
        "total": 38.5,
        "underOdds": -105,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 185,
        "awaySpread": 4.0,
        "awaySpreadOdds": -110,
@@ -13202,7 +13233,7 @@
        "overOdds": -110,
        "total": 39.0,
        "underOdds": -110,
-       "updated": "2026-11-13T10:45:06Z"
+       "updated": "2026-11-13T11:14:12Z"
       }
      }
     },
@@ -13212,7 +13243,7 @@
      "home": "HOU",
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 350,
        "awaySpread": 10.0,
        "awaySpreadOdds": -110,
@@ -13222,10 +13253,10 @@
        "overOdds": -110,
        "total": 44.5,
        "underOdds": -110,
-       "updated": "2026-11-13T10:44:31Z"
+       "updated": "2026-11-13T11:14:45Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 410,
        "awaySpread": 9.5,
        "awaySpreadOdds": -105,
@@ -13235,14 +13266,14 @@
        "overOdds": 100,
        "total": 43.5,
        "underOdds": -120,
-       "updated": "2026-11-13T10:44:46Z"
+       "updated": "2026-11-13T11:14:47Z"
       }
      }
     }
    },
    "matched": 14,
-   "pulledAt": "2026-11-13T10:45:18Z",
-   "remainingAfter": 81611,
+   "pulledAt": "2026-11-13T11:15:21Z",
+   "remainingAfter": 81593,
    "unmatched": 0
   },
   "nhl": {
@@ -13268,11 +13299,11 @@
       "overOdds": -105,
       "total": 6.5,
       "underOdds": -115,
-      "updated": "2026-11-13T10:45:10Z"
+      "updated": "2026-11-13T11:15:23Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -225,
        "awaySpread": -1.5,
        "awaySpreadOdds": 114,
@@ -13282,10 +13313,10 @@
        "overOdds": -105,
        "total": 6.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:44:43Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -220,
        "awaySpread": -1.5,
        "awaySpreadOdds": 114,
@@ -13295,10 +13326,10 @@
        "overOdds": -104,
        "total": 6.5,
        "underOdds": -118,
-       "updated": "2026-11-13T10:45:37Z"
+       "updated": "2026-11-13T11:14:44Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": -220,
        "awaySpread": -1.5,
        "awaySpreadOdds": 105,
@@ -13308,7 +13339,7 @@
        "overOdds": -105,
        "total": 6.5,
        "underOdds": -115,
-       "updated": "2026-11-13T10:45:10Z"
+       "updated": "2026-11-13T11:15:23Z"
       }
      }
     },
@@ -13326,11 +13357,11 @@
       "overOdds": -145,
       "total": 5.5,
       "underOdds": 115,
-      "updated": "2026-11-13T10:45:10Z"
+      "updated": "2026-11-13T11:15:23Z"
      },
      "lines": {
       "draftkings": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 154,
        "awaySpread": 1.5,
        "awaySpreadOdds": -162,
@@ -13340,10 +13371,10 @@
        "overOdds": 114,
        "total": 6.5,
        "underOdds": -135,
-       "updated": "2026-11-13T10:44:43Z"
+       "updated": "2026-11-13T11:15:01Z"
       },
       "fanduel": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 152,
        "awaySpread": 1.5,
        "awaySpreadOdds": -170,
@@ -13353,10 +13384,10 @@
        "overOdds": 114,
        "total": 6.5,
        "underOdds": -140,
-       "updated": "2026-11-13T10:45:37Z"
+       "updated": "2026-11-13T11:14:44Z"
       },
       "hardrockbet": {
-       "asOf": "2026-11-13T10:45:18Z",
+       "asOf": "2026-11-13T11:15:21Z",
        "awayML": 150,
        "awaySpread": 1.5,
        "awaySpreadOdds": -165,
@@ -13366,14 +13397,14 @@
        "overOdds": -145,
        "total": 5.5,
        "underOdds": 115,
-       "updated": "2026-11-13T10:45:10Z"
+       "updated": "2026-11-13T11:15:23Z"
       }
      }
     }
    },
    "matched": 2,
-   "pulledAt": "2026-11-13T10:45:18Z",
-   "remainingAfter": 81599,
+   "pulledAt": "2026-11-13T11:15:21Z",
+   "remainingAfter": 81581,
    "unmatched": 0
   },
   "ucl": {
@@ -13392,17 +13423,17 @@
   }
  },
  "quota": {
-  "allowancePerDay": 4885,
+  "allowancePerDay": 4892,
   "cycleEnd": "2026-11-26T00:00:00+00:00",
   "gameInterval": 30,
   "level": "full",
   "props": true,
   "reason": "on pace",
-  "remaining": 81614,
-  "t": "2026-11-13T10:45:18Z",
-  "used": 18386
+  "remaining": 81596,
+  "t": "2026-11-13T11:15:21Z",
+  "used": 18404
  },
- "updated": "2026-11-13T10:45:18Z",
+ "updated": "2026-11-13T11:15:21Z",
  "usage": {
   "cycleEnd": "2026-11-26T00:00:00+00:00",
   "cycleStart": "2026-10-26T00:00:00+00:00",
@@ -13460,16 +13491,16 @@
     507
    ],
    "2026-11-13": [
-    216,
-    268
+    234,
+    328
    ]
   },
-  "games": 11370,
-  "paidRuns": 599,
-  "props": 7019,
-  "runs": 891,
-  "t": "2026-11-13T10:45:18Z",
-  "usedAtLastRun": 18404
+  "games": 11388,
+  "paidRuns": 600,
+  "props": 7079,
+  "runs": 892,
+  "t": "2026-11-13T11:15:21Z",
+  "usedAtLastRun": 18482
  },
  "v": 1
 }

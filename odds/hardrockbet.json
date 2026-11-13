@@ -2,7 +2,7 @@
  "active": {
   "epl": 0,
   "mlb": 0,
-  "mls": 0,
+  "mls": 1,
   "nba": 13,
   "ncaab": 62,
   "ncaaf": 66,
@@ -12,25 +12,6 @@
  },
  "book": "hardrockbet",
  "checks": [
-  {
-   "action": "pull",
-   "due": [],
-   "errors": [],
-   "gameInterval": 30,
-   "level": "full",
-   "props": [
-    "nfl"
-   ],
-   "pulled": [],
-   "remainingAfter": 85876,
-   "remainingBefore": 85876,
-   "skipped": [],
-   "spent": 0,
-   "spentBy": {},
-   "t": "2026-11-10T03:50:06Z",
-   "used": 14124,
-   "usedAfter": 14124
-  },
   {
    "action": "pull",
    "due": [
@@ -5397,6 +5378,29 @@
    "t": "2026-11-13T00:15:15Z",
    "used": 17679,
    "usedAfter": 17694
+  },
+  {
+   "action": "pull",
+   "due": [
+    "mls"
+   ],
+   "errors": [],
+   "gameInterval": 30,
+   "level": "full",
+   "props": [],
+   "pulled": [
+    "mls"
+   ],
+   "remainingAfter": 82303,
+   "remainingBefore": 82306,
+   "skipped": [],
+   "spent": 3,
+   "spentBy": {
+    "games": 3
+   },
+   "t": "2026-11-13T00:42:22Z",
+   "used": 17694,
+   "usedAfter": 17697
   }
  ],
  "leagues": {
@@ -5435,11 +5439,33 @@
     "draftkings"
    ],
    "cost": 3,
-   "events": 7,
-   "games": {},
-   "matched": 6,
-   "pulledAt": "2026-11-08T02:15:22Z",
-   "remainingAfter": 88765,
+   "events": 1,
+   "games": {
+    "401933535": {
+     "away": "CIN",
+     "date": "2026-11-20T00:30Z",
+     "home": "ORL",
+     "lines": {
+      "draftkings": {
+       "asOf": "2026-11-13T00:42:22Z",
+       "awayML": 145,
+       "drawML": 280,
+       "homeML": 140,
+       "updated": "2026-11-13T00:42:05Z"
+      },
+      "fanduel": {
+       "asOf": "2026-11-13T00:42:22Z",
+       "awayML": 150,
+       "drawML": 300,
+       "homeML": 140,
+       "updated": "2026-11-13T00:42:43Z"
+      }
+     }
+    }
+   },
+   "matched": 1,
+   "pulledAt": "2026-11-13T00:42:22Z",
+   "remainingAfter": 82303,
    "unmatched": 0
   },
   "nba": {
@@ -13613,17 +13639,17 @@
   }
  },
  "quota": {
-  "allowancePerDay": 4775,
+  "allowancePerDay": 4781,
   "cycleEnd": "2026-11-26T00:00:00+00:00",
   "gameInterval": 30,
   "level": "full",
   "props": true,
   "reason": "on pace",
-  "remaining": 82321,
-  "t": "2026-11-13T00:15:15Z",
-  "used": 17679
+  "remaining": 82306,
+  "t": "2026-11-13T00:42:22Z",
+  "used": 17694
  },
- "updated": "2026-11-13T00:15:15Z",
+ "updated": "2026-11-13T00:42:22Z",
  "usage": {
   "cycleEnd": "2026-11-26T00:00:00+00:00",
   "cycleStart": "2026-10-26T00:00:00+00:00",
@@ -13677,16 +13703,16 @@
     717
    ],
    "2026-11-12": [
-    570,
+    573,
     443
    ]
   },
-  "games": 10992,
-  "paidRuns": 577,
+  "games": 10995,
+  "paidRuns": 578,
   "props": 6687,
-  "runs": 860,
-  "t": "2026-11-13T00:15:15Z",
-  "usedAtLastRun": 17694
+  "runs": 861,
+  "t": "2026-11-13T00:42:22Z",
+  "usedAtLastRun": 17697
  },
  "v": 1
 }

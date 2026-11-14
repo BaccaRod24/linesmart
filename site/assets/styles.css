@@ -933,6 +933,29 @@ h3 .uf-flag{width:24px;height:16px;vertical-align:-2px;margin-right:6px}
 :root[data-theme="daylight"] .uf-w{color:#166534}
 .uf-hist td,.uf-hist td:not(:first-child){text-align:left}
 .uf-hist td.num{text-align:right;white-space:nowrap;color:var(--mute);font-size:12px;padding-left:8px}
+/* public UFC rankings tab (not the Pro rankings screen) */
+.uf-asof{margin:2px 0 12px;color:var(--mute);font-size:13.5px;font-variant-numeric:tabular-nums}
+.uf-divs{display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;padding:2px 2px 12px;margin:0 -2px;scroll-snap-type:x proximity;scrollbar-width:none}
+.uf-divs::-webkit-scrollbar{display:none}
+.uf-divs button{flex:none;scroll-snap-align:start;font:650 13px var(--font);min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--line2);background:var(--surface);color:var(--mute);cursor:pointer}
+.uf-divs button.on{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
+.uf-div-h{margin:4px 0 10px;font-size:18px;letter-spacing:-.02em}
+.uf-champ{display:flex;align-items:baseline;justify-content:flex-start;gap:14px;padding:12px 14px;margin:0 0 8px}
+.uf-role{font-size:11px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.uf-champ.interim .uf-role{color:var(--warn)}
+.uf-who{font-weight:680;min-width:0}
+.uf-ranks{list-style:none;margin:0;padding:0;border:1px solid var(--glass-brd);border-radius:var(--r);overflow:hidden;background:var(--glass-hi),var(--glass)}
+.uf-ranks li{display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 12px;border-top:1px solid var(--line)}
+.uf-ranks li:first-child{border-top:0}
+.uf-n{width:2rem;flex:none;font-variant-numeric:tabular-nums;font-weight:750;color:var(--mute)}
+.uf-mv{flex:none;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+@media (min-width:900px){
+  .uf-divs{flex-wrap:wrap;overflow:visible}
+}
+@media (max-width:760px){
+  .uf-divs button{min-height:44px}
+  .uf-champ{align-items:flex-start;flex-direction:column;gap:4px}
+}
 
 /* ===================================================================================================
    Pro layer (2026-10 polish): layered depth, glass surfaces, terminal-style micro-labels, sparklines,

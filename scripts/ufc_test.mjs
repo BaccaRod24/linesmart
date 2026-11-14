@@ -49,5 +49,36 @@ check(U.resultLine({ ...g, result: { outcome: "draw", method: "Decision - Majori
 check(U.resultLine({ ...g, result: { outcome: "nc", method: "No Contest", detail: "Overturned" } }) === "No contest · Overturned", "no-contest result line", "helpers");
 check(U.resultLine({ ...g, state: "pre" }) === "", "no result before the fight", "helpers");
 
+// ---------- public rankings tab (separate from Pro rankings)
+ctx.window.LSApp = { fullET: s => "FULL " + s, timeET: s => "T " + s };
+const rankData = { league: { full: "UFC (Mixed Martial Arts)" }, report: { upcoming: 2, withOdds: 1, providers: ["DraftKings"] }, events: [], games: [], windowDays: 45 };
+const rankHtml = U.league(rankData, "ufc", "rankings");
+check(rankHtml.includes("Upcoming & live") && rankHtml.includes("Incl. recent results") && rankHtml.includes(">Rankings<"), "rankings tab sits with the existing UFC tabs", "rankings");
+check(rankHtml.includes('id="ufRank"') && !rankHtml.includes('class="bout"'), "rankings view does not render fight cards", "rankings");
+const cardsHtml = U.league(rankData, "ufc", "upcoming");
+check(cardsHtml.includes("Upcoming & live") && cardsHtml.includes("No UFC cards") && cardsHtml.includes("ESPN's MMA feeds"), "upcoming tab still renders cards", "rankings");
+check(U.slugify("Jiří Procházka") === "jiri-prochazka" && U.slugify("Sean O'Malley") === "sean-o-malley", "fighter slugs match the page slugs", "rankings");
+const paths = U.pathsFromPages({ p: { ufc: { "11": "ufc/fighters/islam-makhachev/", "22": "javascript:alert(1)", "33": "ufc/fighters/not a slug/" } } });
+check(U.fighterHref({ name: "Islam Makhachev" }, paths) === "ufc/fighters/islam-makhachev/", "a fighter with a page links to it", "rankings");
+check(U.fighterHref({ id: "11", name: "Someone Else" }, paths) === "ufc/fighters/islam-makhachev/", "an ESPN id on the page map links even when the name differs", "rankings");
+check(U.fighterHref({ name: "No Page Fighter", slug: "no-page" }, paths) === "", "a fighter without a page is not a link", "rankings");
+check(!paths.byId["22"] && !paths.bySlug["not"], "only real fighter paths are linkable", "rankings");
+const doc = { updated: "2026-11-14T11:52:48Z", divisions: [
+  { key: "mens-p4p", name: "Men's Pound-for-Pound", short: "Men's P4P", kind: "p4p", ranks: [{ rank: 1, name: "Islam Makhachev" }, { rank: 2, name: "No Page Fighter" }] },
+  { key: "heavyweight", name: "Heavyweight", short: "Heavyweight", kind: "division", champion: { name: "Ciryl Gane", slug: "ciryl-gane" }, interim: { name: "Interim Heavy" }, ranks: [{ rank: 1, name: "Tom Aspinall", change: -1 }, { rank: 2, name: "New Fighter", change: "nr" }] },
+] };
+const view = U.rankingsView(doc, paths);
+check(view.includes("As of FULL 2026-11-14T11:52:48Z"), "rankings show an as-of time", "rankings");
+check(view.includes('href="ufc/fighters/islam-makhachev/"') && view.includes("No Page Fighter") && !view.includes('href="">No Page') && !/>No Page Fighter<\/a>/.test(view), "only the fighter with a page is a link", "rankings");
+check(U.rankingsView({ divisions: [] }, paths).includes("Rankings not available"), "an empty file says rankings are not available", "rankings");
+const board = U.divisionBoard(doc.divisions[1], paths);
+check(board.includes("Champion") && board.includes("Ciryl Gane") && board.includes("Interim champion") && board.includes("Interim Heavy"), "a division shows the champion and interim champion", "rankings");
+check(board.includes(">1<") && board.includes("down 1") && board.includes("NR"), "ranks show the number and the movement", "rankings");
+check(!/best bet|lock of|guaranteed|legal in florida|FanDuel are legal|DraftKings are legal/i.test(view + board), "rankings copy has no picks and no Florida book claim", "rankings");
+const loadSrc = fs.readFileSync(new URL("../site/assets/load.js", import.meta.url), "utf8");
+const sw = fs.readFileSync(new URL("../site/sw.js", import.meta.url), "utf8");
+check(loadSrc.includes('if (k === "l" && parts[1] === "ufc") return ["ufc"]'), "the UFC route, including rankings, stays on the ufc script group", "rankings");
+check(sw.includes('"assets/ufc.js"') && !sw.includes("ufc-rankings.js"), "rankings stay in the precached ufc.js", "rankings");
+
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall ufc front-end tests passed");
 process.exit(fails.length ? 1 : 0);

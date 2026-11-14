@@ -416,10 +416,24 @@
     else if (key === "ncaaf" && sub === "top25") filter = "top25";
     if (filter === "top25" && key !== "ncaaf") filter = "upcoming";
     if (filter === "standings" && !STANDINGS_LGS.has(key)) filter = "upcoming";
-    if (kind === "mma" && window.LSUfc) {   // UFC: fight cards grouped by event and main card / prelims (assets/ufc.js)
-      app.innerHTML = window.LSUfc.league(data, key, filter);
+    if (kind === "mma" && window.LSUfc) {   // UFC: fight cards grouped by event and main card / prelims, plus the public rankings tab (assets/ufc.js)
+      let uf = sessionStorage.getItem("filter-" + key) || "upcoming";
+      if (uf !== "all") uf = "upcoming";
+      if (sub === "rankings") uf = "rankings";
+      app.innerHTML = window.LSUfc.league(data, key, uf);
       addStale(data.stale, "fights");
-      app.querySelectorAll(".seg button").forEach(b => (b.onclick = () => { sessionStorage.setItem("filter-" + key, b.dataset.f); viewLeague(key); }));
+      app.querySelectorAll(".seg button").forEach(b => (b.onclick = () => {
+        const f = b.dataset.f;
+        if (f === "rankings") {
+          if ((location.hash || "").replace(/\/$/, "") !== "#/l/ufc/rankings") { location.hash = "#/l/ufc/rankings"; return; }
+          viewLeague(key, false, "rankings");
+          return;
+        }
+        sessionStorage.setItem("filter-" + key, f === "all" ? "all" : "upcoming");
+        if ((location.hash || "").replace(/\/$/, "") === "#/l/ufc/rankings") { location.hash = "#/l/ufc"; return; }
+        viewLeague(key);
+      }));
+      if (uf === "rankings" && window.LSUfc.loadRankings) window.LSUfc.loadRankings(NAV);
       return;
     }
     let games = data.games;

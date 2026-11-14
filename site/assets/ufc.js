@@ -1,6 +1,8 @@
-/* LineSmart UFC views: fight cards (events -> main card / prelims -> bouts), the fight page and the fighter page.
-   Data: data/ufc/index.json + games/{boutId}.json + fighters.json (scripts/ufc.py, ESPN MMA feeds; DraftKings lines via ESPN).
-   Each bout is a "game" (away = red corner / order 1, home = blue corner / order 2), so lines, line movement and My Bets reuse app.js. */
+/* LineSmart UFC views: fight cards (events -> main card / prelims -> bouts), the fight page, the fighter page,
+   and the public Rankings tab (data/ufc/rankings.json from the UFC.com rankings page, scripts/ufc_rankings.py).
+   Cards: data/ufc/index.json + games/{boutId}.json + fighters.json (scripts/ufc.py, ESPN MMA feeds; DraftKings lines via ESPN).
+   Each bout is a "game" (away = red corner / order 1, home = blue corner / order 2), so lines, line movement and My Bets reuse app.js.
+   Rankings are free for everyone. They are not the Pro rankings screen. */
 (() => {
   const A = () => window.LSApp;
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -65,15 +67,113 @@
       <div class="game-top">${st}${tag}<span class="net">${esc([g.weightClass, g.rounds ? g.rounds + " rounds" : ""].filter(Boolean).join(" · "))}</span></div>
       ${head}${fighterRow(g, "away")}${fighterRow(g, "home")}${foot}</a>`;
   }
+  function slugify(s) {
+    const n = String(s || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+    return n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").replace(/-{2,}/g, "-");
+  }
+  function pathsFromPages(pages) {
+    const byId = {}, bySlug = {};
+    const m = ((pages || {}).p || {}).ufc || {};
+    Object.keys(m).forEach(id => {
+      const p = m[id];
+      if (!/^ufc\/fighters\/[a-z0-9-]+\/$/.test(p || "")) return;
+      byId[String(id)] = p;
+      const slug = p.replace(/\/$/, "").split("/").pop();
+      if (slug && !bySlug[slug]) bySlug[slug] = p;
+    });
+    return { byId, bySlug };
+  }
+  function fighterHref(person, paths) {
+    if (!person) return "";
+    const byId = (paths || {}).byId || {}, bySlug = (paths || {}).bySlug || {};
+    if (person.id && byId[String(person.id)]) return byId[String(person.id)];
+    const s = slugify(person.name);
+    if (s && bySlug[s]) return bySlug[s];
+    if (person.slug && bySlug[person.slug]) return bySlug[person.slug];
+    return "";
+  }
+  function fighterName(person, paths) {
+    const href = fighterHref(person, paths);
+    const name = esc(person && person.name || "");
+    return href ? `<a class="tlink" href="${esc(href)}">${name}</a>` : name;
+  }
+  function moveLabel(change) {
+    if (change === "nr") return "NR";
+    if (typeof change === "number" && change > 0) return "up " + change;
+    if (typeof change === "number" && change < 0) return "down " + (-change);
+    return "";
+  }
+  function divisionBoard(div, paths) {
+    if (!div) return "";
+    let html = `<h2 class="uf-div-h">${esc(div.name || "")}</h2>`;
+    if (div.champion) html += `<div class="card uf-champ"><span class="uf-role">Champion</span><span class="uf-who">${fighterName(div.champion, paths)}</span></div>`;
+    if (div.interim) html += `<div class="card uf-champ interim"><span class="uf-role">Interim champion</span><span class="uf-who">${fighterName(div.interim, paths)}</span></div>`;
+    const ranks = div.ranks || [];
+    if (!ranks.length && !div.champion && !div.interim) return html + `<div class="empty"><h3>No ranked fighters</h3></div>`;
+    html += `<ol class="uf-ranks">${ranks.map(r => {
+      const mv = moveLabel(r.change);
+      return `<li><span class="uf-n">${esc(r.rank)}</span><span class="uf-who">${fighterName(r, paths)}</span>${mv ? `<span class="uf-mv">${esc(mv)}</span>` : ""}</li>`;
+    }).join("")}</ol>`;
+    return html;
+  }
+  function asOf(doc) {
+    const iso = (doc && (doc.updated || doc.generated)) || "";
+    if (!iso) return "";
+    try {
+      const L = A();
+      if (L && L.fullET) return L.fullET(iso);
+    } catch (e) {}
+    return iso;
+  }
+  function rankingsView(doc, paths) {
+    const divs = doc && Array.isArray(doc.divisions) ? doc.divisions.filter(d => d && d.key && ((d.ranks && d.ranks.length) || d.champion || d.interim)) : [];
+    if (!divs.length) return `<div class="empty" id="ufRankings"><h3>Rankings not available</h3>They'll show up after the next data refresh.</div>`;
+    let saved = "";
+    try { saved = sessionStorage.getItem("ufc-rank-div") || ""; } catch (e) {}
+    const key = divs.some(d => d.key === saved) ? saved : divs[0].key;
+    const chips = `<div class="uf-divs" role="tablist" aria-label="Weight class">${divs.map(d => `<button type="button" role="tab" data-d="${esc(d.key)}" aria-selected="${d.key === key ? "true" : "false"}" class="${d.key === key ? "on" : ""}">${esc(d.short || d.name)}</button>`).join("")}</div>`;
+    const cur = divs.find(d => d.key === key) || divs[0];
+    const when = asOf(doc);
+    return `<p class="uf-asof">As of ${esc(when || "UFC.com")}</p>${chips}<div id="ufBoard">${divisionBoard(cur, paths)}</div>
+      <div class="note">Official UFC rankings from UFC.com. Each division lists the champion and interim champion when UFC publishes one, then the voted ranks. A name is a link only when LineSmart has a fighter page for that person.</div>`;
+  }
+  async function loadRankings(tok) {
+    const L = A();
+    const el = () => document.getElementById("ufRank");
+    let doc = null;
+    try { doc = await L.getJSON("data/ufc/rankings.json"); } catch (e) { doc = null; }
+    if (!L || !L.nav || tok !== L.nav() || !el()) return;
+    const paths = pathsFromPages(L.pages ? L.pages() : {});
+    el().innerHTML = rankingsView(doc, paths);
+    const root = el();
+    const divs = (doc && doc.divisions) || [];
+    root.querySelectorAll(".uf-divs button").forEach(b => (b.onclick = () => {
+      const key = b.dataset.d;
+      try { sessionStorage.setItem("ufc-rank-div", key); } catch (e) {}
+      root.querySelectorAll(".uf-divs button").forEach(x => {
+        const on = x.dataset.d === key;
+        x.classList.toggle("on", on);
+        x.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      const board = document.getElementById("ufBoard");
+      const div = divs.find(d => d.key === key);
+      if (board && div) board.innerHTML = divisionBoard(div, paths);
+    }));
+  }
+
   function league(data, key, filter) {
     const { fullET, timeET } = A();
+    filter = filter === "all" || filter === "rankings" ? filter : "upcoming";
     const byId = Object.fromEntries(data.games.map(g => [g.id, g]));
     let evs = data.events || [];
     if (filter === "upcoming") evs = evs.filter(e => e.state !== "post");
+    const seg = `<div class="seg seg-3" role="tablist" aria-label="UFC"><button type="button" data-f="upcoming" class="${filter === "upcoming" ? "on" : ""}">Upcoming & live</button><button type="button" data-f="all" class="${filter === "all" ? "on" : ""}">Incl. recent results</button><button type="button" data-f="rankings" class="${filter === "rankings" ? "on" : ""}"${filter === "rankings" ? ' aria-current="page"' : ""}>Rankings</button></div>`;
+    const sub = filter === "rankings" ? "Official UFC rankings by weight class" : `Fight cards, fighter moneylines and results · times in ${esc((window.SITE_CONFIG || {}).tzLabel || "ET")}`;
+    let html = `<div class="page-head"><div><h1>${esc(data.league.full)}</h1><div class="sub">${sub}</div></div>${seg}</div>`;
+    if (filter === "rankings") return html + `<div id="ufRank" aria-live="polite"><div class="loading" aria-busy="true"><span class="sr-only">Loading rankings…</span></div></div>`;
     const chips = `<div class="chips"><span class="chip"><b>${data.report.upcoming}</b> upcoming bouts</span><span class="chip"><b>${data.report.withOdds}</b> with lines</span>
       <span class="chip">Lines: <b>${esc((data.report.providers || []).join(", ") || "none")}</b></span><span class="chip">${(data.events || []).filter(e => e.state !== "post").length} upcoming cards</span></div>`;
-    let html = `<div class="page-head"><div><h1>${esc(data.league.full)}</h1><div class="sub">Fight cards, fighter moneylines and results · times in ${esc((window.SITE_CONFIG || {}).tzLabel || "ET")}</div></div>
-      <div class="seg"><button data-f="upcoming" class="${filter === "upcoming" ? "on" : ""}">Upcoming & live</button><button data-f="all" class="${filter === "all" ? "on" : ""}">Incl. recent results</button></div></div>${chips}`;
+    html += chips;
     if (!evs.length) html += `<div class="empty" style="margin-top:16px"><h3>No UFC cards in the next ${data.windowDays} days</h3>Check back after the next data refresh, or show recent results.</div>`;
     for (const e of evs) {
       html += `<section class="uf-ev" id="ev-${esc(e.id)}"><div class="uf-evh"><div><h2>${esc(e.name)}</h2><div class="sub">${esc(fullET(e.date))} · ${esc([e.venue, e.city].filter(Boolean).join(", "))}${(e.broadcasts || []).length ? " · " + esc(e.broadcasts.join(", ")) : ""}</div></div>
@@ -189,5 +289,5 @@
     app().innerHTML = html;
   }
 
-  window.LSUfc = { league, fight, fighter, boutTile, resultLine, strip, tally, bioOf };
+  window.LSUfc = { league, fight, fighter, boutTile, resultLine, strip, tally, bioOf, rankingsView, divisionBoard, loadRankings, slugify, pathsFromPages, fighterHref };
 })();

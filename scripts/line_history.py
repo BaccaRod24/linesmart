@@ -44,6 +44,22 @@ BOOK_ORDER = ["draftkings", "hardrockbet", "fanduel"]
 # Totals we actually record sit within 2 points of a real open. Farther than this, the
 # ESPN figure is dropped for the first total the snapshots recorded.
 BASKETBALL_TOTAL_OPEN_GAP = 4
+# ESPN's DraftKings "open" is sometimes an early-season or futures price that never
+# trades in the snapshots. The spread and the moneyline still agree with each other,
+# so it looks like a favorite that really flipped.
+# A spread more than a field goal from every recorded spread did not trade. Exactly
+# 3 points with one snapshot is a normal move before tracking starts (Chiefs at
+# Broncos, Knicks at Sixers). Exactly 3 across a longer series never showed up
+# (Tulane at Rice). Football totals move that far before the first snapshot, so a
+# total has to sit more than 6 points from every recorded total; 6 is still a real
+# pre-snapshot move. Basketball totals stay at 4. Other leagues use 4.
+# Michigan at Oregon got within 2 of the ESPN spread but the 53.5 total never came
+# within 9. That pair is one stale open: the spread is more than a field goal off
+# the first snapshot and never within a point and a half of a recorded spread.
+STALE_SPREAD_GAP = 3.0
+STALE_SPREAD_NEAR = 1.5
+STALE_TOTAL_GAP = {"football": 6.0, "basketball": BASKETBALL_TOTAL_OPEN_GAP}
+STALE_TOTAL_DEFAULT = 4.0
 # An opening spread copied from an earlier game of the same team. If it sits at least
 # this far from every spread recorded for this game, it never traded here.
 CARRIED_OPEN_GAP = 1.0
@@ -141,7 +157,16 @@ def reconcile_open(op, points=None, kind=""):
 
     A basketball opening total that is more than BASKETBALL_TOTAL_OPEN_GAP points
     from every recorded total never traded in the snapshots. It is replaced with the
-    first total those snapshots recorded.
+    first total those snapshots recorded. The same check runs for every league.
+    Football uses a wider gap (STALE_TOTAL_GAP), because a total can move 6 points
+    before the first snapshot.
+
+    An opening spread that never lands on a recorded spread is the same kind of
+    stale number (Tennessee at Texas A&M: ESPN TA&M -9.5, first snapshot TENN -3).
+    The first recorded snapshot replaces that open, including its moneyline and,
+    when the spread itself never traded, its total. A spread the snapshots do
+    trade is left alone even if the total on that open is replaced. A real move
+    whose open matches the first snapshot (Oregon State at Boise State) is unchanged.
     """
     if not op: return op
     out = dict(op)
@@ -164,11 +189,49 @@ def reconcile_open(op, points=None, kind=""):
             out = swapped
         elif _still_inconsistent(swapped, first):
             out = adopt_first_open(out, first)
-    if kind == "basketball" and out.get("tot") is not None:
+    if _spread_is_stale(out, points, kind) and first:
+        out = adopt_first_open(out, first)
+    if _total_is_stale(out, points, kind):
         observed = [p["tot"] for p in points if p.get("tot") is not None]
-        if observed and min(abs(out["tot"] - t) for t in observed) > BASKETBALL_TOTAL_OPEN_GAP:
+        if observed:
             out["tot"] = observed[0]
     return out
+
+def _num_gap(val, observed):
+    """(distance to the nearest recorded value, distance to the first). None if either side is missing."""
+    if val is None or not observed:
+        return None
+    dists = [abs(float(val) - float(v)) for v in observed]
+    return min(dists), dists[0]
+
+def _total_limit(kind):
+    return STALE_TOTAL_GAP.get(kind, STALE_TOTAL_DEFAULT)
+
+def _total_is_stale(op, points, kind):
+    """True when the opening total never comes within the league gap of a recorded total."""
+    gap = _num_gap(op.get("tot") if isinstance(op, dict) else None,
+                   [p.get("tot") for p in points if isinstance(p, dict) and p.get("tot") is not None])
+    return bool(gap) and gap[0] > _total_limit(kind)
+
+def _spread_is_stale(op, points, kind):
+    """True when the opening spread never traded in this book's snapshots.
+
+    More than STALE_SPREAD_GAP from every snapshot, or exactly that far across two
+    or more snapshots. Also a futures pair: more than a field goal off the first
+    snapshot, never within STALE_SPREAD_NEAR, and the total on that open never traded.
+    """
+    observed = [p.get("hs") for p in points if isinstance(p, dict) and p.get("hs") is not None]
+    gap = _num_gap(op.get("hs") if isinstance(op, dict) else None, observed)
+    if not gap:
+        return False
+    nearest, first_gap = gap
+    if nearest > STALE_SPREAD_GAP:
+        return True
+    if nearest >= STALE_SPREAD_GAP and len(observed) >= 2:
+        return True
+    if first_gap > STALE_SPREAD_GAP and nearest > STALE_SPREAD_NEAR and _total_is_stale(op, points, kind):
+        return True
+    return False
 
 def _open_sig(op):
     """Spread, both moneylines, and total. None unless all four are present."""
@@ -313,11 +376,11 @@ def merge(hist, snap, t):
     """Append changed points from one run's snapshot (taken at UTC time t). Returns #points appended.
 
     The opening line is reconciled after the points are updated, so a bad ESPN open
-    (spread on the wrong side, home and away exchanged together, a basketball total
-    that never appears in the snapshots, or an opener copied from an earlier game of
-    the same team) is corrected from those snapshots on the way in. A later run that
-    sends the same bad open is corrected again; it does not stick, including after
-    the source game has been pruned.
+    (spread on the wrong side, home and away exchanged together, a total that never
+    appears in the snapshots, an opener copied from an earlier game of the same team,
+    or an early-season spread that never trades) is corrected from those snapshots
+    on the way in. A later run that sends the same bad open is corrected again; it
+    does not stick, including after the source game has been pruned.
     """
     added = 0
     kind = league_kind(hist.get("league"))

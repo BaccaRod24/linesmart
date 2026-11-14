@@ -7,8 +7,13 @@ A spread that sits on the opposite side of its own opening moneyline is swapped.
 A spread and moneyline that are both the opposite side of the first recorded
 point, and that are that point with home and away exchanged, are swapped back.
 If that swap is still inconsistent, the first recorded point is used instead.
-A basketball total that never appears within 4 points of any recorded total is
-replaced with the first total those snapshots recorded.
+A total that never appears within the league gap of any recorded total (4 points
+for basketball, 6 for football) is replaced with the first total those snapshots
+recorded.
+An opening spread more than 3 points from every recorded spread, or exactly 3
+points off across two or more snapshots, is replaced with the first recorded
+line. So is a spread more than 3 points off the first snapshot that never comes
+within 1.5 when the total on that open also never traded.
 An opener that exactly matches an earlier game sharing a team, and that never
 comes within a point of a spread recorded for this game, is replaced with the
 first recorded line. The Week 8 Jaguars opener has to still be in the file for

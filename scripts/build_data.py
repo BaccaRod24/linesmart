@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import line_history as LH
 import slate as SL
 import ufc as UF
+import ufc_rankings as UR
 import search_index as SI
 import matchups as MU
 import weather as WX
@@ -905,6 +906,18 @@ def build_league(lg, days, pull=None, odds_cache=None, hist_dir=None, snap_dir=N
         write_ncaaf_rankings(getj, log)
     return report
 
+def write_ufc_rankings(log=print):
+    """Refresh site/data/ufc/rankings.json from the public UFC.com rankings page. No Odds API call.
+
+    Runs on every refresh that includes UFC (the same scheduled build as the fight cards).
+    A failed fetch, or a page that is not the full official board, leaves the previous file
+    in place instead of publishing an empty one.
+    """
+    path = os.path.join(OUT, "ufc", "rankings.json")
+    fighters = UR.load_fighters(os.path.join(OUT, "ufc", "fighters.json"))
+    UR.refresh(path, UR.fetch_rankings, dt.datetime.now(dt.timezone.utc).isoformat(), fighters, log)
+
+
 def write_ncaaf_rankings(fetch, log=print):
     """Refresh site/data/ncaaf/rankings.json from ESPN's free rankings feed. No Odds API call.
 
@@ -1041,6 +1054,8 @@ def main():
                 m.update(games=rep["games"], upcoming=rep["upcoming"], withOdds=rep["withOdds"], providers=rep["providers"],
                          updated=dt.datetime.now(dt.timezone.utc).isoformat(), report=rep)
                 m["stale"] = fallback_meta(lg, rep)
+    if "ufc" in want and not a.search_only:
+        write_ufc_rankings(log)
     # Hard Rock + FanDuel + DraftKings player props (NFL/NBA): after the league builds, so events match the fresh ESPN games
     props_pulled = []
     if pull and budget and budget.get("props") and not a.no_props and pcache is not None:

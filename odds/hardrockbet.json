@@ -3,8 +3,8 @@
   "epl": 0,
   "mlb": 0,
   "mls": 2,
-  "nba": 5,
-  "ncaab": 66,
+  "nba": 7,
+  "ncaab": 63,
   "ncaaf": 63,
   "nfl": 14,
   "nhl": 15,
@@ -12,39 +12,6 @@
  },
  "book": "hardrockbet",
  "checks": [
-  {
-   "action": "pull",
-   "due": [
-    "nfl",
-    "nba",
-    "ncaaf",
-    "ncaab",
-    "nhl"
-   ],
-   "errors": [],
-   "gameInterval": 30,
-   "level": "full",
-   "props": [
-    "nfl"
-   ],
-   "pulled": [
-    "nfl",
-    "nba",
-    "ncaaf",
-    "ncaab",
-    "nhl"
-   ],
-   "remainingAfter": 84499,
-   "remainingBefore": 84514,
-   "skipped": [],
-   "spent": 15,
-   "spentBy": {
-    "games": 15
-   },
-   "t": "2026-11-11T08:15:20Z",
-   "used": 15486,
-   "usedAfter": 15501
-  },
   {
    "action": "pull",
    "due": [
@@ -5526,6 +5493,27 @@
    "t": "2026-11-14T04:48:48Z",
    "used": 19500,
    "usedAfter": 19518
+  },
+  {
+   "action": "pull",
+   "due": [],
+   "errors": [],
+   "gameInterval": 30,
+   "level": "full",
+   "props": [
+    "nfl"
+   ],
+   "pulled": [],
+   "remainingAfter": 80477,
+   "remainingBefore": 80482,
+   "skipped": [],
+   "spent": 5,
+   "spentBy": {
+    "props": 5
+   },
+   "t": "2026-11-14T05:15:19Z",
+   "used": 19518,
+   "usedAfter": 19523
   }
  ],
  "leagues": {
@@ -12855,15 +12843,15 @@
   }
  },
  "quota": {
-  "allowancePerDay": 5102,
+  "allowancePerDay": 5108,
   "cycleEnd": "2026-11-26T00:00:00+00:00",
   "gameInterval": 30,
   "level": "full",
   "props": true,
   "reason": "on pace",
-  "remaining": 80500,
-  "t": "2026-11-14T04:48:48Z",
-  "used": 19500
+  "remaining": 80482,
+  "t": "2026-11-14T05:15:19Z",
+  "used": 19518
  },
  "updated": "2026-11-14T04:48:48Z",
  "usage": {
@@ -12925,14 +12913,18 @@
    "2026-11-13": [
     846,
     752
+   ],
+   "2026-11-14": [
+    0,
+    5
    ]
   },
   "games": 12000,
-  "paidRuns": 635,
-  "props": 7503,
-  "runs": 945,
-  "t": "2026-11-14T04:48:48Z",
-  "usedAtLastRun": 19518
+  "paidRuns": 636,
+  "props": 7508,
+  "runs": 946,
+  "t": "2026-11-14T05:15:19Z",
+  "usedAtLastRun": 19523
  },
  "v": 1
 }

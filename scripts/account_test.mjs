@@ -128,6 +128,8 @@ check(A.chunks(Array.from({ length: 450 }), 200).map(c => c.length).join() === "
   const r5 = A.parseAuthReturn("https://linesmart.app/#/account#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired");
   check(r5 && r5.kind === "error" && /expired/.test(A.linkError(r5)), "expired-link error parsed with a friendly message", "link");
   check(A.parseAuthReturn("https://linesmart.app/#/bets/add?lg=nfl") === null && A.parseAuthReturn("https://linesmart.app/#/g/nfl/401") === null, "normal app URLs aren't treated as auth returns", "link");
+  const r6 = A.parseAuthReturn("https://linesmart.app/#/account?entry=newsletter#access_token=AT&refresh_token=RT&type=magiclink");
+  check(r6 && r6.kind === "token" && r6.clean === "/#/account?entry=newsletter", "magic link keeps the sign-up entry on the Account hash", "link");
 }
 
 // ---------- error messages
@@ -139,6 +141,22 @@ check(A.chunks(Array.from({ length: 450 }), 200).map(c => c.length).join() === "
   check(/doesn't look right/.test(A.authError({ status: 400, code: "email_address_invalid", message: "Email address is invalid" })), "invalid email", "errors");
   check(/Couldn't reach/.test(A.authError(new TypeError("Failed to fetch"))), "network error", "errors");
   check(/Offline/.test(A.syncError(new TypeError("Failed to fetch"))) && /expired/.test(A.syncError({ status: 401, message: "JWT expired" })), "sync errors", "errors");
+}
+
+// ---------- sign-up entry labels (counts only; unknown labels fall back)
+{
+  check(A.SIGNUP_ENTRIES.join() === "bell,my-bets,newsletter,waitlist,account", "entry points: bell, my-bets, newsletter, waitlist, account", "entry");
+  check(A.signupEntry("Bell") === "bell" && A.signupEntry(" my-bets ") === "my-bets" && A.signupEntry("newsletter") === "newsletter", "known labels are kept", "entry");
+  check(A.signupEntry("promo") === "account" && A.signupEntry("") === "account" && A.signupEntry(null, "") === "", "unknown or empty labels don't get stored as typed", "entry");
+  check(/emailRedirectTo: base \+ "#\/account"/.test(src) && /signup_entry/.test(src) && /record_signup_entry/.test(src), "sign-in still returns to #/account and tags the entry", "entry");
+  check(/data-pro-wait-pin/.test(src) && /waitlistCard\(/.test(src), "Account tab has the Pro waitlist card", "entry");
+  const sql = fs.readFileSync(new URL("../supabase/migrations/20261116_signup_entries.sql", import.meta.url), "utf8");
+  const q = fs.readFileSync(new URL("./signup_counts.sql", import.meta.url), "utf8");
+  check(/enable row level security/i.test(sql) && /revoke all on table public\.signup_entries from anon, authenticated/i.test(sql) && !/create policy/i.test(sql), "signup table: RLS on, no policies, no anon access", "entry");
+  check(/grant execute on function public\.record_signup_entry\(text\) to authenticated/.test(sql) && !/to anon/.test(sql), "record function is authenticated only", "entry");
+  check(/auth\.uid\(\)/.test(sql) && /on conflict \(user_id\) do nothing/.test(sql) && /interval '24 hours'/.test(sql), "own row only, first label wins, new accounts only", "entry");
+  check(!/alter table public\.pro_access|insert into public\.pro_access|update public\.pro_access|drop table public\.pro_access/i.test(sql + q), "does not change pro_access", "entry");
+  check(/count\(\*\)/.test(q) && !/\bemail\b/i.test(q) && !/select \*/i.test(q), "owner query is a count and does not select emails", "entry");
 }
 
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nall account tests passed");

@@ -171,6 +171,48 @@ export function pickMoves(games, limit = 6, order = [], cap = 2) {
   return perLeague(rows.sort((a, b) => b.score - a.score || Date.parse(a.g.date) - Date.parse(b.g.date)), cap, limit, order);
 }
 
+const joinNames = names => (names.length <= 1 ? (names[0] || "") : names.length === 2 ? names.join(" and ") : names.slice(0, -1).join(", ") + " and " + names[names.length - 1]);
+
+/** One current spread, from published lines, to show what a line alert watches. Never an opening line and never a move. */
+export function pickAlertExample(games) {
+  const cands = [];
+  for (const { g } of games || []) {
+    if (!g || !g.away || !g.home) continue;
+    const offs = offers(g, "spread", "away");
+    if (offs.length < 2) continue;
+    const lines = offs.map(o => o.line), lo = Math.min(...lines), hi = Math.max(...lines);
+    if (lo < 0 && hi > 0) continue;                         // books disagree on the favorite: skip, same rule as the numbers section
+    const favAway = hi <= 0;
+    const team = favAway ? g.away : g.home;
+    const teamName = team.short || team.name || team.abbr || "";
+    if (!teamName || !(g.away.name || g.away.abbr) || !(g.home.name || g.home.abbr)) continue;
+    const groups = new Map();
+    for (const o of offs) {
+      const fl = favAway || o.line === 0 ? o.line : -o.line;
+      const k = String(fl);
+      if (!groups.has(k)) groups.set(k, { line: fl, books: [] });
+      groups.get(k).books.push(BOOK_NAME[o.key] || o.key);
+    }
+    const list = [...groups.values()].sort((a, b) => b.line - a.line);
+    cands.push({ g, team: teamName, groups: list, target: list[0].line, diff: hi - lo, date: g.date });
+  }
+  cands.sort((a, b) => b.diff - a.diff || Date.parse(a.date) - Date.parse(b.date));
+  return cands[0] || null;
+}
+
+/** Plain sentence for the example. Numbers and names are data; the caller escapes them. */
+export function alertExampleText(ex, asOf) {
+  if (!ex) return "";
+  const day = fmtD(ex.g.date, { weekday: "long" });
+  const time = fmtD(ex.g.date, { hour: "numeric", minute: "2-digit" });
+  const bits = ex.groups.map((gr, i) => {
+    const bit = `${fmtSpread(gr.line)} at ${joinNames(gr.books)}`;
+    return i === 0 ? `${ex.team} is ${bit}` : bit;
+  });
+  const away = ex.g.away.short || ex.g.away.name || ex.g.away.abbr, home = ex.g.home.short || ex.g.home.name || ex.g.home.abbr;
+  return `For example, on ${day}'s ${away} at ${home} game (${time} ET), ${bits.join(", and ")} (odds as of ${kickoffET(asOf)}). If you want ${ex.team} at ${fmtSpread(ex.target)} or better, you can set that as the target and wait for the email if it hits. Lines change, so always confirm at the book before you bet.`;
+}
+
 /** Everything the email needs, from the site's data files. */
 export function buildIssue({ meta, indexes, props, now, cfg }) {
   const nowMs = Date.parse(now), days = cfg.windowDays || 7, L = cfg.limits || {};
@@ -186,6 +228,7 @@ export function buildIssue({ meta, indexes, props, now, cfg }) {
     numbers: pickNumbers(games, L.numbers ?? 4, cfg.leagues, 2),
     props: pickProps(props, gameById, nowMs, days, L.props ?? 8),
     moves: pickMoves(games, L.moves ?? 6, cfg.leagues, 2),
+    alertExample: pickAlertExample(games),
     gamesInWindow: games.length,
   };
 }
@@ -243,7 +286,7 @@ export function renderEmail(d, cfg, opts = {}) {
   const issueDay = dateET(d.now), shortDay = fmtD(d.now, { month: "short", day: "numeric" });
   const subject = `LineSmart Weekly, ${shortDay}: best lines, hot props, line moves`;
   const counts = [d.prices.length && `${d.prices.length} price gaps`, d.props.length && `${d.props.length} hot props`, d.moves.length && `${d.moves.length} line moves`].filter(Boolean);
-  const preheader = counts.length ? `${counts.join(", ")} across Hard Rock Bet, DraftKings and FanDuel for the week ahead.` : "This week's lines across Hard Rock Bet, DraftKings and FanDuel.";
+  const preheader = counts.length ? `Set a free line alert, plus ${counts.join(", ")} across Hard Rock Bet, DraftKings and FanDuel.` : "Set a free line alert. This week's lines across Hard Rock Bet, DraftKings and FanDuel.";
 
   const P_ = (html, st = "") => `<p style="margin:0 0 10px;font-size:14px;line-height:1.55;color:${C.mute};${st}">${html}</p>`;
   const card = inner => `<tr><td style="padding:0 0 12px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.card};border:1px solid ${C.line};border-radius:14px"><tr><td style="padding:14px 16px">${inner}</td></tr></table></td></tr>`;
@@ -298,12 +341,28 @@ export function renderEmail(d, cfg, opts = {}) {
   }).join("");
   const movesBlock = section("Notable line moves", "Games where the spread or total has moved the most since it opened.", moveRows || card(P_("No big moves on this week's games so far.", "margin:0")));
 
+  // ---- line-alert lead (a current published spread, when one exists) + free-account button
+  const btn = (href, label) => `<a href="${href}" style="display:inline-block;background:${C.blue};color:#00132e;font-weight:800;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:10px">${label}</a>`;
+  const exampleSentence = d.alertExample
+    ? v(alertExampleText(d.alertExample, d.asOf))
+    : "For example, open a game and tap the bell. You set the spread, total or price you want, and you get one email if it hits. Lines change, so always confirm at the book before you bet.";
+  const accountUrl = `${site}/#/account?entry=newsletter`;
+  const lead = `<tr><td style="padding:18px 4px 6px">
+    <div style="font-size:24px;line-height:1.25;font-weight:800;color:${C.txt};letter-spacing:-.02em">Get one email when a line hits your number</div>
+    ${P_("A free LineSmart account lets you set a line alert on a spread, total or moneyline. You pick the target, and you get one email if it hits. The alert then turns off, and it expires at game start.", "margin:10px 0")}
+    ${P_(exampleSentence, "margin:0 0 10px")}
+    ${P_("Florida users can set alerts at Hard Rock Bet only. Hard Rock Bet is the only legal online sportsbook in Florida. DraftKings and FanDuel prices are shown for comparison where they're legal.", "margin:0 0 14px")}
+    ${btn(accountUrl, "Make a free account")}
+    <div style="font-size:12.5px;color:${C.dim};margin-top:10px;line-height:1.5">You can also open <a href="${site}/#/account/alerts" style="color:${C.cyan}">Line alerts</a> after you sign in.</div>
+  </td></tr>`;
+
   // ---- plug
   const plug = `<tr><td style="padding:22px 0 4px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.card2};border:1px solid ${C.bestLine};border-radius:14px"><tr><td style="padding:18px">
     <div style="font-size:16px;font-weight:800;color:${C.txt}">Track your bets free</div>
     ${P_("My Bets on LineSmart logs every bet you place at any sportsbook and shows your real profit, ROI and record by sport, bet type and book. No sportsbook login needed, and it stays private on your device unless you choose to sync.", "margin:6px 0 12px")}
-    <a href="${site}/#/bets" style="display:inline-block;background:${C.blue};color:#00132e;font-weight:800;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:10px">Open My Bets</a>
+    ${btn(`${site}/#/bets`, "Open My Bets")}
   </td></tr></table></td></tr>`;
+  const waitlistNote = `<tr><td style="padding:16px 4px 4px">${P_(`LineSmart Pro is not open yet. If you want to hear once, when it is, you can join the waitlist at <a href="${site}/#/pro" style="color:${C.cyan}">${site}/#/pro</a>.`, "margin:0")}</td></tr>`;
 
   // ---- footer (CAN-SPAM + responsible gambling). opts.state: the recipient's state code when known (null = unknown).
   const rg = helplineLine(opts.state, { site, link: C.cyan }), showsFL = rg.text.includes("1-833-PLAYWISE");
@@ -326,14 +385,17 @@ export function renderEmail(d, cfg, opts = {}) {
 <tr><td style="padding:0 4px 6px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
   <td><a href="${site}/" style="text-decoration:none;font-size:22px;font-weight:800;letter-spacing:-.02em;color:${C.txt}"><img src="${site}/assets/brand/icon-192.png" width="28" height="28" alt="" style="vertical-align:-7px;border-radius:7px;margin-right:8px">Line<span style="color:${C.blue}">Smart</span></a></td>
   <td align="right" style="font-size:12px;color:${C.dim}">Weekly · ${v(issueDay)}</td></tr></table></td></tr>
-<tr><td style="padding:14px 4px 0"><div style="font-size:24px;line-height:1.25;font-weight:800;color:${C.txt};letter-spacing:-.02em">Best lines, hot props and line moves for the week</div>
-  <div style="font-size:14px;line-height:1.55;color:${C.mute};margin-top:8px">The biggest price differences across Hard Rock Bet, DraftKings and FanDuel, props on a 4-of-5 run, and where the numbers have moved. All from <a href="${site}/" style="color:${C.cyan}">linesmart.app</a>, free.</div></td></tr>
-${pricesBlock}${propsBlock}${movesBlock}${plug}${footer}
+${lead}
+${pricesBlock}${propsBlock}${movesBlock}${plug}${waitlistNote}${footer}
 </table></td></tr></table></body></html>`;
 
   // plain-text part
   const T = [];
-  T.push(`LINESMART WEEKLY · ${issueDay}`, "Best lines, hot props and line moves for the week", "");
+  T.push(`LINESMART WEEKLY · ${issueDay}`, "Get one email when a line hits your number", "",
+    "A free LineSmart account lets you set a line alert on a spread, total or moneyline. You pick the target, and you get one email if it hits. The alert then turns off, and it expires at game start.", "");
+  T.push(lint ? "X" : (d.alertExample ? alertExampleText(d.alertExample, d.asOf) : "For example, open a game and tap the bell. You set the spread, total or price you want, and you get one email if it hits. Lines change, so always confirm at the book before you bet."));
+  T.push("", "Florida users can set alerts at Hard Rock Bet only. Hard Rock Bet is the only legal online sportsbook in Florida. DraftKings and FanDuel prices are shown for comparison where they're legal.",
+    "", `Make a free account: ${accountUrl}`, `Line alerts: ${site}/#/account/alerts`, "");
   T.push("BEST LINES THIS WEEK", `Odds as of ${kickoffET(d.asOf)}. Lines move; check the book before you bet.`);
   for (const r of d.prices) T.push(`- ${r.g.shortName} (${kickoffET(r.g.date)}): ${r.label}: ` + r.cells.map(c => `${BOOK_NAME[c.key]} ${c.off ? `(at ${r.market === "spread" ? fmtSpread(c.line) : fmtNum(c.line)}) ` : ""}${fmtOdds(c.price)}`).join(", ") + ` -> best ${r.bestKeys.map(k => BOOK_NAME[k]).join("/")} (${r.cents}c better)`);
   for (const r of d.numbers) T.push(`- ${r.g.shortName}: ${r.market === "spread" ? r.g.away.abbr + " spread" : "total"} ` + r.cells.map(c => `${BOOK_NAME[c.key]} ${r.market === "spread" ? fmtSpread(c.line) : fmtNum(c.line)} ${fmtOdds(c.price)}`).join(", "));
@@ -344,7 +406,8 @@ ${pricesBlock}${propsBlock}${movesBlock}${plug}${footer}
   T.push("", "NOTABLE LINE MOVES (opening line to now)");
   for (const r of d.moves) T.push(`- ${r.g.shortName}: ` + [r.spread && `spread ${r.g.home.abbr} ${fmtSpread(r.spread.open)} -> ${fmtSpread(r.spread.cur)}`, r.total && `total ${fmtNum(r.total.open)} -> ${fmtNum(r.total.cur)}`].filter(Boolean).join(", ") + (r.notable.length ? ` (${r.notable.join("; ")})` : ""));
   if (!d.moves.length) T.push("- No big moves yet.");
-  T.push("", `TRACK YOUR BETS FREE: ${site}/#/bets`, "", rg.text,
+  T.push("", `TRACK YOUR BETS FREE: ${site}/#/bets`, "",
+    `PRO WAITLIST: LineSmart Pro is not open yet. If you want to hear once, when it is, you can join the waitlist at ${site}/#/pro`, "", rg.text,
     "Florida: Hard Rock Bet is the only legal online sportsbook in Florida. DraftKings and FanDuel are shown for comparison where legal." + (showsFL ? "" : " In Florida you can also call or text 1-833-PLAYWISE."),
     "LineSmart is informational and doesn't take bets. No affiliate links.", `Unsubscribe (one click): ${unsub}`,
     `LineSmart · ${addr || "[MAILING ADDRESS NOT SET]"}`);

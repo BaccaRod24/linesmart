@@ -29,15 +29,84 @@
   const show = () => { const d = dialog(); if (!d.open) { if (d.showModal) d.showModal(); else d.setAttribute("open", ""); } };
   const close = () => { if (dlg) { if (dlg.close) dlg.close(); else dlg.removeAttribute("open"); } };
 
+  function signInSheet(spec) {
+    const d = dialog();
+    const rg = window.LSGeo ? window.LSGeo.rgSpan() : "";
+    const say = (err, info) => {
+      const box = d.querySelector(".al-sign-msg");
+      if (!box) return;
+      box.className = "al-sign-msg" + (err ? " ac-err" : info ? " ac-info" : "");
+      box.textContent = err || info || "";
+      if (err) box.setAttribute("role", "alert"); else box.setAttribute("role", "status");
+    };
+    const emailStep = (err) => {
+      d.innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><span aria-hidden="true">🔔</span> Line alerts</h3>
+        <p class="ac-p">Sign in to get an email when the line hits your number. A free account, no password. You pick the target, you get one email if it hits, and the alert turns off. It expires at game start.</p>
+        <form id="alSign" novalidate>
+          <label class="bt-lbl" for="alEm">Email</label>
+          <input id="alEm" type="email" name="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com" required>
+          <div class="al-sign-msg${err ? " ac-err" : ""}" ${err ? 'role="alert"' : 'role="status"'}>${esc(err || "")}</div>
+          <div class="bt-dl-foot"><a class="lnk" href="#/account" data-x>Account</a><span style="flex:1"></span><button type="button" class="chip" data-x>Not now</button><button type="submit" class="bt-add">Email me a code</button></div>
+        </form>
+        <p class="ac-p">Florida: Hard Rock Bet is the only legal online sportsbook in Florida. DraftKings and FanDuel prices are shown for comparison where they're legal.</p>
+        <p class="al-rg">21+ | Gambling problem? ${rg}</p></div>`;
+      d.querySelectorAll("[data-x]").forEach(b => b.addEventListener("click", close));
+      const form = d.querySelector("#alSign");
+      form.addEventListener("submit", async e => {
+        e.preventDefault();
+        const email = form.email.value;
+        const btn = form.querySelector('button[type="submit"]');
+        if (!ACC() || !ACC().requestOtp) { say("Open the Account tab to sign in."); return; }
+        if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+        const r = await ACC().requestOtp(email, "bell");
+        if (!r.ok) { emailStep(r.error || "Something went wrong. Please try again."); return; }
+        codeStep(r.email, r.info || "");
+      });
+      const keep = d.querySelector("#alEm"); if (keep && err) keep.focus();
+    };
+    const codeStep = (email, info) => {
+      d.innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><span aria-hidden="true">🔔</span> Check your email</h3>
+        <p class="ac-p">We emailed a sign-in code (or link) to <b>${esc(email)}</b>. Enter the code here, or tap the link on this device. Then you can set the alert.</p>
+        <form id="alCode" novalidate>
+          <label class="bt-lbl" for="alCd">Sign-in code</label>
+          <input id="alCd" class="ac-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="8-digit code" required>
+          <div class="al-sign-msg${info ? " ac-info" : ""}" role="status">${esc(info || "")}</div>
+          <div class="bt-dl-foot"><button type="button" class="chip" id="alBack">Use a different email</button><span style="flex:1"></span><button type="button" class="chip" data-x>Not now</button><button type="submit" class="bt-add">Verify</button></div>
+        </form>
+        <p class="al-rg">21+ | Gambling problem? ${rg}</p></div>`;
+      d.querySelectorAll("[data-x]").forEach(b => b.addEventListener("click", close));
+      d.querySelector("#alBack").addEventListener("click", () => emailStep(""));
+      d.querySelector("#alCode").addEventListener("submit", async e => {
+        e.preventDefault();
+        const code = d.querySelector("#alCd").value;
+        const btn = d.querySelector('#alCode button[type="submit"]');
+        if (btn) { btn.disabled = true; btn.textContent = "Checking…"; }
+        const r = await ACC().verifyCode(code, email);
+        if (!r.ok) { say(r.error || "That code didn't work."); if (btn) { btn.disabled = false; btn.textContent = "Verify"; } return; }
+        open(spec);
+      });
+    };
+    emailStep("");
+    show();
+  }
+  async function maybeWaitlist(host) {
+    const Pro = window.LSPro;
+    if (!Pro || !Pro.waitlistCard || !host) return;
+    try {
+      if (localStorage.getItem("ls-pro-nudge-3") === "1" || localStorage.getItem("ls-pro-v1")) return;
+    } catch (e) { return; }
+    try {
+      const sb = await ACC().client();
+      const { data, error } = await sb.from(C.TABLE).select("id");
+      if (error || !data || data.length < 3) return;
+      localStorage.setItem("ls-pro-nudge-3", "1");
+      host.insertAdjacentHTML("beforeend", Pro.waitlistCard("alert3"));
+      Pro.bindWaitlist(host);
+    } catch (e) { /* the alert is already saved; the waitlist card can wait for the Account tab */ }
+  }
   async function open(spec) {
     const d = dialog();
-    if (!ACC() || !ACC().signedIn()) {
-      d.innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><span aria-hidden="true">🔔</span> Line alerts</h3>
-        <p class="ac-p">Sign in to get an email when a line moves or hits your number. It's free, and signing in only takes an emailed code.</p>
-        <div class="bt-dl-foot"><span style="flex:1"></span><button type="button" class="chip" data-x>Not now</button><a class="bt-add" href="#/account" data-x>Sign in</a></div></div>`;
-      d.querySelectorAll("[data-x]").forEach(b => b.addEventListener("click", close));
-      return show();
-    }
+    if (!ACC() || !ACC().signedIn()) return signInSheet(spec);
     d.innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><span aria-hidden="true">🔔</span> Line alert</h3><div class="na">Loading lines…</div></div>`;
     show();
     try {
@@ -115,8 +184,10 @@
       dialog().innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><span aria-hidden="true">🔔</span> Alert set</h3>
         <p class="ac-p"><b>${esc(C.describe(prev.row))}</b></p>
         <p class="ac-p">We'll email ${email ? `<b>${esc(email)}</b>` : "you"} once if it happens before the game starts. We check after each odds update (about every 30 minutes), so a quick move and move back can be missed.</p>
-        <div class="bt-dl-foot"><a class="lnk" href="#/account" data-x>Manage alerts</a><span style="flex:1"></span><button type="button" class="bt-add" data-x>Done</button></div></div>`;
+        <div class="bt-dl-foot"><a class="lnk" href="#/account" data-x>Manage alerts</a><span style="flex:1"></span><button type="button" class="bt-add" data-x>Done</button></div>
+        <div id="alWait"></div></div>`;
       dialog().querySelectorAll("[data-x]").forEach(b => b.addEventListener("click", close));
+      maybeWaitlist(dialog().querySelector("#alWait"));
     } catch (e) {
       const msg = window.LSProApp && /alert_limit/.test(String((e && (e.message || e.hint)) || e || ""))
         ? `You already have ${alertCap()} active alerts. Delete one in Account to add another.`

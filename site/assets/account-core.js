@@ -16,6 +16,13 @@
   const SYNC_KEY = "ls-sync-v1";        // {last, email, up, down, del}
   const RESEND_SECS = 60;               // Supabase allows one sign-in email per address per 60 s by default
   const PUSH_CHUNK = 200;
+  // Where a new account started. Stored once, as a label only (no email), so a daily count can group by it.
+  const SIGNUP_ENTRIES = ["bell", "my-bets", "newsletter", "waitlist", "account"];
+  /** Allowlisted entry label, or `fallback` when the value isn't one of ours. */
+  function signupEntry(v, fallback = "account") {
+    const s = String(v == null ? "" : v).trim().toLowerCase();
+    return SIGNUP_ENTRIES.includes(s) ? s : fallback;
+  }
 
   const t = v => { const n = Date.parse(v || ""); return isFinite(n) ? n : 0; };
   const iso = n => new Date(n).toISOString();
@@ -146,6 +153,6 @@
     return "Sign-in didn't finish" + (r.description ? `: ${r.description}` : ".") + " Send a new code (or link) below.";
   }
 
-  return { SB_URL, SB_KEY, SB_LIB, TABLE, AUTH_KEY, TOMB_KEY, SYNC_KEY, RESEND_SECS, PUSH_CHUNK,
-    validEmail, cleanCode, validCode, migrate, stamp, snapshot, merge, chunks, authError, syncError, parseAuthReturn, linkError };
+  return { SB_URL, SB_KEY, SB_LIB, TABLE, AUTH_KEY, TOMB_KEY, SYNC_KEY, RESEND_SECS, PUSH_CHUNK, SIGNUP_ENTRIES,
+    validEmail, cleanCode, validCode, signupEntry, migrate, stamp, snapshot, merge, chunks, authError, syncError, parseAuthReturn, linkError };
 });

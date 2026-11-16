@@ -129,7 +129,15 @@ const issue = L.buildIssue({ meta, indexes: [{ lg: "nfl", index: nfl }], props: 
   check(m.html.includes("PO Box 123, Anytown, FL 00000") && !/NOT SET/.test(m.html), "mailing address shown", T);
   check(m.html.includes("https://linesmart.app/#/bets") && /Track your bets free/.test(m.html), "My Bets plug", T);
   check(m.html.includes("AAA moneyline") && m.html.includes("Drew Lock") && /Notable line moves/.test(m.html) && /Crossed key number 7/.test(m.html), "all sections rendered from data", T);
-  check(/^LineSmart Weekly, Oct 29: /.test(m.subject) && m.preheader.length < 150, "subject + preheader", T);
+  check(/^LineSmart Weekly, Oct 29: /.test(m.subject) && m.preheader.length < 150 && /^Set a free line alert/.test(m.preheader), "subject + preheader leads with a free line alert", T);
+  check(/Get one email when a line hits your number/.test(m.html + m.text) && /Make a free account/.test(m.html) && m.html.includes("https://linesmart.app/#/account?entry=newsletter") && m.text.includes("https://linesmart.app/#/account?entry=newsletter"), "lead: line-alert example and a free-account button tagged newsletter", T);
+  check(/background:#3d9bff;color:#00132e;font-weight:800;font-size:14px/.test(m.html) && /padding:10px 18px;border-radius:10px/.test(m.html), "account button uses the My Bets button style", T);
+  check(/LineSmart Pro is not open yet/.test(m.html + m.text) && m.html.includes("https://linesmart.app/#/pro") && !/class="[^"]*pro-wait/.test(m.html), "one Pro waitlist mention, as text", T);
+  check(/Open My Bets/.test(m.html) && /Track your bets free/.test(m.html), "My Bets plug kept", T);
+  check(/Hard Rock Bet is the only legal online sportsbook in Florida/.test(m.html + m.text) && !/DraftKings and FanDuel are legal in Florida/i.test(m.html + m.text), "Florida note does not call DraftKings or FanDuel legal there", T);
+  const ex = issue.alertExample && L.alertExampleText(issue.alertExample, issue.asOf);
+  check(!!ex && /DDD is/.test(ex) && /or better/.test(ex) && !/\bopen(ed|ing)\b|\bmoved\b/i.test(ex), `example is a current spread (${ex ? ex.slice(0, 80) : "missing"})`, T);
+  check(m.html.includes("Unsubscribe") && /1-800-GAMBLER|1-833-PLAYWISE/.test(m.text), "unsubscribe and a helpline stay in the new layout", T);
   const links = [...m.html.matchAll(/href="([^"]+)"/g)].map(x => x[1]);
   check(links.length > 5 && links.every(h => h.startsWith("https://linesmart.app/") || h.startsWith("mailto:contact@linesmart.app") || /^tel:1\d{10}$/.test(h)), "every link goes to linesmart.app, contact@ or a helpline tel: (no affiliate links)", T);
   check(!/promo|bonus|affiliate=|[?&]ref=|utm_|[?&]code=/i.test(m.html.replace("This email has no affiliate links.", "")), "no promo codes / tracking parameters", T);

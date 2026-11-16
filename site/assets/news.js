@@ -74,6 +74,57 @@
     (root || document).querySelectorAll("[data-news-signup]:not([data-news-ready])").forEach(s => { s.dataset.newsReady = "1"; wire(s); });
   }
 
+  // ---------- after a confirmed newsletter: one inline magic-link offer (same email). Not a popup.
+  function appHome() {
+    const u = new URL("./", location.href);
+    return u.href;
+  }
+  function accountOffer(prefill) {
+    let signed = false;
+    try { signed = !!localStorage.getItem("ls-sb-auth"); } catch (e) {}
+    if (signed) return "";
+    const email = String(prefill || "").trim();
+    const rg = window.LSGeo ? window.LSGeo.rgSpan() : "";
+    return `<div class="news-acct" id="newsAcct">
+      <h3>Make a free account</h3>
+      <p>Use the same email and we'll send a sign-in link. A free account keeps My Bets on every device and lets you set a line alert: one email when the line hits your number, then the alert turns off.</p>
+      <form id="newsAcctForm" novalidate>
+        <label class="bt-lbl" for="newsAcctEmail">Email</label>
+        <input id="newsAcctEmail" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="254" placeholder="you@example.com" required value="${esc(email)}">
+        <button type="submit" class="news-btn">Email me a sign-in link</button>
+        <p class="news-msg" id="newsAcctMsg" role="status"></p>
+      </form>
+      <p class="news-fine">No password. You can also <a href="./#/account?entry=newsletter">enter a code on the Account tab</a>.</p>
+      <p class="ac-p">Florida: Hard Rock Bet is the only legal online sportsbook in Florida. DraftKings and FanDuel prices are shown for comparison where they're legal.</p>
+      <p class="al-rg">21+ | Gambling problem? ${rg}</p>
+    </div>`;
+  }
+  function wireAccountOffer(box) {
+    const f = box.querySelector("#newsAcctForm"); if (!f || f.dataset.wired) return;
+    f.dataset.wired = "1";
+    const msg = f.querySelector(".news-msg"), btn = f.querySelector("button[type=submit]");
+    const say = (kind, text) => { msg.className = "news-msg " + kind; msg.textContent = text; };
+    f.addEventListener("submit", async e => {
+      e.preventDefault();
+      const email = String(f.email.value || "").trim();
+      if (!N.validEmail(email)) { say("err", "Enter the email you just confirmed."); f.email.focus(); return; }
+      btn.disabled = true; btn.textContent = "Sending…";
+      try { sessionStorage.setItem("ls-signup-entry", "newsletter"); } catch (err) {}
+      const redirect = appHome() + "#/account?entry=newsletter";
+      try {
+        const res = await fetch(N.SB_URL + "/auth/v1/otp?redirect_to=" + encodeURIComponent(redirect), {
+          method: "POST",
+          headers: { apikey: N.SB_KEY, Authorization: "Bearer " + N.SB_KEY, "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ email, create_user: true, data: { signup_entry: "newsletter" } }),
+        });
+        if (res.status === 429) say("err", "Too many requests, try again later. Use the newest sign-in email if you already have one.");
+        else if (res.ok) say("ok", "Check your email for the sign-in link. It opens LineSmart on this device and creates your free account if you don't have one yet.");
+        else say("err", "Couldn't send the sign-in link. You can enter your email on the Account tab instead.");
+      } catch (err) { say("err", "Couldn't reach the sign-in server. Check your connection and try again."); }
+      finally { btn.disabled = false; btn.textContent = "Email me a sign-in link"; }
+    });
+  }
+
   // ---------- confirm / unsubscribe pages
   function pageView(kind) {
     const box = document.getElementById("newsPage"); if (!box) return;
@@ -82,7 +133,7 @@
     const show = (r, retry) => {
       box.innerHTML = `<div class="news-result ${r.kind}"><h2>${esc(r.title)}</h2><p>${esc(r.text)}</p>${retry ? `<button type="button" class="news-btn" data-go>${kind === "confirm" ? "Confirm again" : "Try again"}</button>` : ""}</div>`;
       if (kind === "confirm" && r.kind === "err" && !retry) { const d = document.createElement("div"); d.dataset.newsSignup = "site"; d.className = "news-page-signup"; box.appendChild(d); mountAll(box); }
-      if (kind === "confirm" && (r === T.confirmed || r === T.already)) { const p = store.get(); if (p) store.set({ ...p, state: "confirmed" }); box.querySelector(".news-result").insertAdjacentHTML("beforeend", `<p><a class="news-link" href="./">Back to today's odds</a> · <a class="news-link" href="./#/bets">Track your bets free</a></p>`); }
+      if (kind === "confirm" && (r === T.confirmed || r === T.already)) { const p = store.get(); if (p) store.set({ ...p, state: "confirmed" }); box.querySelector(".news-result").insertAdjacentHTML("beforeend", `<p><a class="news-link" href="./">Back to today's odds</a> · <a class="news-link" href="./#/bets">Track your bets free</a></p>${accountOffer(p && p.email)}`); wireAccountOffer(box); }
       if (kind === "unsub" && r.kind === "ok") { const p = store.get(); if (p) store.set({ ...p, state: "unsubscribed" }); box.querySelector(".news-result").insertAdjacentHTML("beforeend", `<p><a class="news-link" href="./">Back to LineSmart</a></p>`); }
       const go = box.querySelector("[data-go]"); if (go) go.addEventListener("click", run);
     };

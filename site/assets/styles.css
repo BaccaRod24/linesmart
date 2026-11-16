@@ -1628,6 +1628,27 @@ body:has(.news-bets) .footer .news-foot{display:none}
 .al-prev .na{font-size:12.5px}
 .al-why{color:var(--warn)}
 .al-rg{margin:12px 0 0;font-size:11.5px;color:var(--dim);text-align:center}
+.al-sign-msg{margin-top:8px;font-size:13.5px;line-height:1.45}
+.al-sign-msg:empty{display:none}
+.al-dlg .al-sign-msg.ac-err,.al-dlg .al-sign-msg.ac-info{padding:10px 12px;border-radius:var(--r-sm)}
+.al-dlg #alEm,.al-dlg #alCd{width:100%;max-width:100%;box-sizing:border-box;font-size:16px}
+.al-dlg .bt-dl-foot{flex-wrap:wrap}
+.al-dlg .bt-dl-foot .lnk{white-space:nowrap}
+.bt-nudge{margin:0 0 14px;padding:14px 16px;border:1px solid var(--accent-line);background:var(--surface);min-width:0}
+.bt-nudge b{font-size:15px}
+.bt-nudge p{margin:6px 0 10px;color:var(--mute);font-size:14px;line-height:1.5}
+.bt-nudge-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bt-nudge .bt-add{white-space:normal;text-align:center;max-width:100%}
+.pro-wait{min-width:0;max-width:100%}
+.pro-wait h3{margin:0 0 6px;font-size:17px}
+.pro-wait .ac-p{margin:0 0 10px}
+.pro-wait .bt-add{white-space:normal;text-align:center;max-width:100%}
+.pro-wait .news-msg{margin-top:8px}
+.news-acct{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);min-width:0}
+.news-acct h3{margin:0 0 6px;font-size:17px}
+.news-acct p{margin:0 0 10px}
+.news-acct input{width:100%;max-width:100%;box-sizing:border-box;font-size:16px;min-height:42px;margin:0 0 10px}
+.news-acct .news-btn{white-space:normal;max-width:100%}
 .al-list{list-style:none;margin:0 0 6px;padding:0}
 .al-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
 .al-row:last-child{border-bottom:0}

@@ -583,6 +583,8 @@ HEAD_LINKS = """<link rel="icon" href="favicon.ico" sizes="any">
 <script src="assets/geo.js" defer></script>
 <script src="assets/news-core.js" defer></script>
 <script src="assets/news.js" defer></script>
+<script src="assets/music-core.js" defer></script>
+<script src="assets/music.js" defer></script>
 <script src="assets/preview.js" defer></script>"""
 
 STATE_BTN = '<button class="search-btn state-btn" id="stateBtn" type="button" aria-label="Pick your state" title="Pick your state: sets which sportsbooks we show"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg><span class="st-l">State</span></button>'
@@ -618,6 +620,7 @@ def shell(depth, path, title, desc, body, jsonld=None, og_type="article", base_u
 <header class="topbar">
   <div class="wrap topbar-inner">
     <a class="brand" href="./" title="LineSmart — home"><img class="brand-logo" src="assets/brand/logo.svg" alt="LineSmart" width="277" height="64"></a>
+    {build_pages.MUSIC_BTN}
     <a class="legal-nav-a" href="preview/">Previews</a>
     {STATE_BTN}
     <a class="search-btn" href="./#/search" aria-label="Search teams and players" title="Search teams and players"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="sb-l">Search</span></a>

@@ -13,10 +13,13 @@ Outputs (all generated, git-ignored):
   site/preview/**                    redirect stubs for the old /preview/ URLs (canonical -> new page)
   site/<lg>/games|fights/<slug>/     a short hub redirect when an upcoming page drops before it is archived
   site/data/pages.json               hash route -> real URL manifest used by app.js (redirects + link rewriting)
-  site/sitemap.xml                   sitemap index; child files sitemap-core/live/results/games-*.xml
+  site/sitemap.xml                   sitemap index; child files sitemap-core/live/props/results/games-*.xml
                                      a game URL is listed only when this build wrote that game's HTML.
                                      Thin pages (past games with no odds, empty props, meta-refresh
                                      stubs, duplicate/redirect URLs) are left out of the sitemap.
+                                     NFL and NBA prop pages with no current line stay published and
+                                     are listed in sitemap-props.xml, not sitemap-live.xml.
+  site/line-moves/                   verified open-to-current spread and total moves
   site/index.html                    the <!-- seo:home:start/end --> block (mobile homepage cards)
 
 Finished games stay up permanently with the final score and the last lines we saw before the start (closing lines).
@@ -42,6 +45,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_pages  # noqa: E402
 import line_history as LH  # noqa: E402  (even-money-aware moneyline move, shared with the game page)
+import line_moves as LM  # noqa: E402  (verified open-to-current moves for /line-moves/)
 import previews as pv  # noqa: E402  (formatting, odds tables, line movement, summaries, form/injury cards)
 import final_label as FL  # noqa: E402  ("Final/OT", "Final/12"... labels)
 import standings as ST_STAND  # noqa: E402  (ESPN standings cache written by build_data.py)
@@ -70,7 +74,8 @@ NAMES = {"nfl": "NFL", "nba": "NBA", "ncaaf": "College Football", "ncaab": "Coll
 SHORT = {"nfl": "NFL", "nba": "NBA", "ncaaf": "NCAAF", "ncaab": "NCAAB", "nhl": "NHL", "mlb": "MLB", "ufc": "UFC"}
 PP_LEGEND = ('<div class="pp-legend sx-legend" aria-label="Legend"><span><i class="pp-dot pp-o"></i>Over</span><span><i class="pp-dot pp-u"></i>Under</span>'
              '<span><i class="pp-dot pp-p"></i>Push</span><span><i class="pp-dot pp-x"></i>No game</span></div>')
-PLAYER_KEEP_DAYS = 14     # a player page stays this long after his last posted prop
+PLAYER_KEEP_DAYS = 14     # NHL/MLB/college prop pages stay this long after the last posted line
+PROP_KEEP_LGS = ("nfl", "nba")  # a published NFL or NBA prop page is never deleted
 SITEMAP_MAX = 50_000      # protocol cap; a child file is split before it reaches this
 RESULTS_DAYS = 14         # hub + /<lg>/results/ "recent" window; older finals live on the month pages
 # Tool pages that stay in sitemap-core.xml, outside the generated block (IndexNow does not ping them).
@@ -102,10 +107,11 @@ BEST_LINES = "best-lines-today/"
 
 # Shared with geo-core.js. The browser file site/assets/books-by-state.js is generated from this JSON.
 BOOKS_PATH = ROOT / "data" / "books-by-state.json"
+PUBLISHED_PROPS_PATH = ROOT / "data" / "published-props.json"
 ASOF_MAX_DAYS = 30
 # A state slug is a top-level directory the build swaps. These names belong to leagues, tools, or the index.
 RESERVED_DIRS = set(LEAGUE_DIRS) | {
-    "states", "assets", "data", "preview", "best-lines-today",
+    "states", "assets", "data", "preview", "best-lines-today", "line-moves",
     "about", "responsible-gambling", "privacy", "terms", "affiliate-disclosure",
     "subscribed", "unsubscribe", "index",
 }
@@ -116,6 +122,27 @@ def state_slug(code, name):
     if code == "DC":
         return "washington-dc"
     return slugify(name or "")
+
+
+def published_props(lg, path=None):
+    """pid -> snapshot for NFL/NBA prop pages that were published and then pruned.
+
+    data/published-props.json is the seed recovered from data-history. The live
+    archive (players-<lg>.json) is the copy that grows from here and is not pruned
+    for these two leagues. Other leagues are not in the file.
+    """
+    doc = load_json(Path(path) if path else PUBLISHED_PROPS_PATH) or {}
+    block = (doc.get("leagues") or {}).get(lg) or {}
+    return block if isinstance(block, dict) else {}
+
+
+def _prop_rows(raw):
+    """Archive and registry rows are [game id, prop row]. Keep that pair."""
+    out = []
+    for item in raw or []:
+        if isinstance(item, (list, tuple)) and len(item) == 2 and isinstance(item[1], (list, tuple)):
+            out.append((str(item[0]), list(item[1])))
+    return out
 
 
 def load_books(path=None):
@@ -188,7 +215,7 @@ _BOOKS_DOC = load_books()
 _SLUG_CLASH = slug_clashes(_BOOKS_DOC)
 if _SLUG_CLASH:
     raise SystemExit("seo_pages: state slug clashes with a league or tool folder: " + ", ".join(_SLUG_CLASH))
-GEN_DIRS = LEAGUE_DIRS + [s for _, _, s in legal_states(_BOOKS_DOC)] + ["states", "best-lines-today"]
+GEN_DIRS = LEAGUE_DIRS + [s for _, _, s in legal_states(_BOOKS_DOC)] + ["states", "best-lines-today", "line-moves"]
 
 
 def iso(dt):
@@ -1227,15 +1254,31 @@ class League:
         for pid, e in self.players.items():
             if self.arch.dir:
                 ap[pid] = {"p": e["p"], "rows": e["rows"], "seen": e["seen"]}
-        cut = self.now - timedelta(days=PLAYER_KEEP_DAYS)
+        # NFL and NBA pages stay up after the line comes down. Other leagues still expire.
+        cut = None if self.lg in PROP_KEEP_LGS else self.now - timedelta(days=PLAYER_KEEP_DAYS)
         for pid in list(ap):
-            if (parse_dt(ap[pid].get("seen")) or self.now) < cut:
+            if cut is not None and (parse_dt(ap[pid].get("seen")) or self.now) < cut:
                 del ap[pid]
                 continue
             if pid not in self.players:
                 e = dict(ap[pid], archived=True)
-                e["rows"] = [tuple(x) for x in e.get("rows") or []]
+                e["rows"] = _prop_rows(e.get("rows"))
                 self.players[pid] = e
+        if self.lg in PROP_KEEP_LGS:
+            for pid, snap in published_props(self.lg).items():
+                if not isinstance(snap, dict) or not (snap.get("p") or {}).get("n"):
+                    continue
+                if self.arch.dir and snap.get("slug") and pid not in slugs:
+                    slugs[pid] = snap["slug"]
+                elif not self.arch.dir and snap.get("slug"):
+                    slugs.setdefault(pid, snap["slug"])
+                if pid in self.players:
+                    continue
+                rows = _prop_rows(snap.get("rows"))
+                e = {"p": snap["p"], "rows": rows, "archived": True, "seen": snap.get("seen") or iso(self.now)}
+                self.players[pid] = e
+                if self.arch.dir:
+                    ap[pid] = {"p": e["p"], "rows": rows, "seen": e["seen"]}
         used = {}
         for pid in sorted(self.players, key=lambda k: (self.players[k]["archived"], self.players[k]["p"].get("n") or "", k)):
             base = slugs.get(pid) or slugify(self.players[pid]["p"].get("n") or pid)
@@ -2453,11 +2496,30 @@ def _prop_bits(L, rows, n=3):
 def player_meta(L: League, pid):
     """<title> and meta description for a player-prop page.
     'Josh Jacobs (GB) Props: DK, FD & HR (Oct 29) | LineSmart'. The description names the player, the date and
-    compares DraftKings, FanDuel and Hard Rock Bet. A long name keeps the date by dropping to the last name."""
+    compares DraftKings, FanDuel and Hard Rock Bet. A long name keeps the date by dropping to the last name.
+    A page with no current line says so instead of comparing books."""
     e = L.players[pid]
     pl = e["p"]
     name = " ".join(((pl.get("n") or pid) or "").split()) or pid
     ta = " ".join(((pl.get("ta") or "")).split())
+    if not prop_is_live(L, e):
+        last = short_person(name)
+        who = f"{name} ({ta})" if ta else name
+        seen = parse_dt(e.get("seen"))
+        D = short_day(seen, False) if seen else ""
+        day = title_day(seen) if seen else ""
+        cands = []
+        if D and ta:
+            cands.append(f"{name} ({ta}) Props: {TITLE_BOOKS} ({D})")
+        if D:
+            cands.append(f"{name} Props: {TITLE_BOOKS} ({D})")
+        if D and last and last != name:
+            cands += [f"{last} ({ta}) Props: {TITLE_BOOKS} ({D})" if ta else "", f"{last} Props: {TITLE_BOOKS} ({D})"]
+        cands += [f"{name} Props: {TITLE_BOOKS}", f"{last} Props: {TITLE_BOOKS}" if last and last != name else ""]
+        title = fit(*cands)
+        when = f" ({day})" if day else ""
+        desc = cut(f"No current lines for {who}. Last recorded lines{when} were across {COMPARE_BOOKS}.")
+        return title, desc
     last = short_person(name)
     nxt, dt = _player_dt(L, e)
     D = short_day(dt, False) if dt else ""
@@ -2531,6 +2593,7 @@ def player_page(L: League, sh: Shell, pid):
     games = [L.games.get(g) for g in gids if L.games.get(g)]
     nxt = games[0] if games else None
     seen = parse_dt(e.get("seen"))
+    live_lines = prop_is_live(L, e)
     cards = []
     for gid, r in rows:
         mk, ln = r[1], r[2]
@@ -2540,7 +2603,7 @@ def player_page(L: League, sh: Shell, pid):
         rt = rate(pl.get("log"), mk, ln, 5)
         r10 = rate(pl.get("log"), mk, ln, 10)
         hot = is_hot(pl.get("log"), mk, ln)
-        mv = f' <span class="na">opened {esc(num(opn))} {"▲" if ln > opn else "▼"}</span>' if isnum(opn) and isnum(ln) and opn != ln else ""
+        mv = f' <span class="na">opened {esc(num(opn))} {"▲" if ln > opn else "▼"}</span>' if live_lines and isnum(opn) and isnum(ln) and opn != ln else ""
         priced = {k: b for k, b in books.items() if isinstance(b, list) and len(b) >= 3 and (isnum(b[1]) or isnum(b[2]))}
         px = ""
         if priced:     # price columns only when at least one book has prices (no rows of dashes)
@@ -2550,12 +2613,13 @@ def player_page(L: League, sh: Shell, pid):
                   + "</tbody></table></div>")
         g = L.games.get(gid)
         gl = f'<a href="{esc(L.paths[gid])}">{esc(L.matchup(g, short=True))}</a>' if g and gid in L.paths else ""
-        cards.append(f"""<div class="pp-row sx-prop{' hot' if hot else ''}">
-  <div class="pp-h"><b>{esc((L.markets.get(mk) or [mk])[0])}</b> <span class="sx-line">{esc(line_text(mk, ln))}</span>{mv}{' <span class="sx-hot">Hot</span>' if hot else ''}{(' <span class="na sx-gl">' + gl + '</span>') if gl else ''}</div>
+        last_tag = ' <span class="na">Last line</span>' if not live_lines else ""
+        cards.append(f"""<div class="pp-row sx-prop{' hot' if hot and live_lines else ''}">
+  <div class="pp-h"><b>{esc((L.markets.get(mk) or [mk])[0])}</b>{last_tag} <span class="sx-line">{esc(line_text(mk, ln))}</span>{mv}{' <span class="sx-hot">Hot</span>' if hot and live_lines else ''}{(' <span class="na sx-gl">' + gl + '</span>') if gl else ''}</div>
   {strip_html(pl.get("log"), mk, ln)}
   <div class="pp-sum na">Last 5: {rt["o"]}/{rt["n"]} over{NB}· last 10: {r10["o"]}/{r10["n"]}{(f'{NB}· this season: {tally[0]}/{tally[3]}') if tally and tally[3] else ''}</div>
-  {px}
-  {prop_alert_cta(L, g, gid, pid, mk, name, (L.markets.get(mk) or [mk])[0]) if not e.get("archived") and (priced or isnum(ln) or mk == "anytime_td") else ""}
+  {px if live_lines else ""}
+  {prop_alert_cta(L, g, gid, pid, mk, name, (L.markets.get(mk) or [mk])[0]) if live_lines and (priced or isnum(ln) or mk == "anytime_td") else ""}
 </div>""")
     mks = []
     for _, r in rows:
@@ -2567,15 +2631,17 @@ def player_page(L: League, sh: Shell, pid):
     log_tbl = (f'<div class="card"><div class="tbl-wrap"><table class="books sx-log"><thead><tr><th>Date</th><th>Opp</th>'
                + "".join(f"<th>{esc((L.markets.get(m) or [m, m])[1])}</th>" for m in mks) + f"</tr></thead><tbody>{log_rows}</tbody></table></div></div>") if log_rows else ""
     when = f"{L.matchup(nxt, short=True)}, {fmt_et(parse_dt(nxt['date']))}" if nxt else ""
-    stale = e.get("archived")
     title, desc = player_meta(L, pid)
-    note = (f'<p class="sx-stale">No new lines posted for {esc(name)} right now. These are the last lines we saw ({esc(fmt_et(seen, False))}).</p>' if stale and seen else "")
+    seen_bit = f", graded against the last lines we saw ({esc(fmt_et(seen, False))})" if seen else ""
+    note = (f'<p class="sx-stale">No current lines for {esc(name)}. Recent results are the last-5 boxes below{seen_bit}.</p>' if not live_lines else "")
+    h1 = f"{esc(name)} props: lines &amp; last-5 results" if live_lines else f"{esc(name)}: no current lines"
+    grade_note = "Every past game is graded against the current line. Past results only, not a prediction." if live_lines else "Every past game is graded against the last line we saw. Past results only, not a prediction."
     main = f"""<article class="pv sx-player">
 {crumbs((L.hub, NAMES[L.lg]), (f"{L.hub}#players-s", "Player props"), (None, name))}
-<h1 class="pv-h1">{esc(name)} props: lines &amp; last-5 results</h1>
+<h1 class="pv-h1">{h1}</h1>
 <p class="pv-lead">{esc(pl.get("pos") or "")}{NB}· {L.team_link(team)}{(NB + '· ' + (f'<a href="{esc(L.paths[nxt["id"]])}">' if nxt and str(nxt["id"]) in L.paths else '') + esc(nb_sep(when)) + ('</a>' if nxt and str(nxt["id"]) in L.paths else '')) if when else ''}</p>
 {note}
-{section("lines", "Prop lines", '<div class="card pp-card sx-pcard">' + "".join(cards) + PP_LEGEND + '<p class="pp-note-l note">Every past game is graded against the current line. Past results only, not a prediction.</p></div>')}
+{section("lines", "Prop lines" if live_lines else "Recent results", '<div class="card pp-card sx-pcard">' + "".join(cards) + PP_LEGEND + f'<p class="pp-note-l note">{grade_note}</p></div>')}
 {section("log", "Recent game log", log_tbl)}
 <p class="pv-cta"><a class="pv-live" href="#/p/{L.lg}/{esc(pid)}/log">Open {esc(name)} in the app →</a> <span class="na">Full game log, matchup and line alerts.</span></p>
 <p class="note pv-upd">{stamp("Lines from LineSmart data refreshed " + esc(fmt_et(L.generated)))}. Lines change; confirm with the sportsbook. For adults 21+.</p>
@@ -3389,7 +3455,7 @@ def hub_page(L: League, sh: Shell, Ls):
 <h1 class="pv-h1">{h1}</h1>
 <p class="pv-lead">{esc(lead)}</p>
 {discover_nav(Ls, L.lg, games=False, props=False)}
-<p class="note"><a href="{BEST_LINES}">Best lines today</a>{props_top}</p>
+<p class="note"><a href="{BEST_LINES}">Best lines today</a>{props_top}{'' if L.lg == 'ufc' else ' · <a href="line-moves/">Line moves</a>'}</p>
 {today_html}
 {evs}
 {section("schedule", "Upcoming " + ("bouts" if L.lg == "ufc" else "games"), "".join(days) or '<div class="empty">No games in the next few days. Check back after the next data refresh.</div>')}
@@ -4296,12 +4362,13 @@ def home_cards(Ls, now):
     def row(rid, title, sub, tiles, more_href=None):
         if not tiles:
             return ""
-        return (f'<section class="hc-row" aria-labelledby="{rid}"><div class="hc-h"><h2 id="{rid}">{title}</h2>{f"<span>{sub}</span>" if sub else ""}</div>'
+        extra = f'<a class="hc-all" href="{esc(more_href)}">All line moves</a>' if more_href else ""
+        return (f'<section class="hc-row" aria-labelledby="{rid}"><div class="hc-h"><h2 id="{rid}">{title}</h2>{f"<span>{sub}</span>" if sub else ""}{extra}</div>'
                 f'<div class="hc-scroll">{"".join(tiles)}</div></section>')
     any_today = any(not x[0] for x in top)
     html_ = "".join([
         row("hcTop", "Top games today" if any_today else "Top upcoming games", "Best line across books", [game_tile(Ls[x[4]], x[5], x[6], True) for x in top]),
-        row("hcMoves", "Biggest line moves", "Since open", [move_tile(m, Ls) for m in moves]),
+        row("hcMoves", "Biggest line moves", "Since open", [move_tile(m, Ls) for m in moves], "line-moves/"),
         row("hcHot", "Hot props", "Last 5 vs the line", [prop_tile(p, Ls) for p in hp]),
     ])
     more = f'<p class="hc-more"><a href="{BEST_LINES}">See all best lines today →</a></p>'
@@ -4423,6 +4490,8 @@ def sitemap_bucket(path, index):
         return "sitemap-core"
     if kind == "live":
         return "sitemap-live"
+    if kind == "archive":
+        return "sitemap-props"
     ym = day_et(parse_dt((g or {}).get("date")))[:7]
     return f"sitemap-games-{lg}-{ym}"
 
@@ -4444,9 +4513,14 @@ def sitemap_index_of(Ls):
             g = L.games[gid]
             out[p] = ("final" if L.is_final(g) else "live", lg, g)
         for e in L.players.values():
-            # History-only prop pages stay published. They are not live lines.
-            if e.get("path") and not e.get("archived") and prop_is_live(L, e):
+            # A line on a game that has not finished is live. NFL and NBA pages
+            # that only have history stay published in the props sitemap.
+            if not e.get("path"):
+                continue
+            if prop_is_live(L, e):
                 out[e["path"]] = ("live", lg, None)
+            elif lg in PROP_KEEP_LGS and any(_prop_posted(r) for r in (e.get("rows") or [])):
+                out[e["path"]] = ("archive", lg, None)
         for ev in getattr(L, "ev", {}).values():
             bouts = [L.games[b] for b in ev.get("bouts") or [] if b in L.games]
             done = bool(bouts) and all(L.is_final(g) for g in bouts)
@@ -4592,9 +4666,11 @@ def sitemap_content_reason(rel, Ls):
                 continue
             if not any(_prop_posted(r) for r in (e.get("rows") or [])):
                 return "empty prop page"
-            if e.get("archived") or not prop_is_live(L, e):
-                return "stale prop page"
-            return None
+            if prop_is_live(L, e):
+                return None
+            if lg in PROP_KEEP_LGS:
+                return None
+            return "stale prop page"
     return None
 
 
@@ -4651,7 +4727,7 @@ def update_sitemap(site: Path, entries, Ls, generated, base_url=BASE_URL):
         print(f"seo sitemap: {before} URLs before trim, {after} after; dropped {detail}")
     else:
         print(f"seo sitemap: {before} URLs before trim, {after} after; nothing thin dropped")
-    stems = ["sitemap-core", "sitemap-live", "sitemap-results"]
+    stems = ["sitemap-core", "sitemap-live", "sitemap-props", "sitemap-results"]
     game_stems = sorted((s for s in groups if s.startswith("sitemap-games-")), key=lambda s: (ORDER.index(s.split("-")[2]) if len(s.split("-")) > 2 and s.split("-")[2] in ORDER else 99, s))
     written = []
     for stem in stems + game_stems:
@@ -4684,6 +4760,188 @@ def update_home(index: Path, cards_html):
     txt = re.sub(re.escape(HOME_START) + r".*?" + re.escape(HOME_END), lambda _: HOME_START + cards_html + HOME_END, txt, flags=re.S)
     index.write_text(txt)
     return True
+
+
+# ---------------------------------------------------------------- line moves
+def _history_for(L, gid, g):
+    hist = g.get("history") if isinstance(g, dict) else None
+    if isinstance(hist, dict) and hist.get("books"):
+        return hist
+    data_dir = getattr(L, "data_dir", None)
+    if not data_dir:
+        return None
+    doc = load_json(Path(data_dir) / L.lg / "games" / f"{gid}.json") or {}
+    hist = doc.get("history")
+    return hist if isinstance(hist, dict) and hist.get("books") else None
+
+
+def _week_doc(L):
+    data_dir = getattr(L, "data_dir", None)
+    if not data_dir:
+        return None
+    ix = load_json(Path(data_dir) / L.lg / "index.json") or {}
+    week = ix.get("week")
+    return week if isinstance(week, dict) else None
+
+
+def _load_move_weeks(arch):
+    if not arch or not arch.dir:
+        return {}
+    doc = load_json(Path(arch.dir) / "line-moves.json") or {}
+    weeks = doc.get("weeks") if isinstance(doc, dict) else None
+    return weeks if isinstance(weeks, dict) else {}
+
+
+def _save_move_weeks(arch, weeks, now):
+    if not arch or not arch.dir:
+        return
+    path = Path(arch.dir) / "line-moves.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = {"v": 1, "updated": iso(now), "weeks": weeks}
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(body, sort_keys=True, separators=(",", ":")))
+    tmp.replace(path)
+
+
+def _move_num(market, value):
+    return line(value) if market == "spread" else num(value)
+
+
+def _move_table(rows):
+    if not rows:
+        return '<p class="na sx-none">No verified moves cleared the floor.</p>'
+    body = []
+    for r in rows:
+        book = pv.BOOK_NAME.get(r["book"], r["book"])
+        src = "first recorded line" if r.get("src") == LH.OPEN_SRC_FIRST else "ESPN (DraftKings)"
+        delta = line(r["delta"]) or ""
+        market = "Spread" if r["market"] == "spread" else "Total"
+        when = fmt_et(parse_dt(r.get("date")), False) if r.get("date") else ""
+        matchup = f'{r.get("awayName") or r.get("away")} at {r.get("homeName") or r.get("home")}'
+        body.append(
+            "<tr>"
+            f'<td><a href="{esc(r["path"])}">{esc(matchup)}</a>'
+            f'{(" <span class=\"na\">" + esc(when) + "</span>") if when else ""}</td>'
+            f"<td>{esc(market)}</td>"
+            f'<td class="num">{esc(_move_num(r["market"], r["open"]))}</td>'
+            f'<td class="num">{esc(_move_num(r["market"], r["cur"]))}</td>'
+            f'<td class="num">{esc(delta)}</td>'
+            f"<td>{esc(book)}<div class=\"na\">{esc(src)}</div></td>"
+            "</tr>"
+        )
+    return ('<div class="tbl-wrap"><table class="books pv-move"><thead><tr>'
+            "<th>Game</th><th>Market</th><th>Open</th><th>Current</th><th>Move</th><th>Book</th>"
+            f'</tr></thead><tbody>{"".join(body)}</tbody></table></div>')
+
+
+def _move_ld(base_url, path, title, desc, rows, modified):
+    items = []
+    for i, r in enumerate(rows, 1):
+        items.append({"@type": "ListItem", "position": i, "name": f'{r.get("away")} at {r.get("home")}', "url": base_url + r["path"]})
+    page = {"@context": "https://schema.org", "@type": "CollectionPage", "name": bare_title(title),
+            "url": base_url + path, "description": desc, "dateModified": modified}
+    if items:
+        page["mainEntity"] = {"@type": "ItemList", "numberOfItems": len(items), "itemListElement": items}
+    return [page, crumbs_ld(base_url, [(path, bare_title(title))])]
+
+
+def _move_compliance():
+    return ('<p class="note">Odds as of the snapshot time above, from LineSmart\'s published data. '
+            'Only games whose open passed the data check are listed. Lines move; confirm at a legal book before you bet. '
+            'Florida: Hard Rock Bet is the only legal online sportsbook in Florida. DraftKings and FanDuel prices are shown for comparison where they are legal. '
+            'LineSmart does not take bets. For adults 21+.</p>')
+
+
+def line_move_pages(Ls, sh, arch, now, base_url):
+    """Hub plus a weekly page for each sport-week with at least 3 verified moves."""
+    stored = _load_move_weeks(arch)
+    fresh, evaluated = {}, set()
+    stored_by_gid = {}
+    for rows in stored.values():
+        for row in rows or []:
+            if isinstance(row, dict) and row.get("gid"):
+                stored_by_gid.setdefault(str(row["gid"]), row)
+    for lg, L in Ls.items():
+        if lg == "ufc":
+            continue
+        week = _week_doc(L)
+        for gid, g in L.games.items():
+            if gid not in L.paths or abnormal(g):
+                continue
+            hist = _history_for(L, gid, g)
+            if not hist:
+                continue
+            evaluated.add(str(gid))
+            prev = stored_by_gid.get(str(gid))
+            week_path, week_label = LM.week_for(lg, g, week)
+            in_ids = {str(x.get("id")) for x in (week or {}).get("games") or [] if isinstance(x, dict)}
+            in_current = (str(gid) in in_ids) if in_ids else bool(week and week.get("start") and LM._in_bounds(g.get("date"), week.get("start"), week.get("end")))
+            if prev and prev.get("weekPath") and not in_current:
+                week_path, week_label = prev.get("weekPath"), prev.get("weekLabel") or week_label
+            if not week_path:
+                continue
+            row = LM.row_for_game(lg, g, hist, L.paths[gid], week_path, week_label)
+            if row:
+                fresh.setdefault(week_path, []).append(row)
+    weeks = LM.merge_weeks(stored, fresh, evaluated)
+    _save_move_weeks(arch, weeks, now)
+    published = LM.weeks_to_publish(weeks)
+    # The hub lists moves we can still verify on this run, not a frozen archive row.
+    current = LM.rank_rows([r for rows in fresh.values() for r in rows])
+    stamp = fmt_et(now)
+    modified = iso(now)
+    pages = []
+
+    def one(path, h1, title, desc, rows, crumbs_items, intro):
+        by_lg = {}
+        for r in rows:
+            by_lg.setdefault(r["lg"], []).append(r)
+        blocks = []
+        ordered = []
+        for lg in ORDER:
+            rs = by_lg.get(lg) or []
+            if rs:
+                ordered.extend(rs)
+                blocks.append(section(f"mv-{lg}", f"{NAMES[lg]} moves", _move_table(rs)))
+        if not blocks and rows:
+            ordered = list(rows)
+            blocks.append(section("mv", "Moves", _move_table(rows)))
+        week_links = []
+        for wp, rs in sorted(published.items()):
+            if not rs or wp == path:
+                continue
+            label = rs[0].get("weekLabel") or wp
+            week_links.append((wp, label, f"{len(rs)} verified"))
+        also = [("line-moves/", "All line moves", "")] if path != "line-moves/" else []
+        also += [(f"{lg}/", f"{NAMES[lg]} odds", "") for lg in ("nfl", "nba") if lg in NAMES]
+        more = section("also", "Also on LineSmart", link_list(week_links + also))
+        main = f"""<article class="pv sx-moves">
+{crumbs(*crumbs_items)}
+<h1 class="pv-h1">{esc(h1)}</h1>
+<p class="pv-lead">{esc(intro)}</p>
+<p class="note">Odds as of {esc(stamp)}.</p>
+{''.join(blocks) if blocks else _move_table([])}
+{_move_compliance()}
+</article>"""
+        html = sh.page(path, title, desc, main, more, kind="moves", ld=_move_ld(base_url, path, title, desc, ordered, modified))
+        return html, title
+
+    hub_title = fit("Biggest Line Moves: NFL, NBA & College", "Biggest Line Moves This Week", "Biggest Line Moves")
+    hub_desc = cut("Verified opening line to the current line for NFL, NBA, college and other slates. Spread moves of 1 point or more and total moves of 1.5 points or more. No picks.")
+    hub_intro = "Spread moves of at least 1 point and total moves of at least 1.5 points, from the verified open to the current line. One row per game."
+    html, title = one("line-moves/", "Biggest Line Moves This Week", hub_title, hub_desc, current,
+                      ((None, "Line moves"),), hub_intro)
+    pages.append(("line-moves/", html, title))
+    for path, rows in sorted(published.items()):
+        label = rows[0].get("weekLabel") or "Line moves"
+        lg = rows[0].get("lg") or ""
+        title = fit(f"{label} Biggest Line Moves", f"{label} Line Moves", "Biggest Line Moves")
+        desc = cut(f"Verified spread and total moves for {label}. Open to current, from LineSmart's published data. No picks.")
+        intro = f"{label}: spread moves of at least 1 point and total moves of at least 1.5 points."
+        html, title = one(path, label, title, desc, LM.rank_rows(rows),
+                          (("line-moves/", "Line moves"), (None, label)), intro)
+        pages.append((path, html, title))
+    return pages
 
 
 # ---------------------------------------------------------------- build
@@ -4775,6 +5033,8 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
     put("states/", html, t, "states", "states")
     html, t = best_lines_page(Ls, sh, now, base_url)
     put(BEST_LINES, html, t, "core", None)
+    for mv_path, mv_html, mv_title in line_move_pages(Ls, sh, arch, now, base_url):
+        put(mv_path, mv_html, mv_title, "moves", mv_path.split("/", 1)[0] if mv_path != "line-moves/" else None)
     # titles must be unique. Same matchup on several dates (series, rematches): every one of those game pages gets its
     # date. Upcoming titles already carry the date, so a same-day collision (a doubleheader) gets the start time
     # instead of the date twice. Anything still colliding gets the page's own path. og:title / twitter:title follow the <title>.

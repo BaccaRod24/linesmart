@@ -983,7 +983,8 @@
         let lc = null; for (let i = ser.length - 1; i > 0; i--) if (ser[i].v[s.key] !== ser[i - 1].v[s.key]) { lc = ser[i].t; break; }
         const dlt = C.moveDelta(open, cur.v[s.key], ml), bd = C.moveDelta(open, big, ml);
         const ch = C.formatSigned(dlt, ml), bg = C.formatSigned(bd, ml);
-        return `<tr><td><i class="sw" style="background:${s.color}"></i>${esc(s.name)}</td><td class="num">${esc(M.f(open) ?? "")}${isNum(op[s.key]) ? "" : '<span class="na">*</span>'}</td>
+        const star = !isNum(op[s.key]) || op.src === "first recorded line" || (s.key === "tot" && op.totSrc === "first recorded line") ? '<span class="na">*</span>' : "";
+        return `<tr><td><i class="sw" style="background:${s.color}"></i>${esc(s.name)}</td><td class="num">${esc(M.f(open) ?? "")}${star}</td>
           <td class="num"><b>${esc(M.f(cur.v[s.key]) ?? "")}</b></td>
           <td class="num ${ch ? "chg" : ""}">${ch ? (dlt > 0 ? "▲ " : "▼ ") + ch : "—"}</td>
           <td class="num">${bg ? `${esc(M.f(big))} <span class="na">(${bg})</span>` : "—"}</td>
@@ -1033,12 +1034,18 @@
       const segM = Object.entries(MARKETS).filter(([k, M]) => M.series.some(s => has(st.bk, s.key))).map(([k, M]) => `<button data-mk="${k}" class="${st.mk === k ? "on" : ""}">${esc(M.label)}</button>`).join("");
       const segB = books.length > 1 ? `<div class="seg">${books.map(b => `<button data-bk="${b}" class="${st.bk === b ? "on" : ""}">${esc(BOOKNAME(b))}</button>`).join("")}</div>` : "";
       const since = !fromOdds && H.firstSeen ? `Tracking since ${esc(fullET(H.firstSeen))} · last checked ${esc(fullET(H.lastSeen))}` : "History not recorded for this game yet; showing ESPN's open vs current";
+      const opNote = openFor(st.bk);
+      const openIsFirst = opNote.src === "first recorded line" || (st.mk === "total" && opNote.totSrc === "first recorded line");
+      const openSentence = openIsFirst
+        ? "Open = first recorded line. The ESPN open was missing or never traded in our snapshots."
+        : "Open = opening line as reported by ESPN (DraftKings).";
+      const totSentence = !openIsFirst && opNote.totSrc === "first recorded line" ? " The total open is the first recorded total, because the ESPN total never traded." : "";
       el.innerHTML = `<div class="lmhead"><h3>${esc(MARKETS[st.mk].label)} movement <span class="na">· ${esc(fromOdds ? o.provider || "" : BOOKNAME(st.bk))}</span></h3><div class="lmctl">${segB}<div class="seg">${segM}</div></div></div>
         ${notes.length ? `<div class="lmnotes">${notes.map(n => `<span class="mvbadge">⚡ ${esc(n)}</span>`).join("")}</div>` : ""}
         <div class="lmplot"></div>
         <div class="tbl-wrap"><table class="lmstats"><thead><tr><th>Line</th><th>Open</th><th>Current</th><th>Change</th><th>Biggest move</th><th>Last change</th></tr></thead><tbody>${stats()}</tbody></table></div>
         ${changes()}
-        <div class="note">${since}. Open = opening line as reported by ESPN (<span class="na">*</span> = ESPN open not available, first recorded value used). Lines are snapshotted about every 30 min (Hard Rock Bet, FanDuel and DraftKings via The Odds API, budget permitting; DraftKings via ESPN when the Odds API lacks it); points mark recorded changes. Times in ${TZL}.</div>`;
+        <div class="note">${since}. ${openSentence}${totSentence} (<span class="na">*</span> = that number is a first recorded value). Lines are snapshotted about every 30 min (Hard Rock Bet, FanDuel and DraftKings via The Odds API, budget permitting; DraftKings via ESPN when the Odds API lacks it); points mark recorded changes. Times in ${TZL}.</div>`;
       const plot = el.querySelector(".lmplot");
       plot.innerHTML = chart(Math.max(280, Math.floor(plot.clientWidth)));
       el.querySelectorAll("[data-mk]").forEach(b => (b.onclick = () => { st.mk = b.dataset.mk; draw(); }));

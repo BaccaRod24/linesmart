@@ -257,6 +257,87 @@ def adopt_first_open(op, first):
     elif out.get("as") is not None and out.get("hs") is None: out["hs"] = -out["as"]
     return out
 
+OPEN_SRC_ESPN = "ESPN (DraftKings)"
+OPEN_SRC_FIRST = "first recorded line"
+_OPEN_NUM_KEYS = ("hs", "as", "hml", "aml", "dml", "tot")
+
+
+def _field_same(a, b):
+    """True when both sides are missing or both are the same number. A filled-in gap is not the same."""
+    if a is None and b is None:
+        return True
+    if a is None or b is None:
+        return False
+    try:
+        return abs(float(a) - float(b)) < 0.001
+    except (TypeError, ValueError):
+        return False
+
+
+def _spread_matches(raw, fixed):
+    """The kept spread is the reported one, or the same two numbers with home and away exchanged."""
+    if not isinstance(raw, dict) or not isinstance(fixed, dict):
+        return False
+    if _field_same(fixed.get("hs"), raw.get("hs")) and _field_same(fixed.get("as"), raw.get("as")):
+        return True
+    swapped = _swap_home_away_open(raw)
+    return _field_same(fixed.get("hs"), swapped.get("hs")) and _field_same(fixed.get("as"), swapped.get("as"))
+
+
+def label_open(raw, fixed):
+    """(source, total_source or None) for a reconciled open.
+
+    source is ESPN (DraftKings) when the spread and moneyline are still the reported
+    open (a home/away spread swap of those same numbers counts). It is the first
+    recorded line when a snapshot replaced them. total_source is set only when the
+    spread stayed and the total alone was taken from the first snapshot.
+    """
+    raw, fixed = raw or {}, fixed or {}
+    spread_espn = _spread_matches(raw, fixed)
+    ml_espn = all(_field_same(fixed.get(k), raw.get(k)) for k in ("hml", "aml", "dml"))
+    tot_espn = _field_same(fixed.get("tot"), raw.get("tot"))
+    if spread_espn and ml_espn and tot_espn:
+        return OPEN_SRC_ESPN, None
+    if spread_espn and ml_espn:
+        return OPEN_SRC_ESPN, OPEN_SRC_FIRST
+    return OPEN_SRC_FIRST, None
+
+
+def open_is_doubtful(op, points, kind=""):
+    """True when reconcile_open still cannot stand behind this open.
+
+    No open, no snapshots, a spread that is still stale after that check, a total
+    that is still stale, or a spread and moneyline that still disagree. An open
+    that the check replaced with the first recorded line is not doubtful.
+    """
+    points = [p for p in (points or []) if isinstance(p, dict)]
+    if not isinstance(op, dict) or not any(op.get(k) is not None for k in ("hs", "hml", "tot")):
+        return True
+    if not points:
+        return True
+    nums = {k: op.get(k) for k in _OPEN_NUM_KEYS if op.get(k) is not None}
+    fixed = reconcile_open(nums, points, kind)
+    first = next((p for p in points if p.get("hs") is not None or p.get("hml") is not None or p.get("tot") is not None), None)
+    if not first:
+        return True
+    if _still_inconsistent(fixed, first):
+        return True
+    if _spread_is_stale(fixed, points, kind):
+        return True
+    if _total_is_stale(fixed, points, kind):
+        return True
+    return False
+
+
+def annotate_open(op, src, tot_src, series, kind):
+    """Numeric open plus src / totSrc / doubtful. Extra keys on op are not kept."""
+    out = {k: op[k] for k in _OPEN_NUM_KEYS if isinstance(op, dict) and op.get(k) is not None}
+    out["src"] = src or OPEN_SRC_ESPN
+    if tot_src:
+        out["totSrc"] = tot_src
+    out["doubtful"] = open_is_doubtful(out, series, kind)
+    return out
+
 def keep_recorded_open(prev, new, series, gap=CARRIED_OPEN_GAP):
     """Keep a stored open that is the first recorded spread when the incoming one never traded.
 
@@ -309,7 +390,12 @@ def fix_carried_opens(hist, gap=CARRIED_OPEN_GAP):
     return changes
 
 def stamp_open(game, op):
-    """Copy a reconciled DraftKings open onto the odds objects the line card reads."""
+    """Copy a reconciled DraftKings open onto the odds objects the line card reads.
+
+    openSource follows the open. A snapshot that replaced the ESPN open is labeled
+    "first recorded line" instead of "ESPN (DraftKings)". A total-only replacement
+    keeps the ESPN label and sets totalOpenSource.
+    """
     if not op: return
     targets = []
     books = game.get("books") or {}
@@ -322,6 +408,16 @@ def stamp_open(game, op):
     for t in targets:
         for k, src in OPEN_TO_GAME.items():
             if op.get(k) is not None: t[src] = op[k]
+        if op.get("src"):
+            t["openSource"] = op["src"]
+        if op.get("totSrc"):
+            t["totalOpenSource"] = op["totSrc"]
+        elif "totalOpenSource" in t:
+            t.pop("totalOpenSource", None)
+        if op.get("doubtful"):
+            t["openDoubtful"] = True
+        elif "openDoubtful" in t:
+            t.pop("openDoubtful", None)
 
 def now_iso():
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -399,9 +495,18 @@ def merge(hist, snap, t):
             series = [p[1] for p in g["books"].get(bk, [])]
             prev = g["open"].get(bk)
             new = reconcile_open(op, series, kind)
-            if keep_recorded_open(prev, new, series): new = prev
-            g["open"][bk] = new
-    fix_carried_opens(hist)
+            if keep_recorded_open(prev, new, series):
+                src = (prev or {}).get("src") or OPEN_SRC_FIRST
+                tot_src = (prev or {}).get("totSrc")
+                new = prev
+            else:
+                src, tot_src = label_open(op, new)
+            g["open"][bk] = annotate_open(new, src, tot_src, series, kind)
+    for gid, bk, _before, _after in fix_carried_opens(hist):
+        op = hist["games"][gid]["open"][bk]
+        series = [p[1] for p in (hist["games"][gid].get("books") or {}).get(bk) or [] if isinstance(p, list) and len(p) > 1]
+        labeled = annotate_open(op, OPEN_SRC_FIRST, None, series, kind)
+        hist["games"][gid]["open"][bk] = labeled
     hist["updated"] = max(hist.get("updated") or "", t)
     return added
 

@@ -236,10 +236,19 @@ def check_page_ld(rel, h, hrefs, kind):
         check(len(lists) == 1, f"{rel}: one ItemList ({len(lists)})")
         if lists:
             paths = check_item_list(rel, lists[0])
-            want = [p for p in _listed_paths(hrefs, re.compile(r"^[a-z0-9-]+/$")) if p.split("/")[0] not in SP.LEAGUE_DIRS and p not in ("states/", "best-lines-today/")]
+            want = [p for p in _listed_paths(hrefs, re.compile(r"^[a-z0-9-]+/$")) if p.split("/")[0] not in SP.LEAGUE_DIRS and p not in ("states/", "best-lines-today/", "line-moves/")]
             check(paths == want, f"{rel}: ItemList matches state links ({len(paths)} vs {len(want)})")
+    elif kind == "moves":
+        check("BreadcrumbList" in types and any(n.get("@type") == "CollectionPage" for n in tops), f"{rel}: line-moves CollectionPage")
+        if games:
+            check(len(lists) == 1, f"{rel}: one ItemList ({len(lists)})")
+            if lists:
+                paths = check_item_list(rel, lists[0])
+                check(paths == games, f"{rel}: ItemList matches the listed games ({len(paths)} vs {len(games)})")
+        else:
+            check(not lists, f"{rel}: no ItemList when no games are listed")
     else:
-        check(not lists, f"{rel}: ItemList only on hubs, team, results and state pages")
+        check(not lists, f"{rel}: ItemList only on hubs, team, results, state and line-move pages")
 
 
 def has_query_words(text):
@@ -1322,10 +1331,14 @@ def sitemap_trim_tests():
         stats = SP.update_sitemap(tmp, entries, {"nfl": L, "ufc": U}, lm)
         urls = set(sitemap_page_urls(tmp))
         keep = ["nfl/", "nfl/results/", "nfl/standings/", "nfl/teams/away/", "nfl/games/up/", "nfl/games/fin/", "nfl/props/good/"]
-        drop = ["nfl/games/thin/", "nfl/games/noscore/", "nfl/games/held/", "nfl/props/empty/", "nfl/props/blank/", "nfl/props/stale/",
+        drop = ["nfl/games/thin/", "nfl/games/noscore/", "nfl/games/held/", "nfl/props/empty/", "nfl/props/blank/",
                 "ufc/events/empty-card/", "nfl/teams/old/", "nfl/games/moved/", "nfl/games/missing/", "preview/nfl/", "nfl/teams/canon/"]
         for rel in keep:
             check(SP.BASE_URL + rel in urls, f"sitemap keeps {rel}")
+        check(SP.BASE_URL + "nfl/props/stale/" in urls, "a published NFL prop page with no current line stays in the sitemap")
+        props_txt = (tmp / "sitemap-props.xml").read_text() if (tmp / "sitemap-props.xml").exists() else ""
+        live_txt = (tmp / "sitemap-live.xml").read_text() if (tmp / "sitemap-live.xml").exists() else ""
+        check(SP.BASE_URL + "nfl/props/stale/" in props_txt and SP.BASE_URL + "nfl/props/stale/" not in live_txt, "stale NFL prop page is in sitemap-props, not sitemap-live")
         for rel in drop:
             check(SP.BASE_URL + rel not in urls, f"sitemap drops {rel}")
         raw = "\n".join(p.read_text() for p in tmp.glob("sitemap-*.xml"))
@@ -1370,7 +1383,38 @@ def logo_and_cap_tests():
     check(SP._split_cap(list(range(3)), SP.HUB_GAME_CAP)[1] == [], "a short slate is not split")
 
 
+def keep_published_player_tests():
+    """NFL and NBA prop pages stay after the 14-day window. NHL still expires. Wicks comes back from the registry."""
+    now = pv.parse_dt("2026-11-16T16:00:00Z")
+    arch_dir = Path(tempfile.mkdtemp(prefix="proparch-"))
+    try:
+        arch = SP.Archive(arch_dir)
+        arch.players["nfl"] = {"9": {"p": {"n": "Old Player", "ta": "GB", "t": "9"}, "rows": [["g", ["9", "rec_yds", 40.5]]], "seen": "2026-10-01T00:00:00Z"}}
+        arch.players["nhl"] = {"8": {"p": {"n": "Old Skater", "ta": "BOS", "t": "1"}, "rows": [["g", ["8", "sog", 2.5]]], "seen": "2026-10-01T00:00:00Z"}}
+        arch.save()
+
+        def league(lg, kind):
+            L = SP.League(lg, {"league": {"kind": kind}, "games": [], "teams": {}}, {"players": {}, "games": {}}, SP.Archive(arch_dir), now, SP.BASE_URL)
+            L.select()
+            L.assign_paths()
+            L.collect_players()
+            return L
+
+        nfl = league("nfl", "football")
+        check("9" in nfl.players and nfl.players["9"].get("archived") and nfl.players["9"]["path"] == "nfl/props/old-player/", f"an NFL page older than 14 days stays ({nfl.players.get('9', {}).get('path')})")
+        wicks = nfl.players.get("4428850") or {}
+        check(wicks.get("path") == "nfl/props/dontayvion-wicks/" and wicks.get("archived") and (wicks.get("p") or {}).get("n") == "Dontayvion Wicks", f"Wicks is restored from the published registry ({wicks.get('path')})")
+        sh = SP.Shell((ROOT / "site" / "index.html").read_text(), SP.BASE_URL)
+        html, _title = SP.player_page(nfl, sh, "4428850")
+        check("No current lines" in html and 'class="pp-b' in html and "1-800-GAMBLER" in html, "Wicks page shows no current lines, last-5 boxes, and the helpline")
+        nhl = league("nhl", "hockey")
+        check("8" not in nhl.players, "an NHL page still expires after 14 days")
+    finally:
+        shutil.rmtree(arch_dir, ignore_errors=True)
+
+
 def main():
+    keep_published_player_tests()
     logo_and_cap_tests()
     sitemap_game_guard_tests()
     sitemap_trim_tests()
@@ -1401,6 +1445,15 @@ def main():
         now = pv.parse_dt(meta["generated"])
         st = SP.build(site, data, now, archive_dir=tmp / "arch")
         print(f"snapshot build: {st['pages']} pages + {st['redirects']} redirects, {st['bytes'] / 1e6:.1f} MB, {st['seconds']}s {st['total']}")
+        wicks = site / "nfl/props/dontayvion-wicks/index.html"
+        wicks_html = wicks.read_text() if wicks.is_file() else ""
+        check(wicks.is_file() and "No current lines" in wicks_html and 'class="pp-b' in wicks_html, "Dontayvion Wicks stays up with no current lines and last-5 boxes")
+        live_sm = (site / "sitemap-live.xml").read_text() if (site / "sitemap-live.xml").is_file() else ""
+        prop_sm = (site / "sitemap-props.xml").read_text() if (site / "sitemap-props.xml").is_file() else ""
+        check("dontayvion-wicks" not in live_sm and "dontayvion-wicks" in prop_sm, "Wicks is in sitemap-props and out of sitemap-live")
+        moves = site / "line-moves/index.html"
+        moves_html = moves.read_text() if moves.is_file() else ""
+        check(moves.is_file() and "Biggest Line Moves" in moves_html and "1-800-GAMBLER" in moves_html and "Hard Rock Bet is the only legal online sportsbook in Florida" in moves_html, "line-moves hub is published with the Florida line")
         check(st["pages"] > 50, f"snapshot builds a real number of pages ({st['pages']})")
         for lg in ("nfl", "nba", "ncaaf", "ncaab"):
             h = (site / lg / "index.html").read_text()
@@ -1606,16 +1659,19 @@ def main():
         props = man["p"].get("nfl") or man["p"].get("nba") or {}
         lgp = "nfl" if man["p"].get("nfl") else "nba"
         if props:
-            pid, pp = next(iter(props.items()))
-            ph = html_of(pp)
-            gl = [p for p in man["g"][lgp].values() if f'href="{p}"' in ph]
-            check(gl, f"player page {pp} links its game")
-            if gl:
+            linked = []
+            for pid, pp in props.items():
+                ph = html_of(pp)
+                gl = [p for p in (man["g"].get(lgp) or {}).values() if f'href="{p}"' in ph]
+                if gl:
+                    linked.append((pp, ph, gl))
+            current = [(pp, ph, gl) for pp, ph, gl in linked if "No current lines" not in ph]
+            if current:
+                pp, ph, gl = current[0]
                 check(f'href="{pp}"' in html_of(gl[0]), f"game page {gl[0]} links back to the player")
-            check(f'href="{man["l"][lgp]}"' in ph, "player page links the hub")
-            # "·" never starts a wrapped line: prop-header game label uses .sx-gl (CSS-clipped dot), text dots are glued with a no-break space
-            check('class="na sx-gl"' in ph and '<span class="na">· ' not in ph, "player page: prop header game label uses .sx-gl, no literal leading dot")
-            check(not re.search(r'class="(?:pv-lead|pp-sum na)">[^<]*[^\u00a0]· ', ph), "player page: lead / last-5 separators glued with a no-break space")
+                check('class="na sx-gl"' in ph and '<span class="na">· ' not in ph, "player page: prop header game label uses .sx-gl, no literal leading dot")
+                check(not re.search(r'class="(?:pv-lead|pp-sum na)">[^<]*[^\u00a0]· ', ph), "player page: lead / last-5 separators glued with a no-break space")
+            check(f'href="{man["l"][lgp]}"' in html_of(next(iter(props.values()))), "player page links the hub")
         some_g = next(iter(man["g"]["nfl"].values())) if man["g"].get("nfl") else None
         if some_g:
             gh = html_of(some_g)
@@ -1688,7 +1744,12 @@ def main():
                     n_pcta += 1
                 if 'class="pv-live"' in h:
                     check(re.search(r'class="pv-live" href="#/p/[^"]+/log"', h) is not None, f"{rel}: open-in-app link still uses the /log route")
-        check(not man["p"] or n_pcta, f"prop pages carry prop alert entries ({n_pcta})")
+        live_prop = False
+        for lg, pm in (man.get("p") or {}).items():
+            for rel in (pm or {}).values():
+                if "/props/" in rel and "No current lines" not in html_of(rel):
+                    live_prop = True
+        check(not live_prop or n_pcta, f"prop pages with a current line carry prop alert entries ({n_pcta})")
         for rel in real:
             h = html_of(rel)
             if "al-cta" in h:

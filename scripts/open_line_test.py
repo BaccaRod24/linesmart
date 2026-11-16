@@ -378,6 +378,20 @@ LH.merge(hist, tenn_snap(tenn_pts[-1], tenn_op, "2026-11-14T12:15:18Z"), "2026-1
 got = hist["games"]["401856888"]["open"]["draftkings"]
 check(got["hs"] == 3.0 and got["tot"] == 45.5 and len(hist["games"]["401856888"]["books"]["draftkings"]) == 2,
       f"a later run that resends the stale Tennessee open stays corrected ({got})")
+check(got.get("src") == LH.OPEN_SRC_FIRST and got.get("doubtful") is False,
+      f"the replaced Tennessee open is labeled first recorded line and is not doubtful ({got.get('src')}, {got.get('doubtful')})")
+heat_src, heat_tot = LH.label_open(mia_open, mia)
+check(heat_src == LH.OPEN_SRC_ESPN and heat_tot is None, f"a spread-side swap stays ESPN (DraftKings) ({heat_src}, {heat_tot})")
+wiz_src, wiz_tot = LH.label_open(cha_open, cha)
+check(wiz_src == LH.OPEN_SRC_ESPN and wiz_tot == LH.OPEN_SRC_FIRST, f"only the stale Wizards total is the first recorded total ({wiz_src}, {wiz_tot})")
+check(LH.open_is_doubtful({"hs": -3.0, "hml": -150, "tot": 44.5}, [], "football") is True, "an open with no snapshots is still doubtful")
+check(LH.open_is_doubtful(got, hist["games"]["401856888"]["books"]["draftkings"] and [p[1] for p in hist["games"]["401856888"]["books"]["draftkings"]], "football") is False,
+      "a snapshot that replaced the ESPN open is not still doubtful")
+card = {"odds": {"provider": "DraftKings", "homeSpreadOpen": -9.5, "totalOpen": 55.5}, "books": {"draftkings": {"source": "ESPN (DraftKings)", "openSource": "ESPN (DraftKings)", "homeSpreadOpen": -9.5, "totalOpen": 55.5}}}
+LH.stamp_open(card, got)
+check(card["books"]["draftkings"]["openSource"] == "first recorded line" and card["odds"]["openSource"] == "first recorded line",
+      f"the line card openSource follows the snapshot ({card['books']['draftkings'].get('openSource')})")
+check(card["odds"]["homeSpreadOpen"] == 3.0 and card["books"]["draftkings"]["totalOpen"] == 45.5, "stamp_open still copies the corrected numbers")
 check(hist["games"]["401856888"]["books"]["draftkings"][-1][1]["hs"] == 1.5, "the later Tennessee snapshot is stored as the current line")
 
 # SEO copy and the static line-move card read summarize(), so they follow the corrected open.

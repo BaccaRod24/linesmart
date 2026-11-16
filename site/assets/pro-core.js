@@ -24,7 +24,7 @@
   ];
   const SPORTS = [["nfl", "NFL"], ["nba", "NBA"], ["mlb", "MLB"], ["nhl", "NHL"], ["ncaaf", "NCAAF"], ["ncaab", "NCAAB"], ["ufc", "UFC"]];
   const PRICES = [["4.99", "$4.99 a month"], ["9.99", "$9.99 a month"], ["14.99", "$14.99 a month"], ["more", "More than $14.99"]];
-  const SOURCES = ["pro", "value", "alerts", "bets", "footer"];
+  const SOURCES = ["pro", "value", "alerts", "bets", "footer", "account", "alert3", "waitlist"];
   const STATES = "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY PR".split(" ");
 
   const cleanEmail = e => String(e == null ? "" : e).trim().toLowerCase();

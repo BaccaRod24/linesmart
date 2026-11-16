@@ -121,5 +121,61 @@
     });
   }
 
-  window.LSPro = { view, teaser };
+  // ---------- Account-tab card and the one-time card after a 3rd line alert. Interest only: no payment.
+  const rgLine = () => `<p class="al-rg">21+ | Gambling problem? ${window.LSGeo ? window.LSGeo.rgSpan() : ""}</p>`;
+  function waitlistCard(source, opts) {
+    const src = P.SOURCES.includes(source) ? source : "account";
+    const signedOut = opts && opts.signedIn === false;
+    if (signedOut) return `<div class="card pro-wait" data-pro-wait="${esc(src)}">
+      <h3>Pro waitlist</h3>
+      <p class="ac-p">LineSmart Pro is not open yet. Create a free account, then join the waitlist on this page. We'll email you once, when it opens. Joining records your interest. There's no payment.</p>
+      <button type="button" class="bt-add" data-pro-wait-pin="waitlist">Create a free account to join</button>
+      ${rgLine()}</div>`;
+    const joined = store.get();
+    if (joined && joined.email) return `<div class="card pro-wait" data-pro-wait="${esc(src)}">
+      <h3>Pro waitlist</h3>
+      <p class="ac-p">${esc(joined.email)} is on the LineSmart Pro waitlist. We'll email you once, when Pro opens. There's no payment.</p>
+      ${rgLine()}</div>`;
+    return `<form class="card pro-wait" data-pro-wait="${esc(src)}" novalidate>
+      <h3>Pro waitlist</h3>
+      <p class="ac-p">LineSmart Pro is not open yet. Join the waitlist and we'll email you once, when it opens. Joining records your interest. There's no payment.</p>
+      <label class="news-age"><input name="age" type="checkbox" required> <span>I'm 21 or older</span></label>
+      <div class="news-hp" aria-hidden="true"><label>Leave this empty <input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
+      <div class="pro-submit"><button type="submit" class="bt-add">Join the waitlist</button></div>
+      <p class="news-msg" role="status"></p>
+      <p class="news-fine">We use the email on your account. <a href="privacy.html#pro-waitlist">Privacy</a></p>
+      ${rgLine()}</form>`;
+  }
+  function bindWaitlist(root) {
+    if (!root) return;
+    root.querySelectorAll("form[data-pro-wait]").forEach(f => {
+      if (f.dataset.proBound) return;
+      f.dataset.proBound = "1";
+      const msg = f.querySelector(".news-msg"), btn = f.querySelector("button[type=submit]");
+      const say = (kind, text) => { if (!msg) return; msg.className = "news-msg " + kind; msg.textContent = text; };
+      f.addEventListener("submit", async e => {
+        e.preventDefault();
+        const src = P.SOURCES.includes(f.dataset.proWait) ? f.dataset.proWait : "account";
+        const s = await signedInSession();
+        const email = (s && s.user && s.user.email) || "";
+        const ev = G() ? G().current() : null;
+        const v = P.validate({ email, age: f.age.checked, website: f.website ? f.website.value : "", source: src, state: ev && ev.state, now: Date.now(), last: LAST });
+        if (v.bot) { say("ok", P.MESSAGES.ok.text); return; }
+        if (!v.ok) { say("err", v.error || "Enter the email on your account and confirm you're 21 or older."); if (v.field === "age" && f.age) f.age.focus(); return; }
+        LAST = Date.now(); if (btn) { btn.disabled = true; btn.textContent = "Joining…"; }
+        const r = await rpc("pro_waitlist_join", v.payload, s && s.access_token);
+        const out = P.resultFor(r.status, r.body);
+        if (btn) { btn.disabled = false; btn.textContent = "Join the waitlist"; }
+        say(out.kind, out.text);
+        if (out === P.MESSAGES.ok) {
+          store.set({ email: v.payload.p_email, at: new Date().toISOString() });
+          const card = waitlistCard(src);
+          f.insertAdjacentHTML("afterend", card);
+          f.remove();
+        }
+      });
+    });
+  }
+
+  window.LSPro = { view, teaser, waitlistCard, bindWaitlist };
 })();

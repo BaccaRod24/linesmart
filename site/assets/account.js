@@ -106,7 +106,84 @@
     await session();
     draw();
     window.dispatchEvent(new Event("ls-auth"));
+    recordEntry();          // first completed sign-in: label only, ignored if the migration isn't applied yet
     await syncNow();        // first sign-in on this device: uploads the bets already here, pulls the rest
+  }
+
+  // ---------- which button started this sign-up (bell, my-bets, newsletter, waitlist, account)
+  let ENTRY = "account", PIN = "";
+  function entryFromLocation() {
+    const q = new URLSearchParams(String(location.hash.split("?")[1] || "").split("#")[0]);
+    return AC.signupEntry(q.get("entry"), "");
+  }
+  function currentEntry() { return AC.signupEntry(PIN || entryFromLocation() || ENTRY, "account"); }
+  function pinEntry(entry) {
+    const e = AC.signupEntry(entry, "");
+    if (!e) return;
+    PIN = e; ENTRY = e;
+    const input = document.getElementById("acEmail");
+    if (input && input.value) UI.email = input.value;
+    UI.err = "";
+    UI.info = "Sign in above and this account can join the Pro waitlist. Joining records your interest. There's no payment.";
+    draw();
+    const again = document.getElementById("acEmail");
+    if (again) again.focus();
+  }
+  /** Ask Supabase for a sign-in code (or the magic link in the same email). Does not redraw the Account tab. */
+  async function requestOtp(email, entry) {
+    email = String(email || "").trim();
+    const ent = AC.signupEntry(entry || currentEntry(), "account");
+    if (!AC.validEmail(email)) return { ok: false, error: "Enter a valid email address." };
+    if (Date.now() < UI.cooldownUntil && UI.sentTo === email) {
+      return { ok: true, already: true, email, info: `We already sent a code (or link) to this address a moment ago. Use that email, or resend in ${Math.ceil((UI.cooldownUntil - Date.now()) / 1000)}s.` };
+    }
+    try {
+      const sb = await client();
+      const base = location.origin + location.pathname;
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: base + "#/account", data: { signup_entry: ent } } });
+      if (error) {
+        const sec = Number((String((error && error.message) || "").match(/after (\d+) seconds?/i) || [])[1]);
+        if (sec) { UI.cooldownUntil = Date.now() + sec * 1000; UI.sentTo = email; }
+        return { ok: false, error: AC.authError(error) };
+      }
+      UI.email = email; UI.sentTo = email; UI.cooldownUntil = Date.now() + AC.RESEND_SECS * 1000;
+      ENTRY = ent;
+      try { sessionStorage.setItem("ls-signup-entry", ent); } catch (e) {}
+      ls.set("ls-acct-email", email);
+      return { ok: true, email };
+    } catch (e) { return { ok: false, error: AC.authError(e) }; }
+  }
+  /** Check the emailed code and finish sign-in. Does not redraw unless the Account tab is open. */
+  async function verifyCode(code, email) {
+    code = AC.cleanCode(code);
+    const addr = String(email || UI.email || "").trim();
+    if (!AC.validCode(code)) return { ok: false, error: "Enter the code from the email (6 to 10 digits)." };
+    try {
+      const sb = await client();
+      const { error } = await sb.auth.verifyOtp({ email: addr, token: code, type: "email" });
+      if (error) return { ok: false, error: AC.authError(error) };
+      UI.email = addr;
+      await signedIn();
+      return { ok: true };
+    } catch (e) { return { ok: false, error: AC.authError(e) }; }
+  }
+  // One row per new account (created in the last day). Counts only; a missing function does not block sign-in.
+  async function recordEntry() {
+    let pending = "";
+    try { pending = sessionStorage.getItem("ls-signup-entry") || ""; } catch (e) {}
+    const meta = SESSION && SESSION.user && SESSION.user.user_metadata && SESSION.user.user_metadata.signup_entry;
+    const entry = AC.signupEntry(pending || PIN || entryFromLocation() || meta, "account");
+    PIN = "";
+    try { sessionStorage.removeItem("ls-signup-entry"); } catch (e) {}
+    const token = SESSION && SESSION.access_token;
+    if (!token) return;
+    try {
+      await fetch(AC.SB_URL + "/rest/v1/rpc/record_signup_entry", {
+        method: "POST",
+        headers: { apikey: AC.SB_KEY, Authorization: "Bearer " + token, "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ p_entry: entry }),
+      });
+    } catch (e) { /* offline, or the owner hasn't run the migration yet */ }
   }
 
   // ---------- actions
@@ -114,25 +191,14 @@
     email = String(email || "").trim();
     UI.email = email;     // keep what was typed across re-renders (errors)
     if (!AC.validEmail(email)) { UI.err = "Enter a valid email address."; draw(); return; }
-    if (Date.now() < UI.cooldownUntil && UI.sentTo === email) {   // just sent one: don't burn the hourly email limit
-      UI.step = "code"; UI.err = "";
-      UI.info = `We already sent a code (or link) to this address a moment ago. Use that email, or resend in ${Math.ceil((UI.cooldownUntil - Date.now()) / 1000)}s.`;
-      draw(); return;
-    }
     UI.busy = true; UI.err = ""; UI.info = ""; draw();
-    try {
-      const sb = await client();
-      const base = location.origin + location.pathname;
-      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: base + "#/account" } });
-      if (error) throw error;
-      UI.step = "code"; UI.sentTo = email; UI.cooldownUntil = Date.now() + AC.RESEND_SECS * 1000;
-      UI.info = resend ? "We sent a new code (or link). Use the newest email." : "";
-      ls.set("ls-acct-email", email);
-    } catch (e) {
-      UI.err = AC.authError(e);
-      const sec = Number((String((e && e.message) || "").match(/after (\d+) seconds?/i) || [])[1]);
-      if (sec) { UI.cooldownUntil = Date.now() + sec * 1000; UI.sentTo = email; }
-    } finally { UI.busy = false; draw(); }
+    const r = await requestOtp(email, currentEntry());
+    UI.busy = false;
+    if (r.ok) {
+      UI.step = "code"; UI.err = "";
+      UI.info = r.already ? r.info : (resend ? "We sent a new code (or link). Use the newest email." : "");
+    } else UI.err = r.error || "Something went wrong. Please try again.";
+    draw();
   }
   async function verify(code) {
     code = AC.cleanCode(code);
@@ -185,6 +251,8 @@
     if (window.LSApp && window.LSApp.renderTabs) window.LSApp.renderTabs(null);
     document.title = "Account · LineSmart";
     if (hasSession() && UI.step !== "in") UI.step = "in";
+    const hinted = entryFromLocation();
+    if (hinted) ENTRY = hinted;
     draw();
     if (/^#\/?account\/alerts/.test(location.hash)) setTimeout(() => { const t = document.getElementById("acAlerts") || document.getElementById("acAlertsInfo"); if (t) t.scrollIntoView({ block: "start" }); }, 0);   // home "Line alerts" link
     if (RET && !finishReturn.done) { finishReturn.done = true; finishReturn(); return; }
@@ -225,6 +293,7 @@
         <div class="bt-actions ac-actions"><button type="submit" class="bt-add" ${UI.busy ? "disabled" : ""}>${UI.busy ? "Sending…" : "Send code"}</button></div>
         ${n ? `<div class="note">The ${n} bet${n > 1 ? "s" : ""} already on this device will be added to your account when you sign in.</div>` : ""}
       </form>
+      ${window.LSPro ? window.LSPro.waitlistCard("waitlist", { signedIn: false }) : ""}
       <div class="note ac-note">An account is optional. Without one, My Bets keeps working and stays only in this browser on this device.</div>
       <div class="section-title" id="acAlertsInfo">Line alerts</div>
       <div class="card ac-card"><p class="ac-p">Get one email when a line moves or hits your number. Sign in above, then tap <b>🔔 Alert</b> on any game or player prop. Your alerts are listed here.</p></div>${window.LSPro ? window.LSPro.teaser("alerts") : ""}${privacyHtml()}`;
@@ -247,6 +316,7 @@
         <div class="ac-btns"><button type="button" class="bt-add" id="acSync" ${UI.busy || UI.sync === "syncing" ? "disabled" : ""}>Sync now</button><button type="button" class="chip" id="acOut" ${UI.busy ? "disabled" : ""}>Sign out</button></div>
         <div class="note">Bets sync automatically when you add, edit, settle or delete one, when the site opens, and when you come back to it. Offline changes are kept on this device and sync later. Signing out keeps a copy of your bets on this device.</div>
       </div>
+      ${window.LSPro ? window.LSPro.waitlistCard("account") : ""}
       ${window.LSAlerts ? `<div id="acAlerts">${window.LSAlerts.accountHtml()}</div>` : ""}
       <div class="section-title">Delete your data</div>
       <div class="card ac-card ac-danger">
@@ -266,11 +336,13 @@
     q("acOut") && q("acOut").addEventListener("click", signOut);
     q("acDel") && q("acDel").addEventListener("click", deleteCloud);
     if (q("acAlerts") && window.LSAlerts) window.LSAlerts.bindAccount(q("acAlerts"));
+    app.querySelectorAll("[data-pro-wait-pin]").forEach(b => b.addEventListener("click", () => pinEntry(b.dataset.proWaitPin)));
+    if (window.LSPro) window.LSPro.bindWaitlist(app);
   }
 
   // ---------- boot: a sign-in link landed here, or this device is signed in -> sync once the page is up
   if (RET) { if (!onAccount()) location.hash = "#/account"; }
   else if (hasSession()) setTimeout(() => syncNow(), 1200);
   // client/session for alerts.js (line alerts use the same signed-in Supabase client; RLS keeps rows per user)
-  window.LSAccount = { view, syncNow, signedIn: hasSession, client, session };
+  window.LSAccount = { view, syncNow, signedIn: hasSession, client, session, requestOtp, verifyCode, pinEntry, currentEntry };
 })();

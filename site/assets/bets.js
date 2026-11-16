@@ -153,12 +153,21 @@
     const m = document.querySelector('meta[name="ls-build-label"]');
     return (m && m.content) || "dev";
   };
+  function signupNudge() {
+    if (signedIn() || !BETS.length) return "";
+    try { if (localStorage.getItem("ls-bets-nudge-off") === "1") return ""; } catch (e) { return ""; }
+    return `<div class="card bt-nudge" id="btNudge" role="note">
+      <b>Save bets on your other devices</b>
+      <p>You've saved a bet on this device. Create a free account and My Bets stays in sync on your phone and computer. No password. Your bets stay here either way.</p>
+      <div class="bt-nudge-row"><a class="bt-add" href="#/account?entry=my-bets">Create a free account</a><button type="button" class="chip" id="btNudgeHide">Not now</button></div>
+    </div>`;
+  }
   function shell(active, body) {
     const demo = isDemo() ? `<div class="bt-demo" role="note"><b>Example data</b> These are sample bets for screenshots only, not real wagers.</div>` : "";
     return `<div class="page-head bt-head"><div><h1>My Bets</h1><div class="sub">${signedIn() ? "Private tracker · synced to your account" : "Private tracker · stored on this device"}</div><div class="ls-build" data-ls-build>Build ${esc(buildLabel())}</div></div>
       <div class="bt-hbtns"><a class="chip bt-impbtn" href="#/bets/import">Import slip</a><a class="bt-add" href="#/bets/add">+ Add bet</a></div></div>
       <nav class="seg bt-tabs" aria-label="My Bets sections"><a href="#/bets" class="${active === "ov" ? "on" : ""}">Overview</a><a href="#/bets/list" class="${active === "list" ? "on" : ""}">Bets${BETS.length ? ` <span class="na">${BETS.length}</span>` : ""}</a><a href="#/bets/add" class="${active === "add" ? "on" : ""}">Add</a><a href="#/bets/import" class="${active === "imp" ? "on" : ""}">Import</a></nav>
-      ${demo}${body}`;
+      ${demo}${signupNudge()}${body}`;
   }
   const privacyNote = () => signedIn()
     ? `<div class="note bt-priv">Your bets are saved in this browser and synced to your LineSmart account, so they show up wherever you sign in. Manage sync on the <a href="#/account">Account</a> tab. They aren't linked to any sportsbook account.</div>`
@@ -1447,5 +1456,11 @@
     return `<div class="section-title">Track a bet</div><div class="card bt-track"><h3>Placed a bet on this game? <a class="lnk bt-more" href="${esc(trackHref(lg, g))}">Other bet ›</a></h3>
       ${out.join("") || (hidden ? `<div class="na">Shortcuts appear only for sportsbooks that are legal online in ${esc((GEO.current() || {}).stateName || "your state")}. You can still log a bet.</div>` : `<div class="na">No book prices for this game yet. You can still log it.</div>`)}<div class="note">Tap the line you bet to log it in My Bets (saved only on this device). Your stake and the exact odds on your slip come next.</div></div>`;
   }
+  document.addEventListener("click", e => {
+    const b = e.target.closest && e.target.closest("#btNudgeHide");
+    if (!b) return;
+    try { localStorage.setItem("ls-bets-nudge-off", "1"); } catch (err) {}
+    const n = document.getElementById("btNudge"); if (n) n.remove();
+  });
   window.LSBets = { view, trackHref, trackCard, propHref, cellHref, syncState, applySync };
 })();

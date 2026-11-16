@@ -8,7 +8,9 @@
  * separate cache so recently opened team/player pages still work offline.
  * Live score polls (assets/live.js) fetch ESPN scoreboards with cache:"no-store" every ~25 s: those skip the worker
  * entirely (nothing to gain from caching a score that is stale in 25 s, and a cached fallback would hide an outage).
- * Live box-score (summary) polls go network-first like other ESPN reads; live.js treats an X-LineSmart-Offline reply as a failure. */
+ * Live box-score (summary) polls go network-first like other ESPN reads; live.js treats an X-LineSmart-Offline reply as a failure.
+ * assets/music/ (background loops and tracks.json) is not part of the shell. The fetch handler lets the
+ * browser load those files itself, and only after the visitor turns music on. */
 const VERSION = "dev";
 const SHELL = `linesmart-shell-${VERSION}`;
 const DATA = "linesmart-data-v1";
@@ -19,7 +21,7 @@ const ESPN_HOST = "site.web.api.espn.com";
 const SHELL_FILES = [
   "./", "index.html", "manifest.webmanifest", "favicon.ico",
   "responsible-gambling.html", "privacy.html", "terms.html", "affiliate-disclosure.html", "about.html", "contact.html", "subscribed.html", "unsubscribe.html",
-  "assets/styles.css", "assets/theme.js", "assets/config.js", "assets/site.js", "assets/books-by-state.js", "assets/geo-core.js", "assets/geo.js", "assets/line-core.js", "assets/access-core.js", "assets/load.js", "assets/app.js", "assets/bets-core.js", "assets/slip-core.js", "assets/bets.js", "assets/matchup-core.js", "assets/matchup.js", "assets/weather-core.js", "assets/weather.js", "assets/props-core.js", "assets/props.js", "assets/ufc.js", "assets/pickem-core.js", "assets/adv-core.js", "assets/adv.js", "assets/value-core.js", "assets/value.js", "assets/news-core.js", "assets/news.js", "assets/live-core.js", "assets/live.js", "assets/week-live.js", "assets/box-core.js", "assets/week-core.js", "assets/livetab-core.js", "assets/alerts-core.js", "assets/alerts.js", "assets/pro-core.js", "assets/pro.js", "assets/pro-gate-core.js", "assets/pro-gate.js", "assets/fonts/inter-latin-var.woff2",
+  "assets/styles.css", "assets/theme.js", "assets/config.js", "assets/site.js", "assets/music-core.js", "assets/music.js", "assets/books-by-state.js", "assets/geo-core.js", "assets/geo.js", "assets/line-core.js", "assets/access-core.js", "assets/load.js", "assets/app.js", "assets/bets-core.js", "assets/slip-core.js", "assets/bets.js", "assets/matchup-core.js", "assets/matchup.js", "assets/weather-core.js", "assets/weather.js", "assets/props-core.js", "assets/props.js", "assets/ufc.js", "assets/pickem-core.js", "assets/adv-core.js", "assets/adv.js", "assets/value-core.js", "assets/value.js", "assets/news-core.js", "assets/news.js", "assets/live-core.js", "assets/live.js", "assets/week-live.js", "assets/box-core.js", "assets/week-core.js", "assets/livetab-core.js", "assets/alerts-core.js", "assets/alerts.js", "assets/pro-core.js", "assets/pro.js", "assets/pro-gate-core.js", "assets/pro-gate.js", "assets/fonts/inter-latin-var.woff2",
   "assets/brand/logo.svg", "assets/brand/icon.svg", "assets/brand/apple-touch-icon.png",
   "assets/brand/favicon-32.png", "assets/brand/favicon-16.png",
   "assets/brand/icon-192.png", "assets/brand/icon-512.png", "assets/brand/icon-maskable-512.png",
@@ -100,6 +102,7 @@ self.addEventListener("fetch", e => {
   if (url.origin !== scopeURL.origin || !url.pathname.startsWith(scopeURL.pathname)) return; // ESPN logos etc.: browser default
   const p = rel(url);
   if (p === "sw.js") return;
+  if (p.startsWith("assets/music/")) return; // audio loops: not precached, fetched only after the visitor turns music on
   if (p.startsWith("data/")) return e.respondWith(networkFirstData(req));
   if (req.mode === "navigate") return e.respondWith(networkFirstPage(req));
   if (FRESH.has(p)) return e.respondWith(networkFirstAsset(req));

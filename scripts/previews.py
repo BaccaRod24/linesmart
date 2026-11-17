@@ -460,7 +460,9 @@ def props_card(lg, g, props):
 def injury_availability(status):
     """'skip', 'badge', or 'ok'. Keep in sync with injuryAvailability() in site/assets/matchup-core.js.
 
-    skip: Out, Doubtful, Injured Reserve / IR (any spacing or punctuation) and the injured-list rename (IL, 10/60-day IL).
+    skip: Out, Doubtful, Injured Reserve / IR (any spacing or punctuation), the injured-list rename
+    (IL, 10/60-day IL), and roster holds the game summary leaves off: Suspended, PUP / Physically
+    Unable to Perform, Reserve/..., Inactive.
     badge: Questionable and Day-To-Day stay on the page with the q badge.
     ok: not an availability hold.
     """
@@ -475,9 +477,178 @@ def injury_availability(status):
         return "skip"
     if compact in ("ir", "il") or s in ("i r", "i l") or re.search(r"\binjured reserve\b", s) or re.search(r"\binjured list\b", s) or re.search(r"\bir\b", s) or re.search(r"\bil\b", s):
         return "skip"
+    if re.search(r"\bsuspended\b", s):
+        return "skip"
+    if compact == "pup" or re.search(r"\bpup\b", s) or re.search(r"\bphysically unable to perform\b", s):
+        return "skip"
+    if re.search(r"\breserve\b", s):
+        return "skip"
+    if re.search(r"\binactive\b", s):
+        return "skip"
     if re.search(r"\bquestionable\b", s) or re.search(r"\bday to day\b", s) or compact == "dtd" or re.search(r"\bdtd\b", s):
         return "badge"
     return "ok"
+
+
+def roster_hold_status(athlete):
+    """Strictest hold on one ESPN roster athlete. injuries[].status wins over status.name,
+    so a Day-To-Day roster status plus Injured Reserve is a skip. '' when he is not a hold."""
+    if not isinstance(athlete, dict):
+        return ""
+    names = []
+    for inj in athlete.get("injuries") or []:
+        if isinstance(inj, dict) and inj.get("status"):
+            names.append(inj.get("status"))
+    st = athlete.get("status")
+    if isinstance(st, dict):
+        if st.get("name"):
+            names.append(st.get("name"))
+        ab = st.get("abbreviation")
+        if ab and ab not in names:
+            names.append(ab)
+    elif st:
+        names.append(st)
+    badge = ""
+    for n in names:
+        av = injury_availability(n)
+        if av == "skip":
+            return str(n)
+        if av == "badge" and not badge:
+            badge = str(n)
+    return badge
+
+
+def injuries_from_roster(roster):
+    """ESPN team roster JSON -> [{player, pos, status, id}] for athletes who are a hold."""
+    ath = (roster or {}).get("athletes") or []
+    if ath and isinstance(ath[0], dict) and "items" in ath[0]:
+        items = [i for grp in ath for i in (grp.get("items") or [])]
+    else:
+        items = ath
+    out = []
+    for a in items:
+        if not isinstance(a, dict):
+            continue
+        status = roster_hold_status(a)
+        name = a.get("displayName") or a.get("fullName") or ""
+        if not status or not name:
+            continue
+        pos = ((a.get("position") or {}).get("abbreviation")) or ""
+        out.append({"player": name, "pos": pos, "status": status, "id": str(a["id"]) if a.get("id") else ""})
+    return out
+
+
+def roster_injuries_from_search(doc, team_ids=None):
+    """{teamId: rows} from a search index that stored roster holds (doc['rosterInj']).
+
+    None when this index has no injury slot. A team with a roster and no holds is an empty list.
+    Teams that are not in the index are omitted so the caller can fetch them.
+    """
+    if not isinstance(doc, dict) or not doc.get("rosterInj"):
+        return None
+    teams = doc.get("teams") or []
+    want = None if team_ids is None else {str(t) for t in team_ids if t not in (None, "")}
+    known = {}
+    for t in teams:
+        if not isinstance(t, list) or not t:
+            continue
+        tid = str(t[0])
+        if want is not None and tid not in want:
+            continue
+        if len(t) > 8 and t[8]:
+            known[tid] = []
+    for p in doc.get("players") or []:
+        if not isinstance(p, list) or len(p) < 7 or not p[6]:
+            continue
+        if injury_availability(p[6]) == "ok":
+            continue
+        ti = p[2]
+        if not isinstance(ti, int) or ti < 0 or ti >= len(teams):
+            continue
+        tid = str(teams[ti][0])
+        if want is not None and tid not in want:
+            continue
+        known.setdefault(tid, []).append({"player": p[1], "pos": p[3] or "", "status": str(p[6]), "id": str(p[0])})
+    if want is None:
+        return known
+    return {tid: known[tid] for tid in want if tid in known}
+
+
+def apply_roster_injuries(games_dir, search_doc):
+    """Write detail.rosterInjuries onto game files from the search index. Returns how many files changed."""
+    mapping = roster_injuries_from_search(search_doc)
+    if mapping is None or not games_dir or not os.path.isdir(games_dir):
+        return 0
+    n = 0
+    for fn in os.listdir(games_dir):
+        if not fn.endswith(".json"):
+            continue
+        path = os.path.join(games_dir, fn)
+        try:
+            with open(path) as fh:
+                doc = json.load(fh)
+        except Exception:
+            continue
+        det = doc.get("detail")
+        g = doc.get("game") or {}
+        if not isinstance(det, dict):
+            continue
+        roster = {}
+        for side in ("away", "home"):
+            tid = str(((g.get(side) or {}).get("id")) or "")
+            if tid and tid in mapping:
+                roster[tid] = mapping[tid]
+        if not roster or det.get("rosterInjuries") == roster:
+            continue
+        det["rosterInjuries"] = roster
+        doc["detail"] = det
+        with open(path, "w") as fh:
+            json.dump(doc, fh, separators=(",", ":"))
+        n += 1
+    return n
+
+
+def _availability_rank(status):
+    av = injury_availability(status)
+    return 2 if av == "skip" else 1 if av == "badge" else 0
+
+
+def _combine_injury_rows(summary, roster):
+    """Same player keeps the stricter status. Summary order first, then roster-only names."""
+    by, order = {}, []
+    for r in list(summary or []) + list(roster or []):
+        if not isinstance(r, dict) or not r.get("player"):
+            continue
+        k = str(r.get("player")).lower()
+        prev = by.get(k)
+        if prev is None:
+            by[k] = r
+            order.append(k)
+            continue
+        if _availability_rank(r.get("status")) > _availability_rank(prev.get("status")):
+            by[k] = r
+    return [by[k] for k in order]
+
+
+def _injury_for_leader(leader, rows):
+    """Id match, else exact name. The stricter status wins when both lists name him."""
+    if not isinstance(leader, dict):
+        return None
+    pid = str(leader.get("id") or "")
+    name = str(leader.get("player") or leader.get("name") or "").lower()
+    best, best_rank = None, -1
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        rid = str(r.get("id") or "")
+        id_hit = bool(pid) and rid == pid
+        name_hit = bool(name) and str(r.get("player") or "").lower() == name
+        if not id_hit and not name_hit:
+            continue
+        rank = _availability_rank(r.get("status"))
+        if rank > best_rank:
+            best, best_rank = r, rank
+    return best
 
 
 def injury_by_name(name, rows):
@@ -512,14 +683,16 @@ def _has_stat_line(x):
 def leader_rows(detail):
     """Team-leader lines for a static game page.
 
-    One line per category. If the top name is Out, Doubtful or IR, the next stored leader in that
-    category fills the line. Questionable and day-to-day leaders who have a stat line stay and carry
-    a badge. Players who appear only on the injury report are not added. A side with fewer eligible
-    leaders simply shows fewer lines.
+    One line per category. If the top name is Out, Doubtful, IR, or a roster hold the summary left
+    off (Suspended, PUP, Reserve/..., Inactive), the next stored leader in that category fills the
+    line. Questionable and day-to-day leaders who have a stat line stay and carry a badge. Players
+    who appear only on the injury report are not added. A side with fewer eligible leaders simply
+    shows fewer lines.
     """
     detail = detail or {}
     leaders = detail.get("leaders") or []
     injuries = detail.get("injuries") or {}
+    roster_inj = detail.get("rosterInjuries") or {}
     teams, by = [], {}
     for x in leaders:
         if not _has_stat_line(x):
@@ -531,7 +704,7 @@ def leader_rows(detail):
         by[tid].append(x)
     out = []
     for tid in teams:
-        rows = _injury_rows(injuries, tid)
+        rows = _combine_injury_rows(_injury_rows(injuries, tid), _injury_rows(roster_inj, tid))
         cats, byc = [], {}
         for x in by[tid]:
             c = x.get("cat") or ""
@@ -542,7 +715,7 @@ def leader_rows(detail):
         for c in cats:
             for x in byc[c]:
                 name = x.get("player") or ""
-                inj = injury_by_name(name, rows)
+                inj = _injury_for_leader(x, rows)
                 av = injury_availability((inj or {}).get("status"))
                 if av == "skip":
                     continue

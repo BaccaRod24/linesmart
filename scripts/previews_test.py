@@ -212,6 +212,26 @@ ir_rows = P.leader_rows({"leaders": [
 check([r["player"] for r in ir_rows] == ["Next Rec"], f"IR and Injured Reserve skipped ({[r['player'] for r in ir_rows]})")
 check(P.leader_rows({"leaders": [{"teamId": "4", "cat": "Passing Yards", "player": "Dot IR", "value": "1", "pos": "QB"}],
                     "injuries": {"4": [{"player": "Dot IR", "status": "I.R."}]}}) == [], "I.R. left off rather than shown")
+for s in ("Suspended", "PUP", "Physically Unable to Perform", "Reserve/PUP", "Inactive"):
+    check(P.injury_availability(s) == "skip", f"roster hold skipped ({s})")
+check(P.injury_availability("Practice Squad") == "ok", "practice squad is not a hold")
+lamar = {"id": "3916387", "displayName": "Lamar Jackson", "position": {"abbreviation": "QB"},
+         "status": {"name": "Day-To-Day", "abbreviation": "Day-To-Day"}, "injuries": [{"status": "Injured Reserve"}]}
+active = {"id": "4429582", "displayName": "Joe Fagnano", "position": {"abbreviation": "QB"}, "status": {"name": "Active"}, "injuries": []}
+check(P.roster_hold_status(lamar) == "Injured Reserve", "Day-To-Day roster status does not hide Injured Reserve")
+check(P.roster_hold_status(active) == "", "an active roster player is not a hold")
+parsed = P.injuries_from_roster({"athletes": [{"items": [lamar, active]}]})
+check([r["player"] for r in parsed] == ["Lamar Jackson"], f"roster parser drops active players ({parsed})")
+roster_detail = {"leaders": [
+    {"teamId": "33", "cat": "Passing Yards", "player": "Lamar Jackson", "value": "68/97, 967 YDS", "id": "3916387", "pos": "QB"},
+    {"teamId": "33", "cat": "Passing Yards", "player": "Joe Fagnano", "value": "20/39, 151 YDS", "id": "4429582", "pos": "QB"},
+    {"teamId": "33", "cat": "Rushing Yards", "player": "Derrick Henry", "value": "689", "id": "3043078", "pos": "RB"},
+], "injuries": {"33": [{"player": "Kedon Slovis", "status": "Out"}]},
+    "rosterInjuries": {"33": parsed}}
+roster_leaders = P.leader_rows(roster_detail)
+check([r["player"] for r in roster_leaders] == ["Joe Fagnano", "Derrick Henry"], f"summary-omitted IR is dropped and the next passer is the team leader ({[r['player'] for r in roster_leaders]})")
+roster_card = P.leaders_card(roster_detail)
+check("Lamar Jackson" not in roster_card and "Joe Fagnano" in roster_card and "Derrick Henry" in roster_card, "team leaders card shows the next passer, not the IR passer")
 
 q_rows = P.leader_rows({"leaders": [
     {"teamId": "12", "cat": "Passing Yards", "player": "Patrick Mahomes", "value": "1,795", "pos": "QB"},

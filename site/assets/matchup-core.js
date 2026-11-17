@@ -160,7 +160,7 @@
   }
 
   // Injury report vs season leaders. Keep this classifier in sync with injury_availability() in scripts/previews.py.
-  // "skip"  = do not show (Out, Doubtful, Injured Reserve / IR, and the injured-list rename IL)
+  // "skip"  = do not show (Out, Doubtful, Injured Reserve / IR, IL, Suspended, PUP, Reserve/..., Inactive)
   // "badge" = show, with the q badge (Questionable, Day-To-Day)
   // "ok"    = show with no badge
   function injuryAvailability(status) {
@@ -171,8 +171,76 @@
     if (/(^| )out( |$)/.test(s) || compact === "o") return "skip";
     if (/(^| )doubtful( |$)/.test(s)) return "skip";
     if (compact === "ir" || compact === "il" || s === "i r" || s === "i l" || /\binjured reserve\b/.test(s) || /\binjured list\b/.test(s) || /\bir\b/.test(s) || /\bil\b/.test(s)) return "skip";
+    if (/\bsuspended\b/.test(s)) return "skip";
+    if (compact === "pup" || /\bpup\b/.test(s) || /\bphysically unable to perform\b/.test(s)) return "skip";
+    if (/\breserve\b/.test(s)) return "skip";
+    if (/\binactive\b/.test(s)) return "skip";
     if (/\bquestionable\b/.test(s) || /\bday to day\b/.test(s) || compact === "dtd" || /\bdtd\b/.test(s)) return "badge";
     return "ok";
+  }
+  /** Strictest hold on an ESPN roster athlete. injuries[].status wins over the roster status name,
+   *  so Day-To-Day + Injured Reserve is a skip (the summary injury list leaves IR players off). */
+  function rosterHoldStatus(athlete) {
+    if (!athlete || typeof athlete !== "object") return "";
+    const names = [];
+    for (const inj of athlete.injuries || []) if (inj && inj.status) names.push(inj.status);
+    const st = athlete.status;
+    if (st && typeof st === "object") {
+      if (st.name) names.push(st.name);
+      if (st.abbreviation && st.abbreviation !== st.name) names.push(st.abbreviation);
+    } else if (st) names.push(st);
+    let badge = "";
+    for (const n of names) {
+      const av = injuryAvailability(n);
+      if (av === "skip") return String(n);
+      if (av === "badge" && !badge) badge = String(n);
+    }
+    return badge;
+  }
+  /** ESPN team roster JSON -> injury rows for athletes who are a hold. Active players are omitted. */
+  function injuriesFromRoster(roster) {
+    const ath = (roster && roster.athletes) || [];
+    const items = ath.length && ath[0] && Array.isArray(ath[0].items) ? ath.flatMap(g => g.items || []) : ath;
+    const out = [];
+    for (const a of items) {
+      if (!a) continue;
+      const status = rosterHoldStatus(a);
+      const name = a.displayName || a.fullName || "";
+      if (!status || !name) continue;
+      out.push({ player: name, pos: (a.position || {}).abbreviation || "", status, id: a.id != null && a.id !== "" ? String(a.id) : "" });
+    }
+    return out;
+  }
+  function availabilityRank(status) {
+    const av = injuryAvailability(status);
+    return av === "skip" ? 2 : av === "badge" ? 1 : 0;
+  }
+  /** Summary rows plus roster rows. The same player keeps the stricter status (skip over a badge). */
+  function combineInjuryRows(summary, roster) {
+    const by = new Map(), order = [];
+    for (const r of [...(summary || []), ...(roster || [])]) {
+      if (!r || !r.player) continue;
+      const k = String(r.player).toLowerCase();
+      const prev = by.get(k);
+      if (!prev) { by.set(k, r); order.push(k); continue; }
+      if (availabilityRank(r.status) > availabilityRank(prev.status)) by.set(k, r);
+    }
+    return order.map(k => by.get(k));
+  }
+  /** Id match, else exact name. When both lists name him, the stricter status wins. */
+  function injuryForLeader(leader, rows) {
+    const id = leader && leader.id != null && String(leader.id) !== "" ? String(leader.id) : "";
+    const name = String((leader && (leader.player || leader.name)) || "").toLowerCase();
+    let best = null, bestRank = -1;
+    for (const r of rows || []) {
+      if (!r) continue;
+      const idHit = id && r.id != null && String(r.id) !== "" && String(r.id) === id;
+      const nameHit = name && r.player && String(r.player).toLowerCase() === name;
+      if (!idHit && !nameHit) continue;
+      const rank = availabilityRank(r.status);
+      if (rank > bestRank) { best = r; bestRank = rank; }
+    }
+    return best;
   }
   /** Case-insensitive exact name match, the same comparison injuryFor() uses on player pages. */
   function injuryByName(name, rows) {
@@ -201,10 +269,12 @@
     };
   }
   /**
-   * Season-leader rows with Out / Doubtful / IR removed. One row per category: if the top name is
-   * unavailable, the next leader stored for that category fills the line. Questionable and day-to-day stay, with a badge.
+   * Season-leader rows with Out / Doubtful / IR (and roster holds such as Suspended, PUP, Reserve) removed.
+   * `rosterInjuries` is the same shape as `injuries` ({teamId: rows}) and is how IR players the game summary
+   * leaves off still get filtered. One row per category: if the top name is unavailable, the next leader
+   * stored for that category fills the line. Questionable and day-to-day stay, with a badge.
    */
-  function visibleLeaders(leaders, injuries) {
+  function visibleLeaders(leaders, injuries, rosterInjuries) {
     const byTeam = new Map(), order = [];
     for (const l of leaders || []) {
       if (!l) continue;
@@ -214,7 +284,7 @@
     }
     const out = [];
     for (const tid of order) {
-      const rows = injuryRows(injuries, tid);
+      const rows = combineInjuryRows(injuryRows(injuries, tid), injuryRows(rosterInjuries, tid));
       const cats = [], byCat = new Map();
       for (const l of byTeam.get(tid)) {
         const c = String(l.cat || "");
@@ -225,7 +295,7 @@
         for (const l of byCat.get(c)) {
           const name = l.player || l.name || "";
           if (!hasStatLine(l)) continue;
-          const inj = injuryByName(name, rows);
+          const inj = injuryForLeader(l, rows);
           const av = injuryAvailability(inj && inj.status);
           if (av === "skip") continue;
           out.push(decorateLeader(l, inj, av));
@@ -243,7 +313,9 @@
     return !!(cat && (l.player || l.name) && value);
   }
   /**
-   * Up to `limit` key players for one team (default 3). Skips Out, Doubtful and IR.
+   * Up to `limit` key players for one team (default 3). Skips Out, Doubtful, IR and the same roster
+   * holds (Suspended, PUP, Reserve/..., Inactive). opts.rosterInjuries is {teamId: rows} from the
+   * ESPN roster when the game summary left those players off the injury list.
    * A spot is filled only by a leader who has a stat line: the next leader in that category,
    * then a leader from another category. Questionable and day-to-day leaders stay, with a badge.
    * Names that appear only on the injury report are not used. Returns fewer than `limit` when
@@ -251,7 +323,7 @@
    */
   function pickKeyPlayers(lg, leaders, injuries, teamId, opts) {
     const limit = (opts && opts.limit) || 3;
-    const rows = injuryRows(injuries, teamId);
+    const rows = combineInjuryRows(injuryRows(injuries, teamId), injuryRows(opts && opts.rosterInjuries, teamId));
     const mine = (leaders || []).filter(l => l && String(l.teamId) === String(teamId) && hasStatLine(l));
     const cats = [], byCat = new Map();
     for (const l of mine) {
@@ -268,7 +340,7 @@
       if (!hasStatLine(l)) return false;
       const ik = idKey(l.id), nk = nameKey(name);
       if ((ik && seen.has(ik)) || seen.has(nk)) return false;
-      const inj = injuryByName(name, rows);
+      const inj = injuryForLeader(l, rows);
       const av = injuryAvailability(inj && inj.status);
       if (av === "skip") return false;
       const pos = l.pos || (inj && inj.pos) || "";
@@ -284,5 +356,5 @@
   }
 
   return { isNum, num, parseLog, mergeRows, seasonsOf, currentSeason, posBucket, STATS, statDefs, avg, lastN, trend, splitHA, vsOpp, hitRate, defaultLine,
-    seasonRows, nextGame, linesFor, ordinal, tier, oppDefense, leaderKey, injuryAvailability, injuryByName, visibleLeaders, pickKeyPlayers };
+    seasonRows, nextGame, linesFor, ordinal, tier, oppDefense, leaderKey, injuryAvailability, injuryByName, rosterHoldStatus, injuriesFromRoster, combineInjuryRows, injuryForLeader, visibleLeaders, pickKeyPlayers };
 });

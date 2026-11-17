@@ -183,6 +183,36 @@ check(vis.map(p => p.name).join("|") === "Walker Kessler" && !vis.some(p => /luk
 const visQ = M.visibleLeaders([{ teamId: "12", cat: "Passing Yards", player: "Patrick Mahomes", value: "1795", id: "1", pos: "QB" }], { "12": [{ player: "Patrick Mahomes", status: "Questionable" }] });
 check(visQ.length === 1 && visQ[0].badge === "Questionable", "season-leader table badges Questionable", "inj");
 
+// Roster injury status. The game summary leaves IR players off; the roster still marks them.
+for (const s of ["Suspended", "PUP", "P.U.P.", "Physically Unable to Perform", "Reserve/PUP", "Reserve/Suspended", "Inactive"]) check(avail(s) === "skip", `roster hold skipped (${s})`, "inj");
+check(avail("Practice Squad") === "ok" && avail("Day-To-Day") === "badge", "practice squad is not a hold; day-to-day still badges", "inj");
+const rosterDoc = { athletes: [{ position: "QB", items: [
+  { id: "3916387", displayName: "Lamar Jackson", position: { abbreviation: "QB" }, status: { name: "Day-To-Day", abbreviation: "Day-To-Day" }, injuries: [{ status: "Injured Reserve" }] },
+  { id: "4429582", displayName: "Joe Fagnano", position: { abbreviation: "QB" }, status: { name: "Active" }, injuries: [] },
+  { id: "9", displayName: "Q Receiver", position: { abbreviation: "WR" }, status: { name: "Active" }, injuries: [{ status: "Questionable" }] },
+  { id: "8", displayName: "Suspended Back", position: { abbreviation: "RB" }, status: { name: "Suspended" }, injuries: [] },
+]}]};
+const parsed = M.injuriesFromRoster(rosterDoc);
+check(parsed.map(r => `${r.player}:${r.status}`).join("|") === "Lamar Jackson:Injured Reserve|Q Receiver:Questionable|Suspended Back:Suspended", `roster parser keeps holds only (${parsed.map(r => r.player + ":" + r.status).join("|")})`, "inj");
+check(M.rosterHoldStatus(rosterDoc.athletes[0].items[0]) === "Injured Reserve", "Day-To-Day roster status does not hide Injured Reserve", "inj");
+const ravenLeaders = [
+  { teamId: "33", cat: "Passing Yards", player: "Lamar Jackson", value: "68/97, 967 YDS", id: "3916387", pos: "QB" },
+  { teamId: "33", cat: "Passing Yards", player: "Joe Fagnano", value: "20/39, 151 YDS", id: "4429582", pos: "QB" },
+  { teamId: "33", cat: "Rushing Yards", player: "Derrick Henry", value: "689", id: "3043078", pos: "RB" },
+];
+const summaryNoIr = { "33": [{ player: "Kedon Slovis", status: "Out", pos: "QB" }] };
+const rosterOnly = { "33": parsed.filter(r => r.player === "Lamar Jackson") };
+const visRoster = M.visibleLeaders(ravenLeaders, summaryNoIr, rosterOnly);
+check(visRoster.map(p => p.cat + ":" + p.name).join("|") === "Passing Yards:Joe Fagnano|Rushing Yards:Derrick Henry", `summary-omitted IR is dropped and the next passer fills the line (${visRoster.map(p => p.name).join("|")})`, "inj");
+check(!visRoster.some(p => /lamar/i.test(p.name)), "Lamar Jackson is not a team leader when the roster says Injured Reserve", "inj");
+const cards = M.pickKeyPlayers("nfl", ravenLeaders, summaryNoIr, "33", { rosterInjuries: rosterOnly });
+check(cards.map(p => p.name).join("|") === "Joe Fagnano|Derrick Henry" && !cards.some(p => /lamar/i.test(p.name)), `matchup cards skip the roster IR passer (${cards.map(p => p.name).join("|")})`, "inj");
+const onlyLamar = M.visibleLeaders(
+  [{ teamId: "33", cat: "Passing Yards", player: "Lamar Jackson", value: "967", id: "3916387", pos: "QB" }],
+  { "33": [{ player: "Kedon Slovis", status: "Out" }] },
+  { "33": [{ player: "Lamar Jackson", id: "3916387", status: "Injured Reserve", pos: "QB" }] });
+check(onlyLamar.length === 0, "when the only passer is IR on the roster and absent from the summary, the line is left off", "inj");
+
 // ---------- no betting-encouragement language in the shipped UI copy
 const fs = await import("fs");
 const ui = fs.readFileSync(new URL("../site/assets/matchup.js", import.meta.url), "utf8") + fs.readFileSync(new URL("../site/assets/matchup-core.js", import.meta.url), "utf8");

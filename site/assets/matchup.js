@@ -159,11 +159,14 @@
   }
 
   // ---------- game page: key player matchups
-  async function keyMatchups(el, lg, g, det, alive = () => true) {
+  async function keyMatchups(el, lg, g, det, alive = () => true, rosterInjuries) {
     const app = A(), { esc, getJSON, crest } = app;
     if (!el || !SUPPORTED.has(lg)) return;
     const settle = p => (p ? p.then(v => v, () => null) : Promise.resolve(null));
     const [mu, si] = await Promise.all([settle(getJSON(`data/matchups/${lg}.json`)), settle(app.sidx(lg))]);
+    if (!alive()) return;
+    let holds = rosterInjuries;
+    if (!holds && app.rosterHolds) holds = await app.rosterHolds(lg, g, det, si);
     if (!alive()) return;
     const sides = [g.away, g.home];
     const roster = (teamId, name) => {
@@ -176,7 +179,7 @@
       if (!id || !pos) { const p = roster(l.teamId, l.player); if (p) { id = id || p.id; pos = pos || p.pos; } }
       return { ...l, id: id || "", pos: pos || "" };
     });
-    const pick = t => M.pickKeyPlayers(lg, leaders, det.injuries || {}, t.id, { limit: 3 }).map(p => {
+    const pick = t => M.pickKeyPlayers(lg, leaders, det.injuries || {}, t.id, { limit: 3, rosterInjuries: holds || {} }).map(p => {
       let id = p.id, pos = p.pos;
       if (!id || !pos) { const hit = roster(t.id, p.name); if (hit) { id = id || hit.id; pos = pos || hit.pos; } }
       return { ...p, id: id || "", pos: pos || "" };

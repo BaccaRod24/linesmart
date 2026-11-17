@@ -2380,6 +2380,17 @@ def game_meta(L: League, g, gid):
     return title, cut(desc)
 
 
+def _league_search(L):
+    """Search index for this league, once per League. None when the file isn't there (tests, UFC)."""
+    if getattr(L, "_search_loaded", False):
+        return getattr(L, "_search_doc", None)
+    data_dir = getattr(L, "data_dir", None)
+    doc = load_json(Path(data_dir) / "search" / f"{L.lg}.json") if data_dir else None
+    L._search_loaded = True
+    L._search_doc = doc if isinstance(doc, dict) else None
+    return L._search_doc
+
+
 def game_page(L: League, sh: Shell, gid):
     g = L.games[gid]
     path = L.paths[gid]
@@ -2389,6 +2400,10 @@ def game_page(L: League, sh: Shell, gid):
     ab = abnormal(g)
     cur = gid in L.current
     detail = ((load_json(L.data_dir / L.lg / "games" / f"{gid}.json") or {}).get("detail") or {}) if cur else {}
+    if cur and not final and L.lg != "ufc" and not isinstance(detail.get("rosterInjuries"), dict):
+        extra = pv.roster_injuries_from_search(_league_search(L), [a.get("id"), h.get("id")])
+        if extra:
+            detail = dict(detail, rosterInjuries=extra)
     mtch = L.matchup(g)
     mshort = L.matchup(g, short=True)
     title, desc = game_meta(L, g, gid)

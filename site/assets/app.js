@@ -1738,7 +1738,7 @@
       if (!xs.length) return `<tr><td colspan="3">${NA}</td></tr>`;
       return xs.map(x => `<tr><td>${esc(x.cat || "")}</td><td><span data-leader="${esc(x.player)}">${esc(x.player)}</span>${x.badge ? ` <span class="badge q">${esc(x.badge)}</span>` : ""}</td><td class="num">${esc(x.value || "")}</td></tr>`).join("");
     };
-    const card = t => `<div class="card"><h3>${logo(t)}${esc(t.name)}</h3><table><tbody>${rows(t)}</tbody></table></div>`;
+    const card = t => `<div class="card g-leaders"><h3>${logo(t)}${esc(t.name)}</h3><table><tbody>${rows(t)}</tbody></table></div>`;
     const body = leaders.length ? `<div class="cols">${card(A)}${card(H)}</div>` : notAvail("Season leaders", "Not available");
     return `<div class="section-title">Player stats</div>${body}<div class="note">Season leaders from this game's file. A name links to the player when the on-site index has it.</div>
       <a class="mu-open" href="#/stats/${esc(key)}"><span class="mu-open-t">All player stats</span><span class="mu-open-s">Search ${esc(lgName(key))} season leaders</span></a>`;

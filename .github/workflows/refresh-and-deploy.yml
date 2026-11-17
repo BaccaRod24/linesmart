@@ -42,6 +42,8 @@ jobs:
     timeout-minutes: 20
     outputs:
       data_ok: ${{ steps.build.outcome }}
+      # Provider pull times for publish-request. The build clock is not included.
+      odds_clocks: ${{ steps.odds_clocks.outputs.clocks }}
     permissions:
       contents: write   # push line-movement snapshots to the data-history branch
       pages: write      # configure-pages
@@ -328,6 +330,13 @@ jobs:
         with:
           path: site
 
+      # Provider pull times (hardrock.leagues and hardrock.props), not the build clock.
+      # publish-request compares these when main moved during the queue.
+      - name: Record provider pull times for the publish decision
+        id: odds_clocks
+        if: github.event_name != 'push'
+        run: python3 scripts/publish_stamp_decision.py emit-clocks site/data/meta.json >> "$GITHUB_OUTPUT"
+
       # Scheduled and manual refreshes all check out one commit (data is not committed), so deploying
       # from this run reuses that commit as pages_build_version. Pages then reports success and can keep
       # serving the previous artifact. The publish run below deploys this exact bundle under a new SHA.
@@ -437,8 +446,11 @@ jobs:
           python3 scripts/verify_live_deploy.py --meta "$meta" --timeout 240
           python3 scripts/reliability.py --meta "$meta" --fail-if-stale
 
-  # Schedule and workflow_dispatch share the current main SHA, so this job creates one new commit
-  # (a stamp, not the odds data) and dispatches a run on that commit to deploy the bundle.
+  # Schedule and workflow_dispatch builds share the commit that was current when the run was
+  # queued. github.sha stays that commit even if another refresh stamps main while this run waits
+  # on the pages lock. This job still stamps when this bundle's provider pull times are newer and
+  # every commit since the build is a Pages stamp. A code push publishes itself. The stamp push
+  # fast-forwards main and commits only .github/pages-deploy-stamp.
   # GITHUB_TOKEN pushes do not start a push workflow. The dispatched run's event is workflow_dispatch,
   # which GITHUB_TOKEN is allowed to trigger, and its github.sha is the stamp commit.
   publish-request:
@@ -463,54 +475,16 @@ jobs:
         env:
           BUILD_SHA: ${{ github.sha }}
           RUN_ID: ${{ github.run_id }}
+          OURS: ${{ needs.build.outputs.odds_clocks }}
         run: |
           set -euo pipefail
-          finish() { echo "skip=$1" >> "$GITHUB_OUTPUT"; echo "sha=${2:-}" >> "$GITHUB_OUTPUT"; }
-          git fetch --no-tags --depth=1 origin main
-          tip=$(git rev-parse origin/main)
-          if [ "$tip" != "$BUILD_SHA" ]; then
-            echo "::warning::main moved from $BUILD_SHA to $tip during the build. That push publishes itself. Not stacking a stamp."
-            finish 1
-            exit 0
-          fi
-          python3 scripts/verify_live_deploy.py --write-stamp .github/pages-deploy-stamp \
-            --run-id "$RUN_ID" --attempt "${GITHUB_RUN_ATTEMPT}" --built-from "$BUILD_SHA"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git add -- .github/pages-deploy-stamp
-          names=$(git diff --cached --name-only)
-          if [ "$names" != ".github/pages-deploy-stamp" ]; then
-            echo "::error::refusing to commit anything except the Pages stamp"
-            printf '%s\n' "$names"
-            exit 1
-          fi
-          git commit -m "Publish pages data $(date -u +%Y-%m-%dT%H:%MZ) (run ${RUN_ID})"
-          for i in 1 2 3 4 5; do
-            if git push origin "HEAD:refs/heads/main"; then
-              break
-            fi
-            echo "::warning::stamp push rejected (attempt $i); checking whether main moved"
-            sleep $((i * 2))
-            git fetch --no-tags --depth=1 origin main
-            tip=$(git rev-parse origin/main)
-            if [ "$tip" != "$BUILD_SHA" ]; then
-              echo "::warning::main moved to $tip during the push. Not overwriting it. The live site was left unchanged by this step."
-              finish 1
-              exit 0
-            fi
-            if [ "$i" = 5 ]; then
-              echo "::error::Could not push the Pages stamp commit to main. The live site was left unchanged. If main is protected, allow github-actions[bot] to push this stamp (it is not the odds data)."
-              exit 1
-            fi
-          done
-          git fetch --no-tags --depth=1 origin main
-          new=$(git rev-parse HEAD)
-          if [ "$(git rev-parse origin/main)" != "$new" ]; then
-            echo "::error::push reported success but origin/main is not the stamp commit"
-            exit 1
-          fi
-          finish 0 "$new"
-          echo "Stamp commit $new"
+          python3 scripts/publish_stamp_decision.py publish \
+            --build-sha "$BUILD_SHA" \
+            --run-id "$RUN_ID" \
+            --attempt "${GITHUB_RUN_ATTEMPT}" \
+            --clocks "$OURS" \
+            --stamp .github/pages-deploy-stamp \
+            --github-output "$GITHUB_OUTPUT"
 
       - name: Dispatch the publish run on the new commit
         id: dispatch

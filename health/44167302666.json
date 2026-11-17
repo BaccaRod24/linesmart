@@ -1,0 +1,100 @@
+{
+ "v": 1,
+ "runId": "44167302666",
+ "at": "2026-11-17T20:16:38Z",
+ "generated": "2026-11-17T20:16:32.432641+00:00",
+ "checkedAt": "2026-11-17T20:15:36Z",
+ "level": "full",
+ "gameInterval": 30,
+ "staleAfterMin": 90,
+ "notVerified": "Prices are not compared to the sportsbook's own site.",
+ "counts": {
+  "findings": 1,
+  "errors": 0,
+  "warnings": 1,
+  "keptLastGood": 0,
+  "staleLeagues": 0
+ },
+ "leagues": {
+  "nfl": {
+   "pulledAt": "2026-11-17T20:15:36Z",
+   "ageMin": 1,
+   "upcoming": 17,
+   "inWindow": true,
+   "stale": false
+  },
+  "epl": {
+   "pulledAt": "2026-11-17T20:15:36Z",
+   "ageMin": 1,
+   "upcoming": 10,
+   "inWindow": true,
+   "stale": false
+  },
+  "nba": {
+   "pulledAt": "2026-11-17T20:15:36Z",
+   "ageMin": 1,
+   "upcoming": 65,
+   "inWindow": true,
+   "stale": false
+  },
+  "ncaaf": {
+   "pulledAt": "2026-11-17T20:15:36Z",
+   "ageMin": 1,
+   "upcoming": 73,
+   "inWindow": true,
+   "stale": false
+  },
+  "ncaab": {
+   "pulledAt": "2026-11-17T20:15:36Z",
+   "ageMin": 1,
+   "upcoming": 551,
+   "inWindow": true,
+   "stale": false
+  },
+  "nhl": {
+   "pulledAt": "2026-11-17T20:15:36Z",
+   "ageMin": 1,
+   "upcoming": 67,
+   "inWindow": true,
+   "stale": false
+  },
+  "mlb": {
+   "pulledAt": "2026-10-29T03:15:20Z",
+   "ageMin": 28381,
+   "upcoming": 0,
+   "inWindow": false,
+   "stale": false
+  },
+  "mls": {
+   "pulledAt": "2026-11-17T20:15:36Z",
+   "ageMin": 1,
+   "upcoming": 10,
+   "inWindow": true,
+   "stale": false
+  },
+  "ucl": {
+   "pulledAt": "2026-11-17T20:15:36Z",
+   "ageMin": 1,
+   "upcoming": 18,
+   "inWindow": true,
+   "stale": false
+  },
+  "ufc": {
+   "pulledAt": null,
+   "ageMin": null,
+   "upcoming": 28,
+   "inWindow": null,
+   "stale": false
+  }
+ },
+ "findings": [
+  {
+   "level": "warn",
+   "code": "invalid_odds",
+   "game": "401909535",
+   "book": "draftkings",
+   "detail": "homeML=-50000",
+   "league": "ncaab"
+  }
+ ]
+}

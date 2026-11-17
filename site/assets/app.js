@@ -841,12 +841,15 @@
 
     const wireLive = () => startLive([liveRef(key, g0)], { lg: key, id: String(g0.id), g: g0, A, H, kind });
     if (focus === "stats") {
-      html += matchupPanel(key, g, d, kind);
+      const tok = NAV;
+      const roster = await rosterHolds(key, g, det);
+      if (tok !== NAV) return;
+      html += matchupPanel(key, g, d, kind, roster);
       app.innerHTML = html;
       linkLeaders(key, NAV);
       window.scrollTo(0, 0);
       const km = document.getElementById("keyMu");
-      if (km && window.LSMatchup) { const tok = NAV; window.LSMatchup.keyMatchups(km, key, g, det, () => tok === NAV).catch(e => console.warn(e)); }
+      if (km && window.LSMatchup) { window.LSMatchup.keyMatchups(km, key, g, det, () => tok === NAV, roster).catch(e => console.warn(e)); }
       const av = document.getElementById("advGame");
       if (av && window.LSAdv) {
         const tok = NAV;
@@ -879,7 +882,7 @@
   function matchupJump(lg, id) {
     return `<a class="mu-open" href="#/g/${esc(lg)}/${esc(id)}/stats"><span class="mu-open-t">Team &amp; matchup stats</span><span class="mu-open-s">Standing, record, home and away splits, streak, last 5, season stats</span></a>`;
   }
-  function matchupPanel(key, g, d, kind) {
+  function matchupPanel(key, g, d, kind, rosterInjuries) {
     const det = d.detail || {}, H = g.home, A = g.away, u = unitWord(kind);
     const tH = (d.teams || {})[H.id] || {}, tA = (d.teams || {})[A.id] || {};
     const blank = v => (v === null || v === undefined || v === "" ? null : v);
@@ -933,7 +936,7 @@
     if (det.injuriesAvailable) html += `<div class="section-title">Injury report</div><div class="cols">${injuries(A, det)}${injuries(H, det)}</div>`;
     else html += `<div class="section-title">Injury report</div>${notAvail("Injury report", "Not available")}`;
 
-    html += gameStatsHtml(key, g, d);
+    html += gameStatsHtml(key, g, d, rosterInjuries);
     if (window.LSMatchup && window.LSMatchup.SUPPORTED.has(key)) html += `<div id="keyMu"></div>`;
     if (!d.hasSummary) html += `<div class="note">Detailed matchup data (ESPN game summary) wasn't fetched for this game. Rows above still show whatever the team file has, and anything missing says Not available.</div>`;
     return html;
@@ -1231,8 +1234,46 @@
     const d = await getJSON(`data/search/${lg}.json`);
     const teams = d.teams.map(r => ({ id: r[0], name: r[1], abbr: r[2], short: r[3], logo: r[4], color: r[5], record: r[6], group: r[7], hasRoster: !!r[8] }));
     const byTeam = {}, byId = {};
-    const players = d.players.map(r => { const p = { id: r[0], name: r[1], team: teams[r[2]], pos: r[3], jersey: r[4], img: r[5] ? d.hs + r[0] + ".png" : "" }; (byTeam[p.team.id] ||= []).push(p); byId[p.id] = p; return p; });
+    const players = d.players.map(r => { const p = { id: r[0], name: r[1], team: teams[r[2]], pos: r[3], jersey: r[4], img: r[5] ? d.hs + r[0] + ".png" : "", inj: d.rosterInj && r.length > 6 ? (r[6] || "") : "" }; (byTeam[p.team.id] ||= []).push(p); byId[p.id] = p; return p; });
     return (SIDX[lg] = { meta: d, teams, players, byTeam, byId, teamById: Object.fromEntries(teams.map(t => [t.id, t])) });
+  }
+  /** Injury rows already stored on the search index for one team, or null when this index has no roster-hold slot
+   *  (or this team has no roster in it). [] means we looked and nobody is a hold. */
+  function rosterFromSearch(si, teamId) {
+    if (!si || !si.meta || !si.meta.rosterInj) return null;
+    const team = si.teamById && si.teamById[String(teamId)];
+    if (!team || !team.hasRoster) return null;
+    const pool = (si.byTeam && (si.byTeam[teamId] || si.byTeam[String(teamId)])) || [];
+    return pool.filter(p => p.inj).map(p => ({ player: p.name, pos: p.pos || "", status: p.inj, id: p.id }));
+  }
+  /** Roster holds for the two teams. Prefer the game file (stamped at data build from the roster fetch), then the
+   *  search index, then one free ESPN roster read per team the other two don't cover. */
+  async function rosterHolds(lg, g, det, si) {
+    const ids = [...new Set([g && g.away, g && g.home].map(t => t && t.id).filter(Boolean).map(String))];
+    const have = (det && det.rosterInjuries && typeof det.rosterInjuries === "object") ? det.rosterInjuries : {};
+    const out = {};
+    const missing = [];
+    for (const id of ids) {
+      if (Object.prototype.hasOwnProperty.call(have, id)) out[id] = have[id] || [];
+      else missing.push(id);
+    }
+    if (!missing.length) return out;
+    if (!si) { try { si = await sidx(lg); } catch (e) { si = null; } }
+    const still = [];
+    for (const id of missing) {
+      const rows = rosterFromSearch(si, id);
+      if (rows !== null) out[id] = rows;
+      else still.push(id);
+    }
+    const path = (LG[lg] || [])[0];
+    const M = window.MatchCore;
+    if (still.length && path && M && M.injuriesFromRoster) {
+      await Promise.all(still.map(async id => {
+        const r = await settle(espn(`site/v2/sports/${path}/teams/${id}/roster`));
+        if (r) out[id] = M.injuriesFromRoster(r);
+      }));
+    }
+    return out;
   }
 
   let ENTRIES = null;
@@ -1688,9 +1729,9 @@
     if (slot) return slot;
     return notAvail("Player props", g.state === "pre" ? "Player props aren't available for this game." : "Player props are posted before a game starts. Season leaders are on Matchup.");
   }
-  function gameStatsHtml(key, g, d) {
+  function gameStatsHtml(key, g, d, rosterInjuries) {
     const det = d.detail || {};
-    const leaders = window.MatchCore && window.MatchCore.visibleLeaders ? window.MatchCore.visibleLeaders(det.leaders || [], det.injuries || {}) : (det.leaders || []);
+    const leaders = window.MatchCore && window.MatchCore.visibleLeaders ? window.MatchCore.visibleLeaders(det.leaders || [], det.injuries || {}, rosterInjuries || det.rosterInjuries || {}) : (det.leaders || []);
     const H = g.home, A = g.away;
     const rows = t => {
       const xs = leaders.filter(x => String(x.teamId) === String(t.id));
@@ -1954,7 +1995,7 @@
     Promise.resolve(route()).then(() => window.scrollTo(0, y));
   });
   // helpers shared with the My Bets tracker (assets/bets.js)
-  window.LSApp = { previewHref, previewLink, esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, pages: () => PAGES, nav: () => NAV, espn, crest, notAvail, sidx, linesCard, booksCard, lineMoveSection, gameJump, tile: (lg, id) => TILES[`${lg}/${id}`] || null };
+  window.LSApp = { previewHref, previewLink, esc, fmt, timeET, fullET, getJSON, LG, renderTabs, lgName, meta: () => META, pages: () => PAGES, nav: () => NAV, espn, crest, notAvail, sidx, rosterHolds, linesCard, booksCard, lineMoveSection, gameJump, tile: (lg, id) => TILES[`${lg}/${id}`] || null };
   // "/" opens search from anywhere (unless typing in a field)
   document.addEventListener("keydown", e => {
     if (e.key === "/" && !e.metaKey && !e.ctrlKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || "")) {

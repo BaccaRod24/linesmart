@@ -10,9 +10,11 @@ re-fetched when the cached copy is older than ROSTER_MAX_AGE_H (default 20h). An
 falls back to the last cached copy of that team. Teams + standings are cheap (2 calls) and fetched every run.
 
 FORMAT (v1):
-  {"v":1,"lg":"nfl","gen":iso,"rostersAsOf":iso|null,"scope":"...","hs":"<headshot url prefix>",
+  {"v":1,"lg":"nfl","gen":iso,"rostersAsOf":iso|null,"rosterInj":1,"scope":"...","hs":"<headshot url prefix>",
    "teams":   [[id, name, abbr, short, logo, color, record, group, hasRoster(0/1)], ...],
-   "players": [[id, name, teamIndex, pos, jersey, hasHeadshot(0/1)], ...]}
+   "players": [[id, name, teamIndex, pos, jersey, hasHeadshot(0/1), injuryStatus], ...]}
+injuryStatus is "" when the player is not a hold (Out / IR / Suspended / ...). rosterInj is 1 when that
+slot is present. Older indexes omit both; a cache without the slot is refetched.
 """
 import concurrent.futures as cf, datetime as dt, json, os
 
@@ -58,14 +60,23 @@ def _standings(getj, standings_base, lg, group=None):
     walk(d, None)
     return out
 
+def _roster_fmt_ok(rosters, want):
+    """Cached rows are [id, name, pos, jersey, headshot, injuryStatus]. Older caches omit the status."""
+    for t in want:
+        rows = (rosters or {}).get(t) or []
+        if rows and len(rows[0]) < 6:
+            return False
+    return True
+
 def _parse_roster(r):
+    import previews as pv
     ath = r.get("athletes") or []
     items = [i for grp in ath for i in (grp.get("items") or [])] if ath and isinstance(ath[0], dict) and "items" in ath[0] else ath
     out = []
     for a in items:
         if not a.get("id"): continue
         out.append([str(a["id"]), a.get("displayName") or a.get("fullName") or "", (a.get("position") or {}).get("abbreviation") or "",
-                    a.get("jersey") or "", 1 if (a.get("headshot") or {}).get("href") else 0])
+                    a.get("jersey") or "", 1 if (a.get("headshot") or {}).get("href") else 0, pv.roster_hold_status(a)])
     return out
 
 def _load(path):
@@ -96,7 +107,7 @@ def build_search(lg, getj, site, standings_base, out_dir, cache_dir=None, max_ag
     age_h = (t0 - dt.datetime.fromisoformat(ctime)).total_seconds() / 3600 if ctime else None
     rosters = dict(cached.get("teams") or {})
     covers = all(t in rosters for t in want)
-    if age_h is not None and age_h < max_age_h and covers:
+    if age_h is not None and age_h < max_age_h and covers and _roster_fmt_ok(rosters, want):
         rep["rosters"] = f"cached ({age_h:.1f}h old)"; fetched_at = ctime
     else:
         ok = fail = 0
@@ -127,10 +138,10 @@ def build_search(lg, getj, site, standings_base, out_dir, cache_dir=None, max_ag
             ti = len(T) - 1
             for p in rosters[tid]:
                 if p[0] in seen: continue      # a player listed twice (e.g. two-way) appears once
-                seen.add(p[0]); P.append([p[0], p[1], ti, p[2], p[3], p[4]])
+                seen.add(p[0]); P.append([p[0], p[1], ti, p[2], p[3], p[4], p[5] if len(p) > 5 else ""])
     seg = HEADSHOT_SEG.get(key, key)
     doc = dict(v=1, lg=key, name=lg["name"], kind=lg["kind"], path=lg["path"], gen=t0.isoformat(), rostersAsOf=fetched_at, scope=f"Teams: all ESPN lists; players: {scope}",
-               hs=f"https://a.espncdn.com/i/headshots/{seg}/players/full/", teams=T, players=P)
+               rosterInj=1, hs=f"https://a.espncdn.com/i/headshots/{seg}/players/full/", teams=T, players=P)
     os.makedirs(out_dir, exist_ok=True)
     raw = json.dumps(doc, separators=(",", ":"), ensure_ascii=False)
     with open(os.path.join(out_dir, f"{key}.json"), "w") as fh: fh.write(raw)

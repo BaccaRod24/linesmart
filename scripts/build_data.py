@@ -1118,6 +1118,23 @@ def main():
                 meta["search"].setdefault(lg["key"], {})["error"] = str(ex)[:200]
                 if lgsrc and LG.restore_file(lgsrc, OUT, f"search/{lg['key']}.json", log):
                     meta["search"][lg["key"]]["stale"] = True; fallbacks.setdefault(f"{lg['key']} search", {"reason": "search index fetch failed"})
+        # Game summaries omit IR. The roster fetch above already has the hold; copy it onto each game file
+        # so team leaders and matchups can skip those players without another request.
+        try:
+            import previews as _pv
+            for lg in LEAGUES:
+                if lg["key"] not in want or lg["kind"] == "mma":
+                    continue
+                sp = os.path.join(OUT, "search", f"{lg['key']}.json")
+                if not os.path.exists(sp):
+                    continue
+                with open(sp) as fh:
+                    sdoc = json.load(fh)
+                n = _pv.apply_roster_injuries(os.path.join(OUT, lg["key"], "games"), sdoc)
+                if n:
+                    log(f"[{lg['key']}] roster injury holds stamped on {n} game files")
+        except Exception as ex:
+            log(f"[roster injuries] stamp failed: {str(ex)[:160]}")
     if not a.no_matchups:
         meta.setdefault("matchups", {})
         for lg in LEAGUES:

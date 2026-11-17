@@ -2478,3 +2478,15 @@ td.num,td .num,.num{font-variant-numeric:tabular-nums}
   .music-btn.is-playing svg{animation:none}
   .music-btn:active{transform:none}
 }
+
+/* Narrow phones: logo, music, the update pill and State stay inside the screen.
+   The clock's words give way here (the dot and the title stay, and the time text
+   stays available to assistive tech). Wider than 420px, including desktop, is unchanged. */
+@media (max-width:420px){
+  body.app .topbar-inner{gap:6px}
+  body.app .brand-logo{height:24px}
+  body.app .music,.body.app .music-btn,.body.app .search-btn.state-btn{flex-shrink:0}
+  body.app .search-btn.state-btn{margin-left:0}
+  body.app .updated{position:relative;flex:none;gap:0;height:36px;padding:0 10px;justify-content:center}
+  body.app .updated span:not(.dot){position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+}

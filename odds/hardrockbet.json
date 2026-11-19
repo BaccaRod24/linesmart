@@ -14,23 +14,6 @@
  "checks": [
   {
    "action": "pull",
-   "due": [],
-   "errors": [],
-   "gameInterval": 30,
-   "level": "full",
-   "props": [],
-   "pulled": [],
-   "remainingAfter": 75334,
-   "remainingBefore": 75334,
-   "skipped": [],
-   "spent": 0,
-   "spentBy": {},
-   "t": "2026-11-16T19:26:14Z",
-   "used": 24666,
-   "usedAfter": 24666
-  },
-  {
-   "action": "pull",
    "due": [
     "nfl",
     "nba",
@@ -6120,6 +6103,27 @@
    "t": "2026-11-19T16:15:25Z",
    "used": 29268,
    "usedAfter": 29292
+  },
+  {
+   "action": "pull",
+   "due": [],
+   "errors": [],
+   "gameInterval": 30,
+   "level": "full",
+   "props": [
+    "nba"
+   ],
+   "pulled": [],
+   "remainingAfter": 70692,
+   "remainingBefore": 70708,
+   "skipped": [],
+   "spent": 16,
+   "spentBy": {
+    "props": 16
+   },
+   "t": "2026-11-19T16:28:09Z",
+   "used": 29292,
+   "usedAfter": 29308
   }
  ],
  "leagues": {
@@ -14478,15 +14482,15 @@
   }
  },
  "quota": {
-  "allowancePerDay": 7976,
+  "allowancePerDay": 7984,
   "cycleEnd": "2026-11-26T00:00:00+00:00",
   "gameInterval": 30,
   "level": "full",
   "props": true,
   "reason": "on pace",
-  "remaining": 70732,
-  "t": "2026-11-19T16:15:25Z",
-  "used": 29268
+  "remaining": 70708,
+  "t": "2026-11-19T16:28:09Z",
+  "used": 29292
  },
  "updated": "2026-11-19T16:15:25Z",
  "usage": {
@@ -14571,15 +14575,15 @@
    ],
    "2026-11-19": [
     528,
-    120
+    136
    ]
   },
   "games": 17481,
-  "paidRuns": 899,
-  "props": 11796,
-  "runs": 1328,
-  "t": "2026-11-19T16:15:25Z",
-  "usedAtLastRun": 29292
+  "paidRuns": 900,
+  "props": 11812,
+  "runs": 1329,
+  "t": "2026-11-19T16:28:09Z",
+  "usedAtLastRun": 29308
  },
  "v": 1
 }

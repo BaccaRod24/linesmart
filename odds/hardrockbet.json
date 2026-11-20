@@ -7,46 +7,11 @@
   "ncaab": 51,
   "ncaaf": 67,
   "nfl": 16,
-  "nhl": 0,
+  "nhl": 14,
   "ucl": 18
  },
  "book": "hardrockbet",
  "checks": [
-  {
-   "action": "pull",
-   "due": [
-    "nfl",
-    "nba",
-    "ncaaf",
-    "ncaab",
-    "nhl",
-    "epl",
-    "mls"
-   ],
-   "errors": [],
-   "gameInterval": 30,
-   "level": "full",
-   "props": [],
-   "pulled": [
-    "nfl",
-    "nba",
-    "ncaaf",
-    "ncaab",
-    "nhl",
-    "epl",
-    "mls"
-   ],
-   "remainingAfter": 74071,
-   "remainingBefore": 74092,
-   "skipped": [],
-   "spent": 21,
-   "spentBy": {
-    "games": 21
-   },
-   "t": "2026-11-17T17:15:21Z",
-   "used": 25908,
-   "usedAfter": 25929
-  },
   {
    "action": "pull",
    "due": [],
@@ -6190,6 +6155,29 @@
    "t": "2026-11-20T13:43:31Z",
    "used": 30770,
    "usedAfter": 30911
+  },
+  {
+   "action": "pull",
+   "due": [
+    "nhl"
+   ],
+   "errors": [],
+   "gameInterval": 30,
+   "level": "full",
+   "props": [],
+   "pulled": [
+    "nhl"
+   ],
+   "remainingAfter": 69086,
+   "remainingBefore": 69089,
+   "skipped": [],
+   "spent": 3,
+   "spentBy": {
+    "games": 3
+   },
+   "t": "2026-11-20T13:48:46Z",
+   "used": 30911,
+   "usedAfter": 30914
   }
  ],
  "leagues": {
@@ -14799,6 +14787,7 @@
     "fanduel",
     "draftkings"
    ],
+   "checkedAt": "2026-11-20T13:48:46Z",
    "cost": 3,
    "events": 1,
    "games": {
@@ -14835,7 +14824,7 @@
    },
    "matched": 1,
    "pulledAt": "2026-11-20T05:45:16Z",
-   "remainingAfter": 69750,
+   "remainingAfter": 69086,
    "unmatched": 0
   },
   "ucl": {
@@ -15433,15 +15422,15 @@
   }
  },
  "quota": {
-  "allowancePerDay": 9014,
+  "allowancePerDay": 8994,
   "cycleEnd": "2026-11-26T00:00:00+00:00",
   "gameInterval": 30,
   "level": "full",
   "props": true,
   "reason": "on pace",
-  "remaining": 69230,
-  "t": "2026-11-20T13:43:31Z",
-  "used": 30770
+  "remaining": 69089,
+  "t": "2026-11-20T13:48:46Z",
+  "used": 30911
  },
  "updated": "2026-11-20T13:43:31Z",
  "usage": {
@@ -15529,16 +15518,16 @@
     463
    ],
    "2026-11-20": [
-    384,
+    387,
     316
    ]
   },
-  "games": 18441,
-  "paidRuns": 942,
+  "games": 18444,
+  "paidRuns": 943,
   "props": 12455,
-  "runs": 1391,
-  "t": "2026-11-20T13:43:31Z",
-  "usedAtLastRun": 30911
+  "runs": 1392,
+  "t": "2026-11-20T13:48:46Z",
+  "usedAtLastRun": 30914
  },
  "v": 1
 }

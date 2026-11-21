@@ -22,9 +22,12 @@ const ap = { name: "AP Top 25", teams: [team(1, "61", "Georgia Bulldogs"), team(
 
 const both = top25Poll({ ap, cfp });
 check(both.poll === cfp && both.label === "Playoff Top 25", "a non-empty CFP poll is the Top 25 source");
+check(both.rankNote === "Ranks: College Football Playoff", "CFP badges are labeled College Football Playoff");
 const onlyAp = top25Poll({ ap, cfp: { teams: [] } });
 check(onlyAp.poll === ap && onlyAp.label === "AP Top 25", "an empty CFP poll falls back to AP");
-check(top25Poll({ ap }).poll === ap && top25Poll({ cfp: null, ap }).label === "AP Top 25", "a missing CFP poll falls back to AP");
+check(onlyAp.rankNote === "Ranks: AP poll", "an empty CFP poll labels the badges as the AP poll");
+const missingCfp = top25Poll({ ap });
+check(missingCfp.poll === ap && missingCfp.rankNote === "Ranks: AP poll" && top25Poll({ cfp: null, ap }).label === "AP Top 25", "a missing CFP poll falls back to AP and says so");
 check(top25Poll(null).poll === null && top25Poll({}).label === "AP Top 25", "no polls leaves the AP wording and no teams");
 
 const byId = new Map(cfp.teams.map(t => [String(t.id), t]));
@@ -39,6 +42,7 @@ check(stamped.home.name === "Oklahoma Sooners" && stamped.away.name === "Texas A
 const block = app.slice(app.indexOf("if (filter === \"top25\")"), app.indexOf("if (filter === \"standings\")"));
 check(block.includes("top25.poll") && block.includes("poll.teams") && !block.includes("rankDoc.ap"), "the tab filters and badges from the selected poll");
 check(app.includes("${top25.label} games this week"), "the sub line names whichever poll the tab is using");
+check(app.includes("${esc(top25.rankNote)}") && app.includes("Ranks: College Football Playoff") && app.includes("Ranks: AP poll"), "the header note uses the same source as the badges");
 check(!/the-odds-api|ODDS_API_KEY/.test(grab("top25Poll") + grab("stampApRank")), "the Top 25 poll choice does not call the Odds API");
 
 if (fails.length) { console.log(`FAIL ncaaf_top25: ${fails.length} failed`); process.exit(1); }

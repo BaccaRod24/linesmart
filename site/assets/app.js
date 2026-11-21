@@ -401,9 +401,9 @@
   // cfp.teams ids are the same ESPN team ids as the games, so the tab matches on id.
   function top25Poll(rankDoc) {
     const ready = p => !!(p && Array.isArray(p.teams) && p.teams.length);
-    if (ready(rankDoc && rankDoc.cfp)) return { poll: rankDoc.cfp, label: "Playoff Top 25" };
-    if (ready(rankDoc && rankDoc.ap)) return { poll: rankDoc.ap, label: "AP Top 25" };
-    return { poll: null, label: "AP Top 25" };
+    if (ready(rankDoc && rankDoc.cfp)) return { poll: rankDoc.cfp, label: "Playoff Top 25", rankNote: "Ranks: College Football Playoff" };
+    if (ready(rankDoc && rankDoc.ap)) return { poll: rankDoc.ap, label: "AP Top 25", rankNote: "Ranks: AP poll" };
+    return { poll: null, label: "AP Top 25", rankNote: "Ranks: AP poll" };
   }
   function stampApRank(g, byId) {
     const side = t => { if (!t) return t; const r = byId.get(String(t.id)); return Object.assign({}, t, { rank: r ? r.rank : null }); };
@@ -462,9 +462,10 @@
     if (filter === "top25") { try { rankDoc = await getJSON("data/ncaaf/rankings.json"); } catch (e) { rankDoc = null; } }
     const top25 = filter === "top25" ? top25Poll(rankDoc) : null;
     const subLine = filter === "standings" ? "Standings by conference and division" : filter === "top25" ? `${top25.label} games this week · times in ${TZL}` : filter === "all" ? `${weekLabel} · times in ${TZL}` : `Upcoming games, lines and form · times in ${TZL}`;
+    const rankNote = filter === "top25" && top25.poll ? `<div class="note">${esc(top25.rankNote)}</div>` : "";
     // Generated hub pages set data-seo-h1. The app replaces #app, so the visible H1 has to be that same heading.
     const hubH1 = document.body.dataset.page === "hub" && document.body.dataset.seoH1;
-    let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(hubH1 || data.league.full)}</h1><div class="sub">${subLine}</div></div>
+    let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(hubH1 || data.league.full)}</h1><div class="sub">${subLine}</div>${rankNote}</div>
       ${seg}</div>${filter === "top25" || filter === "standings" ? "" : chips}`;
     if (filter === "top25") {
       const poll = top25.poll;

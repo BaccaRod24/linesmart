@@ -397,8 +397,16 @@
     const g = etYmd(gameIso);
     return g >= start && g <= end;
   }
+  // CFP committee rankings when that poll is present. AP only until ESPN publishes CFP.
+  // cfp.teams ids are the same ESPN team ids as the games, so the tab matches on id.
+  function top25Poll(rankDoc) {
+    const ready = p => !!(p && Array.isArray(p.teams) && p.teams.length);
+    if (ready(rankDoc && rankDoc.cfp)) return { poll: rankDoc.cfp, label: "Playoff Top 25" };
+    if (ready(rankDoc && rankDoc.ap)) return { poll: rankDoc.ap, label: "AP Top 25" };
+    return { poll: null, label: "AP Top 25" };
+  }
   function stampApRank(g, byId) {
-    const side = t => { const r = t && byId.get(String(t.id)); return r ? Object.assign({}, t, { rank: r.rank }) : t; };
+    const side = t => { if (!t) return t; const r = byId.get(String(t.id)); return Object.assign({}, t, { rank: r ? r.rank : null }); };
     return Object.assign({}, g, { home: side(g.home), away: side(g.away) });
   }
   async function viewLeague(key, home = false, sub = "") {
@@ -450,18 +458,19 @@
       <span class="chip">Lines: <b>${esc((data.report.providers || []).join(", ") || "none")}</b></span>
       <span class="chip">Next ${data.windowDays} days</span></div>${staleNote(data.stale)}${oddsStaleNote(key)}`;
     const seg = leagueSeg(key, filter);
-    const subLine = filter === "standings" ? "Standings by conference and division" : filter === "top25" ? `AP Top 25 games this week · times in ${TZL}` : filter === "all" ? `${weekLabel} · times in ${TZL}` : `Upcoming games, lines and form · times in ${TZL}`;
+    let rankDoc = null;
+    if (filter === "top25") { try { rankDoc = await getJSON("data/ncaaf/rankings.json"); } catch (e) { rankDoc = null; } }
+    const top25 = filter === "top25" ? top25Poll(rankDoc) : null;
+    const subLine = filter === "standings" ? "Standings by conference and division" : filter === "top25" ? `${top25.label} games this week · times in ${TZL}` : filter === "all" ? `${weekLabel} · times in ${TZL}` : `Upcoming games, lines and form · times in ${TZL}`;
     // Generated hub pages set data-seo-h1. The app replaces #app, so the visible H1 has to be that same heading.
     const hubH1 = document.body.dataset.page === "hub" && document.body.dataset.seoH1;
     let html = `${home ? slateHtml() + offersSlot("home") : ""}<div class="page-head${home ? " home-head" : ""}"><div>${home ? `<span class="eyebrow">Featured league</span>` : ""}<h1>${esc(hubH1 || data.league.full)}</h1><div class="sub">${subLine}</div></div>
       ${seg}</div>${filter === "top25" || filter === "standings" ? "" : chips}`;
     if (filter === "top25") {
-      let rankDoc = null;
-      try { rankDoc = await getJSON("data/ncaaf/rankings.json"); } catch (e) { rankDoc = null; }
-      const ap = rankDoc && rankDoc.ap && Array.isArray(rankDoc.ap.teams) && rankDoc.ap.teams.length ? rankDoc.ap : null;
-      if (!ap) html += `<div class="empty" id="top25"><h3>Rankings not available</h3></div>`;
+      const poll = top25.poll;
+      if (!poll) html += `<div class="empty" id="top25"><h3>Rankings not available</h3></div>`;
       else {
-        const byId = new Map(ap.teams.map(t => [String(t.id), t]));
+        const byId = new Map(poll.teams.map(t => [String(t.id), t]));
         const now = new Date().toISOString();
         const ranked = data.games.filter(g => inThisWeek(g.date, now) && (byId.has(String(g.home.id)) || byId.has(String(g.away.id))))
           .sort((a, b) => String(a.date).localeCompare(String(b.date)));

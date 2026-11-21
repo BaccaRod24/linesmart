@@ -3,7 +3,8 @@
 The data build (scripts/build_data.py) fetches
 https://site.api.espn.com/apis/site/v2/sports/football/college-football/rankings
 on every refresh and writes site/data/ncaaf/rankings.json. No Odds API call.
-CFP is stored when ESPN publishes that poll; the Top 25 tab uses the AP poll.
+CFP is stored when ESPN publishes that poll. The Top 25 tab uses that poll when it
+is present and non-empty, and falls back to the AP poll otherwise.
 """
 
 AP_TYPES = {"ap"}

@@ -4,51 +4,14 @@
   "mlb": 0,
   "mls": 13,
   "nba": 7,
-  "ncaab": 31,
+  "ncaab": 51,
   "ncaaf": 69,
   "nfl": 13,
-  "nhl": 12,
+  "nhl": 11,
   "ucl": 18
  },
  "book": "hardrockbet",
  "checks": [
-  {
-   "action": "pull",
-   "due": [
-    "nfl",
-    "nba",
-    "ncaaf",
-    "ncaab",
-    "nhl",
-    "epl",
-    "mls",
-    "ucl"
-   ],
-   "errors": [],
-   "gameInterval": 30,
-   "level": "full",
-   "props": [],
-   "pulled": [
-    "nfl",
-    "nba",
-    "ncaaf",
-    "ncaab",
-    "nhl",
-    "epl",
-    "mls",
-    "ucl"
-   ],
-   "remainingAfter": 70005,
-   "remainingBefore": 70029,
-   "skipped": [],
-   "spent": 24,
-   "spentBy": {
-    "games": 24
-   },
-   "t": "2026-11-20T01:15:19Z",
-   "used": 29971,
-   "usedAfter": 29995
-  },
   {
    "action": "pull",
    "due": [],
@@ -6223,6 +6186,27 @@
    "t": "2026-11-22T20:17:48Z",
    "used": 35922,
    "usedAfter": 35946
+  },
+  {
+   "action": "pull",
+   "due": [],
+   "errors": [],
+   "gameInterval": 30,
+   "level": "full",
+   "props": [
+    "nba"
+   ],
+   "pulled": [],
+   "remainingAfter": 64030,
+   "remainingBefore": 64054,
+   "skipped": [],
+   "spent": 24,
+   "spentBy": {
+    "props": 24
+   },
+   "t": "2026-11-22T20:45:20Z",
+   "used": 35946,
+   "usedAfter": 35970
   }
  ],
  "leagues": {
@@ -14911,15 +14895,15 @@
   }
  },
  "quota": {
-  "allowancePerDay": 13879,
+  "allowancePerDay": 13956,
   "cycleEnd": "2026-11-26T00:00:00+00:00",
   "gameInterval": 30,
   "level": "full",
   "props": true,
   "reason": "on pace",
-  "remaining": 64078,
-  "t": "2026-11-22T20:17:48Z",
-  "used": 35922
+  "remaining": 64054,
+  "t": "2026-11-22T20:45:20Z",
+  "used": 35946
  },
  "updated": "2026-11-22T20:17:48Z",
  "usage": {
@@ -15016,15 +15000,15 @@
    ],
    "2026-11-22": [
     720,
-    889
+    913
    ]
   },
   "games": 21015,
-  "paidRuns": 1052,
-  "props": 14916,
-  "runs": 1554,
-  "t": "2026-11-22T20:17:48Z",
-  "usedAtLastRun": 35946
+  "paidRuns": 1053,
+  "props": 14940,
+  "runs": 1555,
+  "t": "2026-11-22T20:45:20Z",
+  "usedAtLastRun": 35970
  },
  "v": 1
 }

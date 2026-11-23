@@ -1489,6 +1489,62 @@ def corrected_final_slug_tests():
               "the corrected final slug stays on the next build")
         stored = json.loads((arch / "state.json").read_text())["paths"]["ncaab"]["401918959"]
         check(stored[0] == right and wrong in stored, f"archive remembers the old slug ({stored})")
+        stub2 = (site / wrong / "index.html").read_text()
+        check(stub2 == SP.redirect_stub(wrong, right, SP.BASE_URL, "Murray State Racers vs NC State Wolfpack"),
+              "the old slug is still the same canonical redirect on the next build")
+        check('name="robots"' not in stub2, "the slug redirect has no robots tag")
+        check(SP.BASE_URL + wrong not in sitemap_page_urls(site), "the old slug stays out of the sitemap")
+
+        # A final that has left the data window, then a team rename, then a second rename.
+        # Both earlier URLs keep redirecting at the corrected page. Neither is a 404 or a sitemap URL.
+        wil_old = "ncaab/games/wilson-wilson-at-delaware-blue-hens-2026-11-17/"
+        wil_mid = "ncaab/games/wilson-phoenix-at-delaware-blue-hens-2026-11-17/"
+        dew = _side("48", "Delaware Blue Hens", "DEL", 70, True)
+        phoenix = _side("2900", "Wilson Phoenix", "WIL", 61)
+        renamed = _game("401920904", pv.parse_dt("2026-11-17T23:30:00Z"), phoenix, dew, "post", line)
+        renamed["name"] = "Wilson Phoenix at Delaware Blue Hens"
+        # Archive-only finals keep lines under "closing". Without that the sitemap treats them as thin.
+        final["closing"] = {"books": line, "closedAt": "2026-11-19T22:00:00Z"}
+        renamed["closing"] = {"books": line, "closedAt": "2026-11-17T22:00:00Z"}
+        ix = json.loads((data / "ncaab" / "index.json").read_text())
+        ix["games"] = []
+        (data / "ncaab" / "index.json").write_text(json.dumps(ix))
+        (arch / "games-ncaab.json").write_text(json.dumps({"401918959": final, "401920904": renamed, "alma-duke": buy}))
+        state = json.loads((arch / "state.json").read_text())
+        state["paths"]["ncaab"]["401920904"] = [wil_old]
+        (arch / "state.json").write_text(json.dumps(state))
+        SP.build(site, data, now + timedelta(hours=2), archive_dir=arch)
+        man3 = json.loads((data / "pages.json").read_text())["g"]["ncaab"]
+        check(man3.get("401918959") == right and man3.get("401920904") == wil_mid,
+              f"archive-only finals move to the corrected slug ({man3.get('401918959')}, {man3.get('401920904')})")
+        urls = sitemap_page_urls(site)
+        for old, new, label in ((wrong, right, "Murray State Racers vs NC State Wolfpack"),
+                                (wil_old, wil_mid, "Wilson Phoenix at Delaware Blue Hens")):
+            got = (site / old / "index.html").read_text()
+            check(got == SP.redirect_stub(old, new, SP.BASE_URL, label), f"{old} redirects to {new}")
+            check((site / new / "index.html").is_file() and 'http-equiv="refresh"' not in (site / new / "index.html").read_text(),
+                  f"{new} is the page")
+            check(SP.BASE_URL + old not in urls and SP.BASE_URL + new in urls, f"{old} is out of the sitemap and {new} is in it")
+        # second rename, still post: the first frozen URL and the middle URL both follow to the latest page
+        phoenix["name"] = "Wilson Firebirds"
+        renamed["away"] = phoenix
+        renamed["name"] = "Wilson Firebirds at Delaware Blue Hens"
+        wil_new = "ncaab/games/wilson-firebirds-at-delaware-blue-hens-2026-11-17/"
+        (arch / "games-ncaab.json").write_text(json.dumps({"401918959": final, "401920904": renamed}))
+        SP.build(site, data, now + timedelta(hours=3), archive_dir=arch)
+        man4 = json.loads((data / "pages.json").read_text())["g"]["ncaab"]
+        check(man4.get("401920904") == wil_new, f"a later rename of a final moves the page ({man4.get('401920904')})")
+        urls = sitemap_page_urls(site)
+        for old in (wil_old, wil_mid):
+            got = (site / old / "index.html").read_text()
+            check(got == SP.redirect_stub(old, wil_new, SP.BASE_URL, "Wilson Firebirds at Delaware Blue Hens"),
+                  f"{old} still redirects after a second slug change")
+            check(SP.BASE_URL + old not in urls, f"{old} stays out of the sitemap")
+        check(SP.BASE_URL + wil_new in urls and 'http-equiv="refresh"' not in (site / wil_new / "index.html").read_text(),
+              "the latest slug is the indexed page")
+        remembered = json.loads((arch / "state.json").read_text())["paths"]["ncaab"]["401920904"]
+        check(remembered[0] == wil_new and wil_old in remembered and wil_mid in remembered,
+              f"every earlier slug is remembered ({remembered})")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

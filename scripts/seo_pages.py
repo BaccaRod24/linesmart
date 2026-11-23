@@ -1240,11 +1240,18 @@ class League:
                     path = self._gpath(f"{base}-{gid}")
             used.add(path)
             self.paths[gid] = path
-            olds = [p for p in prev if p != path]
+            # Every earlier slug stays a redirect, including after the game has left pre.
+            # A neutral-site flip or a team rename must not 404 a URL that was already live.
+            # Duplicates are dropped so a slug that moves back and forth does not grow forever.
+            olds, seen = [], {path}
+            for p in prev:
+                if p and p not in seen and is_game_rel(p):
+                    seen.add(p)
+                    olds.append(p)
             if olds:
                 self.old_paths[gid] = olds
             if self.arch.dir:
-                stored[gid] = [path] + olds[:3]
+                stored[gid] = [path] + olds
 
     def _gpath(self, slug):
         return f"{self.lg}/{'fights' if self.lg == 'ufc' else 'games'}/{slug}/"

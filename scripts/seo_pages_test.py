@@ -172,6 +172,10 @@ def check_page_ld(rel, h, hrefs, kind):
     if kind == "hub" and 'class="wrap sx-week"' in h:
         body = re.sub(r'<div class="wrap sx-week">.*?(?=<main)', "", h, count=1, flags=re.S)
         scan_hrefs = re.findall(r'href="([^"]*)"', body)
+    elif kind == "lines" and 'class="sx-discover sx-board"' in h:
+        # The board is a crawl list of upcoming games and teams. The ItemList is the comparison table.
+        body = re.sub(r'<nav class="sx-discover sx-board".*?</nav>', "", h, count=1, flags=re.S)
+        scan_hrefs = re.findall(r'href="([^"]*)"', body)
     games = visible_game_paths(scan_hrefs)
     lists = [n for n in nodes if n.get("@type") == "ItemList"]
     if kind in ("hub", "team", "fighter"):
@@ -1549,7 +1553,148 @@ def corrected_final_slug_tests():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _line_books():
+    return {"draftkings": {"homeSpread": -3.5, "awaySpread": 3.5, "total": 8.5, "homeML": -150, "awayML": 130,
+                           "homeSpreadOdds": -110, "awaySpreadOdds": -110, "overOdds": -110, "underOdds": -110}}
+
+
+def board_link_tests():
+    """Hubs link later games and the teams that are playing above #app. Best Lines Today links the same four sports."""
+    now = pv.parse_dt("2026-10-31T20:00:00Z")
+    week = [_slate_game(f"w{i}", "2026-11-01T23:00:00Z") for i in range(13)]
+    far = _slate_game("far", "2026-11-12T23:00:00Z")
+    nfl = _slate_league("nfl", week + [far], now)
+    nfl.team_paths = {"1": "nfl/teams/away-team/", "2": "nfl/teams/home-team/"}
+    ncaaf = _slate_league("ncaaf", [_slate_game("cf1", "2026-11-07T17:00:00Z")], now)
+    ncaaf.team_paths = {"1": "ncaaf/teams/away-team/", "2": "ncaaf/teams/home-team/"}
+    nba = _slate_league("nba", [], now)
+    ncaab = _slate_league("ncaab", [_slate_game("cb1", "2026-11-02T23:00:00Z")], now)
+    ncaab.team_paths = {"1": "ncaab/teams/away-team/", "2": "ncaab/teams/home-team/"}
+    Ls = {"nfl": nfl, "nba": nba, "ncaaf": ncaaf, "ncaab": ncaab}
+    hub = SP.discover_nav(Ls, "nfl", games=True, props=False, leagues=False)
+    check(all(f'href="nfl/games/w{i}/"' in hub for i in range(13)) and 'href="nfl/games/far/"' in hub, "hub links this week and a later game in the window")
+    check('href="nfl/teams/away-team/"' in hub and 'href="nfl/teams/home-team/"' in hub, "hub links the teams that are playing")
+    check("NFL teams" in hub and "Later NFL games" in hub and not re.search(r"<details\b[^>]*\bopen\b", hub), "team and later-game lists start collapsed")
+    check(hub.lower().count("<a ") == hub.lower().count("<a href="), "hub board links are plain href anchors")
+    home = SP.discover_nav(Ls, None, games=True, props=False)
+    check('href="nfl/games/far/"' not in home and "nfl/teams/" not in home, "homepage does not grow a later-game or team list")
+    sh = SP.Shell((ROOT / "site" / "index.html").read_text(), SP.BASE_URL)
+    html, _title = SP.best_lines_page(Ls, sh, now, SP.BASE_URL)
+    for href in ("nfl/games/far/", "nfl/games/w0/", "nfl/teams/away-team/", "ncaaf/games/cf1/", "ncaaf/teams/home-team/", "ncaab/games/cb1/", "ncaab/teams/away-team/"):
+        check(f'href="{href}"' in html, f"best lines today links {href}")
+    check("nba/games/" not in html and "nba/teams/" not in html, "a sport with no upcoming game adds no empty board")
+    board = re.search(r'<nav class="sx-discover sx-board".*?</nav>', html, re.S)
+    check(board and not re.search(r"<details\b[^>]*\bopen\b", board.group(0)), "best lines board starts collapsed")
+    check(board and board.group(0).lower().count("<a ") == board.group(0).lower().count("<a href="), "best lines board links are plain href anchors")
+    check("21+" in html and "1-800-GAMBLER" in html and "1-833-PLAYWISE" in html and "1-888-ADMIT-IT" in html, "best lines keeps the 21+ notice and the helplines")
+    check(not PROMO_RE.search(re.sub(r"<[^>]+>", " ", html)), "best lines board has no promo wording")
+    check(not re.search(r"\b(?:legal|available|offered)\s+in\s+florida\b", html, re.I), "best lines does not say a book is legal in Florida")
+
+
+def _minimal_site(tmp):
+    site = tmp / "site"
+    (site / "data").mkdir(parents=True)
+    (site / "assets").mkdir()
+    shutil.copy(ROOT / "site" / "index.html", site / "index.html")
+    shutil.copy(ROOT / "site" / "sitemap.xml", site / "sitemap.xml")
+    core = ROOT / "site" / "sitemap-core.xml"
+    if core.is_file():
+        shutil.copy(core, site / "sitemap-core.xml")
+    else:
+        (site / "sitemap-core.xml").write_text("")
+    return site
+
+
+def _write_index(site, lg, games, kind):
+    d = site / "data" / lg
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "index.json").write_text(json.dumps({"league": {"kind": kind, "name": lg}, "games": games, "teams": {}}))
+
+
+def schedule_retirement_tests():
+    """Page 2 is a real page while the slate needs it, then a stub. The same rule covers every sport.
+    NCAAB /schedule/2/ is stubbed even with no archive memory, because Google already requests it."""
+    now = pv.parse_dt("2026-11-20T16:00:00Z")
+    books = _line_books()
+    tmp = Path(tempfile.mkdtemp(prefix="seosched-"))
+    try:
+        site = _minimal_site(tmp)
+        arch = tmp / "arch"
+
+        def nfl_games(n):
+            out = []
+            for i in range(n):
+                out.append({"id": f"s{i}", "date": SP.iso(now + timedelta(hours=6 + i)), "state": "pre", "completed": False,
+                            "away": {"id": "11", "name": "Away Team", "abbr": "AWY", "short": "Away"},
+                            "home": {"id": "12", "name": "Home Team", "abbr": "HOM", "short": "Home"},
+                            "books": books})
+            return out
+
+        def mlb_final(gid, away, home, books_or_none, when):
+            g = {"id": gid, "date": SP.iso(when), "state": "post", "completed": True, "statusDetail": "Final",
+                 "away": away, "home": home, "books": books_or_none or {}}
+            if not books_or_none:
+                g["odds"] = None
+            return g
+
+        brewers = {"id": "8", "name": "Milwaukee Brewers", "abbr": "MIL", "short": "Brewers", "score": 10, "winner": True}
+        rays = {"id": "30", "name": "Tampa Bay Rays", "abbr": "TB", "short": "Rays", "score": 1, "winner": False}
+        yankees = {"id": "18", "name": "New York Yankees", "abbr": "NYY", "short": "Yankees", "score": 3, "winner": False}
+        dodgers = {"id": "19", "name": "Los Angeles Dodgers", "abbr": "LAD", "short": "Dodgers", "score": 4, "winner": True}
+        _write_index(site, "nfl", nfl_games(45), "football")
+        _write_index(site, "mlb", [
+            mlb_final("ws", brewers, rays, books, now - timedelta(days=20)),
+            mlb_final("thin", yankees, dodgers, None, now - timedelta(days=19)),
+        ], "baseball")
+        SP.build(site, site / "data", now, archive_dir=arch)
+        p1 = (site / "nfl/schedule/index.html").read_text()
+        p2 = (site / "nfl/schedule/2/index.html").read_text()
+        check("page 1 of 2" in p1 and 'href="nfl/schedule/2/"' in p1 and 'href="nfl/schedule/3/"' not in p1, "schedule page 1 links page 2 and not page 3")
+        check("http-equiv" not in p2 and "page 2 of 2" in p2 and 'href="nfl/schedule/"' in p2, "schedule page 2 is a real page with a previous link")
+        urls = set(sitemap_page_urls(site))
+        check(SP.BASE_URL + "nfl/schedule/" in urls and SP.BASE_URL + "nfl/schedule/2/" in urls, "both live schedule pages are in the sitemap")
+        for rel, target in (("ncaab/schedule/2/", "ncaab/"), ("ncaaf/schedule/2/", "ncaaf/")):
+            stub = (site / rel / "index.html").read_text()
+            d = parse(stub)
+            check('http-equiv="refresh"' in stub and d.links.get("canonical") == SP.BASE_URL + target, f"{rel} refreshes to {target}")
+            check('name="robots"' not in stub and "21+" in stub and "1-800-GAMBLER" in stub and "1-833-PLAYWISE" in stub, f"{rel} stub keeps notices and has no robots tag")
+            check(SP.BASE_URL + rel not in urls, f"{rel} stub is not in the sitemap")
+        man = json.loads((site / "data" / "pages.json").read_text())["g"]["mlb"]
+        rich, thin = man["ws"], man["thin"]
+        rich_html = (site / rich / "index.html").read_text()
+        thin_html = (site / thin / "index.html").read_text()
+        check("http-equiv" not in rich_html and "http-equiv" not in thin_html, "both MLB finals stay as real pages")
+        check(SP.BASE_URL + rich in urls and SP.BASE_URL + thin not in urls, "a final with closing odds stays in the sitemap; a final with no odds does not")
+        check("noindex" not in thin_html, "a final with a score and no odds stays indexable and is only left out of the sitemap")
+        check("MIL" in rich_html and "TB" in rich_html and "Closing" in rich_html, "World Series page keeps the teams and the closing lines")
+        check("21+" in rich_html and "1-800-GAMBLER" in rich_html, "MLB final keeps the 21+ notice")
+        # slate shrinks to one page: page 2 becomes a stub back to the index, and nothing links it
+        _write_index(site, "nfl", nfl_games(38), "football")
+        SP.build(site, site / "data", now, archive_dir=arch)
+        p1 = (site / "nfl/schedule/index.html").read_text()
+        stub = (site / "nfl/schedule/2/index.html").read_text()
+        urls = set(sitemap_page_urls(site))
+        check("page 1 of 1" in p1 and 'href="nfl/schedule/2/"' not in p1, "one-page schedule does not link a missing page 2")
+        check('http-equiv="refresh"' in stub and parse(stub).links.get("canonical") == SP.BASE_URL + "nfl/schedule/", "retired NFL page 2 refreshes to the schedule index")
+        check('name="robots"' not in stub and SP.BASE_URL + "nfl/schedule/2/" not in urls, "retired page 2 has no robots tag and is off the sitemap")
+        hub = (site / "nfl/index.html").read_text()
+        check('href="nfl/schedule/2/"' not in hub and 'href="nfl/schedule/2/"' not in (site / "index.html").read_text(), "hub and homepage do not link the retired page")
+        # slate shrinks under the hub cap: the index itself refreshes to the hub
+        _write_index(site, "nfl", nfl_games(8), "football")
+        SP.build(site, site / "data", now, archive_dir=arch)
+        urls = set(sitemap_page_urls(site))
+        for rel in ("nfl/schedule/", "nfl/schedule/2/"):
+            text = (site / rel / "index.html").read_text()
+            check('http-equiv="refresh"' in text and parse(text).links.get("canonical") == SP.BASE_URL + "nfl/", f"{rel} refreshes to the NFL hub once the directory is gone")
+            check(SP.BASE_URL + rel not in urls and 'name="robots"' not in text, f"{rel} stays out of the sitemap")
+        check('href="nfl/schedule/"' not in (site / "nfl/index.html").read_text(), "hub does not link a schedule directory that is only a stub")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
+    board_link_tests()
+    schedule_retirement_tests()
     keep_published_player_tests()
     corrected_final_slug_tests()
     logo_and_cap_tests()
@@ -1640,6 +1785,50 @@ def main():
             if (data / lg / "index.json").exists():
                 check(man["l"].get(lg) == f"{lg}/" and (site / lg / "index.html").exists(), f"{lg}: hub page")
         check("epl" not in man["l"] and not (site / "epl").exists(), "soccer has no SEO pages")
+
+        # Upcoming NBA, NFL, NCAAF and NCAAB games and the teams playing them are plain <a href>
+        # links in the static HTML: above #app on the hub (the app replaces #app), and on Best Lines Today.
+        bl = (site / "best-lines-today" / "index.html").read_text()
+        for lg in ("nfl", "nba", "ncaaf", "ncaab"):
+            hub_html = (site / lg / "index.html").read_text()
+            lead = hub_html.split("<main", 1)[0]
+            by_id = {str(g["id"]): g for g in json.loads((data / lg / "index.json").read_text()).get("games") or []}
+            up_paths, team_ids = [], set()
+            for gid, path in (man["g"].get(lg) or {}).items():
+                g = by_id.get(str(gid))
+                if not g or g.get("state") == "post" or g.get("completed") or SP.abnormal(g):
+                    continue
+                up_paths.append(path)
+                for side in ("home", "away"):
+                    tid = str((g.get(side) or {}).get("id") or "")
+                    if tid:
+                        team_ids.add(tid)
+            playing = [p for tid, p in (man["t"].get(lg) or {}).items() if str(tid) in team_ids]
+
+            def sched_html(page_html, league=lg):
+                if f'href="{league}/schedule/"' not in page_html:
+                    return ""
+                folder = site / league / "schedule"
+                if not folder.is_dir():
+                    return ""
+                parts = []
+                for p in folder.rglob("index.html"):
+                    text = p.read_text()
+                    if 'http-equiv="refresh"' in text[:1500]:
+                        continue
+                    parts.append(text)
+                return "\n".join(parts)
+
+            missing_g = [p for p in up_paths if f'href="{p}"' not in lead + sched_html(lead)]
+            missing_t = [p for p in playing if f'href="{p}"' not in lead]
+            missing_bg = [p for p in up_paths if f'href="{p}"' not in bl + sched_html(bl)]
+            missing_bt = [p for p in playing if f'href="{p}"' not in bl]
+            check(not missing_g, f"{lg} hub links every upcoming game above #app or from the schedule ({len(up_paths)} games, missing {missing_g[:2]})")
+            check(not missing_t, f"{lg} hub links every playing team above #app ({len(playing)} teams, missing {missing_t[:2]})")
+            check(not missing_bg, f"best lines links every upcoming {lg} game ({missing_bg[:2]})")
+            check(not missing_bt, f"best lines links every playing {lg} team ({missing_bt[:2]})")
+            if up_paths:
+                check(bool(playing), f"{lg} upcoming games have team pages")
 
         # ---- every page
         titles, canon, descs = {}, {}, {}
@@ -1898,6 +2087,9 @@ def main():
         for rel, d, h in stubs:
             target = d.links.get("canonical", "")
             check(target.startswith(SP.BASE_URL), f"stub {rel}: canonical to the new URL ({target})")
+            if SP.is_schedule_rel(rel):
+                check('name="robots"' not in h and "21+" in h and "1-800-GAMBLER" in h and "1-833-PLAYWISE" in h, f"{rel}: schedule stub has no robots tag and keeps the notices")
+                check(f'href="{rel}"' not in (site / "index.html").read_text(), f"homepage does not link retired {rel}")
             tp = target[len(SP.BASE_URL):]
             check(tp == "" or tp in real, f"stub {rel}: target {tp} is a real page")
             check("location.replace(" in h and "location.hash" in h and "<base" not in h, f"stub {rel}: JS redirect keeps the hash, no <base>")

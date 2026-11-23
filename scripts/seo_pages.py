@@ -12,6 +12,7 @@ Outputs (all generated, git-ignored):
   site/<lg>/results/                 results archive, plus site/<lg>/results/YYYY-MM/ month pages
   site/preview/**                    redirect stubs for the old /preview/ URLs (canonical -> new page)
   site/<lg>/games|fights/<slug>/     a short hub redirect when an upcoming page drops before it is archived
+  site/<lg>/schedule/<n>/            a meta-refresh stub when a numbered schedule page is no longer written
   site/data/pages.json               hash route -> real URL manifest used by app.js (redirects + link rewriting)
   site/sitemap.xml                   sitemap index; child files sitemap-core/live/props/results/games-*.xml
                                      a game URL is listed only when this build wrote that game's HTML.
@@ -3341,6 +3342,78 @@ def week_game_rows(L, limit, floor):
     return picked[:limit]
 
 
+def later_game_rows(L, skip_ids, limit):
+    """Upcoming games the week list did not already take, soonest first."""
+    out = []
+    for gid, g in upcoming(L):
+        if gid not in L.paths or gid in skip_ids:
+            continue
+        out.append((gid, g))
+        if len(out) >= limit:
+            break
+    return out
+
+
+def playing_teams(L):
+    """Teams (or fighters) that have an upcoming or live game page. Alphabetical, one link each."""
+    seen, out = set(), []
+    for gid, g in upcoming(L):
+        if gid not in L.paths:
+            continue
+        for side in ("away", "home"):
+            t = g.get(side) or {}
+            tid = str(t.get("id") or "")
+            path = (L.team_paths or {}).get(tid)
+            if not path or path in seen:
+                continue
+            seen.add(path)
+            out.append((path, tname(t), t.get("record") or ""))
+    out.sort(key=lambda x: (x[1].lower(), x[0]))
+    return out
+
+
+def board_directory_note(L):
+    """Full schedule / all teams, when the hub list is capped. Plain links, no promo."""
+    bits = []
+    n_up = sum(1 for gid, _g in upcoming(L) if gid in L.paths)
+    if L.lg != "ufc" and n_up > HUB_GAME_CAP:
+        bits.append(f'<a href="{L.lg}/schedule/">Full {esc(NAMES[L.lg])} schedule</a>')
+    if L.lg != "ufc" and len(L.team_paths or {}) > HUB_TEAM_CAP:
+        bits.append(f'<a href="{L.lg}/teams/">All {esc(SHORT[L.lg])} teams</a>')
+    if not bits:
+        return ""
+    return '<p class="note">' + " · ".join(bits) + "</p>"
+
+
+# Best Lines Today links these sports' current games and the teams playing them.
+# MLB is omitted while it has no upcoming games, so offseason pages are not pushed.
+BOARD_LGS = ("nfl", "nba", "ncaaf", "ncaab")
+
+
+def current_board_nav(Ls, leagues=BOARD_LGS):
+    """Upcoming games and the teams playing them. Closed lists of plain <a href> links."""
+    blocks = []
+    for lg in leagues:
+        L = Ls.get(lg)
+        if not L:
+            continue
+        games = [(gid, g) for gid, g in upcoming(L) if gid in L.paths][:HUB_WEEK_GAMES]
+        if games:
+            lis = "".join(_week_game_li(L.paths[gid], L.matchup(g), g, L.now, lg) for gid, g in games)
+            live_n = sum(_week_state(g) == "in" for _, g in games)
+            blocks.append(_week_fold(f"Upcoming {NAMES[lg]} games", '<ul class="sx-discover-games">' + lis + "</ul>", len(games), live_n, games=True))
+        teams = playing_teams(L)
+        if teams:
+            label = "Fighters" if lg == "ufc" else f"{NAMES[lg]} teams"
+            blocks.append(_week_fold(label, link_list(teams, "pv-list sx-grid"), len(teams)))
+        note = board_directory_note(L)
+        if note:
+            blocks.append(note)
+    if not blocks:
+        return ""
+    return f'<nav class="sx-discover sx-board" aria-label="Upcoming games and teams">{"".join(blocks)}</nav>'
+
+
 def week_prop_rows(L, limit):
     """Player-prop pages that have a line on a this-week game. Soonest game first, one link per player."""
     if not getattr(L, "players", None) or limit <= 0:
@@ -3367,8 +3440,9 @@ def discover_nav(Ls, focus=None, games=True, props=False, leagues=True):
     """Plain <a href> links for crawlers. Rendered in the static HTML, not only after JavaScript runs.
 
     focus=None is the homepage. focus=<lg> is that league page. games links this week's games (topped up
-    to a small floor when the week is thin). props links player pages that have a number on those games.
-    The game list and the prop list are closed <details> elements. League pills stay open.
+    to a small floor when the week is thin). A league page also links later games in its window, the teams
+    that are playing, and the schedule or teams directory when those lists are capped. props links player
+    pages that have a number on those games. The lists are closed <details> elements. League pills stay open.
     """
     blocks = []
     if leagues:
@@ -3396,6 +3470,14 @@ def discover_nav(Ls, focus=None, games=True, props=False, leagues=True):
                 lis = "".join(_week_game_li(h, lab, g, now, lg) for _, _, _, h, lab, g, lg, now in rows)
                 live_n = sum(_week_state(g) == "in" for _, _, _, _, _, g, _, _ in rows)
                 blocks.append(_week_fold(title, '<ul class="sx-discover-games">' + lis + "</ul>", len(rows), live_n, games=True))
+            if focus and focus in Ls:
+                listed = {row[2] for row in rows}
+                L = Ls[focus]
+                later = later_game_rows(L, listed, game_limit)
+                if later:
+                    lis = "".join(_week_game_li(L.paths[gid], L.matchup(g), g, L.now, focus) for gid, g in later)
+                    live_n = sum(_week_state(g) == "in" for _, g in later)
+                    blocks.append(_week_fold(f"Later {NAMES[focus]} games", '<ul class="sx-discover-games">' + lis + "</ul>", len(later), live_n, games=True))
         if props:
             prop_rows = []
             for lg, L in sources:
@@ -3405,10 +3487,18 @@ def discover_nav(Ls, focus=None, games=True, props=False, leagues=True):
             if prop_rows:
                 title = "Player props this week" if not focus else f"{NAMES[focus]} player props this week"
                 blocks.append(_week_fold(title, _anchor_list(prop_rows, "sx-discover-games"), len(prop_rows)))
+        if focus and focus in Ls:
+            teams = playing_teams(Ls[focus])
+            if teams:
+                label = "Fighters" if focus == "ufc" else f"{NAMES[focus]} teams"
+                blocks.append(_week_fold(label, link_list(teams, "pv-list sx-grid"), len(teams)))
+            note = board_directory_note(Ls[focus])
+            if note:
+                blocks.append(note)
     if not blocks:
         return ""
     if focus and not leagues:
-        label = f"{NAMES[focus]} games and player props this week"
+        label = f"{NAMES[focus]} games, teams and player props this week"
     elif not focus:
         label = "Leagues, games and player props this week"
     else:
@@ -3632,6 +3722,60 @@ def schedule_page(L: League, sh: Shell, chunk, index, pages):
     cp = {"@context": "https://schema.org", "@type": "CollectionPage", "name": bare_title(title), "url": L.base_url + path, "description": desc}
     ld = [cp, crumbs_ld(L.base_url, [(L.hub, NAMES[L.lg]), (path, label)])]
     return sh.page(path, title, desc, main, _dir_more(L), kind="schedule", lg=L.lg, ld=ld, og_type="website"), title
+
+
+def is_schedule_rel(rel):
+    """/<lg>/schedule/ or /<lg>/schedule/<n>/ with n >= 2."""
+    parts = [p for p in str(rel or "").strip("/").split("/") if p]
+    if len(parts) < 2 or parts[0] not in ORDER or parts[1] != "schedule":
+        return False
+    if len(parts) == 2:
+        return True
+    return len(parts) == 3 and parts[2].isdigit() and int(parts[2]) >= 2
+
+
+# Numbered schedule pages are written only while the upcoming slate needs them
+# (SCHED_PAGE games each). Google keeps requesting a page after the slate shrinks
+# and the file is gone. These two were published: NCAAB page 2 is the URL Search
+# Console still crawls (404 as of the Nov 15 pages report); NCAAF page 2 is live
+# while that slate is two pages. The archive remembers any later page this build writes.
+SEEDED_SCHEDULE = (
+    "ncaab/schedule/2/",
+    "ncaaf/schedule/2/",
+)
+
+
+def remember_schedules(arch, live_by_lg):
+    """Schedule URLs we have published. A path this build did not write becomes a redirect.
+
+    The target is /<lg>/schedule/ when that index still exists, otherwise the league hub.
+    Stubs are not returned for a path that is a real page. The archive keeps the union so
+    the next build still knows a page that has already disappeared.
+    """
+    remembered = arch.state.setdefault("schedule_paths", {}) if arch and arch.dir else {}
+    seeded = {}
+    for rel in SEEDED_SCHEDULE:
+        if is_schedule_rel(rel):
+            seeded.setdefault(rel.split("/", 1)[0], set()).add(rel)
+    out = {}
+    for lg in set(live_by_lg) | set(remembered) | set(seeded):
+        if lg not in NAMES:
+            continue
+        live = {p for p in (live_by_lg.get(lg) or []) if is_schedule_rel(p)}
+        prior = remembered.get(lg) or []
+        if isinstance(prior, dict):
+            prior = list(prior)
+        known = {p for p in prior if is_schedule_rel(p)} | set(seeded.get(lg) or []) | live
+        if arch and arch.dir:
+            remembered[lg] = sorted(known)
+        if f"{lg}/schedule/" in live:
+            target, title = f"{lg}/schedule/", f"{NAMES[lg]} schedule"
+        else:
+            target, title = f"{lg}/", f"{NAMES[lg]} odds"
+        for path in sorted(known):
+            if path not in live:
+                out[path] = (target, title)
+    return out
 
 
 def teams_directory_page(L: League, sh: Shell, teams):
@@ -4377,6 +4521,7 @@ def best_lines_page(Ls, sh: Shell, now, base_url):
 <h1 class="pv-h1">{esc(h1)}</h1>
 <p class="pv-lead">{intro}</p>
 {banner}{body or empty}
+{current_board_nav(Ls)}
 <p class="note">Odds change. Confirm with the sportsbook. For reference only. 21+.</p>
 <p class="note"><a href="states/">Sports betting by state</a> · <a href="responsible-gambling.html">Responsible gambling</a></p>
 </article>"""
@@ -4677,7 +4822,11 @@ def sitemap_content_reason(rel, Ls):
     """Thin-page category to leave out of the sitemap. None keeps the URL.
 
     Hubs, results, standings, team pages, upcoming and live games, and finished games that
-    have odds and a score stay. Past games with no odds, empty props, and empty cards do not.
+    have odds and a score stay. A finished game with a score and closing odds is its own page
+    (final score, box score, closing line), so it stays. That is the MLB World Series pages
+    still in the sitemap. A finished game with no odds stays on the site for people who have
+    the URL, and stays out of the sitemap. Past games with no odds, empty props, and empty
+    cards do not get listed.
     """
     rel = str(rel or "").lstrip("/")
     if rel == "preview" or rel.startswith("preview/"):
@@ -5048,12 +5197,15 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
         stats.setdefault(lg, {}).setdefault(kind, 0)
         stats[lg][kind] += 1
 
+    live_sched = {}
     for lg, L in Ls.items():
         html, t = hub_page(L, sh, Ls)
         put(L.hub, html, t, "hub", lg)
         manifest["l"][lg] = L.hub
         for extra_path, extra_html, extra_title, extra_kind in extra_hub_pages(L, sh):
             put(extra_path, extra_html, extra_title, extra_kind, lg)
+            if extra_kind == "schedule":
+                live_sched.setdefault(lg, set()).add(extra_path)
         for gid in L.games:
             html, t = game_page(L, sh, gid)
             put(L.paths[gid], html, t, "past" if L.is_final(L.games[gid]) else "game", lg)
@@ -5149,6 +5301,11 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
                 redirects[op] = (L.hub, f"{NAMES[lg]} odds")
         redirects[f"preview/{lg}/"] = (L.hub, f"{NAMES[lg]} odds")
     redirects["preview/"] = ("", "LineSmart")
+    # A numbered schedule page that this build no longer writes (the slate shrank) stays
+    # as a canonical + meta-refresh stub. It is not a page, so it stays out of the sitemap.
+    for op, dest in remember_schedules(arch, live_sched).items():
+        if op not in pages and op not in redirects:
+            redirects[op] = dest
     # lastmod: content hash, with cross-links excluded. A finished game freezes at the build that recorded its final
     # and only moves when the score or the closing line changes.
     lm_state = arch.state.setdefault("lastmod", {}) if arch.dir else {}

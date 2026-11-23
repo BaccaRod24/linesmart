@@ -2201,7 +2201,7 @@ a.contact-cta:hover{color:var(--accent)}
 .sx-fold[open]>summary .sx-chev{transform:translateY(2px) rotate(225deg)}
 .sx-fold>summary:hover{border-color:var(--accent-line);background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
 .sx-fold[open]>summary{border-color:var(--accent-line)}
-.sx-fold>.sx-discover-games{margin-top:8px}
+.sx-fold>.sx-discover-games,.sx-fold>.pv-list{margin-top:8px}
 @media (prefers-reduced-motion:reduce){.sx-fold .sx-chev{transition:none}}
 @media (min-width:700px){
   .sx-discover-games{grid-template-columns:1fr 1fr}

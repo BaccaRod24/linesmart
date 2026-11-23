@@ -21,8 +21,10 @@ The output is **not committed** (see `.gitignore`). Each deploy rebuilds it from
 | Results month | `/<lg>/results/YYYY-MM/` | `/nba/results/2026-10/` |
 
 `<lg>` is one of `nfl nba mlb nhl ncaaf ncaab ufc`. Every league always has a hub, even an empty one, so footer links
-never break. The date is the game's date in ET. If two pages would get the same slug, `-2`, `-3` and so on are added.
-A URL never changes once it is assigned, because the archive keeps it. Soccer gets no pages for now.
+never break. The date is the game's date in ET. If two pages would get the same slug, the game id is appended.
+A published slug stays while it still names this matchup. When home/away on a neutral site, or a team name, is
+corrected after the game has started, the corrected slug becomes the page and the old URL redirects to it.
+Soccer gets no pages for now.
 
 `data/pages.json` maps app routes to URLs (`{generated, l, g, t, p}`; UFC fighters go under `p`). `app.js` uses it to:
 - replace a `#/` route that has a real page with that URL (`history.replaceState`);
@@ -158,8 +160,9 @@ URL, a meta refresh, and a `location.replace` that keeps the hash:
 - `/preview/<lg>/<game>/` → the game page
 - an upcoming game URL that this build no longer writes, because the game left `select()` before it was archived
   as a final (a college game whose line comes down) → `/<lg>/`
+- a final whose slug was corrected after tip-off (neutral-site home/away, or a team rename) → the corrected game URL
 
-That last stub is how a page Google already fetched avoids a hard 404 when the line flickers. It carries no odds
+The hub stub is how a page Google already fetched avoids a hard 404 when the line flickers. It carries no odds
 and no Pro data. A game that has never had a page is not given a URL. Stubs carry no `noindex`: mixing a canonical
 and noindex sends search engines mixed signals. `404.html` also sends unknown `/preview/<lg>/...` URLs to the hub.
 Pro pages stay `noindex` the way they already are.
@@ -174,7 +177,8 @@ Pro pages stay `noindex` the way they already are.
   - `sitemap-results.xml`: `/<lg>/results/` and the month pages.
   `lastmod` comes from a content hash that ignores the cross-link blocks. A finished game's lastmod freezes when the final is recorded and moves only if the score or the closing line changes. The committed `sitemap.xml` points at `sitemap-core.xml`; the build rewrites the index and the children.
   A game or fight URL is added to a child sitemap only when this same build wrote that page's HTML, and it is removed in the build that stops writing the page. A redirect stub is never listed. `sitemap-games-*.xml` therefore never names a game before its page exists or after that page is gone.
-  The sitemap also leaves out thin URLs: past games with no odds (no posted line and no closing line) or no recorded score, postponed or canceled games with no odds, empty prop pages (no posted number), NHL/MLB/college prop pages with no current line, UFC fighter pages with no booked upcoming bout (those pages stay up with `noindex`), empty UFC cards, duplicate URLs, and any file whose canonical points somewhere else or that is a meta-refresh. Hubs, results, standings, team pages, booked fighters, upcoming and live games, finished games that have odds and a score, and `/line-moves/` stay. NFL and NBA prop pages are not deleted after the line comes down.
+  The sitemap also leaves out thin URLs: past games with no odds (no posted line and no closing line) or no recorded score, postponed or canceled games with no odds, empty prop pages (no posted number), NHL/MLB/college prop pages with no current line, UFC fighter pages with no booked upcoming bout (those pages stay up with `noindex, follow`), non-Division I NCAAB team pages (those stay up with `noindex, follow`), empty UFC cards, duplicate URLs, and any file whose canonical points somewhere else or that is a meta-refresh. Hubs, results, standings, Division I team pages, booked fighters, upcoming and live games, finished games that have odds and a score, and `/line-moves/` stay. NFL and NBA prop pages are not deleted after the line comes down.
+  Division I is ESPN group 50, the same group the NCAAB scoreboard and standings already request. `scripts/standings.py` writes every team id on that raw tree to `site/data/ncaab/division-i.json` before the standings page drops conferences outside the major list, so an America East school stays indexed. A team ESPN files under group 51 ("Non-NCAA Division I"), such as the Alma Scots, is not on that tree. If the file is missing, team pages stay indexed.
 - `/line-moves/` lists verified spread moves of at least 1 point and total moves of at least 1.5 points. A weekly page is written only when that week has 3 or more verified moves. An open that is still doubtful after the line-history check is left off.
 - `robots.txt`: points to the sitemap.
 - `index.html`: the homepage cards (top games, line moves, hot props with last-5 strips) are filled in between the

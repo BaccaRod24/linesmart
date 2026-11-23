@@ -391,6 +391,34 @@ def parse_standings(lg, doc):
     return out
 
 
+def division_i_ids(doc):
+    """Every team id on the raw Division I standings document, before conference filtering.
+
+    The NCAAB fetch is ``group=50`` (ESPN's name for that group is "NCAA Division I").
+    A conference such as the ACC is a child of group 50, so its teams are included.
+    The published standings page then drops conferences outside the major list
+    (America East is one). Those schools are still Division I. A team ESPN files under
+    group 51 ("Non-NCAA Division I"), such as the Alma Scots, is not on this tree.
+    """
+    seen = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            team = o.get("team") if isinstance(o.get("team"), dict) else None
+            if team and team.get("id") is not None and (team.get("displayName") or team.get("abbreviation") or team.get("name")):
+                tid = str(team["id"])
+                if tid not in seen:
+                    seen.append(tid)
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+
+    walk(doc or {})
+    return seen
+
+
 def file_body(lg, parsed, generated):
     key = lg["key"] if isinstance(lg, dict) else str(lg)
     parsed = parsed or {}
@@ -436,8 +464,19 @@ def write_standings(lg, fetch, out_dir, now=None, log=print):
         with open(path, "w") as fh:
             fh.write(raw)
         n = sum(len(d["teams"]) for g in body["groups"] for d in g["divisions"])
-        log(f"[{key}] standings: {n} teams, {len(body['groups'])} groups, season {body['season'] or '?'}")
-        return {"league": key, "teams": n, "groups": len(body["groups"]), "season": body["season"], "bytes": len(raw.encode())}
+        div_n = 0
+        if key == "ncaab":
+            ids = division_i_ids(doc)
+            if ids:
+                div_path = os.path.join(out_dir, key, "division-i.json")
+                payload = {"source": "ESPN", "group": "50", "name": "NCAA Division I", "ids": ids}
+                with open(div_path, "w") as fh:
+                    fh.write(json.dumps(payload, separators=(",", ":")))
+                div_n = len(ids)
+        log(f"[{key}] standings: {n} teams, {len(body['groups'])} groups, season {body['season'] or '?'}"
+            + (f"; division I ids {div_n}" if div_n else ""))
+        return {"league": key, "teams": n, "groups": len(body["groups"]), "season": body["season"], "bytes": len(raw.encode()),
+                "divisionI": div_n or None}
     except Exception as ex:
         kept = _load(path) is not None
         log(f"[{key}] standings FAILED: {ex}" + ("; kept the previous file" if kept else ""))

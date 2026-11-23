@@ -58,6 +58,8 @@ ncaab = ST.parse_standings(lg("ncaab", "basketball"), FIX["ncaab"])
 names = [g["abbr"] for g in ncaab["groups"]]
 check(names == ["sec", "acc"] and ncaab["scope"] == "Major conferences", f"college basketball keeps the major conferences in order ({names})")
 check(all(t["id"] != "999" for g in ncaab["groups"] for d in g["divisions"] for t in d["teams"]), "America East is left off the college basketball page")
+di_ids = ST.division_i_ids(FIX["ncaab"])
+check("150" in di_ids and "999" in di_ids, f"Division I ids keep America East and the ACC ({di_ids})")
 check(ncaab["groups"][1]["divisions"][0]["teams"][0]["name"] == "Duke Blue Devils", "a conference with no divisions is one table")
 
 college = {"children": [{"name": "Sun Belt", "abbreviation": "belt", "standings": {"entries": [{"team": {"id": "2638", "displayName": "UTSA Roadrunners", "abbreviation": "UTSA"}, "stats": [
@@ -116,6 +118,21 @@ with tempfile.TemporaryDirectory() as tmp:
     check(again["kept"] is True and path.read_text() == previous, "a failed fetch keeps the previous cache file")
     missing = ST.write_standings(lg("nfl", "football"), boom, tmp, NOW, log=lambda *_: None)
     check(missing["kept"] is False and not (Path(tmp) / "nfl" / "standings.json").exists(), "a failed first fetch does not invent a file")
+
+    def ncaab_fetch(url):
+        return FIX["ncaab"]
+
+    nrep = ST.write_standings(lg("ncaab", "basketball"), ncaab_fetch, tmp, NOW, log=lambda *_: None)
+    div = json.loads((Path(tmp) / "ncaab" / "division-i.json").read_text())
+    check(nrep.get("divisionI") == len(div["ids"]) and "150" in div["ids"] and "999" in div["ids"] and div["group"] == "50",
+          f"NCAAB write saves every Division I id, including America East ({div['ids']})")
+    div_prev = (Path(tmp) / "ncaab" / "division-i.json").read_text()
+
+    def boom_ncaab(url):
+        raise RuntimeError("standings down")
+
+    ST.write_standings(lg("ncaab", "basketball"), boom_ncaab, tmp, NOW, log=lambda *_: None)
+    check((Path(tmp) / "ncaab" / "division-i.json").read_text() == div_prev, "a failed NCAAB fetch keeps the Division I id list")
 
 body = ST.file_body(lg("nfl", "football"), nfl, "2026-11-03T12:00:00+00:00")
 check(body["v"] == 1 and body["league"] == "nfl" and body["columns"] == nfl["columns"] and body["generated"].startswith("2026-11-03"), "file body carries the parsed columns")

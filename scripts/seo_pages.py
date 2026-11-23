@@ -124,6 +124,22 @@ def state_slug(code, name):
     return slugify(name or "")
 
 
+def load_division_i(data_dir):
+    """NCAAB team ids on ESPN's Division I standings tree (group 50), or None.
+
+    None means the list was not written this run. Team pages stay indexed then, so a
+    failed standings fetch cannot noindex a Division I school. A team whose id is
+    absent from a present list is not Division I (Alma Scots are ESPN group 51,
+    "Non-NCAA Division I", and are not on the group-50 tree).
+    """
+    doc = load_json(Path(data_dir) / "ncaab" / "division-i.json") or {}
+    ids = doc.get("ids") if isinstance(doc, dict) else None
+    if not isinstance(ids, list) or not ids:
+        return None
+    out = {str(x) for x in ids if x is not None and str(x).strip()}
+    return out or None
+
+
 def published_props(lg, path=None):
     """pid -> snapshot for NFL/NBA prop pages that were published and then pruned.
 
@@ -1209,7 +1225,13 @@ class League:
             gid = str(g["id"])
             prev = stored.get(gid) or []
             want = self.game_slug(g)
-            if prev and (g.get("state") != "pre" or prev[0].rsplit("/", 2)[-2].startswith(want)):
+            # Keep a published slug while it still names this matchup (exact, or the -id
+            # added when two games would share one). Home/away on a neutral site, and a
+            # team name, can be corrected after the game leaves "pre". The corrected slug
+            # is the page; the old URL redirects. Freezing every non-pre path left the
+            # corrected URL as a 404 (Murray State at NC State, neutral, 2026-11-19).
+            slug = prev[0].rstrip("/").rsplit("/", 1)[-1] if prev else ""
+            if prev and slug.startswith(want):
                 path = prev[0]
             else:
                 base = want
@@ -2765,8 +2787,16 @@ def team_page(L: League, sh: Shell, tid):
     if games_ld:
         page_ld["mainEntity"] = games_ld
     ld = [{"@context": "https://schema.org", "@graph": [entity, page_ld]}, crumbs_ld(L.base_url, [(L.hub, NAMES[L.lg]), (path, name)])]
-    # A fighter with no booked upcoming bout stays on the site for history, but is not a landing page.
-    robots = "noindex, nofollow" if L.lg == "ufc" and not up else None
+    # A fighter with no booked upcoming bout stays on the site for history. noindex, follow
+    # keeps the links on that page passing. A non-Division I college team page stays up
+    # the same way. Division I team pages, and booked fighters, stay indexed.
+    robots = None
+    if L.lg == "ufc" and not up:
+        robots = "noindex, follow"
+    elif L.lg == "ncaab":
+        di = getattr(L, "division_i", None)
+        if di is not None and str(tid) not in di:
+            robots = "noindex, follow"
     return sh.page(path, title, desc, main, more, kind="fighter" if L.lg == "ufc" else "team", lg=L.lg, ld=ld, og_type="profile", robots=robots), title
 
 
@@ -4651,6 +4681,11 @@ def sitemap_content_reason(rel, Ls):
         if rel in L.team_paths.values():
             if lg == "ufc" and not fighter_booked(L, rel):
                 return "fighter with no upcoming bout"
+            if lg == "ncaab":
+                di = getattr(L, "division_i", None)
+                tid = next((t for t, p in L.team_paths.items() if p == rel), None)
+                if di is not None and tid is not None and str(tid) not in di:
+                    return "non-Division I team"
             return None
         for ev in getattr(L, "ev", {}).values():
             if ev.get("path") != rel:
@@ -4981,6 +5016,7 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
         props = load_json(data_dir / "props" / f"{lg}.json") if lg != "ufc" else None
         L = League(lg, ix, props, arch, now, base_url)
         L.data_dir = data_dir
+        L.division_i = load_division_i(data_dir) if lg == "ncaab" else None
         if lg == "ufc":
             L.fight_methods = load_fight_methods(data_dir)
         L.has_data = bool(raw)

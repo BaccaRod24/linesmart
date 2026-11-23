@@ -1413,8 +1413,89 @@ def keep_published_player_tests():
         shutil.rmtree(arch_dir, ignore_errors=True)
 
 
+def corrected_final_slug_tests():
+    """A neutral final keeps the corrected away-at-home URL after home/away flips.
+
+    The archive already has the right sides (Murray State away, NC State home). The stored
+    path is the reverse, frozen when the game left pre. The corrected URL is the page, the
+    old URL redirects, and a matching final slug is left alone. Non-Division I team pages
+    stay published with noindex, follow and leave every sitemap. Division I pages do not.
+    """
+    line = {"draftkings": {"homeSpread": -7.5, "awaySpread": 7.5, "homeML": -280, "awayML": 220,
+                           "total": 154.5, "overOdds": -110, "underOdds": -110}}
+    tmp = Path(tempfile.mkdtemp(prefix="seofinal-"))
+    try:
+        site = build_copy(tmp, "slug")
+        data = site / "data"
+        now = pv.parse_dt("2026-11-23T18:00:00Z")
+        for lg in SP.ORDER:
+            p = data / lg / "index.json"
+            if not p.exists():
+                continue
+            doc = json.loads(p.read_text())
+            doc["games"] = []
+            p.write_text(json.dumps(doc))
+        mur = _side("93", "Murray State Racers", "MUR", 83)
+        ncsu = _side("152", "NC State Wolfpack", "NCSU", 93, True)
+        alma = _side("2800", "Alma Scots", "ALMA", 55)
+        duke = _side("150", "Duke Blue Devils", "DUKE", 88, True)
+        final = _game("401918959", pv.parse_dt("2026-11-19T23:00:00Z"), mur, ncsu, "post", line)
+        final["neutral"] = True
+        final["name"] = "Murray State Racers at NC State Wolfpack"
+        final["venue"] = "Baha Mar Convention Center"
+        final["city"] = "Nassau"
+        buy = _game("alma-duke", pv.parse_dt("2026-11-18T00:00:00Z"), alma, duke, "post", line)
+        ix = json.loads((data / "ncaab" / "index.json").read_text())
+        ix["games"] = [final, buy]
+        ix["league"] = dict(ix.get("league") or {}, kind="basketball", full="Men's College Basketball (D-I)")
+        (data / "ncaab" / "index.json").write_text(json.dumps(ix))
+        (data / "ncaab" / "division-i.json").write_text(json.dumps({
+            "source": "ESPN", "group": "50", "name": "NCAA Division I", "ids": ["93", "152", "150"]}))
+        wrong = "ncaab/games/nc-state-wolfpack-at-murray-state-racers-2026-11-19/"
+        right = "ncaab/games/murray-state-racers-at-nc-state-wolfpack-2026-11-19/"
+        arch = tmp / "archSlug"
+        arch.mkdir()
+        (arch / "games-ncaab.json").write_text(json.dumps({"401918959": final, "alma-duke": buy}))
+        (arch / "state.json").write_text(json.dumps({"paths": {"ncaab": {
+            "401918959": [wrong],
+            "alma-duke": ["ncaab/games/alma-scots-at-duke-blue-devils-2026-11-17/"],
+        }}}))
+        SP.build(site, data, now, archive_dir=arch)
+        man = json.loads((data / "pages.json").read_text())["g"]["ncaab"]
+        teams = json.loads((data / "pages.json").read_text())["t"]["ncaab"]
+        check(man.get("401918959") == right, f"corrected neutral final uses away-at-home ({man.get('401918959')})")
+        page = (site / right / "index.html").read_text()
+        check('http-equiv="refresh"' not in page and "Murray State Racers" in page and "NC State Wolfpack" in page and ">83<" in page and ">93<" in page,
+              "corrected URL is the final page, with both scores")
+        check("21+" in page and "1-800-GAMBLER" in page and "1-833-PLAYWISE" in page, "corrected final keeps the 21+ notice and the helplines")
+        stub = (site / wrong / "index.html").read_text()
+        check('http-equiv="refresh"' in stub and f'href="{SP.BASE_URL + right}"' in stub, "old reversed slug redirects to the corrected page")
+        check("21+" in stub and "1-800-GAMBLER" in stub, "slug redirect keeps the 21+ notice and the helpline")
+        urls = sitemap_page_urls(site)
+        check(SP.BASE_URL + right in urls and SP.BASE_URL + wrong not in urls, "sitemap lists the corrected final and not the redirect")
+        check(man.get("alma-duke") == "ncaab/games/alma-scots-at-duke-blue-devils-2026-11-17/", "a final whose slug already matches is not moved")
+        alma_rel, duke_rel = teams.get("2800"), teams.get("150")
+        check(alma_rel and duke_rel and (site / alma_rel / "index.html").is_file() and (site / duke_rel / "index.html").is_file(),
+              f"both team pages stay published ({alma_rel}, {duke_rel})")
+        alma_html = (site / alma_rel / "index.html").read_text()
+        duke_html = (site / duke_rel / "index.html").read_text()
+        check('name="robots" content="noindex, follow"' in alma_html and "nofollow" not in alma_html, "Alma Scots is noindex, follow")
+        check('name="robots"' not in duke_html.split("</head>", 1)[0] or "noindex" not in duke_html, "a Division I team page stays indexed")
+        check(SP.BASE_URL + alma_rel not in urls and SP.BASE_URL + duke_rel in urls, "sitemap drops the non-Division I team and keeps Duke")
+        check("21+" in alma_html and "1-800-GAMBLER" in alma_html, "non-Division I team page keeps the 21+ notice")
+        SP.build(site, data, now + timedelta(hours=1), archive_dir=arch)
+        man2 = json.loads((data / "pages.json").read_text())["g"]["ncaab"]
+        check(man2.get("401918959") == right and 'http-equiv="refresh"' not in (site / right / "index.html").read_text(),
+              "the corrected final slug stays on the next build")
+        stored = json.loads((arch / "state.json").read_text())["paths"]["ncaab"]["401918959"]
+        check(stored[0] == right and wrong in stored, f"archive remembers the old slug ({stored})")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     keep_published_player_tests()
+    corrected_final_slug_tests()
     logo_and_cap_tests()
     sitemap_game_guard_tests()
     sitemap_trim_tests()
@@ -2055,11 +2136,11 @@ def main():
         for fp in fighter_pages:
             rel = "ufc/fighters/" + fp.parent.name + "/"
             page = fp.read_text()
-            noindex = 'content="noindex, nofollow"' in page
+            noindex = 'name="robots" content="noindex, follow"' in page
             listed = SP.BASE_URL + rel in core4
             if "islam-makhachev" in rel:
                 check("won by Decision - Unanimous in round 5 at 5:00" in page and "won by in round" not in page, "fighter page uses the stored finish method")
-                check(noindex and not listed, "a fighter with no upcoming bout is noindex and off the sitemap")
+                check(noindex and "nofollow" not in page and not listed, "a fighter with no upcoming bout is noindex, follow and off the sitemap")
             if noindex:
                 no_book += 1
                 check(not listed, f"{rel}: noindex fighter is not in sitemap-core")

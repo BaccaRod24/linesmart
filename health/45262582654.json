@@ -1,0 +1,123 @@
+{
+ "v": 1,
+ "runId": "45262582654",
+ "at": "2026-11-23T20:48:34Z",
+ "generated": "2026-11-23T20:48:33.703342+00:00",
+ "checkedAt": "2026-11-23T20:47:42Z",
+ "level": "full",
+ "gameInterval": 30,
+ "staleAfterMin": 90,
+ "notVerified": "Prices are not compared to the sportsbook's own site.",
+ "counts": {
+  "findings": 4,
+  "errors": 0,
+  "warnings": 4,
+  "keptLastGood": 1,
+  "staleLeagues": 0
+ },
+ "leagues": {
+  "nfl": {
+   "pulledAt": "2026-11-23T20:47:42Z",
+   "ageMin": 0,
+   "upcoming": 17,
+   "inWindow": true,
+   "stale": false
+  },
+  "epl": {
+   "pulledAt": "2026-11-23T20:47:42Z",
+   "ageMin": 0,
+   "upcoming": 19,
+   "inWindow": true,
+   "stale": false
+  },
+  "nba": {
+   "pulledAt": "2026-11-23T20:47:42Z",
+   "ageMin": 0,
+   "upcoming": 72,
+   "inWindow": true,
+   "stale": false
+  },
+  "ncaaf": {
+   "pulledAt": "2026-11-23T20:47:42Z",
+   "ageMin": 0,
+   "upcoming": 69,
+   "inWindow": true,
+   "stale": false
+  },
+  "ncaab": {
+   "pulledAt": "2026-11-23T20:47:42Z",
+   "ageMin": 0,
+   "upcoming": 544,
+   "inWindow": true,
+   "stale": false
+  },
+  "nhl": {
+   "pulledAt": "2026-11-23T20:47:42Z",
+   "ageMin": 0,
+   "upcoming": 70,
+   "inWindow": true,
+   "stale": false
+  },
+  "mlb": {
+   "pulledAt": "2026-10-29T03:15:20Z",
+   "ageMin": 37053,
+   "upcoming": 0,
+   "inWindow": false,
+   "stale": false
+  },
+  "mls": {
+   "pulledAt": "2026-11-23T20:47:42Z",
+   "ageMin": 0,
+   "upcoming": 18,
+   "inWindow": true,
+   "stale": false
+  },
+  "ucl": {
+   "pulledAt": "2026-11-23T20:47:42Z",
+   "ageMin": 0,
+   "upcoming": 18,
+   "inWindow": true,
+   "stale": false
+  },
+  "ufc": {
+   "pulledAt": null,
+   "ageMin": null,
+   "upcoming": 20,
+   "inWindow": null,
+   "stale": false
+  }
+ },
+ "findings": [
+  {
+   "level": "warn",
+   "code": "team_mismatch",
+   "game": "401929445",
+   "detail": "teams changed; kept lines from 2026-11-23T20:15:25Z",
+   "league": "ncaab"
+  },
+  {
+   "level": "warn",
+   "code": "invalid_odds",
+   "game": "401918076",
+   "book": "fanduel",
+   "detail": "awayML=-50000",
+   "league": "ncaab"
+  },
+  {
+   "level": "warn",
+   "code": "invalid_odds",
+   "game": "401909788",
+   "book": "fanduel",
+   "detail": "homeML=-50000",
+   "league": "ncaab"
+  },
+  {
+   "level": "warn",
+   "code": "invalid_odds",
+   "game": "401879237",
+   "book": "fanduel",
+   "detail": "awayML=25000",
+   "league": "epl"
+  }
+ ]
+}

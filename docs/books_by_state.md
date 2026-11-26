@@ -1,6 +1,6 @@
 # Where each sportsbook is legal online (`data/books-by-state.json`)
 
-`site/assets/books-by-state.js` is generated from that JSON. Edit the JSON, then run `python3 scripts/seo_pages.py` (or any build that calls it) so the browser copy stays in step. The page build refuses to run when `asOf` is more than 30 days old.
+`site/assets/books-by-state.js` is generated from that JSON. Edit the JSON, then run `python3 scripts/seo_pages.py` (or any build that calls it) so the browser copy stays in step. When `asOf` is more than 30 days old the page build prints a warning and still writes the pages. It does not change `asOf` or the state list. The public pages keep saying when the list was last verified.
 
 As of **October 26, 2026**. Used by `site/assets/geo-core.js` to decide which sportsbook offers a visitor may see.
 This is not legal advice. Each sportsbook geolocates bettors itself, so a wrong entry here can show or hide a link

@@ -1014,12 +1014,33 @@ def state_unit_tests():
     check("nfl" in SP.slug_clashes(fake), "a slug of nfl clashes with the league folder")
     stale_day = datetime(2026, 11, 26).date()
     check(SP.books_age_days(doc, stale_day) == 31, "asOf age is counted in days")
-    try:
-        SP.require_fresh_books(doc, stale_day)
-        check(False, "stale asOf must abort the build")
-    except SystemExit as e:
-        check("asOf" in str(e), f"stale asOf aborts ({e})")
-    check(SP.books_age_days(doc, datetime(2026, 10, 28).date()) <= SP.ASOF_MAX_DAYS, "asOf is fresh on 2026-10-28")
+    # 7:15 PM ET on Nov 25 is 00:15 UTC on Nov 26. That is the refresh that started the outage.
+    outage = datetime(2026, 11, 26, 0, 15, tzinfo=timezone.utc)
+    outage_info = SP.books_freshness(doc, outage)
+    check(outage_info["ageDays"] == 31 and outage_info["stale"], "Nov 25 7:15 PM ET is past the 30-day limit")
+    still = SP.books_freshness(doc, datetime(2026, 11, 25, 23, 0, tzinfo=timezone.utc))
+    check(still["ageDays"] == 30 and not still["stale"], "asOf is still inside the limit on Nov 25 UTC")
+    fresh_day = datetime(2026, 10, 28).date()
+    check(SP.books_age_days(doc, fresh_day) <= SP.ASOF_MAX_DAYS, "asOf is fresh on 2026-10-28")
+    fresh = SP.warn_stale_books(doc, fresh_day)
+    check(not fresh["stale"] and fresh["ageDays"] == 2, f"a fresh asOf does not warn ({fresh})")
+    info = SP.warn_stale_books(doc, stale_day)
+    check(info["stale"] and info["ageDays"] == 31 and doc["asOf"] == "2026-10-26" and "October 26, 2026" in info["message"],
+          f"stale asOf warns and leaves the verified date ({info})")
+    check("DraftKings" not in info["message"] and "FanDuel" not in info["message"] and "Florida" not in info["message"],
+          "the stale warning does not make a legal claim")
+    health = Path(tempfile.mkdtemp(prefix="books-health-")) / "health.json"
+    health.write_text(json.dumps({"v": 1, "counts": {"findings": 1, "warnings": 0, "errors": 0}, "findings": [{"level": "warn", "code": "stale_league"}]}))
+    noted = SP.warn_stale_books(doc, stale_day, [health, health.parent / "missing.json"])
+    saved = json.loads(health.read_text())
+    check(noted["stale"] and saved["booksByState"]["stale"] and saved["booksByState"]["asOf"] == "2026-10-26"
+          and saved["counts"]["warnings"] == 1 and saved["counts"]["findings"] == 2
+          and [f["code"] for f in saved["findings"]] == ["stale_league", "books_by_state_stale"],
+          "health.json records the stale book list once")
+    SP.warn_stale_books(doc, stale_day, [health])
+    again = json.loads(health.read_text())
+    check(again["counts"]["warnings"] == 1 and len(again["findings"]) == 2, "a second warning does not double-count")
+    shutil.rmtree(health.parent, ignore_errors=True)
     src = "\n".join(inspect.getsource(fn) for fn in (SP.legal_copy, SP.state_faqs, SP.state_title, SP.state_desc, SP.state_page, SP.states_index, SP.books_block, SP.lines_block))
     for bad in ("Florida", "Louisiana", "BetMGM", "Hard Rock", "DraftKings", "FanDuel", "only legal"):
         check(bad not in src, f"state templates have no {bad!r}")

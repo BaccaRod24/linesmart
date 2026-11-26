@@ -42,6 +42,8 @@ jobs:
     timeout-minutes: 20
     outputs:
       data_ok: ${{ steps.build.outcome }}
+      # success only when scripts/seo_pages.py exited 0. A stale books-by-state date warns and still exits 0.
+      seo_ok: ${{ steps.seo.outcome }}
       # Provider pull times for publish-request. The build clock is not included.
       odds_clocks: ${{ steps.odds_clocks.outputs.clocks }}
     permissions:
@@ -199,12 +201,17 @@ jobs:
       # pages), data/pages.json for the app's real-URL links, sitemap.xml (a sitemap index) and the homepage cards in
       # index.html. Reads site/data only (no network, no API key). Finished games stay up permanently (final score +
       # closing lines) in an archive on the data-history branch (_history/pages); without the worktree it builds from
-      # site/data alone.
+      # site/data alone. continue-on-error so a real failure still lets the data-history push below run.
+      # A stale books-by-state asOf is a warning inside the script and does not fail this step. Any other
+      # failure must not publish: the step later in this job stops the run, and deploy / publish-request
+      # also require seo_ok.
       - name: Build SEO pages
         id: seo
         continue-on-error: true
         env:
           ARCHIVE_DIR: ${{ steps.hist.outcome == 'success' && '_history/pages' || '' }}
+          RELIABILITY_DIR: ${{ steps.hist.outcome == 'success' && '_history/health' || '' }}
+          LINE_SNAP_DIR: .linehist-snap
         run: |
           python scripts/seo_pages.py
           if [ -d _history/pages ]; then rm -rf .linehist-snap/_pages && mkdir -p .linehist-snap && cp -r _history/pages .linehist-snap/_pages; fi
@@ -314,9 +321,18 @@ jobs:
           node scripts/pack_pro_bundle.mjs
           python3 scripts/upload_pro_bundle.py --file pro/dist/pro-app.js
 
+      # Pages were not written. Do not upload a bundle that would 404 every league, game, prop, and
+      # team URL. Line history from the data build has already been pushed. The live site keeps the
+      # last bundle that included pages. This step is after that push on purpose.
+      - name: Keep the live site when SEO pages were not built
+        if: steps.seo.outcome != 'success'
+        run: |
+          echo "::error::SEO page build failed. Not publishing, so https://linesmart.app keeps the pages it already has."
+          exit 1
+
       # A push to main is a new commit, and this run is the first Pages deployment of that SHA.
       - name: Upload deploy proof
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.seo.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: deploy-proof
@@ -325,7 +341,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Pages artifact
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.seo.outcome == 'success'
         uses: actions/upload-pages-artifact@v5
         with:
           path: site
@@ -334,7 +350,7 @@ jobs:
       # publish-request compares these when main moved during the queue.
       - name: Record provider pull times for the publish decision
         id: odds_clocks
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' && steps.seo.outcome == 'success'
         run: python3 scripts/publish_stamp_decision.py emit-clocks site/data/meta.json >> "$GITHUB_OUTPUT"
 
       # Scheduled and manual refreshes all check out one commit (data is not committed), so deploying
@@ -345,7 +361,7 @@ jobs:
       # after a short pause. If both fail, this job stops and the live site is left as it is.
       - name: Upload site bundle for the publish run
         id: site_bundle
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' && steps.seo.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 5
         uses: actions/upload-artifact@v7
@@ -382,7 +398,7 @@ jobs:
 
   deploy:
     needs: build
-    if: ${{ needs.build.result == 'success' && needs.build.outputs.data_ok == 'success' && github.event_name == 'push' && !startsWith(github.event.head_commit.message || '', 'Publish pages data ') }}
+    if: ${{ needs.build.result == 'success' && needs.build.outputs.data_ok == 'success' && needs.build.outputs.seo_ok == 'success' && github.event_name == 'push' && !startsWith(github.event.head_commit.message || '', 'Publish pages data ') }}
     runs-on: ubuntu-latest
     # Two 5-minute deploy attempts, the waits, and the live check need more than the old 15.
     timeout-minutes: 25
@@ -455,7 +471,7 @@ jobs:
   # which GITHUB_TOKEN is allowed to trigger, and its github.sha is the stamp commit.
   publish-request:
     needs: build
-    if: ${{ needs.build.result == 'success' && needs.build.outputs.data_ok == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'push' && (inputs.publish_run_id || '') == '' }}
+    if: ${{ needs.build.result == 'success' && needs.build.outputs.data_ok == 'success' && needs.build.outputs.seo_ok == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'push' && (inputs.publish_run_id || '') == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     outputs:

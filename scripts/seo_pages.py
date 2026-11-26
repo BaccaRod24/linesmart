@@ -198,15 +198,88 @@ def books_age_days(doc, today):
     return (today - asof).days
 
 
-def require_fresh_books(doc, today=None):
-    """Fail the build when asOf is more than 30 days old, so someone re-verifies the list."""
-    today = today or datetime.now(timezone.utc).date()
+def _as_utc_date(today):
+    """Calendar day for the 30-day check. A datetime uses its UTC date, matching the workflow clock."""
+    if today is None:
+        return datetime.now(timezone.utc).date()
+    if isinstance(today, datetime):
+        if today.tzinfo is None:
+            today = today.replace(tzinfo=timezone.utc)
+        return today.astimezone(timezone.utc).date()
+    return today
+
+
+def books_freshness(doc, today=None):
+    """How old the state-list verification is. Stale does not mean the list changed."""
+    today = _as_utc_date(today)
     age = books_age_days(doc, today)
-    if age > ASOF_MAX_DAYS:
-        raise SystemExit(
-            f"seo_pages: data/books-by-state.json asOf {doc['asOf']} is {age} days old "
-            f"(limit {ASOF_MAX_DAYS}). Re-verify the state list and update asOf.")
-    return age
+    stale = age > ASOF_MAX_DAYS
+    verified = asof_long(doc)
+    message = (
+        f"data/books-by-state.json asOf {doc['asOf']} is {age} days old "
+        f"(limit {ASOF_MAX_DAYS}). Re-verify the state list and update asOf. "
+        f"Pages still build. Public copy stays last verified {verified}."
+    )
+    return {"asOf": doc["asOf"], "ageDays": age, "limitDays": ASOF_MAX_DAYS, "stale": stale,
+            "verified": verified, "message": message}
+
+
+def books_health_paths(data_dir):
+    """health.json copies this run can annotate. Missing files are skipped."""
+    paths = [Path(data_dir) / "health.json"]
+    run_id = (os.environ.get("GITHUB_RUN_ID") or "").strip()
+    log_dir = (os.environ.get("RELIABILITY_DIR") or "").strip()
+    if log_dir and run_id.isdigit():
+        paths.append(Path(log_dir) / f"{run_id}.json")
+    snap = (os.environ.get("LINE_SNAP_DIR") or "").strip()
+    if snap:
+        paths.append(Path(snap) / "reliability.json")
+    return paths
+
+
+def _append_books_warning(path, finding, info):
+    """Add one books-by-state warning to an existing health record. Does not create the file."""
+    path = Path(path)
+    if not path.is_file():
+        return False
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(doc, dict):
+        return False
+    note = {k: info[k] for k in ("asOf", "ageDays", "limitDays", "stale")}
+    findings = doc.get("findings") if isinstance(doc.get("findings"), list) else []
+    already = any(isinstance(f, dict) and f.get("code") == "books_by_state_stale" for f in findings)
+    if already and doc.get("booksByState") == note:
+        return False
+    if not already:
+        findings.append(finding)
+        doc["findings"] = findings[-80:]
+        counts = doc.get("counts") if isinstance(doc.get("counts"), dict) else {}
+        counts["findings"] = int(counts.get("findings") or 0) + 1
+        counts["warnings"] = int(counts.get("warnings") or 0) + 1
+        doc["counts"] = counts
+    doc["booksByState"] = note
+    path.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
+    return True
+
+
+def warn_stale_books(doc, today=None, health_paths=None):
+    """Warn when asOf is more than 30 days old. Pages still build; the public date is unchanged.
+
+    A missing or unreadable state file still stops the build (load_books). A slug clash still stops
+    the build. Only the age limit is a warning: re-verifying the list is a manual legal check.
+    """
+    info = books_freshness(doc, today)
+    if not info["stale"]:
+        return info
+    # GitHub Actions turns this into a warning annotation on the run summary.
+    print(f"::warning title=LineSmart books-by-state::{info['message']}", flush=True)
+    finding = {"level": "warn", "code": "books_by_state_stale", "detail": info["message"]}
+    for path in health_paths or []:
+        _append_books_warning(path, finding, info)
+    return info
 
 
 def books_js(doc):
@@ -5154,7 +5227,7 @@ def line_move_pages(Ls, sh, arch, now, base_url):
 def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_dir=None, write_site_files=True):
     t0 = time.time()
     books_doc = load_books()
-    require_fresh_books(books_doc)
+    books_note = warn_stale_books(books_doc, now, books_health_paths(data_dir))
     clashes = slug_clashes(books_doc)
     if clashes:
         raise SystemExit("seo_pages: state slug clashes with a league or tool folder: " + ", ".join(clashes))
@@ -5368,6 +5441,10 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
     if meta:
         meta.pop("previews", None)
         meta["pages"] = {"generated": iso(now), "count": len(pages)}
+        if books_note.get("stale"):
+            meta["booksByState"] = {k: books_note[k] for k in ("asOf", "ageDays", "limitDays", "stale")}
+        else:
+            meta.pop("booksByState", None)
         (data_dir / "meta.json").write_text(json.dumps(meta, indent=1))
     sm_stats = None
     if write_site_files:
@@ -5381,7 +5458,7 @@ def build(site: Path, data_dir: Path, now: datetime, base_url=BASE_URL, archive_
             total[k] = total.get(k, 0) + n
     return {"leagues": stats, "total": total, "pages": len(pages), "redirects": len(redirects), "bytes": nbytes,
             "archive": {lg: len(v) for lg, v in arch.games.items()} if arch.dir else None, "archiveWrote": wrote,
-            "sitemap": sm_stats, "seconds": round(time.time() - t0, 2)}
+            "sitemap": sm_stats, "seconds": round(time.time() - t0, 2), "booksByState": books_note}
 
 
 def main(argv=None):

@@ -217,6 +217,16 @@ check("publish_run_id" in wf and "(inputs.publish_run_id || '')" in wf, "null sc
 check("github.event_name == 'push'" in wf and "site-bundle" in wf, "only a push deploys its own SHA; refreshes upload a bundle")
 check("verify_live_deploy.py --meta" in wf, "both deploy paths check the live meta.json")
 check("keeps the data it already has" in wf, "a failed data build does not publish")
+check("keeps the pages it already has" in wf, "a failed SEO page build does not publish")
+check(wf.count("needs.build.outputs.seo_ok == 'success'") >= 2, "deploy and publish-request both require SEO pages")
+hist_at = wf.find("name: Save line history snapshot")
+seo_guard = wf.find("name: Keep the live site when SEO pages were not built")
+bundle_at = wf.find("name: Upload site bundle for the publish run")
+check(0 < hist_at < seo_guard < bundle_at, "line history still saves before a failed SEO build stops the publish")
+hist_step = wf[hist_at:seo_guard]
+check("steps.seo" not in hist_step, "the data-history push is not gated on the SEO step")
+bundle_step = wf[bundle_at:wf.find("name: Wait before retrying the site bundle upload")]
+check("steps.seo.outcome == 'success'" in bundle_step, "a pages-less bundle is not uploaded")
 check("actions/deploy-pages@v5" in wf, "deploy still uses the Pages action")
 # The scheduled/dispatch path must not upload the Pages artifact under the shared SHA.
 upload_at = wf.find("actions/upload-pages-artifact")

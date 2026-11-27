@@ -1,0 +1,103 @@
+{
+ "v": 1,
+ "runId": "45927678200",
+ "at": "2026-11-27T02:23:29Z",
+ "generated": "2026-11-27T02:23:26.139037+00:00",
+ "checkedAt": "2026-11-27T02:22:41Z",
+ "level": "no-props",
+ "gameInterval": 30,
+ "staleAfterMin": 90,
+ "notVerified": "Prices are not compared to the sportsbook's own site.",
+ "counts": {
+  "findings": 1,
+  "errors": 0,
+  "warnings": 1,
+  "keptLastGood": 0,
+  "staleLeagues": 0
+ },
+ "leagues": {
+  "nfl": {
+   "pulledAt": "2026-11-27T02:15:25Z",
+   "ageMin": 8,
+   "upcoming": 13,
+   "inWindow": true,
+   "stale": false
+  },
+  "epl": {
+   "pulledAt": "2026-11-27T02:15:25Z",
+   "ageMin": 8,
+   "upcoming": 27,
+   "inWindow": true,
+   "stale": false
+  },
+  "nba": {
+   "pulledAt": "2026-11-27T02:15:25Z",
+   "ageMin": 8,
+   "upcoming": 59,
+   "inWindow": true,
+   "stale": false
+  },
+  "ncaaf": {
+   "pulledAt": "2026-11-27T02:15:25Z",
+   "ageMin": 8,
+   "upcoming": 76,
+   "inWindow": true,
+   "stale": false
+  },
+  "ncaab": {
+   "pulledAt": "2026-11-27T02:15:25Z",
+   "ageMin": 8,
+   "upcoming": 507,
+   "inWindow": true,
+   "stale": false
+  },
+  "nhl": {
+   "pulledAt": "2026-11-27T02:15:25Z",
+   "ageMin": 8,
+   "upcoming": 76,
+   "inWindow": true,
+   "stale": false
+  },
+  "mlb": {
+   "pulledAt": "2026-10-29T03:15:20Z",
+   "ageMin": 41708,
+   "upcoming": 0,
+   "inWindow": false,
+   "stale": false
+  },
+  "mls": {
+   "pulledAt": "2026-11-27T02:15:25Z",
+   "ageMin": 8,
+   "upcoming": 16,
+   "inWindow": true,
+   "stale": false
+  },
+  "ucl": {
+   "pulledAt": "2026-11-25T21:45:21Z",
+   "ageMin": 1718,
+   "upcoming": 0,
+   "inWindow": false,
+   "stale": false
+  },
+  "ufc": {
+   "pulledAt": null,
+   "ageMin": null,
+   "upcoming": 21,
+   "inWindow": null,
+   "stale": false
+  }
+ },
+ "findings": [
+  {
+   "level": "warn",
+   "code": "books_by_state_stale",
+   "detail": "data/books-by-state.json asOf 2026-10-26 is 32 days old (limit 30). Re-verify the state list and update asOf. Pages still build. Public copy stays last verified October 26, 2026."
+  }
+ ],
+ "booksByState": {
+  "asOf": "2026-10-26",
+  "ageDays": 32,
+  "limitDays": 30,
+  "stale": true
+ }
+}

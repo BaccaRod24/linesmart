@@ -262,6 +262,18 @@ td.pos{color:var(--pos);font-weight:650}td.neg{color:var(--neg);font-weight:650}
 /* keep wide tables from pushing cards past the viewport on phones */
 .cols>*,.grid>*{min-width:0}
 .cols>.card{overflow-x:auto}
+/* Desktop game pages put Odds comparison in the right half of .cols. Three books plus the
+   fair-line column are wider than that half, and body overflow-x is clip, so the right edge
+   is cut off. Same treatment as phones: fair line under the market name, books inside the
+   card, and a horizontal scroll on the wrapper if a row is still wider. */
+@media (min-width:761px){
+  .cols>.card>.tbl-wrap{max-width:100%;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+  .cols .books .px{min-width:0;padding:5px 6px}
+  .cols .books th,.cols .books td{padding-left:6px;padding-right:6px}
+  .cols .books th.lv-fair,.cols .books td.lv-fair{display:none}
+  .cols .books .lv-fair-m{display:block;margin-top:4px;font-size:10.5px;font-weight:700;color:var(--accent2);white-space:normal}
+  .cols .books .lv-fair-m i{display:block;font-style:normal;font-weight:600;color:var(--dim)}
+}
 
 /* ---------- mobile */
 @media (max-width:760px){

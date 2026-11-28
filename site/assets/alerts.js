@@ -14,11 +14,11 @@
   const fmtV = (kind, v) => (kind === "ml_target" ? C.fmtOdds(v) : /total/.test(kind) || kind === "prop_move" ? C.fmtTotal(v) : C.fmtLine(v));
 
   // ---------- bell markup (called by app.js and props.js)
-  const tileBell = (lg, g) => (g && g.state === "pre" && g.books ? `<button type="button" class="al-bell al-tile" data-al="${esc(lg)}/${esc(g.id)}" aria-label="${esc(`Line alert: ${g.away.name} at ${g.home.name}`)}" title="Line alert"><span aria-hidden="true">🔔</span></button>` : "");
-  const pageBell = (lg, g) => (g && g.state === "pre" ? `<button type="button" class="al-bell al-txt" data-al="${esc(lg)}/${esc(g.id)}"><span aria-hidden="true">🔔</span> Alert</button>` : "");
+  const tileBell = (lg, g) => (g && g.state === "pre" && g.books ? `<button type="button" class="al-bell al-tile" data-al="${esc(lg)}/${esc(g.id)}" aria-label="${esc(`Line alert: ${g.away.name} at ${g.home.name}`)}" title="Line alert"><span class="al-bell-face"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-bell"/></svg></span></button>` : "");
+  const pageBell = (lg, g) => (g && g.state === "pre" ? `<button type="button" class="al-bell al-txt" data-al="${esc(lg)}/${esc(g.id)}"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-bell"/></svg> Alert</button>` : "");
   // compact "Get a line alert" entry under the odds table (game view; static pages get the same markup from scripts/seo_pages.py)
-  const pageCta = (lg, g) => (g && g.state === "pre" ? `<div class="al-cta"><button type="button" class="al-cta-btn" data-al="${esc(lg)}/${esc(g.id)}"><span aria-hidden="true">🔔</span> Get a line alert</button><span class="al-cta-note">Get an email when this line moves or hits your number. Free account, up to 5 alerts a day.</span></div>` : "");
-  const propBell = (lg, gid, pid, mk, name, label) => `<button type="button" class="al-bell pp-al" data-al-prop="${esc([lg, gid, pid, mk].join("|"))}" data-name="${esc(name)}" data-label="${esc(label)}" aria-label="${esc(`Line alert: ${name} ${label}`)}"><span aria-hidden="true">🔔</span> Alert</button>`;
+  const pageCta = (lg, g) => (g && g.state === "pre" ? `<div class="al-cta"><button type="button" class="al-cta-btn" data-al="${esc(lg)}/${esc(g.id)}"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-bell"/></svg> Get a line alert</button><span class="al-cta-note">Get an email when this line moves or hits your number. Free account, up to 5 alerts a day.</span></div>` : "");
+  const propBell = (lg, gid, pid, mk, name, label) => `<button type="button" class="al-bell pp-al" data-al-prop="${esc([lg, gid, pid, mk].join("|"))}" data-name="${esc(name)}" data-label="${esc(label)}" aria-label="${esc(`Line alert: ${name} ${label}`)}"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-bell"/></svg> Alert</button>`;
 
   // ---------- sheet
   let dlg = null, S = null;
@@ -40,7 +40,7 @@
       if (err) box.setAttribute("role", "alert"); else box.setAttribute("role", "status");
     };
     const emailStep = (err) => {
-      d.innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><span aria-hidden="true">🔔</span> Line alerts</h3>
+      d.innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-bell"/></svg> Line alerts</h3>
         <p class="ac-p">Sign in to get an email when the line hits your number. A free account, no password. You pick the target, you get one email if it hits, and the alert turns off. It expires at game start.</p>
         <form id="alSign" novalidate>
           <label class="bt-lbl" for="alEm">Email</label>
@@ -65,7 +65,7 @@
       const keep = d.querySelector("#alEm"); if (keep && err) keep.focus();
     };
     const codeStep = (email, info) => {
-      d.innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><span aria-hidden="true">🔔</span> Check your email</h3>
+      d.innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-bell"/></svg> Check your email</h3>
         <p class="ac-p">We emailed a sign-in code (or link) to <b>${esc(email)}</b>. Enter the code here, or tap the link on this device. Then you can set the alert.</p>
         <form id="alCode" novalidate>
           <label class="bt-lbl" for="alCd">Sign-in code</label>
@@ -107,7 +107,7 @@
   async function open(spec) {
     const d = dialog();
     if (!ACC() || !ACC().signedIn()) return signInSheet(spec);
-    d.innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><span aria-hidden="true">🔔</span> Line alert</h3><div class="na">Loading lines…</div></div>`;
+    d.innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-bell"/></svg> Line alert</h3><div class="na">Loading lines…</div></div>`;
     show();
     try {
       const idx = await A().getJSON(`data/${spec.lg}/index.json`);
@@ -141,7 +141,7 @@
     const move = /_move$/.test(f.kind);
     const prev = C.build(f, { game: g, league: S.lg, props: S.props, allowed: ok, now: Date.now() });
     const title = S.pid ? `${esc(f.player_name)} · ${esc(f.prop_label)}` : `${esc(g.away.name)} at ${esc(g.home.name)}`;
-    d.innerHTML = `<form class="bt-dl al-dl" novalidate><h3 id="alT"><span aria-hidden="true">🔔</span> Line alert</h3>
+    d.innerHTML = `<form class="bt-dl al-dl" novalidate><h3 id="alT"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-bell"/></svg> Line alert</h3>
       <div class="bt-dl-sel"><b>${title}</b><span class="na">${esc(S.pid ? `${g.away.abbr} @ ${g.home.abbr} · ` : "")}${esc(kick(g.date))}</span></div>
       ${ok.length ? `
       ${kinds.length > 1 ? `<div class="bt-lbl" id="alK">Email me when</div><div class="al-kinds" role="radiogroup" aria-labelledby="alK">${kinds.map(k => `<button type="button" role="radio" aria-checked="${k === f.kind}" class="chip${k === f.kind ? " on" : ""}" data-k="${k}">${esc(C.KINDS[k].label)}</button>`).join("")}</div>` : `<div class="bt-lbl">Email me when the line moves</div>`}
@@ -181,7 +181,7 @@
       if (error) throw error;
       LIST = null;
       const s = await ACC().session().catch(() => null), email = s && s.user && s.user.email;
-      dialog().innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><span aria-hidden="true">🔔</span> Alert set</h3>
+      dialog().innerHTML = `<div class="bt-dl al-dl"><h3 id="alT"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-bell"/></svg> Alert set</h3>
         <p class="ac-p"><b>${esc(C.describe(prev.row))}</b></p>
         <p class="ac-p">We'll email ${email ? `<b>${esc(email)}</b>` : "you"} once if it happens before the game starts. We check after each odds update (about every 30 minutes), so a quick move and move back can be missed.</p>
         <div class="bt-dl-foot"><a class="lnk" href="#/account" data-x>Manage alerts</a><span style="flex:1"></span><button type="button" class="bt-add" data-x>Done</button></div>
@@ -227,7 +227,7 @@
     return `<div class="section-title">Line alerts <span class="st-sub">${act} of ${alertCap()} active</span></div>
       <div class="card ac-card al-acct">${LERR ? `<div class="ac-msg ac-err" role="alert">${esc(LERR)}</div>` : ""}${LIST === null ? `<div class="na">Loading your alerts…</div>`
         : LERR && !rows.length ? ""
-        : rows.length ? `<ul class="al-list">${rows.map(row).join("")}</ul>` : `<p class="ac-p">No alerts yet. Tap <b>🔔 Alert</b> on a game or player prop to get one email when the line moves or hits your number.</p>`}
+        : rows.length ? `<ul class="al-list">${rows.map(row).join("")}</ul>` : `<p class="ac-p">No alerts yet. Tap <b>Alert</b> on a game or player prop to get one email when the line moves or hits your number.</p>`}
         <div class="note">Each alert emails you once, then turns off, and ends when the game starts. Up to ${alertCap()} active alerts. Checked after each odds update, about every 30 minutes. Every alert email has a link back here to stop alerts.</div>
         ${rows.length ? `<div class="ac-btns"><button type="button" class="chip bt-del" data-al-delall>Delete all alerts</button></div>` : ""}</div>
       ${window.LSPro ? window.LSPro.teaser("alerts") : ""}`;

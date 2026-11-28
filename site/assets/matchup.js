@@ -10,7 +10,7 @@
   const raw = v => (isNum(v) ? (Number.isInteger(+v) ? String(+v) : f1(v)) : "–");   // single-game values: 75, 7, 0.5
   const BUCKET_NAME = { QB: "QBs", RB: "RBs", WR: "WRs", TE: "TEs", G: "guards", F: "forwards", C: "centers" };
   const TIER = { tough: "Tough", mid: "Avg", soft: "Soft" };
-  const trendIcon = t => (t === "up" ? `<i class="mu-tr up" title="Above season average">▲</i>` : t === "down" ? `<i class="mu-tr dn" title="Below season average">▼</i>` : t === "flat" ? `<i class="mu-tr fl" title="Near season average">•</i>` : "");
+  const trendIcon = t => (t === "up" ? `<i class="mu-tr up" title="Above season average" aria-hidden="true"></i>` : t === "down" ? `<i class="mu-tr dn" title="Below season average" aria-hidden="true"></i>` : t === "flat" ? `<i class="mu-tr fl" title="Near season average" aria-hidden="true"></i>` : "");
   const signed = v => (isNum(v) ? (v > 0 ? "+" + v : v === 0 ? "PK" : String(v)) : null);
   const amer = v => (isNum(v) ? (v > 0 ? "+" + v : String(v)) : null);
   const skel = `<div class="loading" aria-busy="true"><span class="sr-only">Loading matchup…</span><span class="sk skel-hero"></span></div>`;
@@ -56,7 +56,7 @@
     const head = `<tr><th>Avg</th><th title="${esc(seasonLbl)} average (${base.rows.length} games)">${esc(base.fallback ? base.key : "Season")}</th><th>L5</th><th>L10</th>${opp ? `<th title="Average in past meetings">vs ${esc(opp.abbr || "")}</th>` : ""}<th>Home</th><th>Away</th></tr>`;
     const splitNote = base.rows.length >= 6 ? `this season` : `last ${splitRows.length} games`;
     return `<div class="tbl-wrap"><table class="ptbl mu-tbl"><thead>${head}</thead><tbody>${body}</tbody></table></div>
-      <div class="note">${esc(seasonLbl)}: ${base.rows.length} game${base.rows.length === 1 ? "" : "s"}${base.fallback ? " (no games yet this season)" : ""}. L5/L10 span seasons. ▲/▼: more than 10% above/below the season average. Home/away: ${splitNote}${opp ? `; vs ${esc(opp.abbr || "")}: ${vs.length} meeting${vs.length === 1 ? "" : "s"}` : ""}.</div>`;
+      <div class="note">${esc(seasonLbl)}: ${base.rows.length} game${base.rows.length === 1 ? "" : "s"}${base.fallback ? " (no games yet this season)" : ""}. L5/L10 span seasons. An up or down mark means more than 10% above or below the season average. Home/away: ${splitNote}${opp ? `; vs ${esc(opp.abbr || "")}: ${vs.length} meeting${vs.length === 1 ? "" : "s"}` : ""}.</div>`;
   }
 
   // ---------- past meetings

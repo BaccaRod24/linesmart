@@ -1687,7 +1687,7 @@ def alert_cta(L: League, g, gid):
     if g.get("state") != "pre" or gid not in L.current or L.is_final(g) or not pv.has_line(g):
         return ""
     return (f'<div class="al-cta"><a class="al-cta-btn" href="#/g/{esc(L.lg)}/{esc(gid)}" data-al="{esc(L.lg)}/{esc(gid)}" rel="nofollow">'
-            f'<span aria-hidden="true">🔔</span> Get a line alert</a><span class="al-cta-note">{esc(AL_NOTE)}</span></div>')
+            f'<svg class="ic" aria-hidden="true" focusable="false"><use href="#i-bell"/></svg> Get a line alert</a><span class="al-cta-note">{esc(AL_NOTE)}</span></div>')
 
 
 def prop_alert_cta(L: League, g, gid, pid, mk, name, label):
@@ -1700,7 +1700,7 @@ def prop_alert_cta(L: League, g, gid, pid, mk, name, label):
     if not g or g.get("state") != "pre" or gid not in L.current or L.is_final(g):
         return ""
     return (f'<div class="al-cta al-cta-prop"><button type="button" class="al-cta-btn" data-al-prop="{esc("|".join([L.lg, str(gid), str(pid), str(mk)]))}" '
-            f'data-name="{esc(name)}" data-label="{esc(label)}" aria-label="{esc(f"Get a line alert: {name} {label}")}"><span aria-hidden="true">🔔</span> Get a line alert</button>'
+            f'data-name="{esc(name)}" data-label="{esc(label)}" aria-label="{esc(f"Get a line alert: {name} {label}")}"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-bell"/></svg> Get a line alert</button>'
             f'<span class="al-cta-note">Email when this line moves. Free account, up to 5 alerts a day.</span></div>')
 
 

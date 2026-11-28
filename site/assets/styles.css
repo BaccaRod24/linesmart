@@ -2473,6 +2473,20 @@ td.num,td .num,.num{font-variant-numeric:tabular-nums}
 .footer .rg strong,.footer .fl strong{color:var(--txt)}
 .age-pill,.of-21{font-size:12.5px}
 .age-pill{height:22px}
+/* Phone sheet only: less padding and one step smaller type, same words and the same helplines.
+   The helpline line stays 13px. Footer, intro, and the desktop card stay at body size. */
+@media (max-width:760px){
+  .age-sheet{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:10px;align-items:center;padding:10px 14px calc(8px + env(safe-area-inset-bottom,0px));border-radius:16px 16px 0 0}
+  .age-badge{width:auto;height:28px;min-width:36px;padding:0 8px;margin:0;border-radius:8px;font-size:13px;box-shadow:none}
+  .age-sheet h2{margin:0;font-size:17px;line-height:1.2}
+  .age-sheet #ageDesc,.age-sheet .age-actions,.age-sheet .age-fine{grid-column:1 / -1}
+  .age-sheet p{margin:8px 0 0;font-size:13px;line-height:1.35}
+  .age-sheet .age-help{font-size:13px;line-height:1.35}
+  .age-sheet .age-fine{margin:6px 0 0;font-size:12.5px;line-height:1.35}
+  .age-actions{margin-top:8px;gap:8px 12px}
+  .age-ok{height:44px;font-size:14.5px}
+  .age-more{font-size:13px}
+}
 /* compact "Ad" label on outbound sportsbook links (offers card) */
 .of-ad{display:block;margin-top:3px;font-size:12px;font-weight:600;color:var(--mute);letter-spacing:.01em}
 

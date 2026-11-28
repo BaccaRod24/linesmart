@@ -169,8 +169,9 @@ def check_page_ld(rel, h, hrefs, kind):
     # The week crawl block sits above #app and repeats game URLs so new pages get found. The ItemList is the
     # hub's own schedule and results, in that order, so those extra links are not part of the comparison.
     scan_hrefs = hrefs
-    if kind == "hub" and 'class="wrap sx-week"' in h:
-        body = re.sub(r'<div class="wrap sx-week">.*?(?=<main)', "", h, count=1, flags=re.S)
+    if kind == "hub" and ('class="sx-pre' in h or 'class="wrap sx-week"' in h):
+        body = re.sub(r'<section class="sx-pre\b.*?</section>\s*', "", h, count=1, flags=re.S)
+        body = re.sub(r'<div class="wrap sx-week">.*?(?=<main)', "", body, count=1, flags=re.S)
         scan_hrefs = re.findall(r'href="([^"]*)"', body)
     elif kind == "lines" and 'class="sx-discover sx-board"' in h:
         # The board is a crawl list of upcoming games and teams. The ItemList is the comparison table.

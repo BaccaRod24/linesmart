@@ -3752,9 +3752,11 @@ def hub_page(L: League, sh: Shell, Ls):
     if games_ld:
         cp["mainEntity"] = games_ld
     ld = [cp, crumbs_ld(L.base_url, [(path, NAMES[L.lg])])]
-    # Above #app, so the links stay after the hub hydrates into the app and sit under the header on a phone.
+    # Priced rows first, then the week links, both above #app so they paint before the app replaces #app.
+    # The rows use the lines already stored on the game. The build does not call an odds API.
+    odds = static_odds_html([(L, gid, g) for _live, _dt, _sid, gid, g in priced_rows(L, 8)], f"{NAMES[L.lg]} odds", wrap=True)
     week = discover_nav(Ls, L.lg, games=True, props=True, leagues=False)
-    lead = f'<div class="wrap sx-week">{week}</div>' if week else ""
+    lead = (odds + "\n" if odds else "") + (f'<div class="wrap sx-week">{week}</div>' if week else "")
     return sh.page(path, title, desc, main, more, kind="hub", lg=L.lg, route=f"l/{L.lg}" if getattr(L, "has_data", True) else "", ld=ld, og_type="website", lead=lead, seo_h1=h1_text), title
 
 
@@ -4632,6 +4634,72 @@ def best_lines_page(Ls, sh: Shell, now, base_url):
     return sh.page(path, title, desc, main, more, kind="lines", route="", ld=ld, robots="index,follow", og_type="website"), title
 
 
+def _price(label, raw):
+    """'KC +3' plus the American price when the book posted one. Never the word None."""
+    p = am(raw)
+    return f"{label} {p}".strip() if p else label
+
+
+def _priced_bits(L, g):
+    """Spread or moneyline, then the total, with prices. Reference book already on the game. No network."""
+    _key, b = pv.ref_book(g)
+    if not b:
+        return []
+    a, h = g.get("away") or {}, g.get("home") or {}
+    aa = a.get("abbr") or (a.get("short") if L.lg == "ufc" else "") or ""
+    hh = h.get("abbr") or (h.get("short") if L.lg == "ufc" else "") or ""
+    bits = []
+    if L.kind not in ("mma", "soccer") and isnum(b.get("awaySpread")) and isnum(b.get("homeSpread")):
+        bits.append(_price(f"{aa} {line(b['awaySpread'])}".strip(), b.get("awaySpreadOdds")))
+        bits.append(_price(f"{hh} {line(b['homeSpread'])}".strip(), b.get("homeSpreadOdds")))
+    elif isnum(b.get("awayML")) or isnum(b.get("homeML")):
+        if isnum(b.get("awayML")):
+            bits.append(_price(aa, b.get("awayML")))
+        if isnum(b.get("homeML")):
+            bits.append(_price(hh, b.get("homeML")))
+    if L.lg != "ufc" and isnum(b.get("total")):
+        bits.append(_price(f"O {num(b['total'])}", b.get("overOdds")))
+        bits.append(_price(f"U {num(b['total'])}", b.get("underOdds")))
+    return [x for x in bits if x]
+
+
+def priced_rows(L, n=8):
+    """First odds rows for the static HTML: live games, then kickoff. Only games that already have a line."""
+    rows = []
+    for gid, g in upcoming(L):
+        if gid not in L.paths:
+            continue
+        if not (pv.has_line(g) or g.get("state") == "in"):
+            continue
+        dt = parse_dt(g.get("date"))
+        if not dt:
+            continue
+        rows.append((0 if g.get("state") == "in" else 1, dt, str(gid), gid, g))
+    rows.sort(key=lambda r: r[:3])
+    return rows[:n]
+
+
+def static_odds_html(rows, label, wrap=False):
+    """Priced odds rows in the first HTML, so they paint before app.js. rows: [(L, gid, g)]."""
+    lis = []
+    for L, gid, g in rows:
+        dt = parse_dt(g.get("date"))
+        when = "LIVE" if g.get("state") == "in" else (et(dt).strftime("%-I:%M %p ET") if dt else "")
+        bits = "".join(f'<span class="sx-pre-bit">{esc(b)}</span>' for b in _priced_bits(L, g))
+        if not bits:
+            continue
+        lis.append(
+            f'<a class="sx-pre-row" href="{esc(L.paths[gid])}">'
+            f'<span class="sx-pre-when">{esc(when)}</span>'
+            f'<span class="sx-pre-mu">{esc(L.matchup(g))}</span>'
+            f'<span class="sx-pre-line">{bits}</span></a>'
+        )
+    if not lis:
+        return ""
+    cls = "sx-pre wrap" if wrap else "sx-pre"
+    return f'<section class="{cls}" aria-label="{esc(label)}"><h2 class="sx-pre-h">{esc(label)}</h2>{"".join(lis)}</section>'
+
+
 def home_cards(Ls, now):
     """Mobile-first strip for the top of the homepage: today's top games, biggest moves, hot props. Links only to real URLs."""
     today = day_et(now)
@@ -4670,7 +4738,17 @@ def home_cards(Ls, now):
     nav = discover_nav(Ls, None, games=True, props=True)
     if not html_ and not nav:
         return ""
-    return f'{nav}<div class="home-cards" id="homeCards">{html_}{more}</div>'
+    # First priced rows, from lines already on the games. No extra request. They paint before app.js.
+    pre_rows = []
+    for lg in ORDER:
+        L = Ls.get(lg)
+        if not L:
+            continue
+        for _live, _dt, _sid, gid, g in priced_rows(L, 8):
+            pre_rows.append((0 if g.get("state") == "in" else 1, parse_dt(g["date"]), ORDER.index(lg), L, gid, g))
+    pre_rows.sort(key=lambda r: r[:3])
+    odds = static_odds_html([(r[3], r[4], r[5]) for r in pre_rows[:8]], "Odds")
+    return f'{odds}{nav}<div class="home-cards" id="homeCards">{html_}{more}</div>'
 
 
 # ---------------------------------------------------------------- redirects, sitemap, homepage

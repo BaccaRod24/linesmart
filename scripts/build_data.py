@@ -10,6 +10,9 @@ The Odds API (v4) - bookmakers=hardrockbet,fanduel,draftkings is ONE region (up 
 request (h2h,spreads,totals), 0 when no events - every ~30 min, and Hard Rock + FanDuel + DraftKings NFL/NBA player props
 (scripts/odds_props.py: core markets every ~2 h, the rest every ~6 h, NFL games out to the ESPN window every ~18 h).
 A budget guard (scripts/odds_budget.py) paces spending against an 80K/month budget.
+Futures (outright winners) are a separate once-a-day pull (scripts/futures.py): the first run at or
+after 6:00 AM ET, only for active allowlisted keys, and only when that would not cut in front of
+game lines or cross the floor or the per-run cap. See docs/odds_api_budget.md.
 Every pull is persisted in --odds-cache-dir and merged into every build, so keyless runs keep showing it ("as of" the
 pull time). See docs/odds_api_budget.md for the cadence and credit math.
 
@@ -35,6 +38,7 @@ import weather as WX
 import props as PR
 import odds_budget as OB
 import odds_props as OP
+import futures as FU
 import adv as ADV
 import linevalue as LV
 import lastgood as LG
@@ -722,9 +726,10 @@ def odds_usage_update(cache, check):
     start, end = OB.cycle_bounds(now, ODDS_BILLING_DAY)
     u = cache.get("usage") or {}
     if u.get("cycleStart") != start.isoformat() or OB.detect_reset(u.get("usedAtLastRun"), check.get("used")):
-        u = dict(cycleStart=start.isoformat(), cycleEnd=end.isoformat(), games=0, props=0, runs=0, paidRuns=0, days={})
+        u = dict(cycleStart=start.isoformat(), cycleEnd=end.isoformat(), games=0, props=0, futures=0, runs=0, paidRuns=0, days={})
     sb = check.get("spentBy") or {}
     u["games"] = u.get("games", 0) + sb.get("games", 0); u["props"] = u.get("props", 0) + sb.get("props", 0)
+    u["futures"] = u.get("futures", 0) + sb.get("futures", 0)
     u["runs"] = u.get("runs", 0) + 1; u["paidRuns"] = u.get("paidRuns", 0) + (1 if check.get("spent") else 0)
     day = now.astimezone(ZoneInfo("America/New_York")).date().isoformat()
     d = u.setdefault("days", {}).setdefault(day, [0, 0]); d[0] += sb.get("games", 0); d[1] += sb.get("props", 0)
@@ -1086,6 +1091,19 @@ def main():
             if entry is not None and pcache is not None: pcache["leagues"][lg["key"]] = entry; props_pulled.append(lg["key"])
     elif pull and budget:
         log(f"[odds] props paused this run: budget level {budget['level']} ({budget.get('reason')})")
+    # Futures are once per ET day and never in front of game lines. A keyless run only republishes stored history.
+    if not a.search_only:
+        try:
+            freport = FU.run(pull=pull, budget=budget, history_dir=a.history_dir, snap_dir=a.snap_dir,
+                             out_dir=OUT, get=get, now=dt.datetime.now(dt.timezone.utc), log=log, api_key=key,
+                             note_headers=odds_note_headers, scrub=scrub, floor=ODDS_MIN_CREDITS, cap=ODDS_RUN_MAX,
+                             hour_et=int(os.environ.get("FUTURES_HOUR_ET") or FU.HOUR_ET))
+            meta["futures"] = dict(pulled=bool(freport.get("pulled")), skipped=freport.get("skipped"),
+                                   keys=freport.get("keys") or [], hardrock=freport.get("hardrock"),
+                                   published=freport.get("published"))
+        except Exception as ex:
+            log(f"[futures] FAILED: {scrub(ex, key)[:200]}")
+            meta["futures"] = dict(error=scrub(ex, key)[:200])
     if check is not None and pull:
         check.update(remainingAfter=pull["remaining"], usedAfter=pull.get("used"), spent=pull["spent"], spentBy=pull.get("spentBy") or {},
                      pulled=pull["pulled"], props=props_pulled, skipped=pull["skipped"], errors=pull["errors"])

@@ -2521,3 +2521,18 @@ td.num,td .num,.num{font-variant-numeric:tabular-nums}
   .music-btn.is-playing svg{animation:none}
   .music-btn:active{transform:none}
 }
+
+/* Futures (#/l/<league>/futures). The table scrolls sideways inside the card, same as the odds table. */
+.fu-fl{background:color-mix(in srgb,var(--hr) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--hr) 40%,transparent);border-radius:var(--r-sm);padding:10px 12px;margin:0 0 12px;font-size:13.5px;line-height:1.45}
+.fu-fl strong{color:var(--warn-txt)}
+.fu-card{padding:12px 0 8px}
+.fu-card h2{margin:0 14px 10px;font-size:15px}
+.fu-card .tbl-wrap{margin:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.fu-tbl{min-width:760px}
+.fu-tbl th,.fu-tbl td{white-space:nowrap}
+.fu-tbl .who{text-align:left;position:sticky;left:0;z-index:1;background:var(--surface)}
+.fu-tbl thead .who{z-index:2;background:var(--bg2)}
+.fu-tbl .up{color:var(--pos);font-weight:750}
+.fu-tbl .dn{color:var(--neg);font-weight:750}
+.fu-tbl .flat{color:var(--dim)}
+.fu-tbl td.fu-ref .px{color:var(--dim);font-weight:650}

@@ -22,6 +22,7 @@
     slip: ["assets/slip-core.js"],
     account: ["assets/account-core.js", "assets/account.js"],
     value: ["assets/value-core.js", "assets/value.js"],
+    futures: ["assets/futures-core.js", "assets/futures.js"],
     // pro-core before pro.js; account-core before the gate (the gate stops if AcctCore is missing).
     pro: ["assets/live-core.js", "assets/account-core.js", "assets/pro-core.js", "assets/pro.js", "assets/pro-gate-core.js", "assets/pro-gate.js"],
     access: ["assets/access-core.js"],
@@ -64,10 +65,13 @@
     }
     if (k === "t") return ["live", "matchup", "adv", "alerts", "week"];
     if (k === "p") return parts[1] === "ufc" ? ["ufc"] : ["props", "matchup", "adv", "alerts", "account"];
+    if (k === "l" && parts[1] === "golf") return ["futures"];
+    if (k === "l" && parts[1] === "ufc" && parts[2] === "futures") return ["ufc", "futures"];
     if (k === "l" && parts[1] === "ufc") return ["ufc"];
     // Home and a league hub: scores, bells, weather chips, the pick'em note. Not the tracker.
     add(g, "live"); add(g, "week"); add(g, "alerts"); add(g, "account"); add(g, "propsCore");
     add(g, "weather"); add(g, "adv"); add(g, "pickem");
+    if (k === "l" && parts[2] === "futures") add(g, "futures");
     return g;
   }
   function filesFor(names) {

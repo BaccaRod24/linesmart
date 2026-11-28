@@ -620,6 +620,11 @@ def apply_dir(snap_dir, history_dir):
         h = load(path, lg); n = merge(h, s["games"], s["t"]); pr = prune(h); save(path, h)
         print(f"[{lg}] +{n} points, pruned {pr}, games {len(h['games'])}")
 
+def apply_futures(snap_dir, history_dir):
+    """Merge a run's futures snapshot onto history/futures (race retry). See scripts/futures.py."""
+    import futures as FU
+    return FU.apply_dir(snap_dir, history_dir)
+
 def apply_odds(src_dir, dst_dir):
     """Merge a run's persisted-pull snapshot (hardrockbet.json game lines, props_oddsapi.json props) into the branch copy:
     newer pulledAt per league wins; quota/usage: newer t wins."""
@@ -645,6 +650,8 @@ if __name__ == "__main__":
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("apply"); a.add_argument("--snap-dir", required=True); a.add_argument("--history-dir", required=True)
     o = sub.add_parser("apply-odds"); o.add_argument("--src", required=True); o.add_argument("--dst", required=True)
+    f = sub.add_parser("apply-futures"); f.add_argument("--snap-dir", required=True); f.add_argument("--history-dir", required=True)
     args = ap.parse_args()
     if args.cmd == "apply": apply_dir(args.snap_dir, args.history_dir)
     elif args.cmd == "apply-odds": apply_odds(args.src, args.dst)
+    elif args.cmd == "apply-futures": apply_futures(args.snap_dir, args.history_dir)

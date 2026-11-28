@@ -15,7 +15,8 @@ on:
         default: ''
   schedule:
     # Every 30 minutes (UTC): ESPN data (DK opening lines/fallback), plus Hard Rock Bet + FanDuel + DraftKings from The Odds API
-    # (paid 100K plan) when the budget guard allows. cron-job.org also dispatches at :15/:45 ET; a persisted
+    # (paid 100K plan) when the budget guard allows. Futures (outright winners) are once per ET day
+    # after 6:00 AM, still behind that guard (scripts/futures.py). cron-job.org also dispatches at :15/:45 ET; a persisted
     # per-league interval gate (scripts/odds_budget.py) makes sure the extra runs don't double-spend.
     # GitHub may delay or skip scheduled runs under load. Budget math: docs/odds_api_budget.md
     - cron: '*/30 * * * *'
@@ -265,6 +266,7 @@ jobs:
             git fetch --no-tags --depth=1 origin +data-history:refs/remotes/origin/data-history || continue
             git reset -q --hard origin/data-history
             python3 ../scripts/line_history.py apply --snap-dir ../.linehist-snap --history-dir history
+            if [ -d ../.linehist-snap/_futures ]; then python3 ../scripts/line_history.py apply-futures --snap-dir ../.linehist-snap/_futures --history-dir history/futures; fi
             if [ -d ../.linehist-snap/_odds ]; then python3 ../scripts/line_history.py apply-odds --src ../.linehist-snap/_odds --dst odds; fi
             if [ -d ../.linehist-snap/_rosters ]; then python3 ../scripts/merge_pages_snapshot.py --src ../.linehist-snap/_rosters --dst rosters; fi
             if [ -d ../.linehist-snap/_matchups ]; then python3 ../scripts/merge_pages_snapshot.py --src ../.linehist-snap/_matchups --dst matchups; fi

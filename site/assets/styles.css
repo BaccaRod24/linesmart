@@ -1114,14 +1114,14 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 /* ---------- mobile bottom nav */
 .bnav{display:none}
 @media (max-width:760px){
-  :root{--bnav-h:62px}
-  /* Eight items (Home through Account) share the bar. They grow into leftover space and do not shrink below the label, so Value and Account stay on screen at 360–430px. The row is at least 44px tall. */
-  .bnav{display:flex;position:fixed;z-index:40;left:4px;right:4px;bottom:calc(8px + env(safe-area-inset-bottom,0px));height:var(--bnav-h);padding:6px 2px;gap:0;border-radius:20px;overflow:hidden;scrollbar-width:none;
+  :root{--bnav-h:54px}
+  /* Eight items (Home through Account) share the bar. They grow into leftover space and do not shrink below the label, so Value and Account stay on screen at 360–430px. Labels are 11px sentence case (the old 9px capitals were hard to read) and the row stays at least 44px tall. */
+  .bnav{display:flex;position:fixed;z-index:40;left:4px;right:4px;bottom:calc(8px + env(safe-area-inset-bottom,0px));height:var(--bnav-h);padding:4px 2px;gap:0;border-radius:18px;overflow:hidden;scrollbar-width:none;
     border:1px solid var(--glass-brd);background:color-mix(in srgb,var(--bg2) 72%,transparent);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
     box-shadow:var(--inner),0 18px 40px -12px color-mix(in srgb,var(--shade) 90%,transparent)}
   .bnav::-webkit-scrollbar{display:none}
-  .bnav a{flex:1 0 auto;min-width:min-content;padding:0 1px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border-radius:14px;color:var(--dim);font-size:9px;font-weight:700;letter-spacing:0;text-transform:uppercase;white-space:nowrap;transition:color .15s,background .15s,transform .1s}
-  .bnav a .ic{width:16px;height:16px}
+  .bnav a{flex:1 0 auto;min-width:min-content;padding:0 1px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:14px;color:var(--mute);font-size:11px;font-weight:650;letter-spacing:-0.01em;line-height:1.05;text-transform:none;white-space:nowrap;transition:color .15s,background .15s,transform .1s}
+  .bnav a .ic{width:15px;height:15px}
   .bnav a:active{transform:scale(.94)}
   .bnav a.on{color:var(--txt);background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 22%,transparent),color-mix(in srgb,var(--accent) 8%,transparent));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent)}
   .bnav a.on .ic{color:var(--accent2);filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accent2) 60%,transparent))}
@@ -1319,6 +1319,25 @@ html.ls-js .intro p,.intro.js p{font-size:13px;margin-bottom:6px}
   .books.lv-on .lv{font-size:10px}
   .books .lv-fair-m{display:block;margin-top:4px;font-size:10.5px;font-weight:700;color:var(--accent2);white-space:nowrap}
   .books .lv-fair-m i{display:block;font-style:normal;font-weight:600;color:var(--dim)}
+}
+/* Phone odds comparison: three books (Hard Rock Bet, DraftKings, FanDuel) share the card.
+   The track button sits under the price so the third column is not cut off at 390px. */
+@media (max-width:640px){
+  .cols>.card>.tbl-wrap table.books,
+  table.pv-books{width:100%;table-layout:fixed}
+  .cols>.card>.tbl-wrap table.books th:first-child,
+  .cols>.card>.tbl-wrap table.books td:first-child,
+  table.pv-books th:first-child,
+  table.pv-books td:first-child{width:28%;min-width:0;max-width:none}
+  .cols>.card>.tbl-wrap table.books .px,
+  table.pv-books .px{min-width:0;max-width:100%;box-sizing:border-box}
+  .cols>.card>.tbl-wrap table.books a.trk,
+  table.pv-books a.trk{display:flex;margin:4px auto 0}
+  .cols>.card>.tbl-wrap table.books .lv,
+  .cols>.card>.tbl-wrap table.books .lv-fair-m,
+  .cols>.card>.tbl-wrap table.books .src,
+  table.pv-books .lv,
+  table.pv-books .src{white-space:normal;overflow-wrap:anywhere}
 }
 
 /* ---------- bet tracker: player-prop picker, needs-review, "+ Track" shortcuts ---------- */
@@ -1922,7 +1941,7 @@ body:has(.news-bets) .footer .news-foot{display:none}
   .vf-lbl{white-space:normal}
   .vf-frow{gap:8px}.vf-mks{width:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}.vf-mks a{white-space:nowrap}
 }
-@media (max-width:420px){.bnav a{font-size:9px;letter-spacing:0;min-width:min-content}}
+@media (max-width:420px){.bnav a{letter-spacing:-0.02em;min-width:min-content}}
 
 /* ---------- nav polish: "All" (home) pill, swipe affordance on the league row, home tools row */
 .tab-all{padding-left:13px}
@@ -2320,9 +2339,20 @@ body::before{opacity:.55}
   .updated .u-short{display:none}
 }
 @media (max-width:760px){
+  html{scroll-padding-top:96px}
   .updated{font-size:11px;padding:4px 8px;gap:5px}
   .updated .u-long,.updated .u-tz{display:none}
   .updated .u-short{display:inline}
+  /* Slim the sticky bar: 48px logo row + a 40px chip row (was 60 + 50). The chip row's min-height matches its filled height so the first paint does not shift. */
+  .topbar-inner{height:48px}
+  .league-nav-inner{padding:0 12px 4px;min-height:40px}
+  /* Scroll down hides the chips; scroll up (or keyboard focus) brings them back. Desktop never gets this. */
+  .topbar .lnav{max-height:44px;overflow:hidden;transition:max-height .22s var(--ease)}
+  .topbar.chips-away .lnav{max-height:0}
+  .topbar.chips-away .lnav:focus-within{max-height:44px}
+}
+@media (max-width:760px) and (prefers-reduced-motion:reduce){
+  .topbar .lnav{transition:none}
 }
 @media (max-width:480px){
   .topbar-inner{gap:6px}
@@ -2535,3 +2565,18 @@ td.num,td .num,.num{font-variant-numeric:tabular-nums}
   .music-btn.is-playing svg{animation:none}
   .music-btn:active{transform:none}
 }
+
+/* Futures (#/l/<league>/futures). The table scrolls sideways inside the card, same as the odds table. */
+.fu-fl{background:color-mix(in srgb,var(--hr) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--hr) 40%,transparent);border-radius:var(--r-sm);padding:10px 12px;margin:0 0 12px;font-size:13.5px;line-height:1.45}
+.fu-fl strong{color:var(--warn-txt)}
+.fu-card{padding:12px 0 8px}
+.fu-card h2{margin:0 14px 10px;font-size:15px}
+.fu-card .tbl-wrap{margin:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.fu-tbl{min-width:760px}
+.fu-tbl th,.fu-tbl td{white-space:nowrap}
+.fu-tbl .who{text-align:left;position:sticky;left:0;z-index:1;background:var(--surface)}
+.fu-tbl thead .who{z-index:2;background:var(--bg2)}
+.fu-tbl .up{color:var(--pos);font-weight:750}
+.fu-tbl .dn{color:var(--neg);font-weight:750}
+.fu-tbl .flat{color:var(--dim)}
+.fu-tbl td.fu-ref .px{color:var(--dim);font-weight:650}

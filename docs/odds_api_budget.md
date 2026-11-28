@@ -16,7 +16,9 @@ From the v4 guide, <https://the-odds-api.com/liveapi/guides/v4/>:
   In short, **FanDuel and DraftKings are free in the same request**; adding DraftKings changed no number in the tables below.
 - **`/v4/sports`** and **`/v4/sports/{sport}/events`** don't count against the quota.
   They are used every run to read `x-requests-remaining`/`x-requests-used` and to find leagues with events in the next 7 days.
+  Futures uses the same free `/v4/sports?all=true` catalog, once on the day it pulls, and only then calls a key that is `active` and `has_outrights`.
 - **Empty responses don't cost credits.** A league with no events, or an event with no props posted yet, costs 0.
+  An outright that returns an event costs 1 even when no book has posted a price (The Open, 2026-11-28). An inactive key is not called, so it costs 0 (MLB World Series that day).
 - **`/v4/sports/{sport}/events/{id}/odds`** (player props) costs `[unique markets returned] x [regions]`.
   For NFL that is at most 12 credits per event when every card market is requested; for NBA, at most 8.
   Markets a book hasn't posted aren't charged. Markets are counted once however many books return them, so DraftKings adds nothing;
@@ -36,6 +38,7 @@ Credits reset monthly on the subscription date: FAQ, <https://the-odds-api.com/m
 | NFL early-week props: all 12 markets above | 1 per event, at most 12 credits | every **18 h** per event | events starting in **36 h to 8 days** (same window as ESPN) |
 | NBA core props: `player_points, player_rebounds, player_assists, player_threes` | 1 per event, at most 4 credits | every **2 h** per event | events starting within **36 h** |
 | NBA added props: `player_points_rebounds, player_points_assists, player_rebounds_assists, player_points_rebounds_assists` | 1 per event, at most 4 credits | every **6 h** per event | events starting within **36 h** |
+| Futures (outright winners) | 1 credit per active allowlisted sport key | **once per ET day**, the first scheduled run at or after **6:00 AM ET** | active keys with `has_outrights` on the free `/v4/sports?all=true` catalog |
 
 Triggers:
 
@@ -53,7 +56,8 @@ Triggers:
 | NFL early-week props | 12 markets x (156 h / 18 h) pulls/event x (16 / 7) x 30.4 | **7,227** |
 | NBA core props | 4 markets x 18 pulls/event x 7.2 games/day x 30.4 | **15,759** |
 | NBA added props | 4 markets x 6 pulls/event x 7.2 x 30.4 | **5,253** |
-| **Total** | rounded sum of the unrounded rows | **76,810** (about 96% of the 80K budget, 77% of the plan) |
+| Futures | 1 credit x active allowlisted keys x 1 pull/day x 30.4. **9** keys on 2026-11-28 (The Open returned an event with no books and still cost 1; MLB was inactive and was not called). All 10 allowlisted keys active would be the worst case. | **274** (9 x 30.4) to **304** (10 x 30.4) |
+| **Total** | rounded sum of the unrounded rows, plus futures | **77,084** to **77,114** (about 96% of the 80K budget) |
 
 Notes on the estimate:
 
@@ -65,7 +69,10 @@ Notes on the estimate:
 - Upper bound: the 2-minute slack allows up to about 51 game-line runs per day if both triggers fire back to back.
   That gives 9 x 3 x 51 x 30.4 = 41,860 for game lines. Props stay about 37,411. Together about **79,270**, still under 80K.
 - Manual force pulls (`pull_odds=true`) cost about 27 credits for game lines, plus props for events in the window.
-- From the repo root, `python3 -c "import sys; sys.path.insert(0,'scripts'); import odds_props as P, odds_budget as B; m=P.credit_model(); print(B.monthly_estimate(props=[(n,1,1,v) for n,v in m['rows']]))"` reproduces the props rows (each row is already credits/day; the helper then multiplies by 30.4). The game-line row is unchanged.
+- From the repo root, `python3 -c "import sys; sys.path.insert(0,'scripts'); import odds_props as P, odds_budget as B; m=P.credit_model(); print(B.monthly_estimate(props=[(n,1,1,v) for n,v in m['rows']]))"` reproduces the props rows (each row is already credits/day; the helper then multiplies by 30.4). The game-line row is unchanged. That command does not include futures. `python3 -c "import sys; sys.path.insert(0,'scripts'); import futures as F; print(round(F.monthly_credits(9),1), round(F.monthly_credits(10),1))"` prints the futures row (273.6 and 304.0).
+- Futures are not part of the 30-minute game-line gate. The stamp is `history/futures/_stamp.json` on `data-history` (`lastDateET`). The first scheduled run at or after 6:00 AM America/New_York pulls; later runs that ET day do not, including a manual `pull_odds` force. A failed pull does not write the stamp, so a later run the same day can retry. The allowlist is the 10 championship and golf-major keys from the 2026-11-28 discovery (NFL, NCAAF, NBA, NCAAB, NHL, MLB, Masters, PGA Championship, The Open, US Open). MVP, awards, conference, division and every other catalog key are not requested.
+- The request uses `bookmakers=hardrockbet,fanduel,draftkings` (one region, same as game lines). Hard Rock Bet is in that filter already, so a weekly check of whether `hardrockbet` appeared in any futures response costs **0 extra credits**. The refresh logs that once per ISO week. There is no separate Hard Rock futures call.
+- Futures never run when the budget level is `stop` or `slow-games`. At `full` the daily allowance has to cover game lines, props, and the once-a-day futures cost. At `no-props` it has to cover game lines and that futures cost. A key is also skipped if its credit would cross the 300 floor or the 250 per-run cap. Game lines and props are planned first, so futures cannot take their credits.
 
 ## Budget guard / auto-throttle (`scripts/odds_budget.py`)
 

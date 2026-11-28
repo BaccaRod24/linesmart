@@ -1105,12 +1105,13 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .bnav{display:none}
 @media (max-width:760px){
   :root{--bnav-h:62px}
-  .bnav{display:flex;position:fixed;z-index:40;left:10px;right:10px;bottom:calc(8px + env(safe-area-inset-bottom,0px));height:var(--bnav-h);padding:6px;gap:2px;border-radius:20px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  /* Eight items (Home through Account) share the bar. They grow into leftover space and do not shrink below the label, so Value and Account stay on screen at 360–430px. The row is at least 44px tall. */
+  .bnav{display:flex;position:fixed;z-index:40;left:4px;right:4px;bottom:calc(8px + env(safe-area-inset-bottom,0px));height:var(--bnav-h);padding:6px 2px;gap:0;border-radius:20px;overflow:hidden;scrollbar-width:none;
     border:1px solid var(--glass-brd);background:color-mix(in srgb,var(--bg2) 72%,transparent);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
     box-shadow:var(--inner),0 18px 40px -12px color-mix(in srgb,var(--shade) 90%,transparent)}
   .bnav::-webkit-scrollbar{display:none}
-  .bnav a{flex:0 0 auto;min-width:54px;padding:0 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:14px;color:var(--dim);font-size:9px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;transition:color .15s,background .15s,transform .1s}
-  .bnav a .ic{width:18px;height:18px}
+  .bnav a{flex:1 0 auto;min-width:min-content;padding:0 1px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border-radius:14px;color:var(--dim);font-size:9px;font-weight:700;letter-spacing:0;text-transform:uppercase;white-space:nowrap;transition:color .15s,background .15s,transform .1s}
+  .bnav a .ic{width:16px;height:16px}
   .bnav a:active{transform:scale(.94)}
   .bnav a.on{color:var(--txt);background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 22%,transparent),color-mix(in srgb,var(--accent) 8%,transparent));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent)}
   .bnav a.on .ic{color:var(--accent2);filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accent2) 60%,transparent))}
@@ -1907,7 +1908,7 @@ body:has(.news-bets) .footer .news-foot{display:none}
   .vf-lbl{white-space:normal}
   .vf-frow{gap:8px}.vf-mks{width:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}.vf-mks a{white-space:nowrap}
 }
-@media (max-width:420px){.bnav a{font-size:9px;letter-spacing:.01em;min-width:52px}}
+@media (max-width:420px){.bnav a{font-size:9px;letter-spacing:0;min-width:min-content}}
 
 /* ---------- nav polish: "All" (home) pill, swipe affordance on the league row, home tools row */
 .tab-all{padding-left:13px}

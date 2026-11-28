@@ -494,6 +494,27 @@ def _slate_league(lg, games, now):
     return L
 
 
+def top_games_order_tests():
+    """Top games today: live first, then kickoff, not league priority. The label says so."""
+    now = pv.parse_dt("2026-10-31T16:00:00Z")  # noon ET
+    live = _slate_game("live", "2026-10-31T15:00:00Z", state="in")   # 11:00 AM ET, in progress
+    mid = _slate_game("mid", "2026-10-31T17:00:00Z")                 # 1:00 PM ET
+    late = _slate_game("late", "2026-10-31T21:00:00Z")               # 5:00 PM ET
+    Ls = {
+        "nfl": _slate_league("nfl", [late], now),
+        "nba": _slate_league("nba", [mid], now),
+        "ncaaf": _slate_league("ncaaf", [live], now),
+    }
+    # rows are (liveFlag, dt, pri, gidStr, lg, gid, g)
+    ids = [r[5] for r in SP.top_game_picks(Ls, now)]
+    check(ids == ["live", "mid", "late"], f"live, then kickoff, not NFL-first ({ids})")
+    html = SP.home_cards(Ls, now)
+    check(SP.TOP_ORDER_LABEL in html and "Best line across books" not in html, "the strip says it is ordered live first, then kickoff")
+    strip = html.split('id="hcTop"', 1)[1].split("</section>", 1)[0]
+    pos = [strip.find(f'href="{lg}/games/{gid}/"') for lg, gid in (("ncaaf", "live"), ("nba", "mid"), ("nfl", "late"))]
+    check(pos[0] != -1 and pos[0] < pos[1] < pos[2], f"top-game cards follow kickoff order ({pos})")
+
+
 def discover_link_tests():
     """Homepage and a hub link this week's games and the prop pages that have a number on them."""
     now = pv.parse_dt("2026-10-31T20:00:00Z")
@@ -1808,6 +1829,7 @@ def main():
     title_limit_tests()
     book_name_tests()
     game_title_tests()
+    top_games_order_tests()
     discover_link_tests()
     week_live_tests()
     snippet_copy_tests()

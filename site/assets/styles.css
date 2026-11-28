@@ -2170,7 +2170,14 @@ a.contact-cta:hover{color:var(--accent)}
 .hc-tm img,.hc-logo{width:22px;height:22px;flex:none;max-width:none;object-fit:contain}
 .hc-nologo{flex:none;width:22px;height:22px}
 .hc-tm b{font-weight:750}
-.hc-line{margin-top:2px;font-size:12px;color:var(--best-txt);font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* The total is its own nowrap piece, so a narrow card wraps "O/U 219.5" onto the next line instead of clipping it to "O/U 21…". */
+.hc-line{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:0.4em;row-gap:1px;margin-top:2px;font-size:12px;color:var(--best-txt);font-weight:650;font-variant-numeric:tabular-nums;white-space:normal;overflow:visible;line-height:1.25}
+.hc-line .hc-bit{white-space:nowrap}
+.hc-line .hc-bit+.hc-bit::before{content:"·";margin-right:0.4em;color:var(--dim)}
+@media (max-width:760px){
+  .hc-game .hc-line{flex-direction:column;align-items:flex-start}
+  .hc-game .hc-line .hc-bit+.hc-bit::before{content:none;margin:0}
+}
 .hc-move,.hc-prop{width:168px}
 .hc-mt,.hc-pn{font-size:13.5px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hc-mv{font-size:13px;font-weight:750;color:var(--accent2);font-variant-numeric:tabular-nums}

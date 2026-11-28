@@ -1458,11 +1458,11 @@ class League:
         sep = "vs" if g.get("neutral") else "at"
         return f"{na} {sep} {nh}"
 
-    def lines_brief(self, g):
-        """'PHI -6.5 · O/U 54.5' from the reference book."""
+    def lines_bits(self, g):
+        """Spread or moneyline, then the total, from the reference book. Each piece stays whole on a card."""
         _, b = pv.ref_book(g)
         if not b:
-            return ""
+            return []
         bits = []
         h, a = g["home"], g["away"]
         if self.kind in ("football", "basketball") and isnum(b.get("homeSpread")):
@@ -1473,7 +1473,11 @@ class League:
             bits.append(f"{fav.get('abbr') if self.lg != 'ufc' else (fav.get('last') or fav.get('short') or fav.get('name'))} {am(ml)}")
         if isnum(b.get("total")) and self.lg != "ufc":
             bits.append(f"O/U {num(b['total'])}")
-        return " · ".join(bits)
+        return bits
+
+    def lines_brief(self, g):
+        """'PHI -6.5 · O/U 54.5' from the reference book."""
+        return " · ".join(self.lines_bits(g))
 
     def score_line(self, g):
         a, h = g["away"], g["home"]
@@ -3232,9 +3236,11 @@ def game_tile(L: League, gid, g, with_lg=False):
     logo = lambda t: f'<img class="hc-logo" src="{esc(pv.logo_src(t.get("logo"), 22))}" alt="" width="22" height="22" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else '<span class="hc-nologo"></span>'
     when = "LIVE" if g.get("state") == "in" else et(parse_dt(g["date"])).strftime("%-I:%M %p ET") if day_et(parse_dt(g["date"])) == day_et(L.now) else et(parse_dt(g["date"])).strftime("%a %-I:%M %p")
     nm = (lambda t: t.get("last") or t.get("short") or tname(t)) if L.lg == "ufc" else (lambda t: t.get("abbr") or tname(t))
+    bits = L.lines_bits(g)
+    line = "".join(f'<span class="hc-bit">{esc(b)}</span>' for b in bits) or "Lines soon"
     return (f'<a class="hc-card hc-game" href="{esc(L.paths[gid])}"><div class="hc-top">{lg_tag}<span class="hc-when{" live" if g.get("state") == "in" else ""}">{esc(when)}</span></div>'
             f'<div class="hc-tm">{logo(a)}<b>{esc(nm(a))}</b></div><div class="hc-tm">{logo(h)}<b>{esc(nm(h))}</b></div>'
-            f'<div class="hc-line">{esc(L.lines_brief(g) or "Lines soon")}</div></a>')
+            f'<div class="hc-line">{line}</div></a>')
 
 
 def move_tile(x, Ls):

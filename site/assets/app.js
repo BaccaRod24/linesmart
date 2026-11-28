@@ -1939,15 +1939,25 @@
       : hasFile
         ? `<div id="psFeature"><div class="card note" data-loading>Loading today's prop lines…</div></div>`
         : `<div id="psFeature"></div>`;
+    const leagueNav = `<nav class="ps-lgs" aria-label="League">${order.map(chip).join("")}</nav>`;
+    const below = `${featureSlot}
+      <div class="section-title">Games <span class="st-sub">${esc(head)}</span></div>${list}
+      <div class="note">Times in ${TZL}. Player search reads the on-site player index.</div>`;
+    // Props only: at >=1600px the same chips, plus the legend and the book line, sit in a sticky left rail.
+    // Below that the rail box disappears and the chips stay in a row above the list.
+    const propsBody = propsMode
+      ? `<div class="ps-layout"><aside class="ps-rail" id="psRail">
+          <div class="ps-rail-box ps-rail-sport"><h4>Sport</h4>${leagueNav}</div>
+          <div class="ps-rail-box" id="psRailLeg"><h4>Legend</h4></div>
+          <div class="ps-rail-box" id="psRailLines"><h4>Lines</h4></div>
+        </aside><div class="ps-layout-main">${below}</div></div>`
+      : `${leagueNav}${below}`;
     app.innerHTML = `<div class="ps-page" data-ps="${propsMode ? "props" : "stats"}"><div class="page-head"><div><h1>${propsMode ? "Player props" : "Player stats"}</h1><div class="sub">${sub}</div></div></div>
       <div class="sbox"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="psq" type="search" placeholder="Player name, any league" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Search players by name"></div>
       <div id="psres"></div>
       ${note ? `<div class="note ps-note">${esc(note)}</div>` : ""}
-      <nav class="ps-lgs" aria-label="League">${order.map(chip).join("")}</nav>
-      ${featureSlot}
-      <div class="section-title">Games <span class="st-sub">${esc(head)}</span></div>${list}
-      <div class="note">Times in ${TZL}. Player search reads the on-site player index.</div></div>`;
+      ${propsBody}</div>`;
     window.scrollTo(0, 0);
     const inp = document.getElementById("psq"), box = document.getElementById("psres");
     const draw = () => {
@@ -1965,6 +1975,12 @@
     inp.addEventListener("input", draw);
     searchEntries().then(() => { if (tok === NAV) draw(); }).catch(() => {});
     const feat = document.getElementById("psFeature");
+    if (viewAccess._mq) { viewAccess._mq.removeEventListener("change", viewAccess._on); viewAccess._mq = null; }
+    if (propsMode && window.LSProps && window.LSProps.placeRail) {
+      viewAccess._on = () => { if (document.getElementById("psRail")) window.LSProps.placeRail(); };
+      viewAccess._mq = window.matchMedia("(min-width:1600px)");
+      viewAccess._mq.addEventListener("change", viewAccess._on);
+    }
     if (propsMode && hasFile && window.LSProps && window.LSProps.mountLanding) {
       const tok2 = tok;
       window.LSProps.mountLanding(feat, lg, shown.map(x => x.g), games, () => tok2 === NAV).catch(e => {

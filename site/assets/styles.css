@@ -2566,3 +2566,97 @@ td.num,td .num,.num{font-variant-numeric:tabular-nums}
 .fu-tbl .dn{color:var(--neg);font-weight:750}
 .fu-tbl .flat{color:var(--dim)}
 .fu-tbl td.fu-ref .px{color:var(--dim);font-weight:650}
+
+/* ===================================================================================================
+   Wide screens (design audit m4). Phones and the 1280 layout stay as they are.
+   From 1360px the column grows to min(100% − 2·clamp(20px, 3vw, 48px), 1600px) so 1440 is about
+   1354px and 1920 is 1600px, with the empty space split evenly. Text pages stay a 980px measure.
+   Home and league cards go to 3 columns only once that 1600px column can hold them.
+   Prop rows inside a card at least 1160px wide put the hit rate, L10 and season in one band, with Track and Alert side by side.
+   The free Hot props strip (.hc-card.hc-prop) is not restyled.
+   =================================================================================================== */
+@media (min-width:1360px){
+  .wrap{
+    width:min(100% - 2*clamp(20px, 3vw, 48px), 1600px);
+    max-width:none;
+    margin-inline:auto;
+    padding-left:var(--sl);
+    padding-right:var(--sr);
+  }
+  body.legal-page .wrap{width:min(100% - 2*clamp(20px, 3vw, 48px), 980px)}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(480px,1fr));gap:16px}
+}
+/* Below 1100px the stat band and the buttons stack on the right, same as the old .pp-sum column. */
+.pp-band{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+.pp-st{text-align:right}
+.pp-st em,.pp-st .pp-v,.pp-st .pp-pct{display:none}
+.pp-hot-slot{display:flex;justify-content:flex-end}
+.pp-hot-slot:empty{display:none}
+.pp-acts{display:flex;flex-direction:column;align-items:flex-end}
+/* The 4-column row needs about 1160px inside the card (240 + 226 + the stat band + both buttons).
+   A viewport media query at 1100px would clip it, so the card itself is the container. */
+.pp-card{container-type:inline-size;container-name:propcard}
+@container propcard (min-width:1160px){
+  .pp-row:not(.sx-prop){
+    grid-template-columns:240px 226px minmax(300px,1fr) minmax(176px,max-content);
+    column-gap:32px;
+    row-gap:8px;
+    align-items:center;
+    min-height:76px;
+    padding:10px 0;
+  }
+  .pp-row:not(.sx-prop) .pp-sum{display:contents}
+  .pp-row:not(.sx-prop) .pp-mk{min-width:0}
+  .pp-row:not(.sx-prop) .pp-lab{font-size:12.5px;font-weight:600;color:var(--mute)}
+  .pp-row:not(.sx-prop) .pp-line{font-size:17px;font-weight:800}
+  .pp-row:not(.sx-prop) .pp-mv{font-size:12px}
+  .pp-row:not(.sx-prop) .pp-band{
+    display:grid;
+    grid-template-columns:120px 72px 110px 52px;
+    column-gap:20px;
+    align-items:center;
+    min-width:0;
+  }
+  .pp-row:not(.sx-prop) .pp-hit{grid-column:1}
+  .pp-row:not(.sx-prop) .pp-l10{grid-column:2}
+  .pp-row:not(.sx-prop) .pp-sea{grid-column:3}
+  .pp-row:not(.sx-prop) .pp-hot-slot{grid-column:4;display:flex;align-items:center;min-height:1px}
+  .pp-row:not(.sx-prop) .pp-hot-slot:empty{display:flex}
+  .pp-row:not(.sx-prop) .pp-st{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;min-width:0}
+  .pp-row:not(.sx-prop) .pp-st em{display:block;font:600 11px/1 var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+  .pp-row:not(.sx-prop) .pp-full{display:none}
+  .pp-row:not(.sx-prop) .pp-v{display:block}
+  .pp-row:not(.sx-prop) .pp-pct{display:block;font-size:12.5px;font-weight:500;line-height:1.2;color:var(--mute)}
+  .pp-row:not(.sx-prop) .pp-st b{font-size:17px;font-weight:800;line-height:1}
+  .pp-row:not(.sx-prop) .pp-acts{flex-direction:row;gap:8px;justify-content:flex-end;justify-self:end;align-items:center;align-self:center;min-width:176px}
+  .pp-row:not(.sx-prop) .pp-acts .pp-trk,
+  .pp-row:not(.sx-prop) .pp-acts .pp-al{
+    position:relative;display:inline-flex;align-items:center;height:34px;margin-top:0;padding:0 14px;font-size:13px;font-weight:650;
+  }
+  .pp-row:not(.sx-prop) .pp-acts .pp-trk::after,
+  .pp-row:not(.sx-prop) .pp-acts .pp-al::after{content:"";position:absolute;left:0;right:0;top:50%;height:44px;transform:translateY(-50%)}
+  .pp-row:not(.sx-prop) .pp-bks{margin-top:0}
+}
+/* Props landing rail. Under 1600px the aside disappears and the sport chips stay above the list. */
+.ps-rail{display:contents}
+.ps-rail-box{margin:0;padding:0;border:0;background:none}
+.ps-rail-box h4{display:none;margin:0 0 10px;font:700 11px/1 var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.ps-rail-box:not(:has(.ps-lgs, .pp-legend, .ps-prop-sub)){display:none}
+#psSubHome:empty,#psLegHome:empty{display:none}
+#psSubHome:not(:empty),#psLegHome:not(:empty){display:contents}
+@media (min-width:1600px){
+  .ps-layout{display:grid;grid-template-columns:272px minmax(0,1fr);column-gap:24px;align-items:start}
+  .ps-rail{
+    display:block;position:sticky;top:120px;align-self:start;
+  }
+  .ps-layout-main{min-width:0}
+  .ps-rail-box{
+    border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 12px;
+    background:color-mix(in srgb,var(--surface) 88%,transparent);
+  }
+  .ps-rail-box h4{display:block}
+  .ps-rail .ps-lgs{flex-wrap:wrap;overflow:visible;margin:0;padding:0}
+  .ps-rail .pp-legend{flex-direction:column;align-items:flex-start;gap:8px}
+  .ps-rail .ps-prop-sub{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin:0}
+  .ps-rail .ps-prop-sub span::after{content:none}
+}

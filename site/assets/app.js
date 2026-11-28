@@ -432,8 +432,8 @@
       stat("", "cal", S ? "Games today" : "Upcoming", S ? T.today : T.upcoming, S ? `${esc(T.upcoming)} upcoming` : ""),
       stat(T.live ? "live" : "", "pulse", "Live now", S ? T.live : null, (T.live ? "in progress" : "none right now") + ' <span class="st-arrow">· see all ›</span>', "#/live"),
       stat("", "layers", "Props tracked", T.props, propLgs || "DraftKings"),
-      stat("hot", "bolt", "Hot props", S ? T.hot : null, "4/5+ over"),
-      stat("wxw", "cloud", "Weather watch", S ? T.wxWatch : null, "wind · cold · rain"),
+      stat("hot", "bolt", "Hot props", S ? T.hot : null, '4/5+ over <span class="st-arrow">· see all ›</span>', "#/props?hot=1"),
+      stat("wxw", "cloud", "Weather watch", S ? T.wxWatch : null, 'wind · cold · rain <span class="st-arrow">· see all ›</span>', "#/weather"),
     ].join("");
     // league chips: who plays today (needs meta.slate; the tabs above already carry upcoming counts)
     const chips = META.order.filter(k => ldat(k).today).map(k => {
@@ -1816,6 +1816,47 @@
     }, 30e3);
   }
 
+  // ---------- Weather watch (#/weather): outdoor games the slate counted, with the wind / cold / rain flags and a link to the lines.
+  function wxOnWatch(g) {
+    if (!g || g.state === "post") return false;
+    const w = g.weather || {};
+    // Same rule as scripts/slate.py: a forecast with flags, and not a retractable roof (it may be closed).
+    return w.kind === "forecast" && Array.isArray(w.watch) && w.watch.length > 0 && w.roof !== "retractable";
+  }
+  function wxFlagText(g) {
+    const w = (g && g.weather) || {};
+    if (Array.isArray(w.watch) && w.watch.length) return w.watch.map(f => f && f.text).filter(Boolean);
+    const W = window.WxCore;
+    return W ? W.watchFlags(w).map(f => f.text) : [];
+  }
+  async function viewWeather() {
+    renderTabs(null);
+    const tok = NAV;
+    if (!app.querySelector(".wx-page")) showSkel(skelLeague());
+    const order = (META && META.order) || [];
+    const idx = {};
+    await Promise.all(order.map(lg => getJSON(`data/${lg}/index.json`).then(d => { idx[lg] = d; }, () => {})));
+    if (tok !== NAV) return;
+    const rows = [];
+    for (const lg of order) {
+      const d = idx[lg];
+      if (!d) continue;
+      for (const g of d.games || []) if (wxOnWatch(g)) rows.push({ lg, g });
+    }
+    rows.sort((a, b) => String(a.g.date || "").localeCompare(String(b.g.date || "")));
+    const nameOf = lg => ((META.leagues || {})[lg] || {}).name || String(lg || "").toUpperCase();
+    const side = t => (t && (t.short || t.abbr || t.name)) || "TBD";
+    const list = rows.length
+      ? `<div class="wx-list">${rows.map(({ lg, g }) => `<a class="wx-row" href="#/g/${esc(lg)}/${esc(g.id)}"><span class="wx-main"><span class="wx-lg">${esc(nameOf(lg))}</span><span class="wx-nm">${esc(side(g.away))} @ ${esc(side(g.home))}</span><span class="wx-when">${esc(g.state === "in" ? (g.statusDetail || "Live") : fullET(g.date))}</span></span><span class="wx-flags">${wxFlagText(g).map(esc).join(" · ")}</span></a>`).join("")}</div>`
+      : `<div class="empty"><h3>No weather watches right now</h3><p>Wind, cold, and rain or snow flags for outdoor games show up here. A retractable roof stays off this list.</p></div>`;
+    app.innerHTML = `<div class="wx-page"><div class="page-head"><div><span class="eyebrow">${ICON("cloud", "ic")}Weather watch</span>
+      <h1>Weather watch</h1>
+      <div class="sub">${rows.length} outdoor game${rows.length === 1 ? "" : "s"} flagged for wind, cold, or rain · tap a game for its lines · times in ${TZL}</div></div></div>
+      ${list}
+      <p class="note">Same flags as each game page. A retractable roof is left off, because it may be closed. <a class="wx-credit" href="https://open-meteo.com/" target="_blank" rel="noopener">Weather data by Open-Meteo.com</a>.</p></div>`;
+    window.scrollTo(0, 0);
+  }
+
   // ---------- props / stats access (today's games + player search; no new odds calls)
   const LG_KEY = "ls-lg";
   function rememberLg(k) {
@@ -1884,6 +1925,7 @@
     const order = META.order || [];
     const AC = window.AccessCore;
     const lg = AC ? AC.pickLeague(order, lgReq, currentLg()) : (order.includes(lgReq) ? lgReq : currentLg());
+    const hotOnly = kind === "props" && new URLSearchParams((location.hash.split("?")[1] || "").split("#")[0]).get("hot") === "1";
     rememberLg(lg);
     renderTabs(null);
     const propsMode = kind === "props";
@@ -1912,7 +1954,7 @@
     const chip = k => {
       const on = k === lg, off = propsMode && !propsLeague(k);
       if (off) return `<span class="chip${on ? " on" : ""} off" aria-disabled="true" title="No player props for ${esc(lgName(k))}">${esc(lgName(k))}</span>`;
-      return `<a class="chip${on ? " on" : ""}" href="#/${kind}/${k}"${on ? ' aria-current="page"' : ""}>${esc(lgName(k))}</a>`;
+      return `<a class="chip${on ? " on" : ""}" href="#/${kind}/${k}${hotOnly ? "?hot=1" : ""}"${on ? ' aria-current="page"' : ""}>${esc(lgName(k))}</a>`;
     };
     const propBtn = g => (propsLeague(lg) && hasFile)
       ? `<a class="ps-link" href="#/g/${esc(lg)}/${esc(g.id)}/props">Props</a>`
@@ -1930,7 +1972,7 @@
       ? `<div class="ps-games" id="psGames">${shown.map(row).join("")}</div>`
       : `<div class="empty" id="psGames"><h3>No ${esc(lgName(lg))} games on this slate</h3>Try another league.</div>`;
     const sub = propsMode
-      ? `${esc(head)} · ${esc(lgName(lg))} · today's prop lines, then the games`
+      ? `${esc(head)} · ${esc(lgName(lg))} · ${hotOnly ? "4/5+ over, then the games" : "today's prop lines, then the games"}`
       : `${esc(head)} · ${esc(lgName(lg))} · season leaders, then the games`;
     const featureSlot = !propsMode
       ? `<div id="psFeature"><div class="card note" data-loading>Loading season leaders…</div></div>`
@@ -1965,7 +2007,7 @@
     const feat = document.getElementById("psFeature");
     if (propsMode && hasFile && window.LSProps && window.LSProps.mountLanding) {
       const tok2 = tok;
-      window.LSProps.mountLanding(feat, lg, shown.map(x => x.g), games, () => tok2 === NAV).catch(e => {
+      window.LSProps.mountLanding(feat, lg, shown.map(x => x.g), games, () => tok2 === NAV, { hot: hotOnly }).catch(e => {
         if (tok2 === NAV && feat) feat.innerHTML = notAvail("Player props", "Couldn't load player props right now.");
         console.warn(e);
       });
@@ -2041,7 +2083,7 @@
       return;
     }
     if (own && ROUTED === PAGE_ROUTE && location.hash) return;   // jumping to an in-page anchor: keep the view
-    const h = (own ? PAGE_ROUTE : location.hash.replace(/^#\/?/, "")).split("/");
+    const h = (own ? PAGE_ROUTE : location.hash.replace(/^#\/?/, "")).split("/").map(s => s.split("?")[0]);
     ROUTED = own ? PAGE_ROUTE : location.hash;
     const isValue = h[0].split("?")[0] === "value";   // #/value?lg=&mk=&min=&h=
     NAV++;
@@ -2063,6 +2105,7 @@
     if (h[0] === "account") return window.LSAccount ? window.LSAccount.view() : (app.innerHTML = `<div class="empty"><h3>Account didn't load</h3>Reload the page to try again.</div>`);
     if (isValue) return window.LSValue ? window.LSValue.view() : (app.innerHTML = `<div class="empty"><h3>Value finder didn't load</h3>Reload the page to try again.</div>`);
     if (h[0] === "live") return viewLive();
+    if (h[0] === "weather") return viewWeather();
     if (h[0].split("?")[0] === "pro") {
       if (window.LSProGate && window.LSProGate.ready) await window.LSProGate.ready;
       const nowPro = location.hash.replace(/^#\/?/, "").split("/")[0].split("?")[0];

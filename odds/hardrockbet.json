@@ -14,46 +14,6 @@
  "checks": [
   {
    "action": "pull",
-   "due": [
-    "nfl",
-    "nba",
-    "ncaaf",
-    "ncaab",
-    "nhl",
-    "epl",
-    "mls",
-    "ucl"
-   ],
-   "errors": [],
-   "gameInterval": 30,
-   "level": "full",
-   "props": [
-    "nba"
-   ],
-   "pulled": [
-    "nfl",
-    "nba",
-    "ncaaf",
-    "ncaab",
-    "nhl",
-    "epl",
-    "mls",
-    "ucl"
-   ],
-   "remainingAfter": 60644,
-   "remainingBefore": 60700,
-   "skipped": [],
-   "spent": 56,
-   "spentBy": {
-    "games": 24,
-    "props": 32
-   },
-   "t": "2026-11-24T20:43:42Z",
-   "used": 39300,
-   "usedAfter": 39356
-  },
-  {
-   "action": "pull",
    "due": [],
    "errors": [],
    "gameInterval": 30,
@@ -6822,6 +6782,23 @@
    },
    "t": "2026-11-28T15:49:30Z",
    "used": 44098,
+   "usedAfter": 44128
+  },
+  {
+   "action": "pull",
+   "due": [],
+   "errors": [],
+   "gameInterval": 30,
+   "level": "no-props",
+   "props": [],
+   "pulled": [],
+   "remainingAfter": 55872,
+   "remainingBefore": 55872,
+   "skipped": [],
+   "spent": 0,
+   "spentBy": {},
+   "t": "2026-11-28T16:15:21Z",
+   "used": 44128,
    "usedAfter": 44128
   }
  ],
@@ -16308,9 +16285,9 @@
   "level": "no-props",
   "props": false,
   "reason": "allowance 1302/day < 2240 needed: props paused",
-  "remaining": 55902,
-  "t": "2026-11-28T15:49:30Z",
-  "used": 44098
+  "remaining": 55872,
+  "t": "2026-11-28T16:15:21Z",
+  "used": 44128
  },
  "updated": "2026-11-28T15:49:30Z",
  "usage": {
@@ -16338,8 +16315,8 @@
   "games": 2667,
   "paidRuns": 127,
   "props": 0,
-  "runs": 136,
-  "t": "2026-11-28T15:49:30Z",
+  "runs": 137,
+  "t": "2026-11-28T16:15:21Z",
   "usedAtLastRun": 44128
  },
  "v": 1

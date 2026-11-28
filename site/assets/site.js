@@ -26,7 +26,8 @@
 
   // ---------- 21+ notice
   // The markup is in the static HTML (site/index.html, copied onto generated pages) so it paints
-  // before this script. Reuse that node. Pages without it still get the same dialog injected once.
+  // before this script. An inline script beside that markup dismisses it on the first tap.
+  // Reuse that node. Pages without it still get the same dialog injected once. Don't bind twice.
   const ageOk = () => { try { return !!localStorage.getItem(AGE_KEY); } catch (e) { return false; } };
   let sessionOk = false; // if storage is blocked, don't nag again in this page session
   const ageCall = () => (window.LSGeo ? window.LSGeo.rgCall() : `Call or text <a href="tel:18004262537">1-800-GAMBLER</a>. In Florida: <a href="tel:18337529947">1-833-PLAYWISE</a>.`);
@@ -49,10 +50,14 @@
   function removeAgeNotice() {
     const el = document.getElementById("ageNotice");
     if (el) el.remove();
-    document.documentElement.classList.remove("age-open");
+    const root = document.documentElement;
+    root.classList.remove("age-open", "age-locked");
+    if (ageOk() || sessionOk || window.__lsAgeDismissed) root.classList.add("age-dismissed");
+    root.style.overflow = "";
+    document.querySelectorAll("[inert]").forEach(n => n.removeAttribute("inert"));
   }
   function showAgeNotice() {
-    if (ageOk() || sessionOk) { removeAgeNotice(); return; }
+    if (ageOk() || sessionOk || window.__lsAgeDismissed) { removeAgeNotice(); return; }
     let wrap = document.getElementById("ageNotice");
     if (wrap && wrap.dataset.wired) return;
     if (!wrap) {
@@ -75,26 +80,38 @@
     const close = () => {
       try { localStorage.setItem(AGE_KEY, new Date().toISOString()); } catch (e) {}
       sessionOk = true;
+      window.__lsAgeDismissed = true;
       others.forEach(el => el.removeAttribute("inert"));
-      document.documentElement.classList.remove("age-open");
+      const root = document.documentElement;
+      root.classList.remove("age-open", "age-locked");
+      root.classList.add("age-dismissed");
+      root.style.overflow = "";
+      if (document.body) document.body.style.overflow = "";
       document.removeEventListener("keydown", onKey, true);
-      wrap.remove();
+      if (wrap.isConnected) wrap.remove();
       if (prev && prev.focus && document.contains(prev)) prev.focus();
     };
     const onKey = e => {
+      if (!wrap.isConnected) return;
       if (e.key === "Escape") { e.preventDefault(); close(); return; }
       if (e.key === "Tab") { // keep focus inside the dialog
-        const f = focusables(), i = f.indexOf(document.activeElement);
+        const f = focusables();
+        if (!f.length) return;
+        const i = f.indexOf(document.activeElement);
         if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
         else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
       }
     };
     document.addEventListener("keydown", onKey, true);
-    wrap.querySelector("#ageOk").addEventListener("click", close);
+    const btn = wrap.querySelector("#ageOk");
+    // Static HTML binds #ageOk before this file loads. A second click listener would
+    // dismiss twice and can drop the gesture onto the page underneath.
+    if (btn && btn.dataset.lsAge !== "1") btn.addEventListener("click", close);
     // following a link out of the notice also counts as having seen it
     sheet.querySelectorAll("a[href]").forEach(a => a.addEventListener("click", close));
-    wrap.querySelector(".age-backdrop").addEventListener("click", () => wrap.querySelector("#ageOk").focus());
-    wrap.querySelector("#ageOk").focus();
+    const backdrop = wrap.querySelector(".age-backdrop");
+    if (backdrop && btn) backdrop.addEventListener("click", () => btn.focus());
+    if (btn) btn.focus();
   }
 
   // ---------- Cloudflare Web Analytics (cookieless). Same as the official snippet

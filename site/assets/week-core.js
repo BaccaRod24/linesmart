@@ -33,11 +33,20 @@
     return days;
   }
 
-  /** Final -> box score tab. Anything else -> the game page. */
+  function statusCore() {
+    if (typeof root !== "undefined" && root.LiveCore) return root.LiveCore;
+    if (typeof require === "function") {
+      try { return require("./live-core.js"); } catch (e) { return null; }
+    }
+    return null;
+  }
+  /** Final -> box score tab. A canceled or postponed game, and anything still to be played, opens the game page. */
   function href(lg, g) {
     if (!lg || !g || g.id == null || g.id === "") return "";
     const id = encodeURIComponent(g.id);
-    return g.state === "post" ? `#/g/${lg}/${id}/box` : `#/g/${lg}/${id}`;
+    const C = statusCore();
+    const held = !!(C && C.isCanceledOrPostponed && C.isCanceledOrPostponed(g));
+    return g.state === "post" && !held ? `#/g/${lg}/${id}/box` : `#/g/${lg}/${id}`;
   }
 
   return { dayKey, group, href };

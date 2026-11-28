@@ -119,6 +119,7 @@
     try {
       const d = await A().getJSON(`data/${lg}/games/${id}.json`);
       const g = d && d.game;
+      if (g && window.LiveCore && window.LiveCore.isCanceledOrPostponed && window.LiveCore.isCanceledOrPostponed(g)) return { completed: false, status: g.statusDetail || "Canceled" };
       if (g && g.state === "post" && g.completed && g.result && C.MMA.has(lg))   // UFC bout: winner 1/0 (draw / NC = 0-0 -> ML push), rounds elapsed for totals
         return { home: +g.home.score || 0, away: +g.away.score || 0, rounds: g.result.rounds, completed: true, status: g.statusDetail || "" };
       if (g && g.state === "post" && g.completed && !SOCCER.has(lg)) return { home: +g.home.score, away: +g.away.score, completed: true, status: g.statusDetail || "" };
@@ -685,7 +686,7 @@
     const mk = parlay ? l.mk : F.type;
     const now = Date.now();
     const games = G.games.filter(g => g.state !== "post" || now - Date.parse(g.date) < 3 * 864e5 || String(g.id) === String(l.eventId));
-    const dayOpt = g => `${A().fmt(g.date, { weekday: "short", month: "short", day: "numeric" })} · ${g.away.abbr} @ ${g.home.abbr}${g.state === "in" ? " · LIVE" : g.state === "post" ? " · Final" : " · " + A().timeET(g.date)}`;
+    const dayOpt = g => `${A().fmt(g.date, { weekday: "short", month: "short", day: "numeric" })} · ${g.away.abbr} @ ${g.home.abbr}${window.LiveCore && window.LiveCore.isCanceledOrPostponed && window.LiveCore.isCanceledOrPostponed(g) ? " · " + (window.LiveCore.heldStatus ? window.LiveCore.heldStatus(g) : "Canceled") : g.state === "in" ? " · LIVE" : g.state === "post" ? " · Final" : " · " + A().timeET(g.date)}`;
     const g = G.games.find(x => String(x.id) === String(l.eventId));
     const known = l.event && !g; // edited bet whose game left the data window
     let h = `<div class="bt-leg" data-leg="${i}">`;
@@ -801,11 +802,12 @@
     const P = PAST[`${l.league}|${l.pastDay}`] || { loading: true };
     // failed or empty lookup: "Try again" reruns the same league + day (drops the cached result, then redraws)
     const retry = ` <button type="button" class="chip bt-retry" data-a="pastretry">Try again</button>`;
-    const fin = g => g.state === "post" ? `${g.away.abbr} ${g.away.score ?? ""} @ ${g.home.abbr} ${g.home.score ?? ""}` : `${g.away.abbr} @ ${g.home.abbr}`;
+    const pastHeld = g => !!(window.LiveCore && window.LiveCore.isCanceledOrPostponed && window.LiveCore.isCanceledOrPostponed({ state: g.state, statusDetail: g.detail, completed: g.completed }));
+    const fin = g => pastHeld(g) || g.state !== "post" ? `${g.away.abbr} @ ${g.home.abbr}` : `${g.away.abbr} ${g.away.score ?? ""} @ ${g.home.abbr} ${g.home.score ?? ""}`;
     const list = P.loading ? `<div class="na bt-past-msg">Loading ${esc(lgName(l.league))} games…</div>`
       : P.error ? `<div class="na bt-past-msg" role="status">Couldn't load games for that day. Type the game below instead.${retry}</div>`
       : !P.games.length ? `<div class="na bt-past-msg" role="status">No ${esc(lgName(l.league))} games that day.${retry}</div>`
-      : `<div class="bt-past-list">${P.games.map(g => `<button type="button" class="bt-pg" data-a="past" data-v="${esc(g.id)}"><b>${esc(fin(g))}</b><small>${esc(g.state === "post" ? g.detail || "Final" : g.state === "in" ? "Live" : A().timeET(g.date))}</small></button>`).join("")}</div>`;
+      : `<div class="bt-past-list">${P.games.map(g => `<button type="button" class="bt-pg" data-a="past" data-v="${esc(g.id)}"><b>${esc(fin(g))}</b><small>${esc(pastHeld(g) ? (window.LiveCore.heldStatus ? window.LiveCore.heldStatus({ state: g.state, statusDetail: g.detail, completed: g.completed }) : (g.detail || "Canceled")) : g.state === "post" ? g.detail || "Final" : g.state === "in" ? "Live" : A().timeET(g.date))}</small></button>`).join("")}</div>`;
     return `<div class="bt-past"><div class="bt-past-h"><span class="bt-lbl">Game already played? Find it</span><input data-f="pastday" type="date" aria-label="Game date" min="${addDays(t, -30)}" max="${t}" value="${esc(l.pastDay)}"></div>${list}
       <div class="bt-hint">Pick it to link the game (it then settles from the final score if you leave the Result Open), or type it below.</div></div>`;
   }

@@ -728,13 +728,11 @@ def closing_of(g, now=None):
 
 
 def abnormal(g):
-    """'postponed' or 'canceled' from the ESPN status text. These are never finals and are never pruned."""
-    d = str((g or {}).get("statusDetail") or "").lower()
-    if "postpon" in d:
-        return "postponed"
-    if "cancel" in d:
-        return "canceled"
-    return ""
+    """'postponed', 'canceled', 'suspended', 'abandoned', 'forfeit', 'held', or ''.
+
+    Same rule as final_label.is_canceled_or_postponed. These are never finals and are never pruned.
+    A delay is not one of them."""
+    return FL.held_kind(g)
 
 
 def recent_match(gid, dt, opp_abbr, home, rows):
@@ -977,10 +975,10 @@ def published_iso(L, path):
 
 def event_status(g):
     """schema.org status from the ESPN status text. Finished games stay EventScheduled (schema.org has no 'completed')."""
-    d = str((g or {}).get("statusDetail") or "").lower()
-    if "postpon" in d:
+    k = FL.held_kind(g)
+    if k == "postponed" or k == "suspended":
         return "https://schema.org/EventPostponed"
-    if "cancel" in d:
+    if k:
         return "https://schema.org/EventCancelled"
     return "https://schema.org/EventScheduled"
 
@@ -1499,7 +1497,8 @@ def hero(L: League, g):
     # Eager, with an onerror hide: loading=lazy inside overflow:hidden (.match) makes iOS Safari
     # paint the broken-image "?" and never fire the request. Same trap as the home cards.
     logo = lambda t: f'<img src="{esc(pv.logo_src(t.get("logo"), 64))}" alt="" width="64" height="64" class="pv-logo" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else ""
-    sc = lambda t: f'<div class="sx-score{" win" if t.get("winner") else ""}">{esc(num(t.get("score")))}</div>' if L.lg != "ufc" and (final or g.get("state") == "in") and isnum(t.get("score")) else ""
+    ab = abnormal(g)
+    sc = lambda t: f'<div class="sx-score{" win" if t.get("winner") else ""}">{esc(num(t.get("score")))}</div>' if not ab and L.lg != "ufc" and (final or g.get("state") == "in") and isnum(t.get("score")) else ""
     meta_bits = [x for x in [g.get("venue"), ", ".join(x for x in [g.get("city"), g.get("venueState")] if x), ", ".join(g.get("broadcasts") or [])] if x]
     if L.lg == "ufc":
         ev = g.get("event") or {}
@@ -1510,8 +1509,7 @@ def hero(L: League, g):
         evl = ""
     wx = g.get("weather") or {}
     wx_line = f'<div class="where">Weather: {esc(wx.get("label"))}{(", " + esc(wx.get("temp")) + "°F") if isnum(wx.get("temp")) else ""}</div>' if wx.get("label") and not final else ""
-    ab = abnormal(g)
-    status = "Canceled" if ab == "canceled" else "Postponed" if ab == "postponed" else L.final_label(g) if final else ("Live: " + (g.get("statusDetail") or "in progress")) if g.get("state") == "in" else ""
+    status = FL.held_status(g) if ab else L.final_label(g) if final else ("Live: " + (g.get("statusDetail") or "in progress")) if g.get("state") == "in" else ""
     ca, ch = ((a.get("color") or "334155").lstrip("#")), ((h.get("color") or "475569").lstrip("#"))
     side = lambda t, cls: f'<div class="mteam{cls}">{logo(t)}<div><div class="nm">{L.team_link(t)}</div><div class="rec">{esc(t.get("record") or "—")}</div></div>{sc(t)}</div>'
     return f"""<div class="match pv-match" style="--ca:#{esc(ca)};--ch:#{esc(ch)}">
@@ -2429,6 +2427,10 @@ def game_meta(L: League, g, gid):
     elif ab == "postponed":
         title = prefer_title([f"{v} {D}: Postponed" for v in vs] + [f"{v} Postponed" for v in vs]) or fit(*[f"{v} Postponed" for v in vs], "Postponed game")
         desc = f"{vs[0]} on {day} is postponed. This page stays up and will show the new date when the game is rescheduled."
+    elif ab:
+        word = FL.held_status(g)
+        title = prefer_title([f"{v} {D}: {word}" for v in vs] + [f"{v} {word}" for v in vs]) or fit(*[f"{v} {word}" for v in vs], f"{word} game")
+        desc = f"{vs[0]} on {day}: {word}. No final score and no closing line."
     elif final:
         closing = bool(g.get("_closing")) and pv.has_line(g)
         if L.lg == "ufc":
@@ -2512,9 +2514,11 @@ def game_page(L: League, sh: Shell, gid):
     title, desc = game_meta(L, g, gid)
     props_html, props_links = game_props(L, gid) if not final and not ab else ("", [])
     mv_html, mv_facts = pv.movement(g, L.kind)
-    odds_title = "Closing lines" if final else "Status" if ab == "canceled" else "Odds across books"
+    odds_title = "Closing lines" if final else "Status" if ab and ab != "postponed" else "Odds across books"
     if ab == "canceled":
         ot = '<div class="noline">Canceled. No score.</div>'
+    elif ab and ab != "postponed":
+        ot = f'<div class="noline">{esc(FL.held_status(g))}. No score.</div>'
     else:
         ot = pv.odds_table(g, L.kind)
         if final:
@@ -2528,6 +2532,8 @@ def game_page(L: League, sh: Shell, gid):
         head = f"{esc(mtch)}: canceled"
     elif ab == "postponed":
         head = f"{esc(mtch)}: postponed"
+    elif ab:
+        head = f"{esc(mtch)}: {esc(FL.held_status(g).lower())}"
     elif final:
         head = f"{esc(mtch)}: final score &amp; closing odds"
     else:
@@ -2548,7 +2554,7 @@ def game_page(L: League, sh: Shell, gid):
 {wtw_section(what_to_watch(L, g, gid, detail))}
 {result_card(L, g) if final else ''}
 {f'<p class="pv-cta"><a class="pv-live" href="#/g/{esc(L.lg)}/{esc(gid)}/box">Box score</a> <span class="na">Team stats and player lines.</span></p>' if final and L.lg != "ufc" else ''}
-{section("odds", odds_title, ot + ('' if ab == "canceled" else alert_cta(L, g, gid)) + ('' if final or ab else '<div id="pvOffers" data-offers-slot="preview"></div>'))}
+{section("odds", odds_title, ot + ('' if ab and ab != "postponed" else alert_cta(L, g, gid)) + ('' if final or ab else '<div id="pvOffers" data-offers-slot="preview"></div>'))}
 {xlink(section("next", "Next games", nxt_html)) if nxt_html and not hydrates else ''}
 {section("line-movement", "Line movement", mv_html)}
 {section("weather", "Game-day weather", weather_card(g)) if not final else ''}
@@ -2803,7 +2809,7 @@ def team_page(L: League, sh: Shell, tid):
         o = opp_of(g)
         return "W" if me.get("score", 0) > o.get("score", 0) else "L" if me.get("score", 0) < o.get("score", 0) else "T"
     up_items = [(L.paths[gid], side_word(g) + tname(opp_of(g)), " · ".join(x for x in [fmt_et(parse_dt(g["date"]), False), L.lines_brief(g)] if x)) for gid, g in up]
-    held_items = [(L.paths[gid], f"{'Postponed' if abnormal(g) == 'postponed' else 'Canceled'} {side_word(g)}{tname(opp_of(g))}", short_day(parse_dt(g["date"]), False)) for gid, g in held]
+    held_items = [(L.paths[gid], f"{FL.held_status(g)} {side_word(g)}{tname(opp_of(g))}", short_day(parse_dt(g["date"]), False)) for gid, g in held]
     past_items = [(L.paths[gid], f"{res_of(g)} {side_word(g)}{tname(opp_of(g))}", " · ".join(x for x in [short_day(parse_dt(g["date"]), False), L.score_line(g)] if x)) for gid, g in past]
     # The visible result opens the box-score tab. JSON-LD below keeps the clean game URL.
     past_links = [(h if L.lg == "ufc" else f"{h}#/g/{L.lg}/{gid}/box", lab, note) for (h, lab, note), (gid, _g) in zip(past_items, past)]
@@ -3342,16 +3348,21 @@ def _week_game_li(href, label, g, now, lg):
     st = _week_state(g)
     dt = parse_dt((g or {}).get("date"))
     start = et(dt).isoformat(timespec="minutes") if dt else ""
-    if st == "post":
+    ab = abnormal(g)
+    held = FL.held_status(g) if ab else ""
+    if ab:
+        note = esc(held)
+    elif st == "post":
         note = "Final"
     elif st == "in":
         note = _LIVE_BADGE
     else:
         note = esc(when)
-    cls = ' class="sx-live"' if st == "in" else ""
+    cls = ' class="sx-live"' if st == "in" and not ab else ""
     attrs = (
         f' data-lg="{esc(lg)}" data-id="{esc((g or {}).get("id"))}" data-start="{esc(start)}"'
         f' data-state="{esc(st)}" data-when="{esc(when)}"'
+        + (f' data-held="{esc(held)}"' if held else "")
     )
     inner = f'<span class="sx-dl">{esc(label)}</span><span class="sx-dt">{note}</span>'
     return f'<li{cls}><a href="{esc(href)}"{attrs}>{inner}</a></li>'

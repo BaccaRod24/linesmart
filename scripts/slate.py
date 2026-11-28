@@ -77,7 +77,7 @@ def build(out_dir, order, now=None):
         if ps: e["props"], e["hot"] = ps["props"], ps["hot"]
         leagues[lg] = e
         live += [_tick(lg, g) for g in games if g.get("state") == "in"]
-        fin += [_tick(lg, g) for g in tg if g.get("state") == "post"]
+        fin += [_tick(lg, g) for g in tg if g.get("state") == "post" and not FL.is_canceled_or_postponed(g)]
         nxt += [_tick(lg, g) for g in sorted((g for g in games if g.get("state") == "pre"), key=lambda g: g["date"])[:3]]
     nxt.sort(key=lambda x: x["d"] or "")
     tot = lambda k: sum(e.get(k) or 0 for e in leagues.values())

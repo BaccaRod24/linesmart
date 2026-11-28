@@ -112,6 +112,11 @@ check(daily["mode"] == "days" and daily["order"] == "desc" and daily["label"] ==
 check(daily["detail"] == "Nov 3–9", f"same-month range ({daily['detail']})")
 today_g = next(g for g in daily["games"] if g["id"] == "today")
 check(today_g["state"] == "pre" and daily["games"][0]["state"] == "post", "an upcoming game inside the 7 days stays next to the finals")
+can_ev = ev("can", "2026-11-08T18:00Z", detail="Canceled")
+can_ev["status"]["type"]["completed"] = False
+can_g = WS.compact_event(can_ev)
+check(can_g["statusDetail"] == "Canceled" and can_g["completed"] is False and can_g["home"]["winner"] is None and can_g["away"]["winner"] is None,
+      "a canceled week row keeps the status and has no winner")
 
 # league_week: football uses the undated scoreboard; NBA asks for seven dates; UFC is skipped.
 calls = []

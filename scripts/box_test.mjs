@@ -58,6 +58,8 @@ check(asc.map(d => d.games.map(g => g.id).join()).join("|") === "thu|sun|mnf", "
 const desc = W.group(games, "desc");
 check(desc.map(d => d.games[0].id).join() === "mnf,sun,thu", "week group: daily order is newest day first");
 check(W.href("nfl", games[0]) === "#/g/nfl/sun/box" && W.href("nfl", games[1]) === "#/g/nfl/mnf", "finals link to the box tab; upcoming games link to the line page");
+check(W.href("mls", { id: "401933720", state: "post", statusDetail: "Canceled", completed: false }) === "#/g/mls/401933720", "a canceled game does not open the box score");
+check(W.href("nba", { id: "9", state: "post", statusDetail: "Postponed", completed: true }) === "#/g/nba/9", "a postponed game does not open the box score");
 check(W.href("nba", { id: "a b", state: "post" }) === "#/g/nba/a%20b/box", "ids are encoded");
 check(W.dayKey("2026-11-09T01:20Z") === "2026-11-08" && W.dayKey("2026-11-10T01:15Z") === "2026-11-09", "Sunday night and Monday night stay on their ET dates");
 

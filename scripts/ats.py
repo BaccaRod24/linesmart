@@ -14,7 +14,9 @@ Store (persisted in the data-history branch): <cache>/ats_<lg>.json
   {v, league, season, scanned, sched: [eid...], games: {eid: {d, h, a, hs, as, sp, tot, src, tries}}}
   sp = home team's closing spread (negative = home favoured), tot = closing total.
 """
-import concurrent.futures as cf, datetime as dt, json, os
+import concurrent.futures as cf, datetime as dt, json, os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import final_label as FL  # noqa: E402
 
 V = 1
 SCAN_HOURS = 6
@@ -117,7 +119,10 @@ def schedule_scan(getj, site, lg, team_ids, workers=12):
                 h = next((x for x in cs if x.get("homeAway") == "home"), None); a = next((x for x in cs if x.get("homeAway") == "away"), None)
                 if not h or not a: continue
                 sc = lambda x: _num((x.get("score") or {}).get("value") if isinstance(x.get("score"), dict) else x.get("score"))
-                fin = bool(((c.get("status") or {}).get("type") or {}).get("completed"))
+                stype = (c.get("status") or {}).get("type") or {}
+                fin = bool(stype.get("completed")) and not FL.is_canceled_or_postponed({
+                    "state": stype.get("state"), "statusDetail": stype.get("shortDetail") or stype.get("detail"),
+                    "statusName": stype.get("name"), "completed": stype.get("completed")})
                 evs[str(e["id"])] = dict(d=e.get("date"), h=str(h.get("id") or h["team"]["id"]), a=str(a.get("id") or a["team"]["id"]),
                                          hs=sc(h) if fin else None, as_=sc(a) if fin else None, fin=fin, neutral=bool(c.get("neutralSite")))
     for v in evs.values(): v["as"] = v.pop("as_")
@@ -185,7 +190,7 @@ def update(lg, getj, site, out_dir, cache_dir, history_dir=None, team_ids=None, 
                 if st.get("sched") and eid not in set(st["sched"]): continue          # preseason / exhibitions aren't graded
                 g = G.setdefault(eid, dict(d=x["date"], h=h, a=a))
             if g.get("src") != "nflverse": g.update(sp=sp, tot=tot, src="close:" + src)
-        elif x.get("state") == "post" and x.get("completed") and g is not None:
+        elif x.get("state") == "post" and x.get("completed") and not FL.is_canceled_or_postponed(x) and g is not None:
             hs, as_ = _num(x["home"].get("score")), _num(x["away"].get("score"))
             if hs is not None and as_ is not None: g["hs"], g["as"] = hs, as_
     # 3) NFL: nflverse consensus closing lines (and scores) for the whole season

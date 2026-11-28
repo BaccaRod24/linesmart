@@ -29,6 +29,9 @@
     var built = (row && row.state) || "pre";
     var start = Date.parse(row && row.start);
     var past = !isNaN(start) && now - start >= MAX;
+    if (row && row.held) return "held";
+    var C = typeof root !== "undefined" && root.LiveCore;
+    if (ov && C && C.isCanceledOrPostponed && C.isCanceledOrPostponed({ state: ov.state, statusDetail: ov.detail, completed: ov.completed })) return "held";
     if (ov && (ov.state === "post" || ov.completed)) return "final";
     if (built === "post") return "final";
     if (ov && ov.state === "in") return "live";
@@ -54,7 +57,7 @@
       return;
     }
     if (li) li.classList.remove("sx-live");
-    var text = mode === "final" ? "Final" : (a.getAttribute("data-when") || "");
+    var text = mode === "held" ? (a.getAttribute("data-held") || "Canceled") : mode === "final" ? "Final" : (a.getAttribute("data-when") || "");
     if (dt.textContent !== text) dt.textContent = text;
   }
 
@@ -86,7 +89,7 @@
     var nodes = scope.querySelectorAll("a[data-start]");
     for (var i = 0; i < nodes.length; i++) {
       var a = nodes[i];
-      apply(a, status({ state: a.getAttribute("data-state"), start: a.getAttribute("data-start") }, t, overlayFor(a)));
+      apply(a, status({ state: a.getAttribute("data-state"), start: a.getAttribute("data-start"), held: a.getAttribute("data-held") || "" }, t, overlayFor(a)));
     }
     paintCounts(scope);
   }

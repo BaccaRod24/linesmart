@@ -20,6 +20,8 @@
   const chip = (main, sub) => (main == null ? `<span class="oc na-oc" aria-label="not available">—</span>` : `<span class="oc"><b>${main}</b>${sub ? `<small>${sub}</small>` : ""}</span>`);
   const rnd = (r, c) => (r ? `R${r}${c ? " " + c : ""}` : "");
   const RES = { W: "Win", L: "Loss", D: "Draw", NC: "No contest" };
+  const heldGame = g => !!(window.LiveCore && window.LiveCore.isCanceledOrPostponed && window.LiveCore.isCanceledOrPostponed(g));
+  const heldText = g => (window.LiveCore && window.LiveCore.heldStatus ? window.LiveCore.heldStatus(g) : ((g && g.statusDetail) || "Canceled"));
 
   // pure helpers (exported for tests)
   function resultLine(g) {
@@ -48,7 +50,8 @@
   // ---------- league view
   function fighterRow(g, side) {
     const t = g[side], o = g.odds, r = g.result || {};
-    const won = g.state === "post" && r.winner === side, lost = g.state === "post" && r.winner && r.winner !== side;
+    const held = heldGame(g);
+    const won = !held && g.state === "post" && r.winner === side, lost = !held && g.state === "post" && r.winner && r.winner !== side;
     let chips = "";
     if (o) chips = chip(am(o[side + "ML"])) + (side === "away" ? chip(isNum(o.total) ? "O " + o.total : null, am(o.overOdds)) : chip(isNum(o.total) ? "U " + o.total : null, am(o.underOdds)));
     return `<div class="trow ${lost ? "lose" : ""}">${flag(t, "tl uf-flag")}<div class="tn"><div class="tname"><span class="nm-l">${esc(t.name)}</span><span class="nm-s">${esc(t.short || t.name)}</span></div>
@@ -58,9 +61,9 @@
     const o = g.odds;
     const cols = o ? ["Money", "Rounds"] : [];
     const head = cols.length ? `<div class="gt-head"><span></span><span></span><span></span>${cols.map(c => `<span>${c}</span>`).join("")}</div>` : "";
-    const st = g.state === "in" ? `<span class="status live">LIVE · ${esc(g.statusDetail || "")}</span>` : g.state === "post" ? `<span class="status final">Final</span>` : `<span class="status">${A().timeET(g.date)}</span>`;
+    const st = heldGame(g) ? `<span class="status held">${esc(heldText(g))}</span>` : g.state === "in" ? `<span class="status live">LIVE · ${esc(g.statusDetail || "")}</span>` : g.state === "post" ? `<span class="status final">Final</span>` : `<span class="status">${A().timeET(g.date)}</span>`;
     const tag = [g.mainEvent ? '<span class="uf-tag me">Main event</span>' : "", g.title ? '<span class="uf-tag ti">Title</span>' : ""].join("");
-    const foot = g.state === "post" ? `<div class="tfoot uf-res"><span>${esc(resultLine(g))}</span></div>`
+    const foot = heldGame(g) ? `<div class="tfoot uf-res"><span>${esc(heldText(g))}</span></div>` : g.state === "post" ? `<div class="tfoot uf-res"><span>${esc(resultLine(g))}</span></div>`
       : o ? `<div class="tfoot"><span class="bk${window.LSGeo && !window.LSGeo.isAvailable(window.LSGeo.providerKey(o.provider)) ? " bk-na" : ""}"${window.LSGeo && window.LSGeo.naLabel(window.LSGeo.providerKey(o.provider)) ? ` title="${esc(window.LSGeo.naLabel(window.LSGeo.providerKey(o.provider)))}"` : ""}>${esc(o.provider || "provider n/a")}</span>${(g.books || {}).hardrockbet && !(g.books.hardrockbet.stale) ? '<span class="bk hr">Hard Rock Bet</span>' : ""}<span class="hint">${g.rounds || 3} rds</span></div>`
       : `<div class="noline">Lines not posted yet</div>`;
     return `<a class="game bout c${cols.length}" href="#/g/${key}/${g.id}" aria-label="${esc(g.name)}">
@@ -203,10 +206,11 @@
     let F = {};
     try { F = (await L.getJSON(`data/${key}/fighters.json`)).fighters || {}; } catch (e) {}
     const side = (t, s) => {
-      const win = g.state === "post" && r.winner === s;
+      const win = !heldGame(g) && g.state === "post" && r.winner === s;
       return `<div class="mteam ${s === "home" ? "home" : ""}">${flag(t, "uf-flag lg")}<div><div class="nm"><a class="tlink" href="#/p/ufc/${esc(t.id)}">${esc(t.name)}</a>${win ? ' <span class="uf-w">W</span>' : ""}</div><div class="rec">${esc(t.record || "—")}${t.country ? " · " + esc(t.country) : ""}${dots(t.form)}</div></div></div>`;
     };
-    const mid = g.state === "pre" ? `<div class="vs">VS</div><div class="when">${esc(L.fullET(g.date))}</div>`
+    const mid = heldGame(g) ? `<div class="vs">${esc(heldText(g))}</div><div class="when">${esc(L.fullET(g.date))}</div>`
+      : g.state === "pre" ? `<div class="vs">VS</div><div class="when">${esc(L.fullET(g.date))}</div>`
       : g.state === "in" ? `<div class="vs live">LIVE</div><div class="when">${esc(g.statusDetail || "")}</div>`
       : `<div class="vs">${r.outcome === "draw" ? "DRAW" : r.outcome === "nc" ? "NC" : "FINAL"}</div><div class="when">${esc(resultLine(g))}</div>`;
     const jump = L.gameJump ? L.gameJump(key, g.id, focus) : "";
@@ -217,7 +221,7 @@
         <div class="mmid">${mid}<div class="where">${esc([g.weightClass, g.rounds ? g.rounds + " rounds" : "", g.segmentName].filter(Boolean).join(" · "))}</div>
         <div class="where">${esc((g.event || {}).name || "")}</div><div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}</div>${(g.broadcasts || []).length ? `<div class="where">${esc(g.broadcasts.join(", "))}</div>` : ""}</div>
         ${side(H, "home")}</div>`;
-    if (g.state === "post") {
+    if (g.state === "post" && !heldGame(g)) {
       const jt = [W, H].filter(t => (t.judges || []).length).map(t => `${esc(t.short || t.name)}: ${t.judges.map(esc).join(", ")}`).join(" · ");
       html += `<div class="section-title">Result</div><div class="card uf-result"><div class="uf-big">${esc(resultLine(g))}</div>${jt ? `<div class="note">Judges' totals: ${jt}</div>` : ""}</div>`;
     }

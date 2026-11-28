@@ -51,6 +51,26 @@ check(FL.label("football", st(""), 5, "nfl") == "Final/OT", "NFL OT from period 
 check(FL.label("baseball", st(""), 11, "mlb") == "Final/11", "MLB extras from inning count")
 check(FL.label("hockey", st("Final/OT", "in", False, "STATUS_IN_PROGRESS"), 4, "nhl") is None, "live game: no label")
 check(FL.label("hockey", st("Postponed", "post", True, "STATUS_POSTPONED"), 0, "nhl") is None, "postponed: no label")
+check(FL.label("soccer", st("Abandoned", "post", True, "STATUS_ABANDONED"), 0, "mls") is None, "abandoned: no label")
+
+# ---- canceled / postponed are not finals (MLS 401933720 / 401933717 are post + Canceled + completed false)
+check(FL.is_canceled_or_postponed({"state": "post", "statusDetail": "Canceled", "completed": False}), "canceled, not completed")
+check(FL.is_canceled_or_postponed({"state": "pre", "statusDetail": "Cancelled", "completed": False}), "cancelled spelling")
+check(FL.is_canceled_or_postponed({"statusDetail": "Postponed", "state": "post", "completed": True}), "postponed text")
+check(FL.is_canceled_or_postponed({"statusDetail": "Suspended", "state": "post", "completed": True}), "suspended even when completed")
+check(FL.is_canceled_or_postponed({"statusName": "STATUS_ABANDONED", "state": "post", "completed": True}), "abandoned status name")
+check(FL.is_canceled_or_postponed({"status": {"type": {"name": "STATUS_FORFEIT"}}, "state": "post", "completed": True}), "forfeit on the status object")
+check(FL.is_canceled_or_postponed({"state": "post", "statusDetail": "FT", "completed": False}), "post without completed is not a final")
+check(not FL.is_canceled_or_postponed({"state": "post", "statusDetail": "Final", "completed": True}), "a real final stays a final")
+check(not FL.is_canceled_or_postponed({"state": "post", "statusDetail": "Final/OT", "completed": True}), "overtime final stays a final")
+check(not FL.is_canceled_or_postponed({"state": "in", "statusDetail": "Rain Delay", "completed": False}), "a delay is not a cancellation")
+check(not FL.is_canceled_or_postponed({"state": "post", "statusDetail": "Final"}), "missing completed is not the same as false")
+check(FL.held_status({"statusDetail": "Canceled"}) == "Canceled" and FL.held_status({"statusDetail": "Postponed"}) == "Postponed", "status text is kept")
+check(FL.held_status({"statusDetail": "Suspended"}) == "Suspended", "suspended text")
+check(FL.held_status({"state": "post", "statusDetail": "FT", "completed": False}) == "Not played", "a post game that did not finish does not say Final")
+check(FL.held_kind({"statusDetail": "Canceled", "completed": False}) == "canceled" and FL.held_kind({"state": "post", "completed": False, "statusDetail": "FT"}) == "held", "kinds")
+check(SP.abnormal({"state": "post", "statusDetail": "Canceled", "completed": False}) == "canceled", "seo abnormal uses the shared helper")
+check(not SP.abnormal({"state": "post", "statusDetail": "Final", "completed": True}), "a final is not abnormal")
 check(FL.label("soccer", st("FT"), 2, "epl") == "FT", "soccer full time")
 check(FL.label("soccer", st("AET"), 4, "epl") == "AET", "soccer extra time")
 check(FL.label("soccer", st("FT-Pens"), 5, "ucl") == "FT-Pens", "soccer penalties")
@@ -108,9 +128,23 @@ check(SP.League.final_label(L, {"statusDetail": "Final", "state": "post"}) == "F
 if shutil.which("node"):
     js = ("const C=require(%r);const o=[C.finalLabel({statusDetail:'Final'}),C.finalLabel({statusDetail:'F/12'}),"
           "C.finalLabel({statusDetail:'Final',finalLabel:'Final/SO'}),C.finalLabel({}),C.finalSuffix('Final/12'),"
-          "C.finalSuffix('Final/2OT'),C.finalSuffix('Final')];console.log(JSON.stringify(o))") % str(ROOT / "site/assets/live-core.js")
+          "C.finalSuffix('Final/2OT'),C.finalSuffix('Final'),"
+          "C.isCanceledOrPostponed({state:'post',statusDetail:'Canceled',completed:false}),"
+          "C.isCanceledOrPostponed({statusDetail:'Cancelled'}),"
+          "C.isCanceledOrPostponed({statusDetail:'Postponed'}),"
+          "C.isCanceledOrPostponed({statusDetail:'Suspended',completed:true,state:'post'}),"
+          "C.isCanceledOrPostponed({statusName:'STATUS_ABANDONED',state:'post',completed:true}),"
+          "C.isCanceledOrPostponed({status:{type:{name:'STATUS_FORFEIT'}},state:'post',completed:true}),"
+          "C.isCanceledOrPostponed({state:'post',statusDetail:'FT',completed:false}),"
+          "C.isCanceledOrPostponed({state:'post',statusDetail:'Final',completed:true}),"
+          "C.isCanceledOrPostponed({state:'in',statusDetail:'Rain Delay',completed:false}),"
+          "C.isCanceledOrPostponed({state:'post',statusDetail:'Final'}),"
+          "C.heldStatus({statusDetail:'Canceled'}),C.heldStatus({statusDetail:'Postponed'}),"
+          "C.heldStatus({state:'post',statusDetail:'FT',completed:false})];console.log(JSON.stringify(o))") % str(ROOT / "site/assets/live-core.js")
     out = json.loads(subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True).stdout)
-    check(out == ["Final", "Final/12", "Final/SO", "Final", "12 inn", "2OT", ""], f"live-core.js finalLabel/finalSuffix: {out}")
+    check(out[:7] == ["Final", "Final/12", "Final/SO", "Final", "12 inn", "2OT", ""], f"live-core.js finalLabel/finalSuffix: {out[:7]}")
+    check(out[7:] == [True, True, True, True, True, True, True, False, False, False, "Canceled", "Postponed", "Not played"],
+          f"live-core.js isCanceledOrPostponed matches Python: {out[7:]}")
 
 print(f"final_label_test: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

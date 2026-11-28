@@ -10,7 +10,12 @@ entry (startDate / endDate) off the scoreboard ESPN already scopes to that week.
 No network. The caller passes fetch(url) -> dict.
 """
 import datetime as dt
+import os
+import sys
 from zoneinfo import ZoneInfo
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import final_label as FL  # noqa: E402
 
 ET = ZoneInfo("America/New_York")
 FOOTBALL = ("nfl", "ncaaf")
@@ -116,6 +121,7 @@ def compact_event(e):
             "winner": bool(c.get("winner")) if st.get("state") == "post" else None,
         }
 
+    completed = st.get("completed") if isinstance(st.get("completed"), bool) else None
     g = {
         "id": str(e["id"]),
         "date": e.get("date"),
@@ -123,11 +129,15 @@ def compact_event(e):
         "shortName": e.get("shortName") or "",
         "state": st.get("state") or "",
         "statusDetail": st.get("shortDetail") or st.get("detail") or "",
+        "completed": completed,
         "away": side(cs["away"]),
         "home": side(cs["home"]),
     }
     if comp.get("neutralSite"):
         g["neutral"] = True
+    if FL.is_canceled_or_postponed(g):
+        for s in ("home", "away"):
+            g[s]["winner"] = None
     return g
 
 

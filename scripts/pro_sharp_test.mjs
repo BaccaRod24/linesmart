@@ -36,6 +36,8 @@ const live = F.sharpSlot({ state: "in", move: { notable: ["Spread moved 2 pts"] 
 check(live.show === "empty" && /have not started/.test(live.why) && /live/.test(live.why), "a live game explains that flags are only before the start");
 const done = F.sharpSlot({ state: "post", odds: { homeSpread: -3 } }, "football", "nfl");
 check(done.show === "empty" && /finished/.test(done.why), "a finished game explains that it is finished");
+const canceled = F.sharpSlot({ state: "post", statusDetail: "Canceled", completed: false, odds: { homeSpread: -3 } }, "football", "mls");
+check(canceled.show === "empty" && /Canceled/.test(canceled.why) && !/finished/.test(canceled.why), "a canceled game is not called finished");
 const quiet = F.sharpSlot({ state: "pre", move: { spread: { delta: 0.5 }, notable: [] }, odds: { homeSpread: -3 } }, "football", "nfl");
 check(quiet.show === "empty" && quiet.label === "No flag" && /1\.5 points/.test(quiet.why) && /cross of 3 or 7/.test(quiet.why) && /2 points/.test(quiet.why), "a small NFL move names the flag bars");
 const hoops = F.sharpSlot({ state: "pre", odds: { total: 220 }, move: { total: { delta: 1 }, notable: [] } }, "basketball", "nba");

@@ -69,6 +69,9 @@ async function measure(w, h) {
       cols: cols.length,
       scroll: wrap.scrollWidth > wrap.clientWidth + 1,
       overflow: getComputedStyle(wrap).overflowX,
+      thPx: parseFloat(getComputedStyle(books[0]).fontSize),
+      cellH: Math.round(table.querySelector(".px").getBoundingClientRect().height),
+      plus: getComputedStyle(table.querySelector("a.trk"), "::before").content,
     };
   });
 }
@@ -87,6 +90,9 @@ check(phone.doc <= phone.vw + 1, `390: page does not grow sideways (scrollWidth 
 check(phone.cols === 1, `390: cards stack in one column (${phone.cols})`);
 check(phone.fairShown, "390: fair line still shows under the market name");
 check(phone.overflow === "auto" || phone.overflow === "scroll", `390: table wrapper can still scroll (${phone.overflow})`);
+check(desk.thPx >= 11 && phone.thPx >= 11, `column headers are at least 11px (1280 ${desk.thPx}, 390 ${phone.thPx})`);
+check(desk.cellH === 46 && phone.cellH === 46, `price cells are 46px tall (1280 ${desk.cellH}, 390 ${phone.cellH})`);
+check(desk.plus === "none" && phone.plus === "none", "the separate + circle is gone; the cell itself is the control");
 check(phone.books.length === 3 && phone.books.every(b => b.r <= phone.wrap + 1 && b.r > 0), `390: Hard Rock Bet, DraftKings and FanDuel are fully inside the card (${JSON.stringify(phone.books)} wrap ${phone.wrap})`);
 check(!phone.scroll, `390: the three books fit without sideways scrolling (scrollWidth overflow ${phone.scroll})`);
 

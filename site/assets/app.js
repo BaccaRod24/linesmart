@@ -55,8 +55,9 @@
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const NA = '<span class="na">N/A</span>';
   const isNum = v => v !== null && v !== undefined && v !== "" && !isNaN(v);
-  const am = v => (isNum(v) ? (v > 0 ? "+" + v : String(v)) : null);
-  const line = v => (isNum(v) ? (v > 0 ? "+" + v : v === 0 ? "PK" : String(v)) : null);
+  const MINUS = "\u2212";
+  const am = v => (isNum(v) ? (v > 0 ? "+" + v : MINUS + String(Math.abs(v))) : null);
+  const line = v => (isNum(v) ? (v > 0 ? "+" + v : v === 0 ? "PK" : MINUS + String(Math.abs(v))) : null);
   const fx = (v, d = 1) => (isNum(v) ? Number(v).toFixed(d) : null);
   const getJSON = async url => {
     if (cache[url] && Date.now() - (cacheAt[url] || 0) < DATA_TTL_MS) return cache[url];
@@ -1223,16 +1224,18 @@
     const missNote = !books.length ? "" : missing.length ? ` No ${missing.map(bk => bk.name).join(" or ")} line for this game at the last pull, so ${missing.length > 1 ? "those columns are" : "that column is"} hidden.` : "";
     const markets = [];
     const LV = window.LSAdv && kind !== "mma" ? window.LSAdv.booksExtra(B, kind) : null;   // implied %, fair line, edge, outliers (assets/adv.js)
-    const sp = s => b => (isNum(b?.[s + "Spread"]) ? { disp: `${line(b[s + "Spread"])} <span class="na">${am(b[s + "SpreadOdds"]) ?? ""}</span>`, score: b[s + "Spread"] * 1000 + (b[s + "SpreadOdds"] ?? -110) } : null);
-    const ml = s => b => (isNum(b?.[s + "ML"]) ? { disp: am(b[s + "ML"]), score: b[s + "ML"] } : null);
-    const ov = b => (isNum(b?.total) ? { disp: `O ${b.total} <span class="na">${am(b.overOdds) ?? ""}</span>`, score: -b.total * 1000 + (b.overOdds ?? -110) } : null);
-    const un = b => (isNum(b?.total) ? { disp: `U ${b.total} <span class="na">${am(b.underOdds) ?? ""}</span>`, score: b.total * 1000 + (b.underOdds ?? -110) } : null);
+    // Odds use U+2212, the same minus the font already ships, so a price never falls back to a hyphen.
+    const neg = s => (s == null || s === "" ? "" : String(s).replace(/-/g, "\u2212"));
+    const sp = s => b => (isNum(b?.[s + "Spread"]) ? { disp: `${neg(line(b[s + "Spread"]))} <span class="na">${neg(am(b[s + "SpreadOdds"]))}</span>`, score: b[s + "Spread"] * 1000 + (b[s + "SpreadOdds"] ?? -110) } : null);
+    const ml = s => b => (isNum(b?.[s + "ML"]) ? { disp: neg(am(b[s + "ML"])), score: b[s + "ML"] } : null);
+    const ov = b => (isNum(b?.total) ? { disp: `O ${b.total} <span class="na">${neg(am(b.overOdds))}</span>`, score: -b.total * 1000 + (b.overOdds ?? -110) } : null);
+    const un = b => (isNum(b?.total) ? { disp: `U ${b.total} <span class="na">${neg(am(b.underOdds))}</span>`, score: b.total * 1000 + (b.underOdds ?? -110) } : null);
     if (kind !== "soccer" && kind !== "mma") { markets.push([`${g.away.abbr} spread`, sp("away"), "spread", "away"], [`${g.home.abbr} spread`, sp("home"), "spread", "home"]); }
     markets.push([`${g.away.abbr} ML`, ml("away"), "ml", "away"]);
     if (kind === "soccer") markets.push(["Draw", ml("draw"), "ml", "draw"]);
     markets.push([`${g.home.abbr} ML`, ml("home"), "ml", "home"], ["Over", ov, "total", "over"], ["Under", un, "total", "under"]);
     const lvOn = LV && LV.anyFair;
-    // "+" on each price you can bet in your state: opens My Bets' add sheet prefilled with that book, line and price (CSS draws the "+", so cell text is unchanged)
+    // The whole price cell opens My Bets' add sheet. The link is an overlay, so the price text stays put and there is no separate + circle.
     const TB = lg && g.state === "pre" && window.LSBets && window.LSBets.cellHref ? window.LSBets : null;
     const trk = (bk, mk, o, label) => { const h = TB && bookAvail(bk.key) ? TB.cellHref(lg, g, bk.key, mk, o) : ""; return h ? `<a class="trk" href="${esc(h)}" aria-label="${esc(`Track ${label} at ${bk.name}`)}" title="Track this bet"></a>` : ""; };
     const rows = markets.map(([label, fn, mk, o]) => {
@@ -1242,18 +1245,8 @@
       const best = have.length > 1 ? Math.max(...have.map(v => v.score)) : null;
       return `<tr><td>${esc(label)}${lvOn ? LV.fairInline(mk, o) : ""}</td>${vals.map((v, i) => { const na = bookAvail(books[i].key) ? "" : " na-col"; return v ? `<td class="num${na} ${best !== null && v.score === best && !na ? "best" : ""}"><span class="px">${v.disp}</span>${trk(books[i], mk, o, label)}${lvOn ? LV.cell(mk, o, books[i].key) : ""}</td>` : `<td class="${na.trim()}">${NA}</td>`; }).join("")}${lvOn ? LV.fairCell(mk, o) : ""}</tr>`;
     }).join("");
-    const sub = bk => {
-      const b = B[bk.key], sb = staleB[bk.key];
-      if (b && b.asOf) return `${oddsOlderThan(b.asOf) ? "Stale · as of " : "as of "}${esc(fullET(b.asOf))}`;
-      if (b) return esc(bookLabel(b.source || ""));
-      if (sb && sb.stale) return `closed · game started`;
-      if (bk.key === "hardrockbet" || bk.key === "fanduel") return HR.asOf ? "not posted at last pull" : "no pull yet";
-      return "no data";
-    };
-    const head = books.map(bk => {
-      const old = B[bk.key] && B[bk.key].asOf && oddsOlderThan(B[bk.key].asOf);
-      return `<th${bookAvail(bk.key) ? "" : ' class="na-col"'}>${esc(bk.name)}${naTag(bk.key)}<span class="src${old ? " src-stale" : ""}">${sub(bk)}</span></th>`;
-    }).join("");
+    // One freshness line for the whole table. The old per-column "as of" sat at 9px and repeated the same clock.
+    const head = books.map(bk => `<th${bookAvail(bk.key) ? "" : ' class="na-col"'}>${esc(bk.name)}${naTag(bk.key)}</th>`).join("");
     const staleBooks = books.filter(bk => B[bk.key] && B[bk.key].asOf && oddsOlderThan(B[bk.key].asOf));
     const staleBanner = staleBooks.length ? `<div class="stale-note" role="status"><b>Odds are stale.</b> ${staleBooks.map(bk => `${esc(bk.name)} as of ${esc(fullET(B[bk.key].asOf))}`).join("; ")}. These are the last successful pulls, not a live board.</div>` : "";
     const ev = GEO() ? GEO().current() : null, out = ev && ev.state ? books.map(b => b.key).filter(k => !bookAvail(k)) : [];   // only books with a column here (BetMGM has no odds data)
@@ -1265,7 +1258,9 @@
     const dkPaid = B.draftkings && B.draftkings.source === "The Odds API";
     // newest of the meta stamp and this game's own book stamps (an edge-cached meta.json can lag the game file)
     const lastPull = [HR.asOf, ...Object.values(B).map(b => b.asOf)].filter(Boolean).sort().pop();
-    const hrNote = (HR.asOf ? `Hard Rock Bet, FanDuel and DraftKings via The Odds API, refreshed about every ${every >= 60 ? `${+(every / 60).toFixed(1)} h` : `${every} min`}; last pull ${esc(fullET(lastPull))}. Pre-game lines only: they're hidden once a game starts.`
+    const everyLabel = every >= 60 ? `${+(every / 60).toFixed(1)} h` : `${every} min`;
+    const asof = lastPull ? `<p class="books-asof">Lines as of ${esc(timeET(lastPull))} · refreshed about every ${esc(everyLabel)}</p>` : "";
+    const hrNote = (HR.asOf ? `Hard Rock Bet, FanDuel and DraftKings via The Odds API. Pre-game lines only: they're hidden once a game starts.`
                             : "Hard Rock Bet, FanDuel and DraftKings via The Odds API; no pull yet.") + pace;
     const dkNote = dkPaid ? "DraftKings' opening line (line movement) comes from ESPN. "
                  : B.draftkings ? "DraftKings here is ESPN's copy (The Odds API had no DraftKings line for this game at the last pull). " : "";
@@ -1274,7 +1269,7 @@
       const why = closed ? "Pre-game lines closed when the game started." : HR.asOf ? "No sportsbook posted a line for this game at the last pull." : "No sportsbook lines yet.";
       return `<div class="card"><h3>Odds comparison</h3><div class="note">${why} ${hrNote}</div>${affLine()}</div>`;
     }
-    return `<div class="card"><h3>Odds comparison</h3>${staleBanner}${pkCard(g, kind)}<div class="tbl-wrap"><table class="books${lvOn ? " lv-on" : ""}"><thead><tr><th>Market</th>${head}${lvOn ? `<th class="lv-fair">Fair line<span class="src">no-vig consensus</span></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>
+    return `<div class="card"><h3>Odds comparison</h3>${staleBanner}${pkCard(g, kind)}${asof}<div class="tbl-wrap"><table class="books${lvOn ? " lv-on" : ""}"><thead><tr><th>Market</th>${head}${lvOn ? `<th class="lv-fair">Fair line<span class="src">no-vig consensus</span></th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>
       <div class="note">${nHave > 1 ? "Best available price highlighted in green. " : ""}${hrNote}${missNote} ${dkNote}${outNote}</div>${lvOn ? LV.note : ""}${affLine()}</div>`;
   }
 

@@ -1339,6 +1339,44 @@ html.ls-js .intro p,.intro.js p{font-size:13px;margin-bottom:6px}
   table.pv-books .lv,
   table.pv-books .src{white-space:normal;overflow-wrap:anywhere}
 }
+/* Odds cells: one size, the whole cell is the tap target, nothing under 11px.
+   Phone columns are 92px + three equal books so Hard Rock, DraftKings and FanDuel fit at 390.
+   Desktop columns are 190px + three books, with a 104px cell. */
+.books-asof{margin:0 0 10px;font-size:12px;font-weight:500;line-height:1.3;color:var(--dim)}
+table.books th,table.books .lv,table.books .lv-fair-m,table.books .na-st,table.books .src{font-size:11px}
+table.books th{letter-spacing:.04em;font-weight:700}
+table.books td.num{position:relative}
+table.books .px{position:relative;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:104px;max-width:100%;height:46px;min-width:0;padding:0 4px;border-radius:10px;border:1px solid rgba(148,168,224,.27);font-size:15px;font-weight:700;line-height:1.1;box-sizing:border-box}
+table.books .px .na{display:block;margin-top:2px;font-size:12px;font-weight:500;line-height:1.2;color:var(--mute)}
+table.books a.trk{position:absolute;inset:0;z-index:1;width:auto;height:auto;margin:0;border:0;border-radius:10px;background:transparent;opacity:1}
+table.books a.trk::before{content:none}
+table.books a.trk:hover,table.books a.trk:focus-visible{background:color-mix(in srgb,var(--accent) 10%,transparent);opacity:1}
+table.books .lv{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 4px;margin-top:4px;font-weight:500;white-space:normal}
+table.books .lv-e{font-weight:700}
+table.books td.best .px::after{font-size:9.5px}
+table.books .na-col{opacity:1}
+table.books td.na-col .px{background:transparent;border-style:dashed;color:var(--mute)}
+table.books th.na-col{color:var(--dim);font-weight:700}
+table.books th.na-col .na-st{color:var(--mute);font-size:11px}
+@media (min-width:700px){
+  .cols>.card>.tbl-wrap table.books{width:100%;table-layout:fixed}
+  .cols>.card>.tbl-wrap table.books th:first-child,
+  .cols>.card>.tbl-wrap table.books td:first-child{width:190px}
+}
+@media (max-width:699px){
+  .cols>.card:has(> .books-asof),
+  .cols>.card:has(> .tbl-wrap){padding:12px}
+  .cols>.card>.tbl-wrap table.books,
+  table.pv-books{width:100%;table-layout:fixed}
+  .cols>.card>.tbl-wrap table.books th:first-child,
+  .cols>.card>.tbl-wrap table.books td:first-child,
+  table.pv-books th:first-child,
+  table.pv-books td:first-child{width:92px;min-width:0;max-width:none}
+  table.books th{font-size:11px;letter-spacing:.02em}
+  table.books .px{width:72px;height:46px;font-size:14px}
+  table.books .lv-imp{display:none}
+  table.books .lv-fair-m{font-size:11px;white-space:normal}
+}
 
 /* ---------- bet tracker: player-prop picker, needs-review, "+ Track" shortcuts ---------- */
 .bt-psearch{width:100%;margin:2px 0 8px;min-height:44px;padding:0 12px;border-radius:var(--r-sm);border:1px solid var(--line2);background:var(--bg2);color:var(--txt);font:500 15px var(--font)}

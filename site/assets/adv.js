@@ -13,6 +13,7 @@
   const PLAYER_LGS = new Set(["nfl", "nba"]);
   const isNum = v => typeof v === "number" && isFinite(v);
   const am = v => (isNum(v) ? (v > 0 ? "+" + v : String(v)) : "—");
+  const amOdds = v => { const s = am(v); return typeof s === "string" ? s.replace(/-/g, "\u2212") : s; };
   const pct = (v, d = 1) => (isNum(v) ? (100 * v).toFixed(d) + "%" : "—");
   const sgn = (v, d = 3) => (isNum(v) ? (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(d) : "—");
   const ePct = e => (isNum(e) ? (e > 0 ? "+" : e < 0 ? "−" : "") + Math.abs(e).toFixed(1) + "%" : "—");
@@ -40,21 +41,24 @@
       const imp = C.implied(b.prices[o]), e = b.edge ? b.edge[o] : null, ok = avail(bk);
       const out = b.out.includes(o);
       const eCls = !ok ? "" : e > 0 ? "pos" : e < -0.03 ? "neg" : "";
-      return `<span class="lv"><span title="Implied probability at this price (includes the book's margin)">${pct(imp)}</span>${isNum(e) ? ` · <b class="lv-e ${eCls}" title="Edge vs the no-vig consensus fair price">${ePct(100 * e)}</b>` : ""}</span>`
+      // Phone shows only the edge. Implied % stays in the DOM for desktop (CSS hides .lv-imp under 700px).
+      return `<span class="lv"><span class="lv-imp" title="Implied probability at this price (includes the book's margin)">${pct(imp)}</span>${isNum(e) ? `<b class="lv-e ${eCls}" title="Edge vs the no-vig consensus fair price">${ePct(100 * e)}</b>` : ""}</span>`
         + (out ? `<span class="lv-out${ok ? "" : " ref"}" title="${b.outKind === "line" || (b.line !== M.line && b.line !== null) ? `Line differs from the consensus (${esc(M.line)}) by ${esc(Math.abs(b.line - M.line))}` : "Price is at least 3 points of probability better than the other books"}">Outlier</span>` : "");
     };
     const fairCell = (mk, o) => {
       const M = an[mk];
       if (!M || !M.fair) return `<td class="num lv-fair">${NA}</td>`;
-      const ln = M.line === null ? "" : mk === "spread" ? `${(o === "home" ? M.line : -M.line) > 0 ? "+" : ""}${o === "home" ? M.line : -M.line} ` : `${o === "over" ? "O" : "U"} ${M.line} `;
-      return `<td class="num lv-fair"><span class="px">${esc(ln)}${am(M.fairAm[o])}</span><span class="lv">${pct(M.fair[o])} · ${M.n} bks</span></td>`;
+      const signed = n => (n > 0 ? "+" + n : n < 0 ? "\u2212" + String(Math.abs(n)) : String(n));
+      const ln = M.line === null ? "" : mk === "spread" ? `${signed(o === "home" ? M.line : -M.line)} ` : `${o === "over" ? "O" : "U"} ${M.line} `;
+      return `<td class="num lv-fair"><span class="px">${esc(ln)}${amOdds(M.fairAm[o])}</span><span class="lv">${pct(M.fair[o])} · ${M.n} bks</span></td>`;
     };
     // phones: the fair line rides under the market label instead of a far-right column
     const fairInline = (mk, o) => {
       const M = an[mk];
       if (!M || !M.fair) return "";
-      const ln = M.line === null ? "" : mk === "spread" ? `${(o === "home" ? M.line : -M.line) > 0 ? "+" : ""}${o === "home" ? M.line : -M.line} ` : "";
-      return `<span class="lv-fair-m">Fair ${esc(ln)}${am(M.fairAm[o])}<i>${pct(M.fair[o])}</i></span>`;
+      const signed = n => (n > 0 ? "+" + n : n < 0 ? "\u2212" + String(Math.abs(n)) : String(n));
+      const ln = M.line === null ? "" : mk === "spread" ? `${signed(o === "home" ? M.line : -M.line)} ` : "";
+      return `<span class="lv-fair-m">Fair ${esc(ln)}${amOdds(M.fairAm[o])}<i>${pct(M.fair[o])}</i></span>`;
     };
     const note = anyFair ? `<div class="note lv-note"><b>Line value.</b> Under each price: implied probability (it includes the book's margin) and edge vs the <b>fair line</b>, the no-vig consensus of the books hanging the most common line (each book's margin removed proportionally, then averaged; needs 2+ books). Edge = fair probability × decimal odds − 1, so 0% is a fair price and most prices sit a little below it. <b>Outlier</b> marks a book that is clearly off the others: a spread/total ${C.LINE_GAP[kind] ?? C.LINE_GAP_DEFAULT}+ points from the consensus line, or a price 3+ points of probability better than the other two books. Off-market numbers can be stale or posted in error, so confirm at the book.${G() && G().current().state ? ` Edges are colored only for books legal in ${esc(G().current().stateName)}.` : ""} Informational only, not a prediction.</div>` : "";
     return { an, cell, fairCell, fairInline, note, anyFair };

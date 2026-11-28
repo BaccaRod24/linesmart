@@ -87,6 +87,8 @@ check(phone.doc <= phone.vw + 1, `390: page does not grow sideways (scrollWidth 
 check(phone.cols === 1, `390: cards stack in one column (${phone.cols})`);
 check(phone.fairShown, "390: fair line still shows under the market name");
 check(phone.overflow === "auto" || phone.overflow === "scroll", `390: table wrapper can still scroll (${phone.overflow})`);
+check(phone.books.length === 3 && phone.books.every(b => b.r <= phone.wrap + 1 && b.r > 0), `390: Hard Rock Bet, DraftKings and FanDuel are fully inside the card (${JSON.stringify(phone.books)} wrap ${phone.wrap})`);
+check(!phone.scroll, `390: the three books fit without sideways scrolling (scrollWidth overflow ${phone.scroll})`);
 
 await browser.close();
 srv.close();

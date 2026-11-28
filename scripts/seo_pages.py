@@ -3228,7 +3228,12 @@ def game_tile(L: League, gid, g, with_lg=False):
     # No loading=lazy. These marks sit in .hc-scroll (overflow-x: auto). iOS Safari treats that
     # scroller as the lazy root, never fetches the PNG, and paints a "?" box because alt is empty.
     # onerror covers a real 404 the same way the in-app tiles do (app.js logo()).
-    logo = lambda t: f'<img class="hc-logo" src="{esc(pv.logo_src(t.get("logo"), 22))}" alt="" width="22" height="22" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else '<span class="hc-nologo"></span>'
+    def logo(t):
+        if not t.get("logo"):
+            return '<span class="hc-nologo"></span>'
+        src, srcset = pv.logo_src(t.get("logo"), 22), pv.logo_srcset(t.get("logo"), 22)
+        extra = f' srcset="{esc(srcset)}" sizes="22px"' if srcset else ""
+        return f'<img class="hc-logo" src="{esc(src)}"{extra} alt="" width="22" height="22" onerror="this.style.visibility=\'hidden\'">'
     when = "LIVE" if g.get("state") == "in" else et(parse_dt(g["date"])).strftime("%-I:%M %p ET") if day_et(parse_dt(g["date"])) == day_et(L.now) else et(parse_dt(g["date"])).strftime("%a %-I:%M %p")
     nm = (lambda t: t.get("last") or t.get("short") or tname(t)) if L.lg == "ufc" else (lambda t: t.get("abbr") or tname(t))
     return (f'<a class="hc-card hc-game" href="{esc(L.paths[gid])}"><div class="hc-top">{lg_tag}<span class="hc-when{" live" if g.get("state") == "in" else ""}">{esc(when)}</span></div>'

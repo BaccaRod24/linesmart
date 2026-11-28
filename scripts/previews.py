@@ -40,21 +40,55 @@ ROOT = Path(__file__).resolve().parent.parent
 ET = ZoneInfo("America/New_York")
 
 
-def logo_src(url, css_px=22):
-    """ESPN team-logo URL sized for the screen. /500/scoreboard/ PNGs are the full file
-    (the Raiders mark is 4096px). The combiner returns a small PNG and keeps the transparency."""
+def logo_file_px(css_px):
+    """2x the CSS size, snapped so a 30–34px tile asks for 64px instead of 128."""
+    try:
+        want = int(css_px) * 2
+    except (TypeError, ValueError):
+        want = 44
+    if want <= 72:
+        return 64
+    if want <= 96:
+        return 96
+    if want <= 128:
+        return 128
+    if want <= 192:
+        return 192
+    return 256
+
+
+def _espn_logo_path(url):
     s = str(url or "")
     key = "a.espncdn.com/i/teamlogos/"
     i = s.find(key)
     if i < 0:
-        return s
-    path = s[i + len("a.espncdn.com"):].split("?", 1)[0]
-    try:
-        want = int(css_px) * 3
-    except (TypeError, ValueError):
-        want = 66
-    n = 80 if want <= 80 else 128 if want <= 128 else 192 if want <= 192 else 256
+        return ""
+    return s[i + len("a.espncdn.com"):].split("?", 1)[0]
+
+
+def _logo_url(path, n):
     return f"https://a.espncdn.com/combiner/i?img={path}&w={n}&h={n}"
+
+
+def logo_src(url, css_px=22):
+    """ESPN team-logo URL sized for the screen. /500/scoreboard/ PNGs are the full file
+    (the Raiders mark is 4096px). The combiner returns a small PNG and keeps the transparency."""
+    path = _espn_logo_path(url)
+    if not path:
+        return str(url or "")
+    return _logo_url(path, logo_file_px(css_px))
+
+
+def logo_srcset(url, css_px=22):
+    """64w plus the next step. The img sizes attribute decides which one a phone downloads."""
+    path = _espn_logo_path(url)
+    if not path:
+        return ""
+    n = logo_file_px(css_px)
+    hi = 128 if n <= 64 else 192 if n <= 128 else 256
+    if hi == n:
+        return f"{_logo_url(path, n)} {n}w"
+    return f"{_logo_url(path, n)} {n}w, {_logo_url(path, hi)} {hi}w"
 BASE_URL = build_pages.BASE_URL
 MARK_START, MARK_END = "<!-- previews:start -->", "<!-- previews:end -->"
 

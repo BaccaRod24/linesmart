@@ -99,9 +99,15 @@
   const unitWord = kind => ({ football: "Pts", basketball: "Pts", hockey: "Goals", soccer: "Goals", baseball: "Runs" }[kind] || "Pts");
   const formDots = f => (f ? `<span class="form" title="Last ${f.length}: ${esc(f)} (most recent first)">${[...f].map(c => `<i class="f-${c}"></i>`).join("")}</span>` : "");
   const rec = (a, kind) => (!a ? null : kind === "soccer" ? `${a.w}-${a.d}-${a.l}` : a.d ? `${a.w}-${a.l}-${a.d}` : `${a.w}-${a.l}`);
-  const logoPx = cls => (cls === "tl" ? 34 : 22);
+  const logoPx = cls => (cls === "tl" ? 34 : cls === "mlogo" ? 44 : 22);
+  const logoSizes = cls => (cls === "tl" ? "(max-width: 760px) 30px, 34px" : cls === "mlogo" ? "(max-width: 760px) 52px, 88px" : "22px");
   const logoSrc = (url, px) => (window.LSLogo ? window.LSLogo.src(url, px) : url);
-  const logo = (t, cls = "") => (t && t.logo ? `<img class="${cls}" src="${esc(logoSrc(t.logo, logoPx(cls)))}" alt="" width="${logoPx(cls)}" height="${logoPx(cls)}" onerror="this.style.visibility='hidden'">` : `<span class="${cls}"></span>`);
+  const logoSet = (url, px) => (window.LSLogo && window.LSLogo.srcset ? window.LSLogo.srcset(url, px) : "");
+  const logo = (t, cls = "") => {
+    if (!t || !t.logo) return `<span class="${cls}"></span>`;
+    const px = logoPx(cls), set = logoSet(t.logo, px);
+    return `<img class="${cls}" src="${esc(logoSrc(t.logo, px))}"${set ? ` srcset="${esc(set)}" sizes="${logoSizes(cls)}"` : ""} alt="" width="${px}" height="${px}" onerror="this.style.visibility='hidden'">`;
+  };
 
   // ---------- nav
   // active: a league key, HOME (the dashboard: the "All" pill lights up, no league does) or null (no pill lit)
@@ -766,9 +772,9 @@
     app.innerHTML = `<a class="back" href="#/l/${key}">← ${esc(backName)}</a>
       ${gameJump(key, id, "box", g.state === "post" || box ? "post" : g.state, g)}
       <div class="match" style="--ca:${teamColor(A, "#334155")};--ch:${teamColor(H, "#475569")}">
-        <div class="mteam">${logo(A)}<div><div class="nm">${A.id ? `<a class="tlink" href="#/t/${key}/${esc(A.id)}">${esc(A.name || A.abbr || "")}</a>` : esc(A.name || A.abbr || "")}</div><div class="rec">${esc(A.record || "—")}</div></div></div>
+        <div class="mteam">${logo(A, "mlogo")}<div><div class="nm">${A.id ? `<a class="tlink" href="#/t/${key}/${esc(A.id)}">${esc(A.name || A.abbr || "")}</a>` : esc(A.name || A.abbr || "")}</div><div class="rec">${esc(A.record || "—")}</div></div></div>
         <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}</div></div>
-        <div class="mteam home">${logo(H)}<div><div class="nm">${H.id ? `<a class="tlink" href="#/t/${key}/${esc(H.id)}">${esc(H.name || H.abbr || "")}</a>` : esc(H.name || H.abbr || "")}</div><div class="rec">${esc(H.record || "—")}</div></div></div>
+        <div class="mteam home">${logo(H, "mlogo")}<div><div class="nm">${H.id ? `<a class="tlink" href="#/t/${key}/${esc(H.id)}">${esc(H.name || H.abbr || "")}</a>` : esc(H.name || H.abbr || "")}</div><div class="rec">${esc(H.record || "—")}</div></div></div>
       </div>
       <div id="boxRoot">${boxHtml(key, g, kind, box)}</div>`;
     wireBox(document.getElementById("boxRoot"));
@@ -854,9 +860,9 @@
     let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>${previewLink(key, g, "back pv-back")}
       ${gameJump(key, id, focus, g.state, g)}${focus === "props" ? propsPane(key, g) : ""}${focus === "stats" ? `<div class="section-title" id="stats">Team &amp; matchup stats</div>` : ""}
       <div class="match" style="--ca:${teamColor(A, "#334155")};--ch:${teamColor(H, "#475569")}">
-        <div class="mteam">${logo(A)}<div><div class="nm">${A.rank ? `<span class="rk" style="color:var(--warn)">#${A.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${A.id}">${esc(A.name)}</a></div><div class="rec">${esc(A.record || "—")} · Away ${esc(A.awayRecord || "—")}${formDots(A.form)}</div></div></div>
+        <div class="mteam">${logo(A, "mlogo")}<div><div class="nm">${A.rank ? `<span class="rk" style="color:var(--warn)">#${A.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${A.id}">${esc(A.name)}</a></div><div class="rec">${esc(A.record || "—")} · Away ${esc(A.awayRecord || "—")}${formDots(A.form)}</div></div></div>
         <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}${g.neutral ? " (neutral)" : ""}</div><div class="where">${esc(g.broadcasts.join(", "))}</div>${g.note ? `<div class="where">${esc(g.note)}</div>` : ""}${window.LSWeather && g.state !== "post" && g.weather ? `<div class="where wx-where">${window.LSWeather.chip(g)}</div>` : ""}</div>
-        <div class="mteam home">${logo(H)}<div><div class="nm">${H.rank ? `<span class="rk" style="color:var(--warn)">#${H.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${H.id}">${esc(H.name)}</a></div><div class="rec">${esc(H.record || "—")} · Home ${esc(H.homeRecord || "—")}${formDots(H.form)}</div></div></div>
+        <div class="mteam home">${logo(H, "mlogo")}<div><div class="nm">${H.rank ? `<span class="rk" style="color:var(--warn)">#${H.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${H.id}">${esc(H.name)}</a></div><div class="rec">${esc(H.record || "—")} · Home ${esc(H.homeRecord || "—")}${formDots(H.form)}</div></div></div>
       </div>${staleNote(g0.stale, "game details")}`;
     if (PAGE_SEO && (g.state === "pre" || g.state === "in") && PAGE_ROUTE === `g/${key}/${id}`) html = PAGE_SEO + html;
     if (focus !== "stats" && PAGE_WTW && g.state === "pre" && PAGE_ROUTE === `g/${key}/${id}`) html += PAGE_WTW;
@@ -1245,7 +1251,8 @@
   const crestPx = cls => (cls === "xs" ? 20 : cls === "sm" ? 36 : cls === "xl" ? 96 : 42);
   const crest = (src, name, cls = "") => {
     const n = crestPx(cls);
-    return `<span class="av crest ${cls}" aria-hidden="true">${src ? `<img src="${esc(logoSrc(src, n))}" alt="" width="${n}" height="${n}" onerror="this.remove()">` : initials(name)}</span>`;
+    const set = src ? logoSet(src, n) : "";
+    return `<span class="av crest ${cls}" aria-hidden="true">${src ? `<img src="${esc(logoSrc(src, n))}"${set ? ` srcset="${esc(set)}" sizes="${n}px"` : ""} alt="" width="${n}" height="${n}" onerror="this.remove()">` : initials(name)}</span>`;
   };
   const notAvail = (title, why) => `<div class="card na-card"><h3>${esc(title)}</h3><div class="na">${esc(why || "Not available right now.")}</div></div>`;
   // "Back" returns to wherever the user came from inside the app; on a cold deep link it goes to Search

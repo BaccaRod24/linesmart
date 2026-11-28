@@ -54,15 +54,34 @@ window.SITE_CONFIG = {
   },
 };
 // Team marks from ESPN. The /500/scoreboard/ files are full-size PNGs (Raiders is 4096px, about 570 KB)
-// even when the page draws them at 20–42px. Ask ESPN's combiner for a retina-sized copy instead.
-// cssPx is the on-screen size; the file is 3x that, snapped to a small set so repeats share a cache entry.
+// even when the page draws them at 20–42px. Ask ESPN's combiner for a 2x copy instead.
+// cssPx is the on-screen size. 30–34px tiles land on 64px (they used to snap 3x up to 128).
+// srcset() adds the next step so a 3x screen can still sharpen; sizes= on the img keeps phones on 64.
 window.LSLogo = {
-  src: function (url, cssPx) {
+  filePx: function (cssPx) {
+    var want = Math.ceil((+cssPx || 22) * 2);
+    if (want <= 72) return 64;
+    if (want <= 96) return 96;
+    if (want <= 128) return 128;
+    if (want <= 192) return 192;
+    return 256;
+  },
+  path: function (url) {
     var s = String(url || ""), at = s.indexOf("a.espncdn.com/i/teamlogos/");
-    if (at < 0) return s;
-    var path = s.slice(at + "a.espncdn.com".length).split("?")[0];
-    var want = Math.ceil((+cssPx || 22) * 3);
-    var n = want <= 80 ? 80 : want <= 128 ? 128 : want <= 192 ? 192 : 256;
+    if (at < 0) return "";
+    return s.slice(at + "a.espncdn.com".length).split("?")[0];
+  },
+  sized: function (path, n) {
     return "https://a.espncdn.com/combiner/i?img=" + path + "&w=" + n + "&h=" + n;
+  },
+  src: function (url, cssPx) {
+    var path = this.path(url);
+    return path ? this.sized(path, this.filePx(cssPx)) : String(url || "");
+  },
+  srcset: function (url, cssPx) {
+    var path = this.path(url);
+    if (!path) return "";
+    var n = this.filePx(cssPx), hi = n <= 64 ? 128 : n <= 128 ? 192 : 256;
+    return hi === n ? this.sized(path, n) + " " + n + "w" : this.sized(path, n) + " " + n + "w, " + this.sized(path, hi) + " " + hi + "w";
   },
 };

@@ -60,10 +60,25 @@
     const mv = C.moveText(p.line, p.open);
     const cls = sm.n ? (sm.o / sm.n > 0.5 ? "hot" : sm.o / sm.n < 0.5 ? "cold" : "") : "";
     const hot = C.isHot(log, p.mk, p.line);
+    const l10v = l10.n ? `${l10.o}/${l10.n}` : "—";
+    const seaN = se.n ? `${se.o}/${se.n}` : "—";
+    const seaPct = se.pct == null ? "" : `(${se.pct}%)`;
+    const track = trackLink(p, ctx, name);
+    const bell = ctx && ctx.gid && window.LSAlerts && (p.books || []).some(b => avail(b.key) && C.isNum(b.line)) ? window.LSAlerts.propBell(ctx.lg, ctx.gid, ctx.pid, p.mk, name, p.label) : "";
+    // Narrow screens still read "L10 6/10" and "Season 6/10 (60%)" stacked on the right (.pp-full).
+    // At >=1100px the same nodes become a labeled band, and Track / Alert sit side by side (.pp-v).
     return `<div class="pp-row${hot ? " is-hot" : ""}" data-mk="${esc(p.mk)}" data-hot="${hot ? 1 : 0}">
       <div class="pp-mk"><span class="pp-lab">${esc(p.label)}${MULTI && p.book ? ` <span class="pp-src">${esc(BKS[p.book] || "")}</span>` : ""}</span><span class="pp-line">${esc(C.lineText(p.mk, p.line))}</span>${mv ? `<span class="pp-mv">${esc(mv)}</span>` : ""}</div>
       <div class="pp-strip pp-l5" role="list" aria-label="Last 5 games vs this line, oldest to newest">${s.length ? s.slice().reverse().map((b, i, a) => box(b, p.mk, i === a.length - 1)).join("") : `<span class="pp-none">No games yet this season</span>`}</div>
-      <div class="pp-sum">${hot ? `<span class="pp-hot-tag">Hot</span>` : ""}<b class="pp-xs ${cls}">${esc(sm.text)}</b><span>L10 ${l10.n ? `${l10.o}/${l10.n}` : "—"}</span><span>Season ${esc(se.text)}</span>${trackLink(p, ctx, name)}${ctx && ctx.gid && window.LSAlerts && (p.books || []).some(b => avail(b.key) && C.isNum(b.line)) ? window.LSAlerts.propBell(ctx.lg, ctx.gid, ctx.pid, p.mk, name, p.label) : ""}</div>
+      <div class="pp-sum">
+        <div class="pp-band">
+          <span class="pp-hot-slot">${hot ? `<span class="pp-hot-tag">Hot</span>` : ""}</span>
+          <div class="pp-st pp-hit"><em>Hit rate</em><b class="pp-xs ${cls}">${esc(sm.text)}</b></div>
+          <div class="pp-st pp-l10"><em>L10</em><span class="pp-full">L10 ${esc(l10v)}</span><b class="pp-v">${esc(l10v)}</b></div>
+          <div class="pp-st pp-sea"><em>Season</em><span class="pp-full">Season ${esc(se.text)}</span><b class="pp-v">${esc(seaN)}</b>${seaPct ? `<span class="pp-pct">${esc(seaPct)}</span>` : ""}</div>
+        </div>
+        <div class="pp-acts">${track}${bell}</div>
+      </div>
       ${bookLine(p)}
     </div>`;
   }
@@ -206,7 +221,7 @@
       el.innerHTML = `<div class="section-title" id="psProps">Today's prop lines</div><div class="card note ps-empty">No player props are posted for these games yet. The games below still open, and Stats still opens.</div>`;
       return;
     }
-    el.innerHTML = `<div class="section-title" id="psProps">${esc(head)} <span class="st-sub">${nLines} lines · ${blocks.length} ${blocks.length === 1 ? "game" : "games"}</span></div><div class="ps-prop-sub">${subTitle(doc)}</div><div class="pp ps-props">${legend}`
+    el.innerHTML = `<div class="section-title" id="psProps">${esc(head)} <span class="st-sub">${nLines} lines · ${blocks.length} ${blocks.length === 1 ? "game" : "games"}</span></div><div id="psSubHome"><div class="ps-prop-sub">${subTitle(doc)}</div></div><div class="pp ps-props"><div id="psLegHome">${legend}</div>`
       + blocks.map(({ g, players }) => `<section class="ps-prop-g" aria-label="${esc(nm(g))}">
           <a class="pp-game" href="#/g/${esc(lg)}/${esc(g.id)}/props"><b>${esc(nm(g))}</b><span>${esc(when(g))}</span><span class="pp-go">All props</span></a>
           <div class="pp-list pp-players">${players.map(p => playerCard(lg, p, { gid: g.state === "pre" ? g.id : null })).join('<hr class="pp-player-rule">')}</div>
@@ -214,6 +229,7 @@
         </section>`).join("")
       + foot(doc) + `</div>`;
     if (window.LSAdv) window.LSAdv.decorateProps(el, lg).catch(() => {});
+    placePropsRail();
     el.querySelectorAll(".ps-prop-g").forEach(sec => {
       const more = sec.querySelector(".pp-more");
       const cards = [...sec.querySelectorAll(".pp-card")];
@@ -231,5 +247,30 @@
     });
   }
 
-  window.LSProps = { SUPPORTED, gameSlot, mountGame, mountPlayer, mountLanding };
+  /** Props landing only. At >=1600px the sport chips, legend and book line sit in the left rail.
+   *  Narrower widths put the legend and the book line back above the list, where they were. */
+  function placePropsRail() {
+    const wide = window.matchMedia("(min-width:1600px)").matches;
+    const sub = document.querySelector(".ps-prop-sub");
+    const legend = document.querySelector(".ps-props .pp-legend, #psRailLeg .pp-legend");
+    const lineBox = document.getElementById("psRailLines");
+    const legBox = document.getElementById("psRailLeg");
+    const subHome = document.getElementById("psSubHome");
+    const legHome = document.getElementById("psLegHome");
+    if (wide && lineBox && legBox) {
+      if (sub && !lineBox.contains(sub)) lineBox.appendChild(sub);
+      if (sub && !sub.dataset.inline) {
+        sub.dataset.inline = sub.innerHTML;
+        const lines = [...sub.children].filter(el => el.tagName === "SPAN").map(s => s.outerHTML);
+        sub.innerHTML = lines.join("") + `<span class="pp-sub-tail">last 5 vs line</span>`;
+      }
+      if (legend && !legBox.contains(legend)) legBox.appendChild(legend);
+    } else {
+      if (sub && sub.dataset.inline) { sub.innerHTML = sub.dataset.inline; delete sub.dataset.inline; }
+      if (sub && subHome && !subHome.contains(sub)) subHome.appendChild(sub);
+      if (legend && legHome && !legHome.contains(legend)) legHome.appendChild(legend);
+    }
+  }
+
+  window.LSProps = { SUPPORTED, gameSlot, mountGame, mountPlayer, mountLanding, placeRail: placePropsRail };
 })();

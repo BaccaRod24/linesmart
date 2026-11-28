@@ -259,6 +259,10 @@ td.pos{color:var(--pos);font-weight:650}td.neg{color:var(--neg);font-weight:650}
 .footer strong{color:var(--mute)}
 .footer .rg{color:var(--mute)}
 .footer a{color:var(--accent);font-weight:600}
+@media (max-width:760px){
+  .footer a{display:inline-flex;align-items:center;min-height:44px}
+  .footer .legal-links,.footer .hub-links,.footer .state-links,.footer .tool-links{display:flex;flex-wrap:wrap;align-items:center;gap:0 12px}
+}
 
 /* keep wide tables from pushing cards past the viewport on phones */
 .cols>*,.grid>*{min-width:0}
@@ -919,11 +923,12 @@ a[href^="tel:"]{white-space:nowrap}
 .pp-bk b{font-weight:750;color:var(--txt)}
 .pp-bk .pp-px.best{color:var(--pos);font-weight:750}
 .pp-bk .pp-nopx{color:var(--dim)}
-.pp-bk.na{opacity:.55}
-.pp-bk.na .pp-px.best{color:inherit;font-weight:inherit}
-.pp-bk .na-st{font-size:10px}
-.pp-src{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
-.pp-na-bk{opacity:.6}
+.pp-bk.na{opacity:1;border-style:dashed;color:var(--mute)}
+.pp-bk.na .pp-bn,.pp-bk.na b,.pp-bk.na .pp-px{color:var(--mute)}
+.pp-bk.na .pp-px.best{color:var(--mute);font-weight:inherit}
+.pp-bk .na-st{font-size:11px;color:var(--mute)}
+.pp-src{font-size:11px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.04em}
+.pp-na-bk{opacity:1;color:var(--mute)}
 @media (max-width:640px){.pp-row{grid-template-areas:"mk sum" "strip strip" "bks bks"}.pp-bks{grid-area:bks}}
 
 /* ---------- UFC (assets/ufc.js): fight cards, fight page, fighter page */
@@ -1169,24 +1174,25 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .state-btn{padding:0 12px 0 9px;gap:5px}
 .state-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
 @media (max-width:760px){.search-btn.state-btn{width:auto;padding:0 10px 0 8px}}
-.na-st{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;border:1px solid var(--line2);color:var(--dim);font-size:10.5px;font-weight:600;letter-spacing:.01em;text-transform:none;vertical-align:middle;white-space:nowrap}
+.na-st{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;border:1px solid var(--line2);color:var(--mute);font-size:11px;font-weight:600;letter-spacing:.01em;text-transform:none;vertical-align:middle;white-space:nowrap}
 .books th .na-st{display:block;margin:3px 0 0;width:max-content}
-.books .na-col{opacity:.5}
-.books th.na-col{font-weight:500}
+.books .na-col{opacity:1}
+.books td.na-col .px{border-style:dashed;background:transparent;color:var(--mute)}
+.books th.na-col{font-weight:700;color:var(--mute)}
 /* three book columns (Hard Rock / DraftKings / FanDuel) on a phone: line over price, tighter cells, no sideways scroll */
 @media (max-width:640px){
   .books th,.books td{padding:8px 4px}
   .books td:first-child,.books th:first-child{padding-left:8px;white-space:normal}
   .books td:first-child{font-size:12.5px}
   .books th{font-size:9.5px;letter-spacing:.05em}
-  .books th .na-st{white-space:normal;width:auto;font-size:9.5px;padding:1px 5px}
+  .books th .na-st{white-space:normal;width:auto;font-size:11px;padding:1px 5px}
   .books .px{display:inline-flex;flex-direction:column;align-items:center;min-width:58px;padding:5px 6px;font-size:13px;line-height:1.2}
   .books .px .na{font-size:11.5px}
   .books .src{font-size:9px}
   .books .src-stale{font-size:12px}
 }
 .na-st-card h3{color:var(--mute)}
-.tfoot .bk.bk-na{opacity:.55;font-weight:500}
+.tfoot .bk.bk-na{opacity:1;font-weight:600;color:var(--mute)}
 .tfoot .bk.bk-na::before{background:var(--dim)}
 .offers{margin-top:16px;display:flex;flex-direction:column;gap:12px}
 .offers .of-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
@@ -2566,3 +2572,8 @@ td.num,td .num,.num{font-variant-numeric:tabular-nums}
 .fu-tbl .dn{color:var(--neg);font-weight:750}
 .fu-tbl .flat{color:var(--dim)}
 .fu-tbl td.fu-ref .px{color:var(--dim);font-weight:650}
+@media (max-width:760px){
+  .music-btn{width:44px;height:44px}
+  .search-btn.state-btn{height:44px;min-width:44px}
+  .pp-game{min-height:44px;align-items:center}
+}

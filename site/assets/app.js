@@ -1931,7 +1931,7 @@
       catch (e) { app.innerHTML = `<div class="empty"><h3>No data yet</h3>Run <code>python3 scripts/build_data.py</code> then reload.</div>`; return; }
       realizeLinks();
       const gen = META.generated ? new Date(META.generated) : null;
-      if (gen) { const iso = gen.toISOString(); const u = document.getElementById("updated"); u.title = "Data updated " + fullET(iso); u.innerHTML = `<span class="dot"></span><span><span class="u-long">Updated ${esc(fmt(iso, { weekday: "short", month: "short", day: "numeric" }))}, </span>${esc(timeET(iso))}</span>`; }
+      if (gen) { const iso = gen.toISOString(); const u = document.getElementById("updated"); const full = "Odds updated " + fullET(iso); u.title = full; u.setAttribute("aria-label", full); u.innerHTML = `<span class="dot" aria-hidden="true"></span><span class="u-txt"><span class="u-long">Odds updated </span><span class="u-short">Updated </span>${esc(fmt(iso, { hour: "numeric", minute: "2-digit" }))}<span class="u-tz"> ET</span></span>`; }
     }
     // an app route that has a real page: go there (replace, so Back doesn't bounce)
     const real = realPath(location.hash);

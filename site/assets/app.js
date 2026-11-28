@@ -237,7 +237,7 @@
     const mv = moveOf(g), hasMv = mv && (mv.spread || mv.total);
     const wx = window.LSWeather && g.state !== "post" ? window.LSWeather.chip(g) : "";
     const pk = GEO() ? GEO().providerKey(o && o.provider) : null, pNa = pk && !bookAvail(pk) ? GEO().naLabel(pk) : "";
-    const pTag = o ? `<span class="bk${pNa ? " bk-na" : ""}"${pNa ? ` title="${esc(pNa)}"` : ""}>${esc(o.provider || "provider n/a")}${pNa ? `<span class="sr-only"> (${esc(pNa)})</span>` : ""}</span>` : "", altTag = (k, cls, name) => { if (!live(k)) return ""; const na = bookAvail(k) ? "" : GEO().naLabel(k);
+    const pTag = o ? `<span class="bk${pNa ? " bk-na" : ""}"${pNa ? ` title="${esc(pNa)}"` : ""}>${esc(bookLabel(o.provider) || "provider n/a")}${pNa ? `<span class="sr-only"> (${esc(pNa)})</span>` : ""}</span>` : "", altTag = (k, cls, name) => { if (!live(k)) return ""; const na = bookAvail(k) ? "" : GEO().naLabel(k);
       return `<span class="bk ${cls}${na ? " bk-na" : ""}"${na ? ` title="${esc(na)}"` : ""}>${name}${na ? `<span class="sr-only"> (${esc(na)})</span>` : ""}</span>`; };
     // legal-in-your-state books first (Florida: Hard Rock Bet, then the dimmed DraftKings / FanDuel)
     const tags = [[pk || "espn", pTag], ["hardrockbet", altTag("hardrockbet", "hr", "Hard Rock Bet")], ["fanduel", altTag("fanduel", "fd", "FanDuel")]]
@@ -462,7 +462,7 @@
       : `<div class="chips">
       <span class="chip"><b>${data.report.upcoming}</b> upcoming</span>
       <span class="chip"><b>${data.report.withOdds}</b> with lines</span>
-      <span class="chip">Lines: <b>${esc((data.report.providers || []).join(", ") || "none")}</b></span>
+      <span class="chip">Lines: <b>${esc((data.report.providers || []).map(bookLabel).filter(Boolean).join(", ") || "none")}</b></span>
       <span class="chip">Next ${data.windowDays} days</span></div>${staleNote(data.stale)}${oddsStaleNote(key)}`;
     const seg = leagueSeg(key, filter);
     let rankDoc = null;
@@ -966,6 +966,8 @@
 
   // ---------- line movement (game detail)
   const BOOKNAME = k => ({ draftkings: "DraftKings", fanduel: "FanDuel", hardrockbet: "Hard Rock Bet", betmgm: "BetMGM" }[k] || k.replace(/^espn-/, "ESPN · "));
+  // ESPN's "Draft Kings" and a bare "Hard Rock" provider/source. Legal copy is not passed through this.
+  const bookLabel = name => (window.GeoCore && window.GeoCore.displayBook ? window.GeoCore.displayBook(name) : (name == null ? "" : String(name)));
   const shortET = d => fmt(d.toISOString(), { weekday: "short", hour: "numeric", minute: "2-digit" });
   function lineMoveSection(d, g, kind) {
     const H = d.history, o = g.odds;
@@ -1065,7 +1067,7 @@
         ? "Open = first recorded line. The ESPN open was missing or never traded in our snapshots."
         : "Open = opening line as reported by ESPN (DraftKings).";
       const totSentence = !openIsFirst && opNote.totSrc === "first recorded line" ? " The total open is the first recorded total, because the ESPN total never traded." : "";
-      el.innerHTML = `<div class="lmhead"><h3>${esc(MARKETS[st.mk].label)} movement <span class="na">· ${esc(fromOdds ? o.provider || "" : BOOKNAME(st.bk))}</span></h3><div class="lmctl">${segB}<div class="seg">${segM}</div></div></div>
+      el.innerHTML = `<div class="lmhead"><h3>${esc(MARKETS[st.mk].label)} movement <span class="na">· ${esc(fromOdds ? bookLabel(o.provider) || "" : BOOKNAME(st.bk))}</span></h3><div class="lmctl">${segB}<div class="seg">${segM}</div></div></div>
         ${notes.length ? `<div class="lmnotes">${notes.map(n => `<span class="mvbadge">⚡ ${esc(n)}</span>`).join("")}</div>` : ""}
         <div class="lmplot"></div>
         <div class="tbl-wrap"><table class="lmstats"><thead><tr><th>Line</th><th>Open</th><th>Current</th><th>Change</th><th>Biggest move</th><th>Last change</th></tr></thead><tbody>${stats()}</tbody></table></div>
@@ -1108,9 +1110,9 @@
     if (kind === "soccer") body += `<tr><td>Draw</td><td class="num" colspan="2" style="text-align:center">${am(o.drawML) ?? NA}${mv(o.drawML, o.drawMLOpen, false)}</td></tr>`;
     body += `<tr><td>${kind === "mma" ? "Total rounds" : "Total"}</td><td class="num">O ${fx(o.total) ?? NA} <span class="na">${am(o.overOdds) ?? ""}</span></td><td class="num">U ${fx(o.total) ?? NA} <span class="na">${am(o.underOdds) ?? ""}</span>${isNum(o.totalOpen) && o.totalOpen !== o.total ? `<div class="move">open ${o.totalOpen} → ${o.total}</div>` : ""}</td></tr>`;
     const pk = GEO() ? GEO().providerKey(o.provider) : null, pNa = pk && !bookAvail(pk);
-    return `<div class="card${pNa ? " na-st-card" : ""}"><h3>Current line · ${esc(o.provider || "provider n/a")}${pk ? naTag(pk) : ""}</h3>
+    return `<div class="card${pNa ? " na-st-card" : ""}"><h3>Current line · ${esc(bookLabel(o.provider) || "provider n/a")}${pk ? naTag(pk) : ""}</h3>
       <table class="books"><thead><tr><th>Market</th><th>${esc(g.away.abbr)}</th><th>${esc(g.home.abbr)}</th></tr></thead><tbody>${body}</tbody></table>
-      <div class="note">Source: ${esc(g.oddsSource || "ESPN")} — as reported by ${esc(o.provider || "the listed book")}. "open" = opening line (line movement).${pNa ? ` ${esc(BOOKNAME(pk))} isn't available in ${esc((GEO().current() || {}).stateName || "your state")}; shown for price comparison only.` : ""}</div></div>`;
+      <div class="note">Source: ${esc(g.oddsSource || "ESPN")} — as reported by ${esc(bookLabel(o.provider) || "the listed book")}. "open" = opening line (line movement).${pNa ? ` ${esc(BOOKNAME(pk))} isn't available in ${esc((GEO().current() || {}).stateName || "your state")}; shown for price comparison only.` : ""}</div></div>`;
   }
 
   function booksCard(g, kind, lg) {
@@ -1150,7 +1152,7 @@
     const sub = bk => {
       const b = B[bk.key], sb = staleB[bk.key];
       if (b && b.asOf) return `${oddsOlderThan(b.asOf) ? "Stale · as of " : "as of "}${esc(fullET(b.asOf))}`;
-      if (b) return esc(b.source || "");
+      if (b) return esc(bookLabel(b.source || ""));
       if (sb && sb.stale) return `closed · game started`;
       if (bk.key === "hardrockbet" || bk.key === "fanduel") return HR.asOf ? "not posted at last pull" : "no pull yet";
       return "no data";

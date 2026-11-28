@@ -161,6 +161,7 @@
   const naLabel = key => G.naLabel(current(), key);
   const naTag = key => { const t = naLabel(key); return t ? ` <span class="na-st">${esc(t)}</span>` : ""; };
   const providerKey = name => (/draft ?kings/i.test(name || "") ? "draftkings" : /fan ?duel/i.test(name || "") ? "fanduel" : /hard ?rock/i.test(name || "") ? "hardrockbet" : /betmgm/i.test(name || "") ? "betmgm" : null);
+  const displayBook = name => G.displayBook(name);
   // 21+ and helpline line under offers: the visitor's state helpline first (e.g. Florida -> 1-833-PLAYWISE), then 1-800-GAMBLER
   const RG = (st, code) => {
     const h = G.helpline(code), gam = G.helpline(null);
@@ -201,7 +202,7 @@
   // bets tracker uses "hardrock" for Hard Rock Bet
   const defaultBetBook = () => ({ hardrockbet: "hardrock", draftkings: "draftkings", fanduel: "fanduel" }[current().defaultBook] || null);
 
-  window.LSGeo = { ready, current, setState, openPicker, offersHTML, rgCall, rgSpan, naLabel, naTag, providerKey, defaultBetBook,
+  window.LSGeo = { ready, current, setState, openPicker, offersHTML, rgCall, rgSpan, naLabel, naTag, providerKey, displayBook, defaultBetBook,
     isAvailable: key => G.isAvailable(current(), key), sortBooks: keys => G.sortBooks(current(), keys), lookupAllowed };
   const onDom = () => { updateButton(); updateFooterRG(); updateRGCalls(); };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", onDom); else onDom();

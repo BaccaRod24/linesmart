@@ -1042,6 +1042,23 @@ def fight_method_tests():
     check(split == "Islam Makhachev won by Decision - Split in round 5 at 5:00", f"split decision keeps the stored round ({split})")
 
 
+def age_notice_shell_tests():
+    """The 21+ dialog is in the static HTML so it paints before site.js. Generated pages copy that shell."""
+    index = (ROOT / "site" / "index.html").read_text()
+    head, body = index.split("</head>", 1)
+    check("ls-age-ok" in head and "age-dismissed" in head, "homepage hides a dismissed 21+ notice before first paint")
+    check(body.count('id="ageNotice"') == 1, "homepage has one static 21+ notice")
+    notice = body.split('id="ageNotice"', 1)[1].split("<svg", 1)[0]
+    check("1-800-GAMBLER" in notice and "tel:18004262537" in notice, "static notice keeps 1-800-GAMBLER")
+    check("1-833-PLAYWISE" in notice and "tel:18337529947" in notice, "static notice keeps the Florida 1-833-PLAYWISE line")
+    check("For adults 21 and over" in notice and "I'm 21 or older" in notice and "responsible-gambling.html" in notice, "static notice keeps the dialog copy and the responsible-gambling link")
+    sh = SP.Shell(index, SP.BASE_URL)
+    html = sh.page("nfl/games/example/", "Example", "Example game.", "<p>Game</p>", kind="game", lg="nfl")
+    check(html.count('id="ageNotice"') == 1, "generated game shell keeps exactly one static 21+ notice")
+    gnotice = html.split('id="ageNotice"', 1)[1].split('id="app"', 1)[0]
+    check("1-800-GAMBLER" in gnotice and "1-833-PLAYWISE" in gnotice and "tel:18004262537" in gnotice and "tel:18337529947" in gnotice, "generated game notice keeps both helplines")
+
+
 def state_date_tests():
     """The states index 'as of' is the build. The book-list date stays labeled as last verified."""
     doc = json.loads(json.dumps(SP.load_books()))
@@ -1774,6 +1791,7 @@ def schedule_retirement_tests():
 
 
 def main():
+    age_notice_shell_tests()
     board_link_tests()
     schedule_retirement_tests()
     keep_published_player_tests()

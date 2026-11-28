@@ -587,6 +587,15 @@ def summarize(gh, kind, league):
     pts = gh["books"][bk]; op = (gh.get("open") or {}).get(bk) or {}
     cur = pts[-1][1]
     out = dict(book=bk, since=pts[0][0], points=len(pts))
+    # First recorded snapshot. This is the line we actually saw, which can differ from ESPN's open.
+    first_pt = pts[0][1] if pts and isinstance(pts[0][1], dict) else {}
+    seen = {}
+    if first_pt.get("hs") is not None:
+        seen["spread"] = first_pt["hs"]
+    if first_pt.get("tot") is not None:
+        seen["total"] = first_pt["tot"]
+    if seen:
+        out["first"] = seen
     for key, label in (("hs", "spread"), ("tot", "total"), ("hml", "homeML"), ("aml", "awayML")):
         series = [p[1].get(key) for p in pts if p[1].get(key) is not None]
         o = op.get(key)

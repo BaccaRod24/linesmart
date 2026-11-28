@@ -39,6 +39,7 @@ import adv as ADV
 import linevalue as LV
 import lastgood as LG
 import reliability as REL
+import book_names as BN
 import final_label as FL
 import ncaaf_rankings as NR
 import standings as ST
@@ -237,7 +238,7 @@ def norm_odds(o):
         return ((d.get(side) or {}).get(when) or {}).get(field)
     hto, ato = o.get("homeTeamOdds") or {}, o.get("awayTeamOdds") or {}
     res = dict(
-        provider=prov.get("displayName") or prov.get("name"),
+        provider=BN.display_book(prov.get("displayName") or prov.get("name")),
         details=o.get("details"),
         homeML=american(g(ml, "home", "close", "odds")) if ml else american(hto.get("moneyLine")),
         awayML=american(g(ml, "away", "close", "odds")) if ml else american(ato.get("moneyLine")),
@@ -261,11 +262,8 @@ def norm_odds(o):
     return res
 
 def book_key_for(provider):
-    p = re.sub(r"[^a-z]", "", (provider or "").lower())
-    if "draftkings" in p: return "draftkings"
-    if "fanduel" in p: return "fanduel"
-    if "hardrock" in p: return "hardrockbet"
-    return None
+    """Map an ESPN/Odds API provider string onto one of our book columns. None for any other book."""
+    return BN.book_key(provider)
 
 # ---------------------------------------------------------------- per-league fetch
 def fetch_scoreboards(lg, days, now=None, fetch=None):

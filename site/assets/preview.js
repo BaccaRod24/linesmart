@@ -30,7 +30,26 @@
     }
     const slot = document.getElementById("pvOffers"); if (slot) slot.innerHTML = geo.offersHTML("preview");
   }
+  // Final, canceled, and postponed pages already say so. Their kickoff is in the past, and a final's
+  // box-score link uses .pv-live, so the "this game has started" banner would be wrong on a recap.
+  // Kept local to this file (a shared canceled/postponed helper lives on another branch).
+  function recap() {
+    const status = (document.querySelector(".pv-match .sx-status")?.textContent || "").replace(/\s+/g, " ").trim();
+    if (/^(canceled|cancelled)\b/i.test(status)) return "canceled";
+    if (/^postponed\b/i.test(status)) return "postponed";
+    if (/^(final\b|ft\b|ft-pens\b|aet\b)/i.test(status)) return "final";
+    const h1 = (document.querySelector("h1.pv-h1")?.textContent || "").replace(/\s+/g, " ");
+    if (/:\s*(canceled|cancelled)\b/i.test(h1)) return "canceled";
+    if (/:\s*postponed\b/i.test(h1)) return "postponed";
+    if (/final score|results\s*&\s*closing/i.test(h1)) return "final";
+    if (document.querySelector(".sx-result")) return "final";
+    const note = (document.querySelector(".noline")?.textContent || "").replace(/\s+/g, " ").trim();
+    if (/^canceled\b/i.test(note)) return "canceled";
+    if (/^postponed\b/i.test(note)) return "postponed";
+    return "";
+  }
   function started() {   // the static page can be up to one refresh old: point to the live page once the game starts
+    if (recap()) return;   // final recap (or canceled/postponed): leave the page's own state, no started banner
     const t = document.querySelector(".pv-match time[datetime]"); if (!t) return;
     const at = Date.parse(t.getAttribute("datetime"));
     if (!(at <= Date.now())) return;

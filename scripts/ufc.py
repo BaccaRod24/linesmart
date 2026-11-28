@@ -13,6 +13,7 @@ ESPN has no free fight props (method of victory / round betting): .../odds/100/p
 Each bout becomes a LineSmart "game": away = the fighter ESPN lists first (order 1, the red corner), home = order 2, so the
 existing line history, Hard Rock merge and bet tracker work unchanged. Weather, matchups and player props don't apply.
 """
+import book_names as BN
 import concurrent.futures as cf
 import datetime as dt
 import json
@@ -108,7 +109,7 @@ def parse_odds(o, away_id, home_id):
     if away_id not in sides and home_id not in sides: return None
     a, h = sides.get(away_id, (None, None)), sides.get(home_id, (None, None))
     cur, op = o.get("current") or {}, o.get("open") or {}
-    res = dict(provider=(o.get("provider") or {}).get("name") or "DraftKings", details=None,
+    res = dict(provider=BN.display_book((o.get("provider") or {}).get("name") or "DraftKings"), details=None,
                awayML=a[0], homeML=h[0], awayMLOpen=a[1], homeMLOpen=h[1],
                total=_num(o.get("overUnder")) if o.get("overUnder") is not None else _num(((cur.get("total") or {}).get("american"))),
                overOdds=american(o.get("overOdds")) or american(((cur.get("over") or {}).get("american"))),

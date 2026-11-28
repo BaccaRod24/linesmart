@@ -47,6 +47,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_pages  # noqa: E402
 import line_history as LH  # noqa: E402  (even-money-aware moneyline move, shared with the game page)
 import line_moves as LM  # noqa: E402  (verified open-to-current moves for /line-moves/)
+import book_names as BN  # noqa: E402  (Draft Kings -> DraftKings, Hard Rock -> Hard Rock Bet)
 import previews as pv  # noqa: E402  (formatting, odds tables, line movement, summaries, form/injury cards)
 import final_label as FL  # noqa: E402  ("Final/OT", "Final/12"... labels)
 import standings as ST_STAND  # noqa: E402  (ESPN standings cache written by build_data.py)
@@ -96,7 +97,7 @@ UNIT = {"football": "point", "basketball": "point", "hockey": "goal", "baseball"
 SUFFIX = " | LineSmart"
 TITLE_MAX = 60
 DESC_MAX = 155
-TITLE_BOOK = {"hardrockbet": "Hard Rock", "draftkings": "DraftKings", "fanduel": "FanDuel"}   # short names for titles/descriptions
+TITLE_BOOK = {"hardrockbet": "Hard Rock Bet", "draftkings": "DraftKings", "fanduel": "FanDuel"}   # names in descriptions and intros
 BOOK_TAG = {"hardrockbet": "HR", "draftkings": "DK", "fanduel": "FD"}   # table cells; ties read "DK, FD"
 # Game and player-prop snippets. The description spells the books out. The title uses the short form so the
 # matchup (or player), the date and the comparison still fit in TITLE_MAX. Order matches the way the pages are described.
@@ -487,13 +488,13 @@ def item_list(base_url, entries, name=None):
 
 
 def page_books(g, lg):
-    """Sportsbooks whose lines are actually shown in this page's odds table, in Hard Rock, DraftKings, FanDuel order.
+    """Sportsbooks whose lines are actually shown in this page's odds table, in Hard Rock Bet, DraftKings, FanDuel order.
     No live book columns: the ESPN fallback column counts only when its provider is one of our books. UFC: DraftKings only."""
     live = pv.live_books(g)
     keys = [k for k in pv.SUMMARY_BOOK_ORDER if k in live]
     if not keys and pv.has_line(g):
-        prov = ((g.get("odds") or {}).get("provider") or "").strip().lower()
-        keys = [k for k, n in pv.BOOKS if n.lower() == prov or TITLE_BOOK[k].lower() == prov]
+        key = BN.book_key((g.get("odds") or {}).get("provider"))
+        keys = [key] if key in TITLE_BOOK else []
     if lg == "ufc":
         keys = [k for k in keys if k == "draftkings"]
     return keys
@@ -882,6 +883,8 @@ class Shell:
         t = re.sub(r'(<script src="assets/app\.js[^"]*"[^>]*></script>)', r'<script src="assets/preview.js" defer></script>\n\1', t, count=1)
         if "\x00MAIN\x00" not in t or "\x00BODY\x00" not in t:
             raise SystemExit("seo_pages: site/index.html changed shape (main#app / body.app not found)")
+        if 'id="ageNotice"' not in t:
+            raise SystemExit("seo_pages: site/index.html is missing the static 21+ notice (#ageNotice)")
         self.t, self.base_url = t, base_url
 
     def page(self, path, title, desc, main, more="", kind="page", lg="", route="", ld=None, og_type="article", robots=None, gid="", pid="", lead="", seo_h1=""):
@@ -1457,11 +1460,11 @@ class League:
         sep = "vs" if g.get("neutral") else "at"
         return f"{na} {sep} {nh}"
 
-    def lines_brief(self, g):
-        """'PHI -6.5 · O/U 54.5' from the reference book."""
+    def lines_bits(self, g):
+        """Spread or moneyline, then the total, from the reference book. Each piece stays whole on a card."""
         _, b = pv.ref_book(g)
         if not b:
-            return ""
+            return []
         bits = []
         h, a = g["home"], g["away"]
         if self.kind in ("football", "basketball") and isnum(b.get("homeSpread")):
@@ -1472,7 +1475,11 @@ class League:
             bits.append(f"{fav.get('abbr') if self.lg != 'ufc' else (fav.get('last') or fav.get('short') or fav.get('name'))} {am(ml)}")
         if isnum(b.get("total")) and self.lg != "ufc":
             bits.append(f"O/U {num(b['total'])}")
-        return " · ".join(bits)
+        return bits
+
+    def lines_brief(self, g):
+        """'PHI -6.5 · O/U 54.5' from the reference book."""
+        return " · ".join(self.lines_bits(g))
 
     def score_line(self, g):
         a, h = g["away"], g["home"]
@@ -1959,7 +1966,7 @@ def _book_name(k, g=None):
     if k in TITLE_BOOK:
         return TITLE_BOOK[k]
     if k == "odds":
-        prov = ((g.get("odds") or {}).get("provider") or "").strip() if g else ""
+        prov = BN.display_book(((g.get("odds") or {}).get("provider") or "").strip()) if g else ""
         return prov or "ESPN"
     return pv.BOOK_NAME.get(k) or ""
 
@@ -3231,9 +3238,11 @@ def game_tile(L: League, gid, g, with_lg=False):
     logo = lambda t: f'<img class="hc-logo" src="{esc(pv.logo_src(t.get("logo"), 22))}" alt="" width="22" height="22" onerror="this.style.visibility=\'hidden\'">' if t.get("logo") else '<span class="hc-nologo"></span>'
     when = "LIVE" if g.get("state") == "in" else et(parse_dt(g["date"])).strftime("%-I:%M %p ET") if day_et(parse_dt(g["date"])) == day_et(L.now) else et(parse_dt(g["date"])).strftime("%a %-I:%M %p")
     nm = (lambda t: t.get("last") or t.get("short") or tname(t)) if L.lg == "ufc" else (lambda t: t.get("abbr") or tname(t))
+    bits = L.lines_bits(g)
+    line = "".join(f'<span class="hc-bit">{esc(b)}</span>' for b in bits) or "Lines soon"
     return (f'<a class="hc-card hc-game" href="{esc(L.paths[gid])}"><div class="hc-top">{lg_tag}<span class="hc-when{" live" if g.get("state") == "in" else ""}">{esc(when)}</span></div>'
             f'<div class="hc-tm">{logo(a)}<b>{esc(nm(a))}</b></div><div class="hc-tm">{logo(h)}<b>{esc(nm(h))}</b></div>'
-            f'<div class="hc-line">{esc(L.lines_brief(g) or "Lines soon")}</div></a>')
+            f'<div class="hc-line">{line}</div></a>')
 
 
 def move_tile(x, Ls):
@@ -4579,7 +4588,7 @@ def best_lines_page(Ls, sh: Shell, now, base_url):
         if lg not in seen_lg:
             seen_lg.append(lg)
     league_s = and_list(NAMES[lg] for lg in seen_lg) if seen_lg else "the sports we cover"
-    book_s = "Hard Rock, DraftKings and FanDuel"
+    book_s = "Hard Rock Bet, DraftKings and FanDuel"
     if not rows:
         meta = f"Best spread, total and moneyline across {book_s}. The page fills in when books post a line. Odds for reference; 21+."
     elif nxt:
@@ -4588,7 +4597,7 @@ def best_lines_page(Ls, sh: Shell, now, base_url):
         meta = f"Best spread, total and moneyline for {plural(n, 'game')} today across {book_s}: {league_s}. Odds for reference; 21+."
     desc = cut(meta)
     intro = (
-        f"{plural(n, 'game')} on {day_label} have lines posted at Hard Rock, DraftKings or FanDuel. "
+        f"{plural(n, 'game')} on {day_label} have lines posted at Hard Rock Bet, DraftKings or FanDuel. "
         "For each game, the table shows the best available number and price for each side and which book has it. "
         "Odds change quickly and are for reference only; confirm in the sportsbook app. "
         'Book availability depends on your state (<a href="states/">see states</a>). 21+.'

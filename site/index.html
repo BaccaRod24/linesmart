@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <script>document.documentElement.classList.add("ls-js")</script>
+<script>
+try{if(localStorage.getItem("ls-age-ok"))document.documentElement.classList.add("age-dismissed");else document.documentElement.classList.add("age-open")}catch(e){document.documentElement.classList.add("age-open")}
+</script>
 <meta name="google-site-verification" content="3lyBfOgne-TNZGThZi2Td8dj8MLspp56974uH4BrARA" />
 <meta name="theme-color" content="#050b1c">
 <meta name="ls-build-label" content="dev">
@@ -42,6 +45,20 @@
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://linesmart.app/#org","name":"LineSmart","alternateName":"Line Smart","url":"https://linesmart.app/","logo":"https://linesmart.app/assets/brand/apple-touch-icon.png","email":"contact@linesmart.app","sameAs":["https://x.com/LineSmartApp","https://www.youtube.com/@LineSmartApp"]},{"@type":"WebSite","@id":"https://linesmart.app/#site","name":"LineSmart","alternateName":"Line Smart","url":"https://linesmart.app/","publisher":{"@id":"https://linesmart.app/#org"},"inLanguage":"en-US"}]}</script>
 </head>
 <body class="app">
+<div class="age-wrap" id="ageNotice"><div class="age-backdrop"></div>
+      <div class="age-sheet" role="dialog" aria-modal="true" aria-labelledby="ageTitle" aria-describedby="ageDesc">
+        <div class="age-badge" aria-hidden="true">21+</div>
+        <h2 id="ageTitle">For adults 21 and over</h2>
+        <div id="ageDesc">
+          <p>LineSmart shows sports betting odds and stats for people 21+ where sports betting is legal. We don't take bets. Odds are for reference only.</p>
+          <p class="age-help">Gambling problem? <span data-rg-call>Call or text <a href="tel:18004262537">1-800-GAMBLER</a>. In Florida: <a href="tel:18337529947">1-833-PLAYWISE</a>.</span></p>
+        </div>
+        <div class="age-actions">
+          <button type="button" class="age-ok" id="ageOk">I'm 21 or older</button>
+          <a class="age-more" href="responsible-gambling.html">Responsible gambling</a>
+        </div>
+        <p class="age-fine">If you're under 21, please leave this site.</p>
+      </div></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
 <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.8 9.6v9.9h12.4V9.6"/><path d="M10 19.5v-5h4v5"/></symbol>
 <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>

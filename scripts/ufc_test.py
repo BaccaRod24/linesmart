@@ -32,6 +32,9 @@ check("picks: past before upcoming, chronological", [p[2] for p in picks] == sor
 od = J("odds_next")["items"][0]
 o = UF.parse_odds(od, "3028863", "5144007")
 check("odds provider", o and o["provider"] == "DraftKings", o)
+spaced = json.loads(json.dumps(od))
+spaced["provider"]["name"] = "Draft Kings"
+check("espn Draft Kings spelling", UF.parse_odds(spaced, "3028863", "5144007")["provider"] == "DraftKings")
 check("odds Moicano open +102", o["awayMLOpen"] == 102, o)
 check("odds Nolan open -122", o["homeMLOpen"] == -122, o)
 check("odds total rounds 1.5", o["total"] == 1.5 and o["overOdds"] == -210 and o["underOdds"] == 160, o)

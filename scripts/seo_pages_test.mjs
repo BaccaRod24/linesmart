@@ -133,6 +133,14 @@ try {
         label: (d.querySelector("h2") || {}).textContent.replace(/\s+/g, " ").trim() };
     });
     check(hubFold && hubFold.open === false && hubFold.n > 0 && /\(\d+\)/.test(hubFold.label) && hubFold.h >= 44, `hub week list starts collapsed, links in the HTML, tap target ${hubFold && hubFold.h}px (${hubFold && hubFold.label})`);
+    const weekPos = await page.evaluate(() => {
+      const week = document.querySelector(".sx-week");
+      const app = document.getElementById("app");
+      if (!week || !app) return null;
+      const before = (week.compareDocumentPosition(app) & Node.DOCUMENT_POSITION_PRECEDING) !== 0;
+      return { before, links: week.querySelectorAll("a[href]").length };
+    });
+    check(weekPos && weekPos.before && weekPos.links > 0, `hub week list stays below #app after hydration (${weekPos && weekPos.links} links)`);
     // tapping a tile goes to the game's page
     await page.click(`#app a.game[href="${gpath}"]`);
     await page.waitForURL(u => u.pathname === "/" + gpath, { timeout: 10000 }).catch(() => {});

@@ -212,12 +212,12 @@
     return `<span class="status">${timeET(g.date)}</span>`;
   }
 
-  function teamRow(t, g, side, kind) {
+  function teamRow(t, g, side, kind, showOdds = true) {
     const o = g.odds, held = heldGame(g), showScore = !held && g.state !== "pre" && t.score != null;
     const other = side === "home" ? g.away : g.home;
     const lose = !held && g.state === "post" && isNum(t.score) && isNum(other.score) && +t.score < +other.score;
     let chips = "";
-    if (o) {
+    if (showOdds && o) {
       const tot = side === "away" ? chip(isNum(o.total) ? "O " + fx(o.total, 1) : null, am(o.overOdds), totalArrow(g))
                                   : chip(isNum(o.total) ? "U " + fx(o.total, 1) : null, am(o.underOdds));
       chips = kind === "soccer" ? chip(am(o[side + "ML"])) + tot
@@ -233,29 +233,79 @@
     const s = g.live && g.state === "in" && g.live.situation;
     return s && s.text ? `<div class="${cls}${s.redZone ? " rz" : ""}">${esc(s.text)}</div>` : "";
   }
+  const CARD_BOOKS = [
+    { key: "hardrockbet", short: "Hard Rock", name: "Hard Rock Bet" },
+    { key: "draftkings", short: "DraftKings", name: "DraftKings" },
+    { key: "fanduel", short: "FanDuel", name: "FanDuel" },
+  ];
+  const bookHasLine = b => !!(b && (isNum(b.homeSpread) || isNum(b.awaySpread) || isNum(b.homeML) || isNum(b.awayML) || isNum(b.drawML) || isNum(b.total)));
+  // A posted pre-game line. Stale Odds API copies (game already started) are not shown as live prices.
+  // DraftKings falls back to the ESPN line when that is the only copy we have.
+  function postedBook(g, key) {
+    const b = (g.books || {})[key];
+    if (b && !b.stale && bookHasLine(b)) return b;
+    if (key === "draftkings" && !(b && b.stale) && g.odds && bookHasLine(g.odds)) {
+      const pk = GEO() ? GEO().providerKey(g.odds.provider) : "";
+      if (pk === "draftkings" || /draft/i.test(g.odds.provider || "")) return g.odds;
+    }
+    return null;
+  }
+  function booksGrid(g, kind) {
+    const order = sortByState(CARD_BOOKS.map(b => b.key)).map(k => CARD_BOOKS.find(b => b.key === k));
+    const soccer = kind === "soccer", mma = kind === "mma";
+    const mv = (moveOf(g) || {}).book;
+    const abbr = t => t.abbr || t.short || "";
+    const ln = (main, sub) => `<span class="bk3-ln"><b>${main}</b>${sub ? `<small>${sub}</small>` : ""}</span>`;
+    const cell = (rows, na) => (!rows || !rows.length
+      ? `<span class="bk3-c na-oc${na}">—</span>`
+      : `<span class="bk3-c${na}">${rows.join("")}</span>`);
+    const head = order.map(bk => {
+      const naTxt = bookAvail(bk.key) ? "" : (GEO() ? GEO().naLabel(bk.key) : "");
+      const na = naTxt ? " is-na" : "";
+      return `<span class="bk3-bk${na}" title="${esc(naTxt ? `${bk.name}. ${naTxt}` : bk.name)}">${esc(bk.short)}${naTxt ? `<span class="sr-only"> (${esc(naTxt)})</span>` : ""}</span>`;
+    }).join("");
+    const markets = [];
+    if (!soccer && !mma) markets.push(["Spread", b => {
+      const rows = [];
+      if (isNum(b.awaySpread)) rows.push(ln(`${esc(abbr(g.away))} ${line(b.awaySpread)}${b === postedBook(g, mv) ? spreadArrow(g, "away") : ""}`, am(b.awaySpreadOdds)));
+      if (isNum(b.homeSpread)) rows.push(ln(`${esc(abbr(g.home))} ${line(b.homeSpread)}${b === postedBook(g, mv) ? spreadArrow(g, "home") : ""}`, am(b.homeSpreadOdds)));
+      return rows;
+    }]);
+    markets.push([soccer ? "1X2" : "Money", b => {
+      const rows = [];
+      if (isNum(b.awayML)) rows.push(ln(`${esc(abbr(g.away))} ${am(b.awayML)}`, ""));
+      if (soccer && isNum(b.drawML)) rows.push(ln(`Draw ${am(b.drawML)}`, ""));
+      if (isNum(b.homeML)) rows.push(ln(`${esc(abbr(g.home))} ${am(b.homeML)}`, ""));
+      return rows;
+    }]);
+    if (!mma) markets.push(["Total", b => {
+      if (!isNum(b.total)) return [];
+      const arrow = b === postedBook(g, mv) ? totalArrow(g) : "";
+      return [ln(`O ${fx(b.total, 1)}${arrow}`, am(b.overOdds)), ln(`U ${fx(b.total, 1)}`, am(b.underOdds))];
+    }]);
+    const body = markets.map(([lab, fn]) => `<div class="bk3-r"><span class="bk3-lab">${esc(lab)}</span>${order.map(bk => {
+      const b = postedBook(g, bk.key);
+      const na = bookAvail(bk.key) ? "" : " is-na";
+      return cell(b ? fn(b) : [], na);
+    }).join("")}</div>`).join("");
+    return `<div class="bk3" role="group" aria-label="Hard Rock Bet, DraftKings and FanDuel"><div class="bk3-h"><span></span>${head}</div>${body}</div>`;
+  }
   function gameTile(g, key, kind, home = false) {
     TILES[`${key}/${g.id}`] = { g, kind, home: !!home }; g = liveG(key, g);
     const o = g.odds, soccer = kind === "soccer";
-    const cols = !o ? [] : soccer ? ["1X2", "Total"] : [spreadLabelOf(kind), "Money", "Total"];
-    const head = cols.length ? `<div class="gt-head"><span></span><span></span><span></span>${cols.map(c => `<span>${esc(c)}</span>`).join("")}</div>` : "";
-    const draw = soccer && o ? `<div class="trow draw"><span class="tl"></span><div class="tn"><div class="tname">Draw</div></div><div class="tscore"></div>${chip(am(o.drawML))}<span></span></div>` : "";
-    const live = k => { const b = (g.books || {})[k]; return b && !b.stale && b.asOf; };   // pre-game Odds API line (Hard Rock / FanDuel)
+    const priced = !!(o || CARD_BOOKS.some(b => postedBook(g, b.key)));
     const mv = moveOf(g), hasMv = mv && (mv.spread || mv.total);
     const wx = window.LSWeather && g.state !== "post" ? window.LSWeather.chip(g) : "";
-    const pk = GEO() ? GEO().providerKey(o && o.provider) : null, pNa = pk && !bookAvail(pk) ? GEO().naLabel(pk) : "";
-    const pTag = o ? `<span class="bk${pNa ? " bk-na" : ""}"${pNa ? ` title="${esc(pNa)}"` : ""}>${esc(bookLabel(o.provider) || "provider n/a")}${pNa ? `<span class="sr-only"> (${esc(pNa)})</span>` : ""}</span>` : "", altTag = (k, cls, name) => { if (!live(k)) return ""; const na = bookAvail(k) ? "" : GEO().naLabel(k);
-      return `<span class="bk ${cls}${na ? " bk-na" : ""}"${na ? ` title="${esc(na)}"` : ""}>${name}${na ? `<span class="sr-only"> (${esc(na)})</span>` : ""}</span>`; };
-    // legal-in-your-state books first (Florida: Hard Rock Bet, then the dimmed DraftKings / FanDuel)
-    const tags = [[pk || "espn", pTag], ["hardrockbet", altTag("hardrockbet", "hr", "Hard Rock Bet")], ["fanduel", altTag("fanduel", "fd", "FanDuel")]]
-      .sort((a, b) => (bookAvail(b[0]) ? 1 : 0) - (bookAvail(a[0]) ? 1 : 0)).map(t => t[1]).join("");
-    const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}">${tags}${sparks(g)}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
-                   : `<div class="noline">Lines not posted yet</div>${wx ? `<div class="tfoot has-wx wx-only">${wx}</div>` : ""}`;
+    const extra = `${sparks(g)}${hasMv ? `<span class="hint">▲▼ move since open</span>` : soccer && priced ? `<span class="hint">3-way moneyline</span>` : ""}${wx}`;
+    const foot = priced
+      ? (extra ? `<div class="tfoot${wx ? " has-wx" : ""}">${extra}</div>` : "")
+      : `<div class="noline">Lines not posted yet</div>${wx ? `<div class="tfoot has-wx wx-only">${wx}</div>` : ""}`;
     const net = esc([g.note, (g.broadcasts || []).slice(0, 2).join(", ")].filter(Boolean).join(" · "));
     const links = home ? tileLinks(key, g.id) : "";
-    const bell = window.LSAlerts && o ? window.LSAlerts.tileBell(key, g) : "", pv = previewLink(key, g), wrap = bell || pv || links;
-    return `${wrap ? `<div class="gwrap${pv ? " has-pv" : ""}${bell ? " has-bell" : ""}${links ? " has-ps" : ""}">` : ""}<a class="game c${cols.length}${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
+    const bell = window.LSAlerts && priced ? window.LSAlerts.tileBell(key, g) : "", pv = previewLink(key, g), wrap = bell || pv || links;
+    return `${wrap ? `<div class="gwrap${pv ? " has-pv" : ""}${bell ? " has-bell" : ""}${links ? " has-ps" : ""}">` : ""}<a class="game c0${g.state === "in" ? " is-live" : ""}" href="#/g/${key}/${g.id}" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
       <div class="game-top">${statusHtml(g)}${g.state === "pre" ? notableBadge(g) : ""}<span class="net">${net}</span></div>
-      ${head}${teamRow(g.away, g, "away", kind)}${draw}${teamRow(g.home, g, "home", kind)}${sitLine(g)}${foot}${o ? pkTile(g, kind) : ""}</a>${wrap ? `${links}${bell}${pv}</div>` : ""}`;
+      ${teamRow(g.away, g, "away", kind, false)}${teamRow(g.home, g, "home", kind, false)}${sitLine(g)}${priced ? booksGrid(g, kind) : ""}${foot}${priced ? pkTile(g, kind) : ""}</a>${wrap ? `${links}${bell}${pv}</div>` : ""}`;
   }
 
   // ---------- live scores: hero, box score, poller wiring

@@ -125,6 +125,19 @@ button{font-family:inherit}
 .tfoot .bk.hr::before{background:var(--hr)}
 .tfoot .bk.fd::before{background:#1493ff}
 .tfoot .hint{margin-left:auto}
+/* Three books on a league card. Columns shrink to the card so 390px does not scroll sideways. */
+.bk3{margin-top:8px;min-width:0}
+.bk3-h,.bk3-r{display:grid;grid-template-columns:42px repeat(3,minmax(0,1fr));column-gap:4px;align-items:stretch}
+.bk3-h{margin-bottom:3px}
+.bk3-bk{font-size:9px;font-weight:800;line-height:1.15;text-align:center;color:var(--mute);padding-top:1px}
+.bk3-bk.is-na,.bk3-c.is-na{opacity:.48}
+.bk3-lab{font-size:9px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;color:var(--dim);align-self:center}
+.bk3-c{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;min-height:34px;padding:4px 2px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--tint) 3.5%,transparent)}
+.bk3-c.na-oc{color:var(--dim);font-weight:700;font-size:13px}
+.bk3-ln{display:flex;flex-direction:column;align-items:center;line-height:1.05;max-width:100%}
+.bk3-ln b{font-size:11.5px;font-weight:750;white-space:nowrap;font-variant-numeric:tabular-nums}
+.bk3-ln small{font-size:10px;color:var(--dim);font-weight:650;font-variant-numeric:tabular-nums}
+.bk3-r+.bk3-r{margin-top:4px}
 /* pick'em note: books disagree on the spread favorite in a close game (pickem-core.js) */
 .pk-note{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:11.5px;font-weight:600;color:var(--mute);line-height:1.4}
 .pk-note::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;border:1.5px solid var(--accent2);background:color-mix(in srgb,var(--accent2) 22%,transparent)}

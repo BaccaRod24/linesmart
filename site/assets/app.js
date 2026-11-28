@@ -336,6 +336,25 @@
   const skelLeague = () => `<div class="loading" aria-busy="true"><span class="sr-only">Loading games…</span><div class="skel-head"><span class="sk"></span><span class="sk"></span></div><div class="grid">${skTile.repeat(6)}</div></div>`;
   const skelGame = () => `<div class="loading" aria-busy="true"><span class="sr-only">Loading matchup…</span><span class="sk skel-hero"></span><div class="skel-cols"><span class="sk"></span><span class="sk"></span></div></div>`;
   const showSkel = html => { if (!app.querySelector(".loading")) app.innerHTML = html; };
+  // A generated game page already paints its article, with section.seo-more after #app.
+  // Swapping in the short skeleton pulls that block into the viewport and back out (desktop CLS ~0.37).
+  // Keep the static height until the live view is ready, then drop the lock only if the new view is at least as tall.
+  function holdAppBox() {
+    if (!app || app.dataset.lsHold) return;
+    const h = Math.ceil(app.getBoundingClientRect().height);
+    if (h < 240) return;
+    app.style.minHeight = h + "px";
+    app.dataset.lsHold = "1";
+  }
+  function releaseAppBox() {
+    if (!app || !app.dataset.lsHold) return;
+    const locked = parseFloat(app.style.minHeight) || 0;
+    app.style.minHeight = "";
+    const natural = app.offsetHeight;
+    if (natural + 2 >= locked) delete app.dataset.lsHold;
+    else app.style.minHeight = locked + "px";
+  }
+  const seoGameHere = (key, id) => !!(document.querySelector(".seo-more") && PAGE_ROUTE === `g/${key}/${id}` && app && app.querySelector("article, .seo-head"));
   const teamColor = (t, fb) => (/^[0-9a-f]{6}$/i.test(t.color || "") ? "#" + t.color : fb);
 
   // ---------- home: scores ticker + "Today's slate" (meta.slate from scripts/slate.py; falls back to meta counts)
@@ -825,7 +844,11 @@
     rememberLg(key);
     renderTabs(key);
     const file = `data/${key}/games/${id}.json`;
-    if (!cache[file]) { showSkel(skelGame()); window.scrollTo(0, 0); }
+    const keepStatic = seoGameHere(key, id);
+    if (!cache[file]) {
+      if (keepStatic) holdAppBox();
+      else { showSkel(skelGame()); window.scrollTo(0, 0); }
+    }
     let d, idx;
     try { idx = await getJSON(`data/${key}/index.json`); }
     catch (e) { idx = null; }
@@ -837,19 +860,22 @@
       catch (e) { d = null; }
     }
     if (!d || !idx) {
-      if (focus === "box" && key !== "ufc") return viewBoxRemote(key, id);
-      return (app.innerHTML = `<a class="back" href="#/l/${key}">← Back</a><div class="empty"><h3>Game not found</h3>It may have dropped out of the data window. Refresh the data.</div>`);
+      if (focus === "box" && key !== "ufc") { await viewBoxRemote(key, id); releaseAppBox(); return; }
+      app.innerHTML = `<a class="back" href="#/l/${key}">← Back</a><div class="empty"><h3>Game not found</h3>It may have dropped out of the data window. Refresh the data.</div>`;
+      releaseAppBox();
+      return;
     }
     if (idx.league.kind === "mma" && window.LSUfc) {
       const at = location.hash;
       await window.LSUfc.fight(d, idx, key, focus);
       if (location.hash === at) addStale(d.game.stale, "fight details");
+      releaseAppBox();
       return;
     }
     const g0 = d.game, det = d.detail || {}, kind = idx.league.kind;
     const g = liveG(key, g0);
     if (focus === "box" && kind !== "mma" && heldGame(g)) focus = "";
-    if (focus === "box" && kind !== "mma") return showBox(key, id, idx.league.full, g0, g, det, kind);
+    if (focus === "box" && kind !== "mma") { await showBox(key, id, idx.league.full, g0, g, det, kind); releaseAppBox(); return; }
     const H = g.home, A = g.away;
     const held = heldGame(g);
     const mid = held
@@ -874,6 +900,7 @@
       if (tok !== NAV) return;
       html += matchupPanel(key, g, d, kind, roster);
       app.innerHTML = html;
+      releaseAppBox();
       linkLeaders(key, NAV);
       window.scrollTo(0, 0);
       const km = document.getElementById("keyMu");
@@ -899,6 +926,7 @@
     if (window.LSProps && focus !== "props") html += window.LSProps.gameSlot(key, g);
     if (window.LSWeather) html += window.LSWeather.section(g, kind);
     app.innerHTML = html;
+    releaseAppBox();
     lm.wire();
     window.scrollTo(0, 0);
     wireLive();

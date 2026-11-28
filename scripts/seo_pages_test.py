@@ -1047,16 +1047,19 @@ def age_notice_shell_tests():
     index = (ROOT / "site" / "index.html").read_text()
     head, body = index.split("</head>", 1)
     check("ls-age-ok" in head and "age-dismissed" in head, "homepage hides a dismissed 21+ notice before first paint")
+    check("html.age-dismissed #ageNotice{display:none}" in head, "dismissed notice is hidden before styles.css loads")
     check(body.count('id="ageNotice"') == 1, "homepage has one static 21+ notice")
     notice = body.split('id="ageNotice"', 1)[1].split("<svg", 1)[0]
     check("1-800-GAMBLER" in notice and "tel:18004262537" in notice, "static notice keeps 1-800-GAMBLER")
     check("1-833-PLAYWISE" in notice and "tel:18337529947" in notice, "static notice keeps the Florida 1-833-PLAYWISE line")
     check("For adults 21 and over" in notice and "I'm 21 or older" in notice and "responsible-gambling.html" in notice, "static notice keeps the dialog copy and the responsible-gambling link")
+    check('getElementById("ageOk")' in notice and "touchend" in notice and "pointerup" in notice and 'localStorage.setItem("ls-age-ok",new Date().toISOString())' in notice, "static notice binds confirm on click, touchend, and pointerup before site.js")
     sh = SP.Shell(index, SP.BASE_URL)
     html = sh.page("nfl/games/example/", "Example", "Example game.", "<p>Game</p>", kind="game", lg="nfl")
-    check(html.count('id="ageNotice"') == 1, "generated game shell keeps exactly one static 21+ notice")
+    check(html.count('id="ageNotice"') == 1 and html.count('id="ageOk"') == 1, "generated game shell keeps exactly one static 21+ notice")
     gnotice = html.split('id="ageNotice"', 1)[1].split('id="app"', 1)[0]
     check("1-800-GAMBLER" in gnotice and "1-833-PLAYWISE" in gnotice and "tel:18004262537" in gnotice and "tel:18337529947" in gnotice, "generated game notice keeps both helplines")
+    check("touchend" in gnotice and "pointerup" in gnotice and 'localStorage.setItem("ls-age-ok",new Date().toISOString())' in gnotice, "generated pages keep the early confirm binding")
 
 
 def state_date_tests():

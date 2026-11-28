@@ -7,6 +7,7 @@
 <script>
 try{if(localStorage.getItem("ls-age-ok"))document.documentElement.classList.add("age-dismissed");else document.documentElement.classList.add("age-open")}catch(e){document.documentElement.classList.add("age-open")}
 </script>
+<style>html.age-dismissed #ageNotice{display:none}</style>
 <meta name="google-site-verification" content="3lyBfOgne-TNZGThZi2Td8dj8MLspp56974uH4BrARA" />
 <meta name="theme-color" content="#050b1c">
 <meta name="ls-build-label" content="dev">
@@ -59,6 +60,40 @@ try{if(localStorage.getItem("ls-age-ok"))document.documentElement.classList.add(
         </div>
         <p class="age-fine">If you're under 21, please leave this site.</p>
       </div></div>
+<script>
+(function(){
+  var btn=document.getElementById("ageOk"),wrap=document.getElementById("ageNotice");
+  if(!btn||!wrap||btn.dataset.lsAge)return;
+  btn.dataset.lsAge="1";
+  var done=false;
+  function dismiss(e){
+    if(e&&e.type!=="click"){
+      if(e.cancelable)e.preventDefault();
+      e.stopPropagation();
+      if(!done){
+        var block=function(ev){ev.preventDefault();ev.stopPropagation();};
+        document.addEventListener("click",block,true);
+        setTimeout(function(){document.removeEventListener("click",block,true);},700);
+      }
+    }
+    if(done)return;
+    done=true;
+    try{localStorage.setItem("ls-age-ok",new Date().toISOString());}catch(err){}
+    window.__lsAgeDismissed=true;
+    var locked=document.querySelectorAll("[inert]");
+    for(var i=0;i<locked.length;i++)locked[i].removeAttribute("inert");
+    if(wrap.parentNode)wrap.remove();
+    var root=document.documentElement;
+    root.classList.remove("age-open","age-locked");
+    root.classList.add("age-dismissed");
+    root.style.overflow="";
+    if(document.body)document.body.style.overflow="";
+  }
+  btn.addEventListener("click",dismiss);
+  btn.addEventListener("touchend",dismiss,{passive:false});
+  btn.addEventListener("pointerup",function(e){if(e.pointerType==="mouse")return;dismiss(e);});
+})();
+</script>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
 <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.8 9.6v9.9h12.4V9.6"/><path d="M10 19.5v-5h4v5"/></symbol>
 <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>

@@ -52,6 +52,7 @@ button{font-family:inherit}
 .updated{margin-left:auto;display:inline-flex;align-items:center;gap:8px;color:var(--mute);font-size:12.5px;font-weight:500;white-space:nowrap;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--tint) 2%,transparent)}
 .updated:empty{display:none}
 .updated .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+.updated .u-short{display:none}
 .install-btn{flex:none;height:36px;padding:0 15px;border-radius:999px;border:0;background:var(--accent);color:var(--accent-ink);font:700 13px var(--font);cursor:pointer;transition:transform .15s var(--ease),filter .15s}
 .install-btn:hover{filter:brightness(1.08)}.install-btn:active{transform:scale(.97)}
 .install-btn[hidden],.offline-note[hidden]{display:none}
@@ -272,7 +273,6 @@ td.pos{color:var(--pos);font-weight:650}td.neg{color:var(--neg);font-weight:650}
   .brand-tag{display:none}
   .brand-logo{height:26px}
   .updated{font-size:11.5px;padding:5px 10px}
-  .updated .u-long{display:none}
   .install-btn{height:34px;padding:0 13px}
   .page-head{margin:22px 0 14px}
   .page-head h1{font-size:24px}
@@ -2281,12 +2281,32 @@ body::before{opacity:.55}
 /* The tagline gives way once the update stamp is in the bar, so the music button and the other controls stay inside the header. */
 .topbar-inner:has(.updated:not(:empty)) .brand-tag{display:none}
 @media (max-width:1400px) and (min-width:761px){
-  .updated .u-long{display:none}
   .topbar-inner{gap:8px}
   .search-btn{padding:0 10px 0 8px;gap:6px}
 }
 @media (max-width:1180px) and (min-width:761px){.top-about{display:none}}
 .updated{font-size:12px;padding:5px 11px}
+/* The stamp is the last odds refresh, not a live clock. Wide screens say "Odds updated 7:45 AM ET".
+   Narrower desktops drop "Odds" once the header has no spare gap. Phones say "Updated 7:45 AM".
+   title and aria-label always keep the full "Odds updated … ET" line, including the date. */
+.updated .u-short{display:none}
+@media (max-width:1099px){
+  .updated .u-long{display:none}
+  .updated .u-short{display:inline}
+}
+@media (max-width:969px) and (min-width:761px){
+  .updated .u-short{display:none}
+}
+@media (max-width:760px){
+  .updated{font-size:11px;padding:4px 8px;gap:5px}
+  .updated .u-long,.updated .u-tz{display:none}
+  .updated .u-short{display:inline}
+}
+@media (max-width:480px){
+  .topbar-inner{gap:6px}
+  .brand-logo{height:22px}
+  .search-btn.state-btn{margin-left:0}
+}
 
 /* headings: one scale, solid ink (sharper than the gradient fill) */
 .page-head h1{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--txt);font-size:var(--fs-2xl);letter-spacing:-.03em;line-height:1.12}

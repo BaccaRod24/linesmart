@@ -251,7 +251,7 @@ try {
     await ctx.close();
   }
 
-  // Compact phone sheet. Same words and helplines; desktop card stays the previous size.
+  // Compact sheet (m3): same words and helplines, no backdrop blur, about a quarter of a phone screen.
   {
     const measure = async (w, h) => {
       const ctx = await chrome.newContext({ viewport: { width: w, height: h } });
@@ -279,19 +279,22 @@ try {
           tels: [...sheet.querySelectorAll("a[href^='tel:']")].map(a => a.getAttribute("href")),
           foot: (document.querySelector(".footer .rg.fl") || {}).textContent || "",
           stored: localStorage.getItem("ls-age-ok"),
+          blur: getComputedStyle(document.querySelector(".age-backdrop")).backdropFilter,
         };
       });
       await ctx.close();
       return m;
     };
     const phone = await measure(390, 844);
-    check(phone.stored == null && phone.h < 280 && phone.h / phone.vh < 0.34, `phone sheet stays under a third of the screen (${Math.round(phone.h)}px, ${(100 * phone.h / phone.vh).toFixed(0)}%)`);
+    const pct = 100 * phone.h / phone.vh;
+    check(phone.stored == null && phone.h / phone.vh <= 0.33, `phone sheet stays near a quarter of the screen (${Math.round(phone.h)}px, ${pct.toFixed(1)}%)`);
+    check(phone.blur === "none", `phone backdrop has no blur (${phone.blur})`);
     check(phone.h2 === "For adults 21 and over" && phone.body === "LineSmart shows sports betting odds and stats for people 21+ where sports betting is legal. We don't take bets. Odds are for reference only." && phone.help === "Gambling problem? Call or text 1-800-GAMBLER. In Florida: 1-833-PLAYWISE." && phone.ok === "I'm 21 or older" && phone.more === "Responsible gambling" && phone.fine === "If you're under 21, please leave this site.", "compact sheet wording unchanged");
     check(phone.tels[0] === "tel:18004262537" && phone.tels[1] === "tel:18337529947", `compact sheet helpline links unchanged (${phone.tels})`);
-    check(parseFloat(phone.helpfs) >= 13 && parseFloat(phone.helpfs) <= 13.5 && parseFloat(phone.finefs) >= 12.5 && phone.okH >= 44, `phone type stays readable (help ${phone.helpfs}, fine ${phone.finefs}, button ${Math.round(phone.okH)}px)`);
-    check(/1-888-ADMIT-IT/.test(phone.foot) && /1-833-PLAYWISE/.test(phone.foot), "footer Florida helplines unchanged");
+    check(parseFloat(phone.helpfs) === 13 && parseFloat(phone.finefs) === 13 && phone.okH >= 44 && phone.okH <= 52, `phone type stays readable (help ${phone.helpfs}, fine ${phone.finefs}, button ${Math.round(phone.okH)}px)`);
+    check(/1-888-ADMIT-IT/.test(phone.foot) && /1-833-PLAYWISE/.test(phone.foot) && /1-800-GAMBLER/.test(phone.help), "1-800-GAMBLER, 1-833-PLAYWISE and 1-888-ADMIT-IT stay");
     const desk = await measure(1280, 800);
-    check(desk.h2fs === "21px" && desk.pad === "26px 24px 20px" && desk.helpfs === "15px" && desk.finefs === "15px" && desk.h >= 340 && desk.h <= 420, `desktop card unchanged (${desk.h2fs}, ${desk.pad}, help ${desk.helpfs}, ${Math.round(desk.h)}px)`);
+    check(desk.blur === "none" && desk.h2fs === "17px" && desk.helpfs === "13px" && desk.finefs === "13px" && desk.h < 320, `desktop card is the same compact sheet (${desk.h2fs}, help ${desk.helpfs}, ${Math.round(desk.h)}px, blur ${desk.blur})`);
   }
 } finally {
   await chrome.close();

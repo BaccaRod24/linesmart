@@ -4632,26 +4632,36 @@ def best_lines_page(Ls, sh: Shell, now, base_url):
     return sh.page(path, title, desc, main, more, kind="lines", route="", ld=ld, robots="index,follow", og_type="website"), title
 
 
-def home_cards(Ls, now):
-    """Mobile-first strip for the top of the homepage: today's top games, biggest moves, hot props. Links only to real URLs."""
-    today = day_et(now)
-    tops = []
-    for pri, lg in enumerate(ORDER):
+# Shown next to "Top games today". Live games, then kickoff. League priority is only a same-time tie-break.
+TOP_ORDER_LABEL = "Live first, then kickoff (ET)"
+
+
+def top_game_picks(Ls, now, n=8):
+    """Homepage strip: in-progress games first, then by kickoff time.
+
+    A same kickoff is ordered by league (NFL before NBA, and so on), then game id.
+    Games with no posted line stay off the strip unless they are live.
+    """
+    rows = []
+    for lg in ORDER:
         L = Ls.get(lg)
         if not L:
             continue
+        pri = ORDER.index(lg)
         for gid, g in upcoming(L):
-            dt = parse_dt(g["date"])
+            dt = parse_dt(g.get("date"))
+            if not dt:
+                continue
             if pv.has_line(g) or g.get("state") == "in":
-                tops.append((day_et(dt) != today, dt > now + timedelta(hours=36), pri, dt, lg, gid, g))
-    tops.sort(key=lambda x: x[:4])
-    seen_lg, top = {}, []
-    for x in tops:          # spread across leagues: at most 3 per league in the first pass
-        if seen_lg.get(x[4], 0) < 3:
-            top.append(x)
-            seen_lg[x[4]] = seen_lg.get(x[4], 0) + 1
-        if len(top) >= 8:
-            break
+                rows.append((0 if g.get("state") == "in" else 1, dt, pri, str(gid), lg, gid, g))
+    rows.sort(key=lambda x: x[:4])
+    return rows[:n]
+
+
+def home_cards(Ls, now):
+    """Mobile-first strip for the top of the homepage: today's top games, biggest moves, hot props. Links only to real URLs."""
+    today = day_et(now)
+    top = top_game_picks(Ls, now)
     moves = sorted([m for L in Ls.values() for m in big_moves(L, 4)], key=lambda m: (-m[0], m[3]["date"]))[:8]
     hp = sorted([p for L in Ls.values() for p in hot_props(L, 6)], key=lambda x: (-x[0], -x[1], -x[3], -x[2]))[:8]
     def row(rid, title, sub, tiles, more_href=None):
@@ -4660,9 +4670,9 @@ def home_cards(Ls, now):
         extra = f'<a class="hc-all" href="{esc(more_href)}">All line moves</a>' if more_href else ""
         return (f'<section class="hc-row" aria-labelledby="{rid}"><div class="hc-h"><h2 id="{rid}">{title}</h2>{f"<span>{sub}</span>" if sub else ""}{extra}</div>'
                 f'<div class="hc-scroll">{"".join(tiles)}</div></section>')
-    any_today = any(not x[0] for x in top)
+    any_today = any(x[0] == 0 or day_et(x[1]) == today for x in top)
     html_ = "".join([
-        row("hcTop", "Top games today" if any_today else "Top upcoming games", "Best line across books", [game_tile(Ls[x[4]], x[5], x[6], True) for x in top]),
+        row("hcTop", "Top games today" if any_today else "Top upcoming games", TOP_ORDER_LABEL, [game_tile(Ls[x[4]], x[5], x[6], True) for x in top]),
         row("hcMoves", "Biggest line moves", "Since open", [move_tile(m, Ls) for m in moves], "line-moves/"),
         row("hcHot", "Hot props", "Last 5 vs the line", [prop_tile(p, Ls) for p in hp]),
     ])

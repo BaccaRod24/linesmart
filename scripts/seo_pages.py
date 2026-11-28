@@ -882,6 +882,8 @@ class Shell:
         t = re.sub(r'(<script src="assets/app\.js[^"]*"[^>]*></script>)', r'<script src="assets/preview.js" defer></script>\n\1', t, count=1)
         if "\x00MAIN\x00" not in t or "\x00BODY\x00" not in t:
             raise SystemExit("seo_pages: site/index.html changed shape (main#app / body.app not found)")
+        if 'id="ageNotice"' not in t:
+            raise SystemExit("seo_pages: site/index.html is missing the static 21+ notice (#ageNotice)")
         self.t, self.base_url = t, base_url
 
     def page(self, path, title, desc, main, more="", kind="page", lg="", route="", ld=None, og_type="article", robots=None, gid="", pid="", lead="", seo_h1=""):

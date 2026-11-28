@@ -738,10 +738,11 @@ a.grow:hover{background:color-mix(in srgb,var(--tint) 2.5%,transparent)}
 .aff-disc a{color:var(--accent);font-weight:600}
 .aff-tag{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:1px 6px;border-radius:5px;background:rgba(251,191,36,.14);color:var(--warn);margin-right:4px;vertical-align:1px}
 
-html.age-open{overflow:hidden}
+html.age-open:not(.age-dismissed){overflow:hidden}
+html.age-dismissed #ageNotice{display:none}
 .age-wrap{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
-.age-backdrop{position:absolute;inset:0;background:rgba(3,6,12,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:ageFade .2s var(--ease)}
-.age-sheet{position:relative;width:100%;max-width:440px;background:linear-gradient(180deg,rgba(34,211,166,.07),transparent 120px),var(--surface);border:1px solid var(--line2);border-radius:20px;padding:26px 24px 20px;box-shadow:0 30px 80px -20px rgba(0,0,0,.85);animation:ageUp .25s var(--ease)}
+.age-backdrop{position:absolute;inset:0;background:rgba(3,6,12,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.age-sheet{position:relative;width:100%;max-width:440px;background:linear-gradient(180deg,rgba(34,211,166,.07),transparent 120px),var(--surface);border:1px solid var(--line2);border-radius:20px;padding:26px 24px 20px;box-shadow:0 30px 80px -20px rgba(0,0,0,.85)}
 .age-badge{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);font-weight:850;font-size:18px;letter-spacing:-.02em;margin-bottom:14px;box-shadow:0 10px 26px -10px rgba(34,211,166,.8)}
 .age-sheet h2{margin:0 0 8px;font-size:21px;font-weight:800;letter-spacing:-.02em}
 .age-sheet p{margin:0 0 10px;color:var(--mute);font-size:14px}
@@ -752,9 +753,6 @@ html.age-open{overflow:hidden}
 .age-ok:hover{transform:translateY(-1px);box-shadow:0 8px 22px -8px rgba(34,211,166,.75)}
 .age-more{font-size:14px}
 .age-sheet .age-fine{margin:14px 0 0;font-size:12px;color:var(--dim)}
-@keyframes ageFade{from{opacity:0}}
-@keyframes ageUp{from{opacity:0;transform:translateY(18px)}}
-
 .legal-page .search-btn{margin-left:10px}
 .legal-nav-a{margin-left:auto;color:var(--mute);font-weight:650;font-size:13.5px;padding:6px 4px}
 .legal-nav-a:hover,.top-about:hover{color:var(--txt)}

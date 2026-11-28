@@ -25,21 +25,19 @@
   }
 
   // ---------- 21+ notice
+  // The markup is in the static HTML (site/index.html, copied onto generated pages) so it paints
+  // before this script. Reuse that node. Pages without it still get the same dialog injected once.
   const ageOk = () => { try { return !!localStorage.getItem(AGE_KEY); } catch (e) { return false; } };
   let sessionOk = false; // if storage is blocked, don't nag again in this page session
-  function showAgeNotice() {
-    if (ageOk() || sessionOk || document.getElementById("ageNotice")) return;
-    const prev = document.activeElement;
-    const wrap = document.createElement("div");
-    wrap.className = "age-wrap";
-    wrap.id = "ageNotice";
-    wrap.innerHTML = `<div class="age-backdrop"></div>
+  const ageCall = () => (window.LSGeo ? window.LSGeo.rgCall() : `Call or text <a href="tel:18004262537">1-800-GAMBLER</a>. In Florida: <a href="tel:18337529947">1-833-PLAYWISE</a>.`);
+  function ageNoticeHTML() {
+    return `<div class="age-backdrop"></div>
       <div class="age-sheet" role="dialog" aria-modal="true" aria-labelledby="ageTitle" aria-describedby="ageDesc">
         <div class="age-badge" aria-hidden="true">21+</div>
         <h2 id="ageTitle">For adults 21 and over</h2>
         <div id="ageDesc">
           <p>${esc(CFG.name || "LineSmart")} shows sports betting odds and stats for people 21+ where sports betting is legal. We don't take bets. Odds are for reference only.</p>
-          <p class="age-help">Gambling problem? <span data-rg-call>${window.LSGeo ? window.LSGeo.rgCall() : `Call or text <a href="tel:18004262537">1-800-GAMBLER</a>. In Florida: <a href="tel:18337529947">1-833-PLAYWISE</a>.`}</span></p>
+          <p class="age-help">Gambling problem? <span data-rg-call>${ageCall()}</span></p>
         </div>
         <div class="age-actions">
           <button type="button" class="age-ok" id="ageOk">I'm 21 or older</button>
@@ -47,10 +45,31 @@
         </div>
         <p class="age-fine">If you're under 21, please leave this site.</p>
       </div>`;
-    const others = [...document.body.children];
+  }
+  function removeAgeNotice() {
+    const el = document.getElementById("ageNotice");
+    if (el) el.remove();
+    document.documentElement.classList.remove("age-open");
+  }
+  function showAgeNotice() {
+    if (ageOk() || sessionOk) { removeAgeNotice(); return; }
+    let wrap = document.getElementById("ageNotice");
+    if (wrap && wrap.dataset.wired) return;
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.className = "age-wrap";
+      wrap.id = "ageNotice";
+      wrap.innerHTML = ageNoticeHTML();
+      document.body.appendChild(wrap);
+    } else if (!wrap.querySelector(".age-sheet")) {
+      wrap.innerHTML = ageNoticeHTML();
+    }
+    wrap.dataset.wired = "1";
+    const prev = document.activeElement;
+    const others = [...document.body.children].filter(el => el !== wrap);
     others.forEach(el => el.setAttribute("inert", ""));
-    document.body.appendChild(wrap);
     document.documentElement.classList.add("age-open");
+    document.documentElement.classList.remove("age-dismissed");
     const sheet = wrap.querySelector(".age-sheet");
     const focusables = () => [...sheet.querySelectorAll("a[href],button")];
     const close = () => {

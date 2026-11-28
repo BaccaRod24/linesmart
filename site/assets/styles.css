@@ -49,8 +49,8 @@ button{font-family:inherit}
 .brand{display:flex;align-items:center;flex:none}
 .brand-logo{display:block;height:30px;width:auto}
 .brand-tag{color:var(--dim);font-size:13px;font-weight:500;padding-left:14px;border-left:1px solid var(--line2);white-space:nowrap}
-.updated{margin-left:auto;display:inline-flex;align-items:center;gap:8px;color:var(--mute);font-size:12.5px;font-weight:500;white-space:nowrap;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--tint) 2%,transparent)}
-.updated:empty{display:none}
+.updated{margin-left:auto;display:inline-flex;align-items:center;gap:8px;color:var(--mute);font-size:12.5px;font-weight:500;white-space:nowrap;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--tint) 2%,transparent);min-width:116px;box-sizing:border-box}
+.updated:empty{visibility:hidden}
 .updated .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
 .install-btn{flex:none;height:36px;padding:0 15px;border-radius:999px;border:0;background:var(--accent);color:var(--accent-ink);font:700 13px var(--font);cursor:pointer;transition:transform .15s var(--ease),filter .15s}
 .install-btn:hover{filter:brightness(1.08)}.install-btn:active{transform:scale(.97)}
@@ -60,7 +60,7 @@ button{font-family:inherit}
 /* league pills */
 .league-nav{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 22px),transparent)}
 .league-nav::-webkit-scrollbar{display:none}
-.league-nav-inner{display:flex;gap:8px;padding:2px 20px 12px;white-space:nowrap}
+.league-nav-inner{display:flex;gap:8px;padding:2px 20px 12px;white-space:nowrap;min-height:50px}
 .tab{scroll-snap-align:center;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 8px 0 15px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--mute);font-weight:650;font-size:13.5px;letter-spacing:.01em;transition:color .15s,border-color .15s,background .15s}
 .tab:hover{color:var(--txt);border-color:var(--line2);background:var(--surface2)}
 .tab.active{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 6px 18px -8px color-mix(in srgb,var(--accent) 70%,transparent)}
@@ -1230,14 +1230,14 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .intro .intro-rg{font-size:12.5px;color:var(--dim)}
 .intro .intro-rg .age-pill{margin-right:6px;vertical-align:1px}
 .intro .intro-rg a{color:var(--accent)}
-.intro.js{padding-top:14px}
-.intro.js h1{font-size:18px;margin-bottom:6px}
-.intro.js p{font-size:13px;margin-bottom:6px}
+html.ls-js .intro,.intro.js{padding-top:14px}
+html.ls-js .intro h1,.intro.js h1{font-size:18px;margin-bottom:6px}
+html.ls-js .intro p,.intro.js p{font-size:13px;margin-bottom:6px}
 .intro[hidden],.intro-states[hidden]{display:none}
 .nojs-note{margin:8px auto 0;font-size:13.5px;color:var(--warn)}
 @media (max-width:760px){
   .intro h1{font-size:19px}
-  .intro.js .intro-more{display:none}
+  html.ls-js .intro .intro-more,.intro.js .intro-more{display:none}
 }
 
 .mu-line.mu-na{opacity:.55}
@@ -1564,10 +1564,13 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .news-fine{grid-column:1/-1;margin:2px 0 0;font-size:11.5px;color:var(--dim)}
 .news-fine a{color:var(--accent)}
 .news-toggle{display:none}
-/* homepage: compact; on phones it starts collapsed to one tappable row so odds stay near the top */
+/* homepage: compact; on phones it starts collapsed to one tappable row so odds stay near the top.
+   The empty slot is the same height as the mounted box so the intro does not grow when the form arrives. */
+.intro .news-intro{display:flow-root;min-height:100px}
+.intro .news-intro:empty{border-radius:var(--r);background:linear-gradient(90deg,color-mix(in srgb,var(--tint) 3%,transparent),color-mix(in srgb,var(--tint) 7%,transparent),color-mix(in srgb,var(--tint) 3%,transparent))}
 .intro .news-box{margin:10px 0 4px;padding:13px 16px;max-width:980px}
 .intro .news-box .news-fine{display:none}
-.intro.js .news-box p.news-msg{font-size:13px;margin:2px 0 0}
+html.ls-js .intro .news-box p.news-msg,.intro.js .news-box p.news-msg{font-size:13px;margin:2px 0 0}
 /* footer: sits above the compliance text */
 .footer .news-box{margin:0 0 18px}
 .footer .news-box p{max-width:none}
@@ -1575,6 +1578,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 @media (max-width:760px){
   .news-form{grid-template-columns:minmax(0,1fr);gap:10px}
   .news-row input{font-size:16px}   /* no iOS zoom on focus */
+  .intro .news-intro{min-height:48px}
   .intro .news-box{padding:0;margin:8px 0 6px}
   .intro .news-toggle{display:flex;width:100%;gap:10px;align-items:center;min-height:46px;padding:0 14px;border:0;background:transparent;color:var(--txt);font:650 14px var(--font);text-align:left;cursor:pointer}
   .intro .news-toggle span{flex:1}
@@ -2212,7 +2216,7 @@ a.contact-cta:hover{color:var(--accent)}
   .hc-move,.hc-prop{width:190px}
 }
 @media (max-width:560px){
-  .intro.js .home-cards + p{font-size:12.5px}
+  html.ls-js .intro .home-cards + p,.intro.js .home-cards + p{font-size:12.5px}
   .sx-score{font-size:26px}
   .seo-more h2.section-title{margin-top:20px}
   .sx-tlogo{width:44px;height:44px}

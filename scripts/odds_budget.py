@@ -87,3 +87,38 @@ def monthly_estimate(game_leagues=9, game_markets=3, game_runs_per_day=48, props
     rows = [("Game lines", game_leagues * game_markets * game_runs_per_day * days)]
     for name, mk, epd, ppe in props or []: rows.append((name, mk * epd * ppe * days))
     return rows, sum(r[1] for r in rows)
+
+def futures_gate(budget, *, cost, run_spent, remaining, floor=300, cap=250):
+    """Whether this run may spend `cost` credits on outright futures.
+
+    Futures sit behind game lines. They do not run when the level is stop or slow-games
+    (game lines are already short), when the balance is unknown, when the pull would land
+    below `floor`, when it would pass the per-run `cap`, or when the daily allowance does
+    not still cover game lines (and, at full, props) plus this once-a-day cost.
+    A cost of 0 (no active keys) is allowed whenever paid pulls are otherwise on.
+    """
+    level = (budget or {}).get("level")
+    if level in (None, "stop", "slow-games"):
+        return False, "game lines come first (futures wait while game lines are stopped or slowed)"
+    if not isinstance(cost, int) or cost < 0:
+        return False, "futures cost unknown"
+    if cost == 0:
+        return True, "no active outright keys (0 credits)"
+    if not isinstance(remaining, (int, float)):
+        return False, "credit balance unknown"
+    if remaining - cost < floor:
+        return False, f"would cross the {floor} credit floor"
+    spent = run_spent if isinstance(run_spent, (int, float)) else 0
+    if spent + cost > cap:
+        return False, f"would pass the {cap} per-run cap"
+    allowance = (budget or {}).get("allowancePerDay")
+    if not isinstance(allowance, (int, float)):
+        return False, "daily allowance unknown"
+    need_games = (budget or {}).get("needGamesPerDay") or 0
+    if level == "full":
+        need = need_games + ((budget or {}).get("needPropsPerDay") or 0) + cost
+        if allowance < need:
+            return False, "allowance doesn't cover game lines, props, and futures"
+    elif allowance < need_games + cost:
+        return False, "allowance doesn't cover game lines and futures"
+    return True, "ok"

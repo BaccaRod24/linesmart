@@ -33,6 +33,9 @@ check(/These terms are governed by the laws of the State of Florida/.test(terms)
 check(/Effective date: October 27, 2026/.test(terms) && /Effective date: October 27, 2026/.test(aff), "terms + affiliate disclosure dates bumped");
 check(["1-800-NEXT-STEP", "1-800-9-WITH-IT", "1-800-BETS-OFF", "1-877-8-HOPENY", "1-833-PLAYWISE", "1-800-GAMBLER"].every(n => rg.includes(n)), "responsible gambling page: state helplines listed");
 check(!/\$\d|bonus code|promo code/i.test(read("assets/geo.js")), "geo.js: no bonus/promo claims");
+const statusCore = read("assets/live-core.js");
+check(/function isCanceledOrPostponed/.test(statusCore) && /function heldStatus/.test(statusCore), "live-core: one helper for canceled and postponed games");
+check(!/legal in Florida/i.test(statusCore) && !/DraftKings is legal/i.test(statusCore) && !/FanDuel is legal/i.test(statusCore), "status helper does not say DraftKings or FanDuel are legal in Florida");
 // every page with the shared footer loads the state scripts, so the footer helpline follows the chosen state
 for (const f of FOOTER_PAGES) {
   const h = read(f);

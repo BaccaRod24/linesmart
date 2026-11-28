@@ -15,6 +15,13 @@
   const durOf = lg => DUR[lg] || 3 * H;
   const t = iso => { const v = Date.parse(iso); return isNaN(v) ? null : v; };
   const key = (lg, id) => `${lg}/${id}`;
+  function statusCore() {
+    if (typeof root !== "undefined" && root.LiveCore) return root.LiveCore;
+    if (typeof require === "function") {
+      try { return require("./live-core.js"); } catch (e) { return null; }
+    }
+    return null;
+  }
 
   /** when a final game ended: when we saw it flip to final (finishedAt[key], ms) or start + typical length */
   function endedAt(lg, g, finishedAt) {
@@ -37,7 +44,9 @@
         const d = start - now;
         if (d <= soonMs && d >= -LATE_MS) soon.push({ lg, g, at: start, starting: d <= 0 });
       } else if (g.state === "post") {
-        if (/postpon|cancel|suspend|delay/i.test(g.statusDetail || "")) continue;
+        const C = statusCore();
+        // A delay is not a cancellation, but it is not a final either, so it stays off "just finished".
+        if ((C && C.isCanceledOrPostponed && C.isCanceledOrPostponed(g)) || /delay/i.test(g.statusDetail || "")) continue;
         const e = endedAt(lg, g, fin);
         if (e !== null && now - e <= recentMs && now - e >= -durOf(lg) && (start === null || start <= now)) recent.push({ lg, g, at: Math.min(e, now) });
       }

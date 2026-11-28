@@ -26,13 +26,17 @@ const items = [
   { lg: "epl", g: G("8", "post", at(-140), { det: "FT" }) },   // 1.9 h typical: ended ~26 min ago
   { lg: "nfl", g: G("9", "post", at(-600), { det: "Final" }) },// yesterday's final: hidden
   { lg: "mlb", g: G("10", "post", at(-200), { det: "Postponed" }) },
+  { lg: "mls", g: G("11", "post", at(-40), { det: "Canceled", completed: false, as: "0", hs: "0" }) },
+  { lg: "nba", g: G("12", "post", at(-25), { det: "Suspended", completed: true }) },
+  { lg: "nhl", g: G("13", "post", at(-20), { det: "Final", completed: false }) },
+  { lg: "nfl", g: G("14", "post", at(-18), { det: "Rain Delay", completed: true }) },
   { lg: "nfl", g: G("1", "in", at(-55)) },            // duplicate key ignored
 ];
 const B = T.classify(items, NOW);
 check(B.live.map(x => x.g.id).join() === "2,1", "live: in-progress games, earliest start first, deduped");
 check(B.soon.map(x => x.g.id).join() === "6,3,4", "soon: next 2 h, plus a game whose start just passed");
 check(B.soon[0].starting === true && !B.soon[1].starting, "a game past its listed start is flagged 'starting'");
-check(B.recent.map(x => x.g.id).join() === "8", "recent: finals within the last hour only; postponed and old finals skipped");
+check(B.recent.map(x => x.g.id).join() === "8", "recent: finals within the last hour only; canceled, suspended, unfinished, delayed and old finals skipped");
 const seenFin = T.classify([{ lg: "nfl", g: G("9", "post", at(-600)) }], NOW, { finishedAt: { "nfl/9": NOW - 20 * 60e3 } });
 check(seenFin.recent.length === 1 && seenFin.recent[0].at === NOW - 20 * 60e3, "a game we saw go final this session uses that time");
 const oldFin = T.classify([{ lg: "nfl", g: G("9", "post", at(-120)) }], NOW, { finishedAt: { "nfl/9": NOW - 61 * 60e3 } });

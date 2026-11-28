@@ -191,7 +191,7 @@
       el.innerHTML = `<div class="section-title" id="psProps">Today's prop lines</div><div class="card note ps-empty">No player props are posted for these games yet. The games below still open, and Stats still opens.</div>`;
       return;
     }
-    const when = g => g.state === "in" ? (g.statusDetail || "Live") : g.state === "post" ? "Final" : A().timeET(g.date);
+    const when = g => (window.LiveCore && window.LiveCore.isCanceledOrPostponed && window.LiveCore.isCanceledOrPostponed(g)) ? (window.LiveCore.heldStatus ? window.LiveCore.heldStatus(g) : (g.statusDetail || "Canceled")) : g.state === "in" ? (g.statusDetail || "Live") : g.state === "post" ? "Final" : A().timeET(g.date);
     const nm = g => `${(g.away || {}).abbr || (g.away || {}).short || ""} @ ${(g.home || {}).abbr || (g.home || {}).short || ""}`;
     const blocks = [];
     let nLines = 0;

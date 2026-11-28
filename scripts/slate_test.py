@@ -52,7 +52,8 @@ games = [dict(id="1", date=T(-3), state="post", statusDetail="Final", away=team(
               weather=dict(kind="forecast", watch=[dict(k="wind", text="Wind 20 mph")])),
          dict(id="4", date=T(30), state="pre", away=team("GGG"), home=team("HHH"),
               weather=dict(kind="forecast", roof="retractable", watch=[dict(k="rain", text="Rain")])),
-         dict(id="5", date=T(-30), state="post", away=team("III", "1"), home=team("JJJ", "2"))]
+         dict(id="5", date=T(-30), state="post", away=team("III", "1"), home=team("JJJ", "2")),
+         dict(id="6", date=T(-2), state="post", statusDetail="Canceled", completed=False, away=team("KKK", "0"), home=team("LLL", "0"))]
 with tempfile.TemporaryDirectory() as d:
     os.makedirs(f"{d}/nfl"); os.makedirs(f"{d}/props")
     json.dump(dict(games=games), open(f"{d}/nfl/index.json", "w"))
@@ -61,13 +62,14 @@ with tempfile.TemporaryDirectory() as d:
     sl = SL.build(d, ["nfl", "nba"], now=now)
 e = sl["leagues"]["nfl"]
 check("nba" not in sl["leagues"], "missing league skipped")
-check(e["today"] == 3, f"today = 3 (got {e['today']})")
+check(e["today"] == 4, f"today = 4, including the cancellation (got {e['today']})")
 check(e["live"] == 1 and e["upcoming"] == 2, "live / upcoming")
 check(e["withOdds"] == 2, "with odds counts live/pre only")
 check(e["wxWatch"] == 1, "weather watch ignores retractable roofs")
 check(e["props"] == 2 and e["hot"] == 1, "props / hot")
 check(sl["totals"]["hot"] == 1 and sl["totals"]["live"] == 1, "totals")
 check([t["id"] for t in sl["ticker"]] == ["2", "1", "3", "4"], f"ticker order live, finals today, next ({[t['id'] for t in sl['ticker']]})")
+check("6" not in [t["id"] for t in sl["ticker"]], "a canceled game is not listed as a final")
 check(sl["ticker"][0]["a"] == dict(a="CCC", s="7") and sl["ticker"][0]["lg"] == "nfl", "ticker item shape")
 check(sl["day"] == "2026-10-26", "ET day")
 print(f"slate_test: {ok} passed, {fail} failed")

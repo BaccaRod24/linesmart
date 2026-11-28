@@ -107,6 +107,9 @@ check(C.mergeGame(sg, dal, "2026-10-27T01:15:00Z") === sg, "static file newer th
 check(C.mergeGame(sg, null, GEN) === sg, "no live data -> static");
 const fin = Object.assign({}, dal, { state: "post", completed: true, detail: "Final", home: Object.assign({}, dal.home, { winner: true }), away: Object.assign({}, dal.away, { winner: false }) });
 check(C.mergeGame(sg, fin, GEN).home.winner === true && C.mergeGame(sg, dal, GEN).home.winner === undefined, "winner only set when final");
+const canceled = Object.assign({}, dal, { state: "post", completed: false, detail: "Canceled", home: Object.assign({}, dal.home, { score: "0", winner: true }), away: Object.assign({}, dal.away, { score: "0", winner: false }) });
+const cg = C.mergeGame(sg, canceled, GEN);
+check(C.isCanceledOrPostponed(cg) && cg.home.score === "7" && cg.home.winner !== true && cg.statusDetail === "Canceled", "a cancellation does not become a final score");
 const tk = { lg: "nfl", id: "401873009", st: "in", det: "3:53 - 1st", a: { a: "DAL", s: "10" }, h: { a: "PHI", s: "7" } };
 const mt = C.mergeTicker(tk, dal, GEN);
 check(mt.h.s === "14" && mt.a.s === "10" && mt.det === "8:35 - 2nd" && tk.h.s === "7", "ticker merge");

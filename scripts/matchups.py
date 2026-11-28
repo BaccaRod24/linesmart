@@ -15,7 +15,9 @@ Completed games never change, so each game's compact box line is cached in --mat
 in CI) and only new games are fetched. Without a cache dir every game is fetched each run (fine locally; ~120 NFL /
 ~1,230 NBA games by season end). MAX_NEW caps the summaries fetched per run so a cold cache can't blow up build time.
 """
-import concurrent.futures as cf, datetime as dt, json, os
+import concurrent.futures as cf, datetime as dt, json, os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import final_label as FL  # noqa: E402
 
 SUPPORTED = ("nfl", "nba")
 MAX_NEW = 400
@@ -201,7 +203,11 @@ def _completed_events(getj, site, lg, team_ids):
             season = season or (d.get("requestedSeason") or d.get("season") or {}).get("year")
             for e in d.get("events") or []:
                 c = (e.get("competitions") or [{}])[0]
-                if not ((c.get("status") or {}).get("type") or {}).get("completed"): continue
+                stype = (c.get("status") or {}).get("type") or {}
+                if not stype.get("completed"): continue
+                if FL.is_canceled_or_postponed({"state": stype.get("state"), "statusDetail": stype.get("shortDetail") or stype.get("detail"),
+                                                "statusName": stype.get("name"), "completed": stype.get("completed")}):
+                    continue
                 if str((e.get("seasonType") or {}).get("type") or (e.get("seasonType") or {}).get("id")) != "2": continue
                 cs = c.get("competitors") or []
                 h = next((x for x in cs if x.get("homeAway") == "home"), None); a = next((x for x in cs if x.get("homeAway") == "away"), None)

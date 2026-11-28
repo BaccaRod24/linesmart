@@ -196,16 +196,20 @@
   const FINAL_LBL = g => (window.LiveCore && window.LiveCore.finalLabel ? window.LiveCore.finalLabel(g) : g.statusDetail || "Final");
   const FINAL_SFX = lbl => (window.LiveCore && window.LiveCore.finalSuffix ? window.LiveCore.finalSuffix(lbl) : "");
   const finTag = lbl => { const x = FINAL_SFX(lbl); return x ? ` <small class="fin-x">${esc(x)}</small>` : ""; };
+  // Canceled, postponed, suspended, abandoned, forfeit, or post without completed. One helper: live-core.js.
+  const heldGame = g => !!(g && window.LiveCore && window.LiveCore.isCanceledOrPostponed && window.LiveCore.isCanceledOrPostponed(g));
+  const heldText = g => (window.LiveCore && window.LiveCore.heldStatus ? window.LiveCore.heldStatus(g) : ((g && (g.statusDetail || g.det)) || "Canceled"));
   function statusHtml(g) {
+    if (heldGame(g)) return `<span class="status held">${esc(heldText(g))}</span>`;
     if (g.state === "in") return `<span class="status live">LIVE · ${esc(g.statusDetail || "")}</span>`;
     if (g.state === "post") return `<span class="status final">${esc(FINAL_LBL(g))}</span>`;
     return `<span class="status">${timeET(g.date)}</span>`;
   }
 
   function teamRow(t, g, side, kind) {
-    const o = g.odds, showScore = g.state !== "pre" && t.score != null;
+    const o = g.odds, held = heldGame(g), showScore = !held && g.state !== "pre" && t.score != null;
     const other = side === "home" ? g.away : g.home;
-    const lose = g.state === "post" && isNum(t.score) && isNum(other.score) && +t.score < +other.score;
+    const lose = !held && g.state === "post" && isNum(t.score) && isNum(other.score) && +t.score < +other.score;
     let chips = "";
     if (o) {
       const tot = side === "away" ? chip(isNum(o.total) ? "O " + fx(o.total, 1) : null, am(o.overOdds), totalArrow(g))
@@ -250,6 +254,7 @@
 
   // ---------- live scores: hero, box score, poller wiring
   function heroMid(g) {
+    if (heldGame(g)) return `<div class="lv-mid"><div class="when">${esc(heldText(g))}</div></div>`;
     const s = g.live && g.state === "in" && g.live.situation, lp = s && s.lastPlay;
     return `<div class="lv-mid"><div class="score">${esc(g.away.score)} – ${esc(g.home.score)}</div><div class="when${g.state === "in" ? " is-live" : ""}">${g.state === "in" ? '<span class="live-dot"></span>' : ""}${esc(g.statusDetail || "")}</div>${sitLine(g)}${lp ? `<div class="where lv-lp" title="Last play">${esc(lp)}</div>` : ""}</div>`;
   }
@@ -335,11 +340,13 @@
     const one = (t0, hide) => {
       TICKS[`${t0.lg}/${t0.id}`] = t0; const t = LV() ? LV().mergeTicker(t0, (META || {}).generated) : t0;
       const lgN = esc((META.leagues[t.lg] || {}).name || t.lg.toUpperCase());
-      const sc = t.st !== "pre" && t.a.s != null && t.h.s != null;
+      const held = heldGame({ state: t.st, statusDetail: t.det, completed: t.completed });
+      const sc = !held && t.st !== "pre" && t.a.s != null && t.h.s != null;
       const aw = sc && +t.a.s > +t.h.s, hw = sc && +t.h.s > +t.a.s;
       const mid = sc ? `<span class="${aw ? "w" : hw ? "l" : ""}">${esc(t.a.a)} <b>${esc(t.a.s)}</b></span><span class="${hw ? "w" : aw ? "l" : ""}">${esc(t.h.a)} <b>${esc(t.h.s)}</b></span>`
                      : `<span>${esc(t.a.a)} @ ${esc(t.h.a)}</span>`;
-      const st = t.st === "in" ? `<span class="live-dot"></span><span class="ts">${esc(t.det || "Live")}</span>` : t.st === "post" ? `<span class="ts">${esc(t.det || "Final")}</span>`
+      const st = held ? `<span class="ts">${esc(heldText({ statusDetail: t.det, state: t.st, completed: t.completed }))}</span>`
+               : t.st === "in" ? `<span class="live-dot"></span><span class="ts">${esc(t.det || "Live")}</span>` : t.st === "post" ? `<span class="ts">${esc(t.det || "Final")}</span>`
                : `<span class="ts">${esc(dayKey(t.d) === dayKey(new Date().toISOString()) ? timeET(t.d) : fmt(t.d, { weekday: "short" }) + " " + timeET(t.d))}</span>`;
       return `<a class="tk${t.st === "in" ? " live" : ""}" data-lk="${esc(t.lg)}/${esc(t.id)}" href="#/g/${esc(t.lg)}/${esc(t.id)}"${hide ? ' tabindex="-1"' : ""}><i>${lgN}</i>${mid}${st}</a>`;
     };
@@ -445,7 +452,7 @@
       return;
     }
     let games = data.games;
-    if (filter === "upcoming") games = games.filter(g => g.state !== "post");
+    if (filter === "upcoming") games = games.filter(g => g.state !== "post" || heldGame(g));
     const days = {};
     games.forEach(g => (days[dayKey(g.date)] ||= []).push(g));
     const weekMeta = data.week && Array.isArray(data.week.games) ? data.week : null;
@@ -554,8 +561,9 @@
   function weekRow(g, lg) {
     const href = window.WeekCore ? window.WeekCore.href(lg, g) : `#/g/${lg}/${g.id}`;
     const A = g.away || {}, H = g.home || {};
-    const fin = g.state === "post";
-    const score = fin && A.score != null && H.score != null ? `<span class="num">${esc(A.score)}–${esc(H.score)}</span>` : esc(g.state === "in" ? (g.statusDetail || "LIVE") : timeET(g.date));
+    const held = heldGame(g);
+    const fin = g.state === "post" && !held;
+    const score = held ? esc(heldText(g)) : fin && A.score != null && H.score != null ? `<span class="num">${esc(A.score)}–${esc(H.score)}</span>` : esc(g.state === "in" ? (g.statusDetail || "LIVE") : timeET(g.date));
     const extra = fin ? finTag(g.statusDetail || "") : "";
     const go = fin ? "Box ›" : "Lines ›";
     return `<a class="grow" href="${href}"><span class="gr-d">${fmt(g.date, { month: "short", day: "numeric" })}</span>
@@ -564,7 +572,7 @@
   }
   function weekBoard(key, data) {
     const week = data.week && Array.isArray(data.week.games) ? data.week : null;
-    const games = week ? week.games : (data.games || []).filter(g => g.state === "post");
+    const games = week ? week.games : (data.games || []).filter(g => g.state === "post" && !heldGame(g));
     const order = week ? (week.order || "asc") : "desc";
     if (!window.WeekCore || !games.length) {
       const why = week ? "Nothing is scheduled in this window." : "This week's list shows up after the next data refresh.";
@@ -756,7 +764,7 @@
       ? `<div class="vs">${g.neutral ? "VS" : "AT"}</div><div class="when">${g.date ? fullET(g.date) : ""}</div>`
       : heroMid(g);
     app.innerHTML = `<a class="back" href="#/l/${key}">← ${esc(backName)}</a>
-      ${gameJump(key, id, "box", g.state === "post" || box ? "post" : g.state)}
+      ${gameJump(key, id, "box", g.state === "post" || box ? "post" : g.state, g)}
       <div class="match" style="--ca:${teamColor(A, "#334155")};--ch:${teamColor(H, "#475569")}">
         <div class="mteam">${logo(A)}<div><div class="nm">${A.id ? `<a class="tlink" href="#/t/${key}/${esc(A.id)}">${esc(A.name || A.abbr || "")}</a>` : esc(A.name || A.abbr || "")}</div><div class="rec">${esc(A.record || "—")}</div></div></div>
         <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}</div></div>
@@ -834,13 +842,17 @@
     }
     const g0 = d.game, det = d.detail || {}, kind = idx.league.kind;
     const g = liveG(key, g0);
+    if (focus === "box" && kind !== "mma" && heldGame(g)) focus = "";
     if (focus === "box" && kind !== "mma") return showBox(key, id, idx.league.full, g0, g, det, kind);
     const H = g.home, A = g.away;
-    const mid = g.state === "pre"
+    const held = heldGame(g);
+    const mid = held
+      ? `<div class="vs">${g.neutral ? "VS" : "AT"}</div><div class="when">${esc(heldText(g))}</div>`
+      : g.state === "pre"
       ? `<div class="vs">${g.neutral ? "VS" : "AT"}</div><div class="when">${fullET(g.date)}</div>`
       : heroMid(g);
     let html = `<a class="back" href="#/l/${key}">← ${esc(idx.league.full)}</a>${previewLink(key, g, "back pv-back")}
-      ${gameJump(key, id, focus, g.state)}${focus === "props" ? propsPane(key, g) : ""}${focus === "stats" ? `<div class="section-title" id="stats">Team &amp; matchup stats</div>` : ""}
+      ${gameJump(key, id, focus, g.state, g)}${focus === "props" ? propsPane(key, g) : ""}${focus === "stats" ? `<div class="section-title" id="stats">Team &amp; matchup stats</div>` : ""}
       <div class="match" style="--ca:${teamColor(A, "#334155")};--ch:${teamColor(H, "#475569")}">
         <div class="mteam">${logo(A)}<div><div class="nm">${A.rank ? `<span class="rk" style="color:var(--warn)">#${A.rank} </span>` : ""}<a class="tlink" href="#/t/${key}/${A.id}">${esc(A.name)}</a></div><div class="rec">${esc(A.record || "—")} · Away ${esc(A.awayRecord || "—")}${formDots(A.form)}</div></div></div>
         <div class="mmid">${mid}<div class="where">${esc([g.venue, g.city].filter(Boolean).join(", "))}${g.neutral ? " (neutral)" : ""}</div><div class="where">${esc(g.broadcasts.join(", "))}</div>${g.note ? `<div class="where">${esc(g.note)}</div>` : ""}${window.LSWeather && g.state !== "post" && g.weather ? `<div class="where wx-where">${window.LSWeather.chip(g)}</div>` : ""}</div>
@@ -872,7 +884,7 @@
     }
 
     html += matchupJump(key, id);
-    if (LV() && window.LiveCore && window.LiveCore.supported(key) && (g.state === "in" || window.LiveCore.needsLive({ lg: key, id: g.id, state: g.state, date: g.date })))
+    if (!held && LV() && window.LiveCore && window.LiveCore.supported(key) && (g.state === "in" || window.LiveCore.needsLive({ lg: key, id: g.id, state: g.state, date: g.date })))
       html += `<div id="liveBox" class="lbx-wrap">${liveBoxHtml(LV().box(key, g.id), A, H, kind, g, key)}</div>`;
     html += `<div class="section-title">Betting lines${window.LSAlerts && g.state === "pre" ? `<span class="st-act">${window.LSAlerts.pageBell(key, g)}</span>` : ""}</div><div class="cols">${linesCard(g, kind)}${booksCard(g, kind, key)}</div>${window.LSAlerts && window.LSAlerts.pageCta ? window.LSAlerts.pageCta(key, g) : ""}${offersSlot("game")}`;
     if (window.LSBets) html += window.LSBets.trackCard(key, g, kind);
@@ -1391,19 +1403,22 @@
       const st = (c.status || ev.status || {}).type || {};
       const sc = x => (x.score == null ? null : typeof x.score === "object" ? x.score.displayValue ?? x.score.value : x.score);
       const ms = sc(me), os = sc(op), a = parseFloat(ms), b = parseFloat(os);
+      const detail = st.shortDetail || st.detail || "";
+      const held = heldGame({ state: st.state, statusDetail: detail, statusName: st.name, completed: st.completed });
       let res = null;
-      if (st.completed) res = me.winner ? "W" : op.winner ? "L" : isNum(a) && isNum(b) ? (a > b ? "W" : a < b ? "L" : kind === "soccer" ? "D" : "T") : null;
+      if (st.completed && !held) res = me.winner ? "W" : op.winner ? "L" : isNum(a) && isNum(b) ? (a > b ? "W" : a < b ? "L" : kind === "soccer" ? "D" : "T") : null;
       const ot = op.team || {};
-      return { id: String(ev.id), date: c.date || ev.date, state: st.state, done: !!st.completed, detail: st.shortDetail || st.detail || "", home: me.homeAway === "home",
+      return { id: String(ev.id), date: c.date || ev.date, state: st.state, done: !!st.completed && !held, detail, home: me.homeAway === "home",
                opp: { id: ot.id, name: ot.displayName || ot.name || "", abbr: ot.abbreviation || "", logo: (ot.logos || [])[0]?.href || ot.logo || "" }, ms, os, gf: a, ga: b, res };
     }).filter(Boolean);
   }
   function gameRow(g, lg, inIdx, upcoming) {
     const opp = `<span class="gr-o">${g.home ? "vs" : "@"} ${crest(g.opp.logo, g.opp.abbr || g.opp.name, "xs")}<span class="nm-l">${esc(g.opp.name)}</span><span class="nm-s">${esc(g.opp.abbr || g.opp.name)}</span></span>`;
-    const right = upcoming ? `<span class="gr-r">${g.state === "in" ? `<b class="live">LIVE</b>` : esc(timeET(g.date))}${inIdx ? ` <span class="gr-go">Lines ›</span>` : ""}</span>`
+    const held = heldGame({ state: g.state, statusDetail: g.detail, completed: g.done ? true : false });
+    const right = upcoming ? `<span class="gr-r">${held ? esc(heldText({ statusDetail: g.detail, state: g.state })) : g.state === "in" ? `<b class="live">LIVE</b>` : esc(timeET(g.date))}${inIdx ? ` <span class="gr-go">Lines ›</span>` : ""}</span>`
                            : `<span class="gr-r"><span class="res ${esc(g.res || "")}">${esc(g.res || "")}</span> <span class="num">${esc(g.ms ?? "")}-${esc(g.os ?? "")}</span>${g.done ? finTag(g.detail) : ""}</span>`;
     const inner = `<span class="gr-d">${fmt(g.date, { month: "short", day: "numeric" })}</span>${opp}${right}`;
-    const href = !upcoming && g.done ? `#/g/${lg}/${g.id}/box` : `#/g/${lg}/${g.id}`;
+    const href = !upcoming && g.done && !held ? `#/g/${lg}/${g.id}/box` : `#/g/${lg}/${g.id}`;
     return (inIdx || (!upcoming && g.done)) ? `<a class="grow" href="${href}">${inner}</a>` : `<div class="grow">${inner}</div>`;
   }
   const KEY_STATS = {
@@ -1451,7 +1466,7 @@
     // games: merge both schedule calls by id (MLB post+regular, soccer results+fixtures)
     const gm = {}; [...schedGames(sch, id, kind), ...schedGames(sch2, id, kind)].forEach(g => (gm[g.id] = g));
     const games = Object.values(gm).sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    const done = games.filter(g => g.done).reverse(), next = games.filter(g => !g.done && g.state !== "post");
+    const done = games.filter(g => g.done).reverse(), next = games.filter(g => !g.done && (g.state !== "post" || heldGame({ state: g.state, statusDetail: g.detail, completed: false })));
     const idxGames = (li && li.games) || [], idxIds = new Set(idxGames.map(g => String(g.id)));
     const form = done.slice(0, 5).map(g => g.res || "").join("").replace(/[^WLDT]/g, "");
     const info = { record: (mlb ? t.record || stT.recordSummary : stT.recordSummary || t.record), // ESPN schedule recordSummary is the postseason record for MLB
@@ -1459,7 +1474,7 @@
     remember({ k: "t", lg, href: `#/t/${lg}/${id}`, name: t.name, img: t.logo, sub: ["Team", info.record].filter(Boolean).join(" · ") });
     let html = `${backLink()}${teamHero(t, info, lg)}`;
     // next game + lines (only from our own data; never invented)
-    const ng = idxGames.filter(g => g.state !== "post" && (String(g.home.id) === String(id) || String(g.away.id) === String(id))).sort((a, b) => String(a.date).localeCompare(String(b.date)))[0];
+    const ng = idxGames.filter(g => (g.state !== "post" || heldGame(g)) && (String(g.home.id) === String(id) || String(g.away.id) === String(id))).sort((a, b) => (heldGame(a) ? 1 : 0) - (heldGame(b) ? 1 : 0) || String(a.date).localeCompare(String(b.date)))[0];
     html += `<div class="section-title">Next game</div>`;
     if (ng) html += `<div class="grid one">${gameTile(ng, lg, li.league.kind)}</div>`;
     else if (next[0]) html += `<div class="card"><div class="grows">${gameRow(next[0], lg, false, true)}</div><div class="note">${esc(dayLabel(next[0].date))}. Lines for this game aren't in our data yet (we track the next ${esc((li && li.windowDays) || "few")} days).</div></div>`;
@@ -1610,14 +1625,16 @@
         <div class="lt-body"><div class="lt-evn">${esc(ev.name || "UFC")}</div><div class="lt-sub">${mn ? esc(`${mn.away.name} vs ${mn.home.name} · `) : ""}${x.fights} fight${x.fights === 1 ? "" : "s"}</div></div></a>`;
     }
     const A = g.away || {}, Hm = g.home || {}, ov = g.live;
-    const sc = !mma && g.state !== "pre" && A.score != null && Hm.score != null && A.score !== "" && Hm.score !== "";
+    const held = heldGame(g);
+    const sc = !held && !mma && g.state !== "pre" && A.score != null && Hm.score != null && A.score !== "" && Hm.score !== "";
     const aw = sc && +A.score > +Hm.score, hw = sc && +Hm.score > +A.score;
     const poss = ov && g.state === "in" && ov.situation && ov.situation.possession;
     const possSide = poss ? (String(ov.home.id) === String(poss) ? "home" : String(ov.away.id) === String(poss) ? "away" : null) : null;
     const name = t => (mma ? t.short || t.name : t.short || t.name || t.abbr) || "TBD";
-    const tm = (t, side, lead, trail) => `<div class="lt-tm${lead ? " w" : trail && g.state === "post" ? " l" : ""}">${logo(t, "lt-logo")}<span class="lt-n">${t.rank ? `<i class="lt-rk">${esc(t.rank)}</i>` : ""}${esc(name(t))}</span>${possSide === side ? '<i class="lt-poss" title="Possession" aria-label="has the ball"></i>' : ""}${mma && g.state === "post" && t.winner ? '<i class="lt-win">W</i>' : ""}<b class="lt-sc">${sc ? esc(t.score) : ""}</b></div>`;
+    const tm = (t, side, lead, trail) => `<div class="lt-tm${lead ? " w" : trail && g.state === "post" && !held ? " l" : ""}">${logo(t, "lt-logo")}<span class="lt-n">${t.rank ? `<i class="lt-rk">${esc(t.rank)}</i>` : ""}${esc(name(t))}</span>${possSide === side ? '<i class="lt-poss" title="Possession" aria-label="has the ball"></i>' : ""}${mma && g.state === "post" && !held && t.winner ? '<i class="lt-win">W</i>' : ""}<b class="lt-sc">${sc ? esc(t.score) : ""}</b></div>`;
     const st = g.state === "in" ? `<span class="lt-clk"><span class="live-dot"></span>${esc(LTC().clockText(lg, g, kind))}</span>`
       : g.state === "pre" ? `<span>${esc(timeET(g.date))}</span><small>${esc(x.starting ? "starting" : inMin(x.at - now))}</small>`
+      : held ? `<span>${esc(heldText(g))}</span>`
       : `<span>${esc(FINAL_LBL(g))}</span>${x.at ? `<small>${esc(Math.max(1, Math.round((now - x.at) / 60e3)))} min ago</small>` : ""}`;
     const sit = g.state === "in" && ov && ov.situation && ov.situation.text ? `<div class="lt-sit${ov.situation.redZone ? " rz" : ""}">${esc(ov.situation.text)}</div>` : "";
     const fight = mma ? `<div class="lt-sub">${esc([g.weightClass || g.note, g.event && g.event.short].filter(Boolean).join(" · "))}</div>` : "";
@@ -1645,7 +1662,7 @@
         kinds[lg] = (d.league || {}).kind;
         for (const g0 of d.games || []) {
           const g = liveG(lg, g0), k = `${lg}/${g.id}`;
-          if (LSEEN[k] === "in" && g.state === "post" && !FIN[k]) FIN[k] = now;
+          if (LSEEN[k] === "in" && g.state === "post" && !heldGame(g) && !FIN[k]) FIN[k] = now;
           LSEEN[k] = g.state; items.push({ lg, g });
         }
       }
@@ -1724,9 +1741,9 @@
       : `<span class="ps-link off" aria-disabled="true" title="No player props for ${esc(lgName(lg))}">Props</span>`;
     return `<div class="ps-links">${props}<a class="ps-link" href="#/g/${esc(lg)}/${esc(id)}/stats">Matchup</a></div>`;
   }
-  function gameJump(lg, id, focus, state) {
+  function gameJump(lg, id, focus, state, g) {
     focus = focus === "props" || focus === "stats" || focus === "box" ? focus : "";
-    const showBox = lg !== "ufc" && (state === "post" || focus === "box");
+    const showBox = lg !== "ufc" && !heldGame(g) && (state === "post" || focus === "box");
     const base = `#/g/${esc(lg)}/${esc(id)}`;
     const item = (href, label, on, off, title) => off
       ? `<span class="${on ? "on " : ""}off" aria-disabled="true" title="${esc(title || "")}">${label}</span>`
@@ -1805,7 +1822,7 @@
       ? `<a class="ps-link" href="#/g/${esc(lg)}/${esc(g.id)}/props">Props</a>`
       : `<span class="ps-link off" aria-disabled="true" title="No player props for ${esc(lgName(lg))}">Props</span>`;
     const row = ({ g }) => {
-      const when = g.state === "in" ? (g.statusDetail || "Live") : g.state === "post" ? "Final" : timeET(g.date);
+      const when = heldGame(g) ? heldText(g) : g.state === "in" ? (g.statusDetail || "Live") : g.state === "post" ? "Final" : timeET(g.date);
       const nm = `${g.away.short || g.away.abbr || g.away.name} @ ${g.home.short || g.home.abbr || g.home.name}`;
       return `<div class="ps-row"><a class="ps-main" href="#/g/${esc(lg)}/${esc(g.id)}"><span class="ps-when">${esc(when)}</span><span class="ps-nm">${esc(nm)}</span></a><span class="ps-go">${propBtn(g)}<a class="ps-link" href="#/g/${esc(lg)}/${esc(g.id)}/stats">Matchup</a></span></div>`;
     };

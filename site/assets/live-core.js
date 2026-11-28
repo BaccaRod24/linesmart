@@ -211,8 +211,10 @@
   const fresher = (ov, generated) => !!ov && (!generated || Date.parse(ov.asOf) > Date.parse(generated));
   function mergeGame(g, ov, generated) {
     if (!g || !fresher(ov, generated)) return g;
-    const t = (side) => Object.assign({}, g[side], ov[side].score !== null ? { score: ov[side].score } : {}, ov[side].winner !== null && ov.state === "post" ? { winner: ov[side].winner } : {});
-    return Object.assign({}, g, { state: ov.state, statusDetail: ov.detail || g.statusDetail, completed: ov.completed, home: t("home"), away: t("away"), live: ov });
+    const next = { state: ov.state, statusDetail: ov.detail || g.statusDetail, completed: ov.completed };
+    const held = isCanceledOrPostponed(Object.assign({}, g, next));
+    const t = (side) => Object.assign({}, g[side], !held && ov[side].score !== null ? { score: ov[side].score } : {}, !held && ov[side].winner !== null && ov.state === "post" ? { winner: ov[side].winner } : {});
+    return Object.assign({}, g, next, { home: t("home"), away: t("away"), live: ov });
   }
   // ticker item {lg,id,st,d,det,a:{a,s},h:{a,s}}
   function mergeTicker(t, ov, generated) {
@@ -248,7 +250,47 @@
     return /^\d+$/.test(x) ? x + " inn" : x;
   }
 
+  /* A game that will not finish as a normal result. Same rule as scripts/final_label.py
+   * is_canceled_or_postponed. A delay is not included: a delayed game can still be played. */
+  const HELD_RX = /(?:^|[^a-z])(?:cancel+ed|postpon\w*|suspend\w*|abandon\w*|forfeit\w*)(?:[^a-z]|$)/i;
+  const FINALISH = /^(?:final|ft|f)(?:\b|\/)/i;
+  function statusBlob(g) {
+    if (!g) return "";
+    const parts = [];
+    for (const k of ["statusDetail", "statusName", "detail", "det"]) if (g[k]) parts.push(String(g[k]));
+    const st = g.status;
+    if (typeof st === "string" && st) parts.push(st);
+    else if (st && typeof st === "object") {
+      const t = st.type || {};
+      for (const v of [t.name, t.shortDetail, t.detail, st.name, st.detail, st.shortDetail]) if (v) parts.push(String(v));
+    }
+    return parts.join(" ");
+  }
+  function gameState(g) {
+    if (!g) return "";
+    return g.state != null && g.state !== "" ? g.state : g.st;
+  }
+  /** true for canceled / cancelled / postponed / suspended / abandoned / forfeit, or state post with completed === false */
+  function isCanceledOrPostponed(g) {
+    if (!g) return false;
+    if (HELD_RX.test(statusBlob(g))) return true;
+    return gameState(g) === "post" && g.completed === false;
+  }
+  /** the status words to show instead of Final */
+  function heldStatus(g) {
+    const d = String((g && (g.statusDetail || g.detail || g.det)) || "").trim();
+    if (d && !FINALISH.test(d)) return d;
+    const blob = statusBlob(g);
+    if (/postpon/i.test(blob)) return "Postponed";
+    if (/cancel/i.test(blob)) return "Canceled";
+    if (/suspend/i.test(blob)) return "Suspended";
+    if (/abandon/i.test(blob)) return "Abandoned";
+    if (/forfeit/i.test(blob)) return "Forfeit";
+    return "Not played";
+  }
+
   return { HOST, LEAGUES, SCORE_MS, SUMMARY_MS, SAVE_DATA_SUMMARY_MS, MAX_BACKOFF_MS, COLLEGE_DIRECT_MAX, supported, kindOf, etDay, scoreboardUrl, summaryUrl, needsLive, plan, key,
            directStatusUrl, directScoreUrl, directCompetitionUrl, useDirect, parseDirect,
-           situation, parseScoreboard, parseSummary, mergeGame, mergeTicker, sig, intervals, fresher, finalLabel, finalSuffix };
+           situation, parseScoreboard, parseSummary, mergeGame, mergeTicker, sig, intervals, fresher, finalLabel, finalSuffix,
+           isCanceledOrPostponed, heldStatus };
 });

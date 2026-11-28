@@ -832,8 +832,12 @@ def edge_cases(tmp):
     lined = game("pp-lined", now - timedelta(days=40), side("91003", "Gamma Test", "GAM", 14), side("91004", "Delta Test", "DEL", 21, True), "post", "Final", books)
     post = game("pp-post", now - timedelta(days=2), side("91001", "Alpha Test", "ALP"), side("91003", "Gamma Test", "GAM"), "post", "Postponed", books)
     can = game("pp-can", now - timedelta(days=3), side("91003", "Gamma Test", "GAM", 0), side("91004", "Delta Test", "DEL", 0), "post", "Canceled")
+    sus = game("pp-sus", now - timedelta(days=1), side("91001", "Alpha Test", "ALP", 1), side("91002", "Beta Test", "BET", 0, True), "post", "Suspended", books)
+    sus["completed"] = True
+    held = game("pp-held", now - timedelta(hours=20), side("91003", "Gamma Test", "GAM", 0), side("91004", "Delta Test", "DEL", 0), "post", "FT")
+    held["completed"] = False
     pre = game("pp-pre", now + timedelta(days=3), side("91001", "Alpha Test", "ALP"), side("91004", "Delta Test", "DEL"), "pre", "Sun", books)
-    ix["games"].extend([thin, lined, post, can, pre])
+    ix["games"].extend([thin, lined, post, can, sus, held, pre])
     (data / "nfl" / "index.json").write_text(json.dumps(ix))
     arch = tmp / "archE"
     SP.build(site, data, now, archive_dir=arch)
@@ -860,6 +864,15 @@ def edge_cases(tmp):
     ev = event_ld_ok(rel, h, "nfl", "game")
     check(ev and ev.get("@type") == "ItemPage" and "offers" not in ev and "eventStatus" not in ev, "canceled JSON-LD is not an Event and has no offers")
     check((site / "nfl" / "results" / "index.html").exists() and "CollectionPage" in (site / "nfl" / "results" / "index.html").read_text(), "results index has CollectionPage")
+    rel, h = page("pp-sus")
+    check("Suspended" in h and "No score" in h and 'class="sx-score' not in h and "Final score" not in h, "suspended page shows the status and no score")
+    check(f'href="{rel}"' not in (site / "nfl" / "results" / "index.html").read_text().split('id="recent-s"', 1)[-1].split('id="by-team"', 1)[0], "suspended game is not listed as a result")
+    check("21+" in h and "1-800-GAMBLER" in h and "1-833-PLAYWISE" in h, "suspended page keeps the 21+ notice and the helplines")
+    sus_main = h.split('id="app">', 1)[-1].split("</main>", 1)[0]
+    check(not re.search(r"(?:DraftKings|FanDuel).{0,80}legal in Florida|legal in Florida.{0,80}(?:DraftKings|FanDuel)", sus_main, re.I), "suspended page does not say DraftKings or FanDuel are legal in Florida")
+    rel, h = page("pp-held")
+    check("Not played" in h and 'class="sx-score' not in h and "Final score" not in h, "post without completed is not rendered as a final")
+    check(f'href="{rel}"' not in (site / "nfl" / "results" / "index.html").read_text().split('id="recent-s"', 1)[-1].split('id="by-team"', 1)[0], "unfinished post game is not listed as a result")
     # reschedule: old slug becomes a stub
     old_pre = gman["pp-pre"]
     ix = json.loads((data / "nfl" / "index.json").read_text())
@@ -896,7 +909,7 @@ def edge_cases(tmp):
     (data / "nfl" / "index.json").write_text(json.dumps(ix))
     SP.build(site, data, now + timedelta(days=70), archive_dir=arch)
     man = json.loads((data / "pages.json").read_text())["g"]["nfl"]
-    for gid in ("pp-thin", "pp-lined", "pp-post", "pp-can"):
+    for gid in ("pp-thin", "pp-lined", "pp-post", "pp-can", "pp-sus", "pp-held"):
         check(gid in man and (site / man[gid] / "index.html").exists(), f"{gid} still published 70 days later")
     check("Postponed" in (site / man["pp-post"] / "index.html").read_text(), "postponed game is still labeled Postponed after it leaves the window")
     check("Closing lines not recorded" in (site / man["pp-thin"] / "index.html").read_text(), "thin final still says closing lines were not recorded")

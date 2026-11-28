@@ -128,6 +128,14 @@ def _event_state(e):
     return st.get("state") or "", (st.get("shortDetail") or st.get("detail") or "")
 
 
+def _status_game(e):
+    """A small game dict for is_canceled_or_postponed, from an ESPN scoreboard event."""
+    comp = (e.get("competitions") or [None])[0] or {}
+    st = (e.get("status") or comp.get("status") or {}).get("type") or {}
+    return {"state": st.get("state") or "", "statusDetail": st.get("shortDetail") or st.get("detail") or "",
+            "statusName": st.get("name") or "", "completed": st.get("completed")}
+
+
 def _event_start(e):
     raw = e.get("date")
     if not raw:
@@ -151,7 +159,7 @@ def keep_prior_day_event(e, lg, now):
     state, detail = _event_state(e)
     if state == "in":
         return True
-    if state == "post" and re.search(r"postpon|cancel|suspend|delay", detail or "", re.I):
+    if state == "post" and (FL.is_canceled_or_postponed(_status_game(e)) or re.search(r"delay", detail or "", re.I)):
         return False
     start = _event_start(e)
     if start is None or now is None:
@@ -376,7 +384,7 @@ def parse_summary(lg, g, m):
                     break
     det["leaders"] = leaders
     # Finished games only. A live summary is partial and the in-game widget fetches its own.
-    if g.get("state") == "post" and lg.get("kind") != "mma":
+    if g.get("state") == "post" and not FL.is_canceled_or_postponed(g) and lg.get("kind") != "mma":
         box = BX.compact(lg.get("kind"), m)
         if box:
             det["box"] = box
@@ -390,7 +398,11 @@ def team_splits(lg, tid):
     for e in s.get("events", []) or []:
         c = (e.get("competitions") or [{}])[0]
         cst = c.get("status") or {}
-        if not (cst.get("type") or {}).get("completed"): continue
+        stype = cst.get("type") or {}
+        if not stype.get("completed"): continue
+        if FL.is_canceled_or_postponed({"state": stype.get("state"), "statusDetail": stype.get("shortDetail") or stype.get("detail"),
+                                        "statusName": stype.get("name"), "completed": stype.get("completed")}):
+            continue
         me = next((x for x in c.get("competitors", []) if str(x.get("id") or x.get("team", {}).get("id")) == str(tid)), None)
         op = next((x for x in c.get("competitors", []) if x is not me), None)
         if not me or not op: continue

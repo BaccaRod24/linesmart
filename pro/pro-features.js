@@ -34,6 +34,15 @@
     const notes = move && Array.isArray(move.notable) ? move.notable.filter(Boolean) : [];
     if (state === "pre" && notes.length) return { show: "sharp", label: "Sharp", why: notes.join(" · ") };
     if (state === "in" || state === "post") {
+      let held = false, word = "";
+      try {
+        const C = (typeof window !== "undefined" && window.LiveCore && window.LiveCore.isCanceledOrPostponed)
+          ? window.LiveCore
+          : (typeof require === "function" ? require("../site/assets/live-core.js") : null);
+        held = !!(C && C.isCanceledOrPostponed && C.isCanceledOrPostponed(g));
+        if (held) word = C.heldStatus ? C.heldStatus(g) : ((g && g.statusDetail) || "Canceled");
+      } catch (e) { held = false; }
+      if (held) return { show: "empty", label: "No flag", why: "Sharp flags are only for games that have not started. This game is " + word + "." };
       return { show: "empty", label: "No flag", why: "Sharp flags are only for games that have not started. This game is " + (state === "in" ? "live" : "finished") + "." };
     }
     const hasMove = !!(move && (move.spread || move.total || move.homeML || move.awayML));

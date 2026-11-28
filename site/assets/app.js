@@ -242,8 +242,24 @@
     return `<span class="status">${timeET(g.date)}</span>`;
   }
 
+  const LINE_NAME = { hardrockbet: "Hard Rock Bet", draftkings: "DraftKings", fanduel: "FanDuel" };
+  const linePosted = b => !!(b && !b.stale && (isNum(b.homeSpread) || isNum(b.awaySpread) || isNum(b.homeML) || isNum(b.awayML) || isNum(b.total) || isNum(b.drawML)));
+  // The card shows one line. In a state with a legal book that has posted, that book is the line
+  // (Hard Rock Bet first in Florida). Otherwise the card keeps the ESPN line.
+  function shownLine(g) {
+    const geo = GEO();
+    const ev = geo && geo.current ? geo.current() : null;
+    if (ev && ev.state && geo.sortBooks) {
+      for (const k of geo.sortBooks(["hardrockbet", "draftkings", "fanduel"])) {
+        if (geo.isAvailable && !geo.isAvailable(k)) continue;
+        const b = (g.books || {})[k];
+        if (linePosted(b)) return { o: b, key: k, name: LINE_NAME[k] || k };
+      }
+    }
+    return { o: g.odds || null, key: "", name: "" };
+  }
   function teamRow(t, g, side, kind) {
-    const o = g.odds, held = heldGame(g), showScore = !held && g.state !== "pre" && t.score != null;
+    const o = shownLine(g).o, held = heldGame(g), showScore = !held && g.state !== "pre" && t.score != null;
     const other = side === "home" ? g.away : g.home;
     const lose = !held && g.state === "post" && isNum(t.score) && isNum(other.score) && +t.score < +other.score;
     let chips = "";
@@ -265,18 +281,19 @@
   }
   function gameTile(g, key, kind, home = false) {
     TILES[`${key}/${g.id}`] = { g, kind, home: !!home }; g = liveG(key, g);
-    const o = g.odds, soccer = kind === "soccer";
+    const pick = shownLine(g), o = pick.o, soccer = kind === "soccer";
     const cols = !o ? [] : soccer ? ["1X2", "Total"] : [spreadLabelOf(kind), "Money", "Total"];
     const head = cols.length ? `<div class="gt-head"><span></span><span></span><span></span>${cols.map(c => `<span>${esc(c)}</span>`).join("")}</div>` : "";
     const draw = soccer && o ? `<div class="trow draw"><span class="tl"></span><div class="tn"><div class="tname">Draw</div></div><div class="tscore"></div>${chip(am(o.drawML))}<span></span></div>` : "";
     const live = k => { const b = (g.books || {})[k]; return b && !b.stale && b.asOf; };   // pre-game Odds API line (Hard Rock / FanDuel)
     const mv = moveOf(g), hasMv = mv && (mv.spread || mv.total);
     const wx = window.LSWeather && g.state !== "post" ? window.LSWeather.chip(g) : "";
-    const pk = GEO() ? GEO().providerKey(o && o.provider) : null, pNa = pk && !bookAvail(pk) ? GEO().naLabel(pk) : "";
-    const pTag = o ? `<span class="bk${pNa ? " bk-na" : ""}"${pNa ? ` title="${esc(pNa)}"` : ""}>${esc(bookLabel(o.provider) || "provider n/a")}${pNa ? `<span class="sr-only"> (${esc(pNa)})</span>` : ""}</span>` : "", altTag = (k, cls, name) => { if (!live(k)) return ""; const na = bookAvail(k) ? "" : GEO().naLabel(k);
+    const pk = pick.key || (GEO() ? GEO().providerKey(o && o.provider) : null), pNa = pk && !bookAvail(pk) ? GEO().naLabel(pk) : "";
+    const pName = pick.name || bookLabel(o && o.provider) || "provider n/a";
+    const pTag = o ? `<span class="bk${pNa ? " bk-na" : ""}"${pNa ? ` title="${esc(pNa)}"` : ""}>${esc(pName)}${pNa ? `<span class="sr-only"> (${esc(pNa)})</span>` : ""}</span>` : "", altTag = (k, cls, name) => { if (!live(k) || k === pk) return ""; const na = bookAvail(k) ? "" : GEO().naLabel(k);
       return `<span class="bk ${cls}${na ? " bk-na" : ""}"${na ? ` title="${esc(na)}"` : ""}>${name}${na ? `<span class="sr-only"> (${esc(na)})</span>` : ""}</span>`; };
     // legal-in-your-state books first (Florida: Hard Rock Bet, then the dimmed DraftKings / FanDuel)
-    const tags = [[pk || "espn", pTag], ["hardrockbet", altTag("hardrockbet", "hr", "Hard Rock Bet")], ["fanduel", altTag("fanduel", "fd", "FanDuel")]]
+    const tags = [[pk || "espn", pTag], ["hardrockbet", altTag("hardrockbet", "hr", "Hard Rock Bet")], ["draftkings", altTag("draftkings", "dk", "DraftKings")], ["fanduel", altTag("fanduel", "fd", "FanDuel")]]
       .sort((a, b) => (bookAvail(b[0]) ? 1 : 0) - (bookAvail(a[0]) ? 1 : 0)).map(t => t[1]).join("");
     const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}">${tags}${sparks(g)}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
                    : `<div class="noline">Lines not posted yet</div>${wx ? `<div class="tfoot has-wx wx-only">${wx}</div>` : ""}`;
@@ -532,7 +549,7 @@
       : `<div class="chips">
       <span class="chip"><b>${data.report.upcoming}</b> upcoming</span>
       <span class="chip"><b>${data.report.withOdds}</b> with lines</span>
-      <span class="chip">Lines: <b>${esc((data.report.providers || []).map(bookLabel).filter(Boolean).join(", ") || "none")}</b></span>
+      <span class="chip">Lines: <b>${esc((GEO() && GEO().current && GEO().current().state === "FL") ? "Hard Rock Bet" : ((data.report.providers || []).map(bookLabel).filter(Boolean).join(", ") || "none"))}</b></span>${(GEO() && GEO().current && GEO().current().state === "FL") ? `<span class="chip">DraftKings and FanDuel aren't available in FL</span>` : ""}
       <span class="chip">Next ${data.windowDays} days</span></div>${staleNote(data.stale)}${oddsStaleNote(key)}`;
     const seg = leagueSeg(key, filter);
     let rankDoc = null;

@@ -487,7 +487,9 @@
     rememberLg(key);
     renderTabs(home ? HOME : key);
     const L = META.leagues[key];
-    if (!cache[`data/${key}/index.json`]) showSkel(skelLeague());
+    // A hub already painted its article in #app. Swapping that for a short skeleton pulls the
+    // SEO block below #app up into the viewport and back down when the cards arrive.
+    if (!cache[`data/${key}/index.json`] && !app.querySelector("article.pv")) showSkel(skelLeague());
     if (!L) return (app.innerHTML = `<div class="empty"><h3>Unknown league</h3></div>`);
     let data;
     try { data = await getJSON(`data/${key}/index.json`); }

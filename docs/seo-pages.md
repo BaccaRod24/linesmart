@@ -52,8 +52,8 @@ App-only sub-routes such as `#/l/nfl/all` stay hash routes.
   (NCAAF and NCAAB anchors say "odds, lines and spreads"), this week's games (up to 12 per league, topped up to 3 when
   the week is empty), and player-prop pages that have a number on those games (up to 8 per league). Each league page
   repeats the other leagues under the lead and again outside `#app`. This week's games and prop pages for that sport
-  sit in `div.sx-week` above `#app`, under the headings "Games this week" and "Player props this week" (up to 80 games, topped up to 12; up to 24 prop pages), so they stay in the HTML
-  after the app replaces `#app`. The list wraps on a phone. Caps keep the homepage from growing back toward the old
+  sit in `div.sx-week` below `#app`, under the headings "Games this week" and "Player props this week" (up to 80 games, topped up to 12; up to 24 prop pages), so they stay in the HTML
+  after the app replaces `#app` and the odds rows stay on the first phone screen. The list wraps on a phone. Caps keep the homepage from growing back toward the old
   multi-megabyte size. Each of those two lists is a closed `<details>` on the homepage and on the hubs: the summary is
   the heading, the count ("Games this week (60)"), and a chevron. The `<a href>` rows stay in the raw HTML inside the
   closed element. A game the build already has in progress shows a red LIVE badge instead of the start time, and the

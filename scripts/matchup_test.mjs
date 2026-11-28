@@ -87,6 +87,8 @@ check(M.nextGame(games, "77") === null && M.nextGame(games, "") === null, "no sc
 const ln = M.linesFor(ng.game, false);
 check(ln.length === 1 && ln[0].book === "DraftKings" && ln[0].spread === -4.5 && ln[0].ml === -225, "lines: DK for the player's side; stale Hard Rock skipped", "next");
 check(M.linesFor({ odds: { provider: "ESPN BET", homeSpread: 3, total: 40 } }, true)[0].book === "ESPN BET", "lines fall back to ESPN odds", "next");
+check(M.linesFor({ odds: { provider: "Draft Kings", homeSpread: 3, total: 40 } }, true)[0].book === "DraftKings", "ESPN Draft Kings displays as DraftKings", "next");
+check(M.linesFor({ odds: { provider: "Hard Rock", homeSpread: 3, total: 40 } }, true)[0].book === "Hard Rock Bet", "Hard Rock displays as Hard Rock Bet", "next");
 check(M.linesFor({}, true).length === 0, "no odds → no lines", "next");
 
 // ---------- opponent defense

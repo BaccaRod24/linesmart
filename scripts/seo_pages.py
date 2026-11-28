@@ -47,6 +47,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_pages  # noqa: E402
 import line_history as LH  # noqa: E402  (even-money-aware moneyline move, shared with the game page)
 import line_moves as LM  # noqa: E402  (verified open-to-current moves for /line-moves/)
+import book_names as BN  # noqa: E402  (Draft Kings -> DraftKings, Hard Rock -> Hard Rock Bet)
 import previews as pv  # noqa: E402  (formatting, odds tables, line movement, summaries, form/injury cards)
 import final_label as FL  # noqa: E402  ("Final/OT", "Final/12"... labels)
 import standings as ST_STAND  # noqa: E402  (ESPN standings cache written by build_data.py)
@@ -96,7 +97,7 @@ UNIT = {"football": "point", "basketball": "point", "hockey": "goal", "baseball"
 SUFFIX = " | LineSmart"
 TITLE_MAX = 60
 DESC_MAX = 155
-TITLE_BOOK = {"hardrockbet": "Hard Rock", "draftkings": "DraftKings", "fanduel": "FanDuel"}   # short names for titles/descriptions
+TITLE_BOOK = {"hardrockbet": "Hard Rock Bet", "draftkings": "DraftKings", "fanduel": "FanDuel"}   # names in descriptions and intros
 BOOK_TAG = {"hardrockbet": "HR", "draftkings": "DK", "fanduel": "FD"}   # table cells; ties read "DK, FD"
 # Game and player-prop snippets. The description spells the books out. The title uses the short form so the
 # matchup (or player), the date and the comparison still fit in TITLE_MAX. Order matches the way the pages are described.
@@ -487,13 +488,13 @@ def item_list(base_url, entries, name=None):
 
 
 def page_books(g, lg):
-    """Sportsbooks whose lines are actually shown in this page's odds table, in Hard Rock, DraftKings, FanDuel order.
+    """Sportsbooks whose lines are actually shown in this page's odds table, in Hard Rock Bet, DraftKings, FanDuel order.
     No live book columns: the ESPN fallback column counts only when its provider is one of our books. UFC: DraftKings only."""
     live = pv.live_books(g)
     keys = [k for k in pv.SUMMARY_BOOK_ORDER if k in live]
     if not keys and pv.has_line(g):
-        prov = ((g.get("odds") or {}).get("provider") or "").strip().lower()
-        keys = [k for k, n in pv.BOOKS if n.lower() == prov or TITLE_BOOK[k].lower() == prov]
+        key = BN.book_key((g.get("odds") or {}).get("provider"))
+        keys = [key] if key in TITLE_BOOK else []
     if lg == "ufc":
         keys = [k for k in keys if k == "draftkings"]
     return keys
@@ -1959,7 +1960,7 @@ def _book_name(k, g=None):
     if k in TITLE_BOOK:
         return TITLE_BOOK[k]
     if k == "odds":
-        prov = ((g.get("odds") or {}).get("provider") or "").strip() if g else ""
+        prov = BN.display_book(((g.get("odds") or {}).get("provider") or "").strip()) if g else ""
         return prov or "ESPN"
     return pv.BOOK_NAME.get(k) or ""
 
@@ -4579,7 +4580,7 @@ def best_lines_page(Ls, sh: Shell, now, base_url):
         if lg not in seen_lg:
             seen_lg.append(lg)
     league_s = and_list(NAMES[lg] for lg in seen_lg) if seen_lg else "the sports we cover"
-    book_s = "Hard Rock, DraftKings and FanDuel"
+    book_s = "Hard Rock Bet, DraftKings and FanDuel"
     if not rows:
         meta = f"Best spread, total and moneyline across {book_s}. The page fills in when books post a line. Odds for reference; 21+."
     elif nxt:
@@ -4588,7 +4589,7 @@ def best_lines_page(Ls, sh: Shell, now, base_url):
         meta = f"Best spread, total and moneyline for {plural(n, 'game')} today across {book_s}: {league_s}. Odds for reference; 21+."
     desc = cut(meta)
     intro = (
-        f"{plural(n, 'game')} on {day_label} have lines posted at Hard Rock, DraftKings or FanDuel. "
+        f"{plural(n, 'game')} on {day_label} have lines posted at Hard Rock Bet, DraftKings or FanDuel. "
         "For each game, the table shows the best available number and price for each side and which book has it. "
         "Odds change quickly and are for reference only; confirm in the sportsbook app. "
         'Book availability depends on your state (<a href="states/">see states</a>). 21+.'

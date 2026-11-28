@@ -145,6 +145,19 @@
   // or a prerender that may still be activated). "skip" is automation, a known crawler/monitor, or a
   // prefetch/prerender request. Purpose headers describe that one request; prerendering describes the
   // document, which can become a real view, so prerendering waits instead of skipping.
+  // ESPN writes "Draft Kings". A bare "Hard Rock" is Hard Rock Bet. Other text stays as written,
+  // including a sentence that mentions Hard Rock Bet by its full name already.
+  function displayBook(name) {
+    if (name == null) return name;
+    const raw = String(name);
+    const key = raw.trim().toLowerCase().replace(/[^a-z]/g, "");
+    if (key === "draftkings") return "DraftKings";
+    if (key === "hardrock" || key === "hardrockbet") return "Hard Rock Bet";
+    if (key === "fanduel") return "FanDuel";
+    if (raw.indexOf("Draft Kings") >= 0) return raw.split("Draft Kings").join("DraftKings");
+    return raw;
+  }
+
   function visitDecision(env) {
     const e = env || {};
     if (e.webdriver === true || e.webdriver === 1) return "skip";
@@ -157,5 +170,5 @@
     return "count";
   }
 
-  return { OUTSIDE, BOOK_KEYS, HELPLINES, GAMBLER, helpline, rgCallHTML, resolve, parseLookup, evaluate, isAvailable, naLabel, sortBooks, offerFor, BOT_UA_SOURCES, BOT_UA_RE, isBotUserAgent, visitDecision };
+  return { OUTSIDE, BOOK_KEYS, HELPLINES, GAMBLER, helpline, rgCallHTML, resolve, parseLookup, evaluate, isAvailable, naLabel, sortBooks, offerFor, BOT_UA_SOURCES, BOT_UA_RE, isBotUserAgent, visitDecision, displayBook };
 });

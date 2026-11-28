@@ -33,6 +33,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import book_names as BN  # noqa: E402  (Draft Kings -> DraftKings, Hard Rock -> Hard Rock Bet)
 import build_pages  # noqa: E402  (shared footer: 21+, 1-800-GAMBLER, legal links)
 import line_history as LH  # noqa: E402  (even-money-aware moneyline move)
 
@@ -216,8 +217,8 @@ def odds_table(g, kind):
         if not has_line(g):
             return '<div class="noline">Lines not posted yet. This page updates with every data refresh.</div>'
         books, cols = {"espn": o}, ["espn"]
-    name = lambda k: BOOK_NAME.get(k) or (g.get("odds") or {}).get("provider") or "ESPN"
-    head = "".join(f'<th data-book="{k}">{esc(name(k))}<span class="na-tag"></span><span class="src">{esc(("as of " + fmt_et(parse_dt(books[k]["asOf"]), False)) if books[k].get("asOf") else (books[k].get("source") or ""))}</span></th>' for k in cols)
+    name = lambda k: BOOK_NAME.get(k) or BN.display_book((g.get("odds") or {}).get("provider")) or "ESPN"
+    head = "".join(f'<th data-book="{k}">{esc(name(k))}<span class="na-tag"></span><span class="src">{esc(("as of " + fmt_et(parse_dt(books[k]["asOf"]), False)) if books[k].get("asOf") else BN.display_book(books[k].get("source") or ""))}</span></th>' for k in cols)
     rows = []
     for label, fn in markets(g, kind):
         vals = {k: fn(books[k]) for k in cols}
@@ -327,7 +328,7 @@ def summary(lg, kind, g, detail, teams, props_count, move_facts):
         s.append(f"{a.get('name')} {'face' if g.get('neutral') else 'visit'} {h.get('name')}{where} on {when}.")
     bk, b = ref_book(g)
     if b:
-        src = BOOK_NAME.get(bk) or (g.get("odds") or {}).get("provider") or "the listed book"
+        src = BOOK_NAME.get(bk) or BN.display_book((g.get("odds") or {}).get("provider")) or "the listed book"
         hs = b.get("homeSpread")
         if kind in ("football", "basketball") and isnum(hs):
             if hs == 0:

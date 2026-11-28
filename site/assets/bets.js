@@ -8,6 +8,7 @@
   const A = () => window.LSApp;
   const $ = (sel, el = document) => el.querySelector(sel);
   const esc = s => A().esc(s);
+  const bookLabel = name => (window.GeoCore && window.GeoCore.displayBook ? window.GeoCore.displayBook(name) : (name == null ? "" : String(name)));
   const isNum = C.isNum;
   const am = v => (isNum(v) ? (v > 0 ? "+" + v : String(v)) : "");
   const ln = v => (isNum(v) ? (v > 0 ? "+" + v : v == 0 ? "PK" : String(v)) : "");
@@ -628,7 +629,7 @@
     if (!g) return null;
     const B = g.books || {}, key = { draftkings: "draftkings", hardrock: "hardrockbet", fanduel: "fanduel" }[book];
     const b = key && B[key] && !B[key].stale ? B[key] : null;
-    return b ? { o: b, src: C.BOOKS[book] } : g.odds ? { o: g.odds, src: g.odds.provider || "ESPN" } : null;
+    return b ? { o: b, src: C.BOOKS[book] } : g.odds ? { o: g.odds, src: bookLabel(g.odds.provider) || "ESPN" } : null;
   }
   function priceFor(q, mk, side) {
     if (!q) return {};

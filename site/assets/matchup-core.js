@@ -8,6 +8,19 @@
   "use strict";
   const isNum = v => v !== null && v !== undefined && v !== "" && !isNaN(v) && isFinite(v);
   const r1 = v => (isNum(v) ? Math.round(v * 10) / 10 : null);
+  // Same rule as GeoCore.displayBook. Kept here so matchup lines work before that script, and in Node.
+  function displayBook(name) {
+    const G = typeof GeoCore !== "undefined" ? GeoCore : (typeof globalThis !== "undefined" ? globalThis.GeoCore : null);
+    if (G && G.displayBook) return G.displayBook(name);
+    if (name == null) return name;
+    const raw = String(name);
+    const key = raw.trim().toLowerCase().replace(/[^a-z]/g, "");
+    if (key === "draftkings") return "DraftKings";
+    if (key === "hardrock" || key === "hardrockbet") return "Hard Rock Bet";
+    if (key === "fanduel") return "FanDuel";
+    if (raw.indexOf("Draft Kings") >= 0) return raw.split("Draft Kings").join("DraftKings");
+    return raw;
+  }
 
   // "1,077" -> 1077, "-" / "" -> null
   const num = s => { if (s === null || s === undefined) return null; const t = String(s).replace(/,/g, "").trim(); return t === "" || t === "-" || t === "--" || isNaN(t) ? null : Number(t); };
@@ -134,7 +147,7 @@
     if (B.draftkings && !B.draftkings.stale) add("DraftKings", B.draftkings, B.draftkings.asOf, "draftkings");
     if (B.hardrockbet && !B.hardrockbet.stale) add("Hard Rock Bet", B.hardrockbet, B.hardrockbet.asOf, "hardrockbet");
     if (B.fanduel && !B.fanduel.stale) add("FanDuel", B.fanduel, B.fanduel.asOf, "fanduel");
-    if (!out.length && g.odds) add(g.odds.provider || "ESPN", g.odds);
+    if (!out.length && g.odds) add(displayBook(g.odds.provider) || "ESPN", g.odds);
     return out;
   }
   const ordinal = n => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };

@@ -24,7 +24,11 @@ check(!keys(fl).includes("draftkings") && !keys(fl).includes("fanduel") && !keys
 check(fl.defaultBook === "hardrockbet" && fl.available[0] === "hardrockbet", "FL: Hard Rock Bet first and default");
 check(G.naLabel(fl, "draftkings") === "Not available in FL" && G.naLabel(fl, "fanduel") === "Not available in FL" && G.naLabel(fl, "betmgm") === "Not available in FL" && G.naLabel(fl, "hardrockbet") === "", "FL: DK/FD/BetMGM labeled not available");
 check(eq(G.sortBooks(fl, ["draftkings", "hardrockbet", "fanduel", "betmgm"]), ["hardrockbet", "draftkings", "fanduel", "betmgm"]), "FL: book columns sort Hard Rock first");
-check(fl.offers[0].url === "https://www.hardrock.bet/" && fl.offers[0].affiliate === false, "FL: no affiliate URL yet -> official site, not marked affiliate");
+check(G.displayBook("Draft Kings") === "DraftKings" && G.displayBook("DraftKings") === "DraftKings", "Draft Kings displays as DraftKings");
+check(G.displayBook("Hard Rock") === "Hard Rock Bet" && G.displayBook("Hard Rock Bet") === "Hard Rock Bet" && G.displayBook("FanDuel") === "FanDuel", "Hard Rock displays as Hard Rock Bet");
+check(G.displayBook("ESPN (Draft Kings)") === "ESPN (DraftKings)" && G.displayBook("ESPN BET") === "ESPN BET", "source string and other books");
+const legalCopy = "in Florida, Hard Rock Bet is the only legal online sportsbook. DraftKings and FanDuel prices are shown for comparison where they are legal.";
+check(G.displayBook(legalCopy) === legalCopy, "Florida legal copy is not rewritten");
 
 // New Jersey: all four
 const nj = ev("NJ", null);

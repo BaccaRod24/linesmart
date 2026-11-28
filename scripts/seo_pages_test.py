@@ -261,6 +261,50 @@ def has_query_words(text):
     return all(re.search(r"\b" + w + r"\b", low) for w in ("lines", "spreads", "odds"))
 
 
+def book_name_tests():
+    """ESPN's 'Draft Kings' and a bare 'Hard Rock' display as DraftKings and Hard Rock Bet.
+    Florida legal copy is not a book-name field, so it is not rewritten."""
+    import book_names as BN
+    import build_data as BD
+    check(BN.display_book("Draft Kings") == "DraftKings" and BN.display_book("DraftKings") == "DraftKings", "Draft Kings displays as DraftKings")
+    check(BN.display_book("Hard Rock") == "Hard Rock Bet" and BN.display_book("Hard Rock Bet") == "Hard Rock Bet", "Hard Rock displays as Hard Rock Bet")
+    check(BN.display_book("FanDuel") == "FanDuel" and BN.display_book("ESPN BET") == "ESPN BET", "FanDuel stays; ESPN BET is not one of our books")
+    check(BN.display_book("ESPN (Draft Kings)") == "ESPN (DraftKings)", "an ESPN source string replaces only that spelling")
+    legal = "in Florida, Hard Rock Bet is the only legal online sportsbook. DraftKings and FanDuel prices are shown for comparison where they are legal."
+    check(BN.display_book(legal) == legal, "Florida legal copy is not rewritten")
+    check(BN.book_key("Draft Kings") == "draftkings" and BN.book_key("Hard Rock") == "hardrockbet" and BN.book_key("ESPN BET") is None, "book_key maps the ESPN spellings")
+    check(SP.TITLE_BOOK["hardrockbet"] == "Hard Rock Bet" and SP._book_name("odds", {"odds": {"provider": "Draft Kings"}}) == "DraftKings", "page copy uses the canonical names")
+    alias = {"odds": {"provider": "Draft Kings", "homeML": -150, "awayML": 130}, "books": {}}
+    check(SP.page_books(alias, "nba") == ["draftkings"], "an ESPN Draft Kings column counts as DraftKings")
+    check(SP.page_books({"odds": {"provider": "Hard Rock", "homeML": -110, "awayML": 100}}, "nba") == ["hardrockbet"], "a Hard Rock column counts as Hard Rock Bet")
+    norm = BD.norm_odds({"provider": {"displayName": "Draft Kings"}, "homeTeamOdds": {"moneyLine": -150}, "awayTeamOdds": {"moneyLine": 130}})
+    check(norm and norm["provider"] == "DraftKings", f"a new data build stores DraftKings ({norm and norm.get('provider')})")
+
+    class L:
+        lg, kind, props = "nba", "basketball", {}
+        def is_final(self, g):
+            return True
+        def score_line(self, g):
+            return "LAL 96, SA 99"
+        def final_label(self, g):
+            return "Final"
+
+    g = {"date": "2026-11-28T02:00:00Z", "state": "post", "completed": True, "_closing": True,
+         "away": {"abbr": "LAL", "short": "Lakers", "name": "Los Angeles Lakers", "score": 96},
+         "home": {"abbr": "SA", "short": "Spurs", "name": "San Antonio Spurs", "score": 99},
+         "odds": {"provider": "Draft Kings", "homeML": -110, "awayML": -110, "homeSpread": -6.5, "awaySpread": 6.5, "total": 220},
+         "books": {
+             "hardrockbet": {"homeML": -105, "awayML": -115, "homeSpread": -6.5, "awaySpread": 6.5, "total": 220},
+             "draftkings": {"homeML": -110, "awayML": -110, "homeSpread": -6.5, "awaySpread": 6.5, "total": 220},
+             "fanduel": {"homeML": -108, "awayML": -112, "homeSpread": -6.5, "awaySpread": 6.5, "total": 220},
+         }}
+    _title, desc = SP.game_meta(L(), g, "1")
+    check("Hard Rock Bet" in desc and "DraftKings" in desc and "FanDuel" in desc, f"finished description names Hard Rock Bet ({desc})")
+    check(not re.search(r"Hard Rock(?! Bet)", desc) and "Draft Kings" not in desc, f"finished description does not use the short names ({desc})")
+    check(len(desc) <= SP.DESC_MAX, f"finished description stays within {SP.DESC_MAX} ({len(desc)})")
+    check("legal in Florida" not in desc and "available in Florida" not in desc, "finished description does not place a book in Florida")
+
+
 def title_limit_tests():
     """Title cap includes the brand suffix; descriptions stop at 155; dedupe cannot push a title back over."""
     check(SP.TITLE_MAX == 60 and SP.DESC_MAX == 155 and len(SP.SUFFIX) == 12, "title 60 including suffix, description 155")
@@ -1621,6 +1665,9 @@ def board_link_tests():
     check(board and not re.search(r"<details\b[^>]*\bopen\b", board.group(0)), "best lines board starts collapsed")
     check(board and board.group(0).lower().count("<a ") == board.group(0).lower().count("<a href="), "best lines board links are plain href anchors")
     check("21+" in html and "1-800-GAMBLER" in html and "1-833-PLAYWISE" in html and "1-888-ADMIT-IT" in html, "best lines keeps the 21+ notice and the helplines")
+    bl_desc = re.search(r'<meta name="description" content="([^"]*)"', html)
+    bl_text = bl_desc.group(1) if bl_desc else ""
+    check("Hard Rock Bet" in bl_text and not re.search(r"Hard Rock(?! Bet)", bl_text), f"best lines meta says Hard Rock Bet ({bl_text[:140]})")
     check(not PROMO_RE.search(re.sub(r"<[^>]+>", " ", html)), "best lines board has no promo wording")
     check(not re.search(r"\b(?:legal|available|offered)\s+in\s+florida\b", html, re.I), "best lines does not say a book is legal in Florida")
 
@@ -1735,6 +1782,7 @@ def main():
     sitemap_game_guard_tests()
     sitemap_trim_tests()
     title_limit_tests()
+    book_name_tests()
     game_title_tests()
     discover_link_tests()
     week_live_tests()

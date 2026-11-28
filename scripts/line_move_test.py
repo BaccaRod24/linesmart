@@ -64,6 +64,7 @@ gh = dict(open=dict(draftkings=dict(hs=-3.0, tot=48.5)),
 m = LH.summarize(gh, "football", "nfl")
 check(m["spread"]["delta"] == -2.0 and m["spread"]["open"] == -3.0 and m["spread"]["cur"] == -5.0, "spread delta stays a plain subtraction")
 check(m["total"]["delta"] == -1.0, "total delta stays a plain subtraction")
+check(m["first"]["spread"] == -4.5 and m["first"]["total"] == 47.5, "first-seen line is the first recorded point, not the ESPN open")
 
 # ---- static game page recomputes, ignoring a stored delta of +224
 def move_cells(move, kind="hockey"):

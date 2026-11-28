@@ -223,9 +223,23 @@
   }
 
   // odds chip: main value (+ move arrow) and an optional price underneath
-  const chip = (main, sub, extra = "") => (main === null || main === undefined
+  const chip = (main, sub, extra = "", open = "") => (main === null || main === undefined
     ? `<span class="oc na-oc" aria-label="not available">—</span>`
-    : `<span class="oc"><b>${main}${extra}</b>${sub ? `<small>${sub}</small>` : ""}</span>`);
+    : `<span class="oc${open ? " has-open" : ""}"><b>${main}${extra}</b>${sub ? `<small>${sub}</small>` : ""}${open}</span>`);
+  // Home spread we first recorded. move.first is that snapshot. A one-point history has no separate
+  // first field on older builds: move.spread.cur is that only point, while move.spread.open can still be ESPN's.
+  function firstHomeSpread(g) {
+    const m = moveOf(g);
+    if (!m) return null;
+    if (m.first && isNum(m.first.spread)) return +m.first.spread;
+    if (m.points === 1 && m.spread && isNum(m.spread.cur)) return +m.spread.cur;
+    return null;
+  }
+  const openHtml = (g, side) => {
+    const hs = firstHomeSpread(g);
+    if (!isNum(hs)) return "";
+    return `<span class="oc-open">Open ${esc(line(side === "home" ? hs : -hs))}</span>`;
+  };
   const spreadLabelOf = kind => (kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread");
 
   // final-score labels ("Final/OT", "Final/12"...): assets/live-core.js
@@ -251,7 +265,7 @@
       const tot = side === "away" ? chip(isNum(o.total) ? "O " + fx(o.total, 1) : null, am(o.overOdds), totalArrow(g))
                                   : chip(isNum(o.total) ? "U " + fx(o.total, 1) : null, am(o.underOdds));
       chips = kind === "soccer" ? chip(am(o[side + "ML"])) + tot
-        : chip(line(o[side + "Spread"]), am(o[side + "SpreadOdds"]), spreadArrow(g, side)) + chip(am(o[side + "ML"])) + tot;
+        : chip(line(o[side + "Spread"]), am(o[side + "SpreadOdds"]), spreadArrow(g, side), openHtml(g, side)) + chip(am(o[side + "ML"])) + tot;
     }
     const poss = g.state === "in" && g.live && g.live.situation && g.live.situation.possession && String(g.live.situation.possession) === String(t.id) ? `<span class="poss" title="Possession"><span class="sr-only">(has the ball)</span></span>` : "";
     return `<div class="trow ${lose ? "lose" : ""}">${logo(t, "tl")}<div class="tn"><div class="tname">${t.rank ? `<span class="rk">#${t.rank}</span>` : ""}<span class="nm-l">${esc(t.name)}</span><span class="nm-s">${esc(t.short || t.name)}</span>${poss}</div>

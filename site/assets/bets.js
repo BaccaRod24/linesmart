@@ -381,7 +381,7 @@
     const cfg = BD[k], so = SORT[k] || { col: "net", dir: "desc" };
     const rows = C.sortRows(bdRows(OV, k), so.col, so.dir);
     const max = Math.max(1e-9, ...rows.map(r => Math.abs(r.net)));
-    const th = (col, label, c = "") => `<th class="${c}" aria-sort="${so.col === col ? (so.dir === "asc" ? "ascending" : "descending") : "none"}"><button type="button" data-sort="${col}" class="${so.col === col ? "on" : ""}">${esc(label)}<i aria-hidden="true">${so.col === col ? (so.dir === "asc" ? "▲" : "▼") : "↕"}</i></button></th>`;
+    const th = (col, label, c = "") => `<th class="${c}" aria-sort="${so.col === col ? (so.dir === "asc" ? "ascending" : "descending") : "none"}"><button type="button" data-sort="${col}" class="${so.col === col ? "on" : ""}">${esc(label)}<i class="tri ${so.col === col ? (so.dir === "asc" ? "up" : "dn") : "flat"}" aria-hidden="true"></i></button></th>`;
     const dim = k === "sport" ? `<div class="seg bt-dim" role="group" aria-label="Group by">${[["sport", "Sport"], ["league", "League"]].map(([d, l]) => `<button type="button" data-dim="${d}" class="${BD_DIM.sport === d ? "on" : ""}">${l}</button>`).join("")}</div>` : "";
     const body = rows.length ? `<div class="tbl-wrap"><table class="bt-tbl bt-bdt"><thead><tr>${th("name", cfg.label)}${th("n", "Bets", "c-n")}${th("rec", "W-L-P")}${th("winRate", "Win %", "c-w")}${th("staked", "Staked", "c-s")}${th("net", "Profit")}${th("roi", "ROI")}</tr></thead><tbody>${rows.map(r =>
       `<tr><td><span class="bt-nm">${esc(r.name)}${r.tag ? ` <small>${esc(r.tag)}</small>` : ""}</span></td><td class="num c-n">${r.n}</td><td class="num">${r.won}-${r.lost}-${r.push}</td><td class="num c-w">${pct(r.winRate)}</td><td class="num c-s">${mv(r.staked)}</td>

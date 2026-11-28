@@ -184,14 +184,14 @@
     if (isNum(o.totalOpen) && isNum(o.total)) m.total = { open: o.totalOpen, cur: o.total, delta: o.total - o.totalOpen };
     return m;
   }
-  const arrow = (delta, title) => (!isNum(delta) || Math.abs(delta) < 1e-9 ? "" : `<i class="mv ${delta > 0 ? "up" : "dn"}" title="${esc(title + ` (${delta > 0 ? "+" : ""}${+delta.toFixed(2)})`)}">${delta > 0 ? "▲" : "▼"}</i>`);
+  const arrow = (delta, title) => (!isNum(delta) || Math.abs(delta) < 1e-9 ? "" : `<i class="mv ${delta > 0 ? "up" : "dn"}" aria-hidden="true" title="${esc(title + ` (${delta > 0 ? "+" : ""}${+delta.toFixed(2)})`)}"></i>`);
   const spreadArrow = (g, side) => {
     const m = moveOf(g); if (!m || !m.spread) return "";
     const sgn = side === "home" ? 1 : -1, t = g[side];
     return arrow(sgn * m.spread.delta, `${t.abbr} opened ${line(sgn * m.spread.open)}, now ${line(sgn * m.spread.cur)}`);
   };
   const totalArrow = g => { const m = moveOf(g); return m && m.total ? arrow(m.total.delta, `Total opened ${m.total.open}, now ${m.total.cur}`) : ""; };
-  const notableBadge = g => { const m = moveOf(g); return m && (m.notable || []).length ? `<span class="mvbadge" title="${esc(m.notable.join(" · "))}">⚡ Line move</span>` : ""; };
+  const notableBadge = g => { const m = moveOf(g); return m && (m.notable || []).length ? `<span class="mvbadge" title="${esc(m.notable.join(" · "))}">${ICON("bolt")}Line move</span>` : ""; };
   // pick'em note (assets/pickem-core.js): close game where books disagree on the spread favorite. Display only; lines untouched.
   const PK_TEXT = "Pick'em: books differ on the favorite";
   const pkSplit = (g, kind) => (window.PickemCore ? window.PickemCore.split(g, kind) : null);
@@ -278,7 +278,7 @@
     // legal-in-your-state books first (Florida: Hard Rock Bet, then the dimmed DraftKings / FanDuel)
     const tags = [[pk || "espn", pTag], ["hardrockbet", altTag("hardrockbet", "hr", "Hard Rock Bet")], ["fanduel", altTag("fanduel", "fd", "FanDuel")]]
       .sort((a, b) => (bookAvail(b[0]) ? 1 : 0) - (bookAvail(a[0]) ? 1 : 0)).map(t => t[1]).join("");
-    const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}">${tags}${sparks(g)}<span class="hint">${hasMv ? "▲▼ move since open" : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
+    const foot = o ? `<div class="tfoot${wx ? " has-wx" : ""}">${tags}${sparks(g)}<span class="hint">${hasMv ? `<i class="mv up" aria-hidden="true"></i><i class="mv dn" aria-hidden="true"></i> move since open` : soccer ? "3-way moneyline" : ""}</span>${wx}</div>`
                    : `<div class="noline">Lines not posted yet</div>${wx ? `<div class="tfoot has-wx wx-only">${wx}</div>` : ""}`;
     const net = esc([g.note, (g.broadcasts || []).slice(0, 2).join(", ")].filter(Boolean).join(" · "));
     const links = home ? tileLinks(key, g.id) : "";
@@ -1108,7 +1108,7 @@
         const star = !isNum(op[s.key]) || op.src === "first recorded line" || (s.key === "tot" && op.totSrc === "first recorded line") ? '<span class="na">*</span>' : "";
         return `<tr><td><i class="sw" style="background:${s.color}"></i>${esc(s.name)}</td><td class="num">${esc(M.f(open) ?? "")}${star}</td>
           <td class="num"><b>${esc(M.f(cur.v[s.key]) ?? "")}</b></td>
-          <td class="num ${ch ? "chg" : ""}">${ch ? (dlt > 0 ? "▲ " : "▼ ") + ch : "—"}</td>
+          <td class="num ${ch ? "chg" : ""}">${ch ? `<i class="mv ${dlt > 0 ? "up" : "dn"}" aria-hidden="true"></i> ` + ch : "—"}</td>
           <td class="num">${bg ? `${esc(M.f(big))} <span class="na">(${bg})</span>` : "—"}</td>
           <td class="num na">${lc ? shortET(lc) + " " + TZL : fromOdds ? "—" : "no change tracked"}</td></tr>`;
       }).join("");
@@ -1163,7 +1163,7 @@
         : "Open = opening line as reported by ESPN (DraftKings).";
       const totSentence = !openIsFirst && opNote.totSrc === "first recorded line" ? " The total open is the first recorded total, because the ESPN total never traded." : "";
       el.innerHTML = `<div class="lmhead"><h3>${esc(MARKETS[st.mk].label)} movement <span class="na">· ${esc(fromOdds ? bookLabel(o.provider) || "" : BOOKNAME(st.bk))}</span></h3><div class="lmctl">${segB}<div class="seg">${segM}</div></div></div>
-        ${notes.length ? `<div class="lmnotes">${notes.map(n => `<span class="mvbadge">⚡ ${esc(n)}</span>`).join("")}</div>` : ""}
+        ${notes.length ? `<div class="lmnotes">${notes.map(n => `<span class="mvbadge">${ICON("bolt")}${esc(n)}</span>`).join("")}</div>` : ""}
         <div class="lmplot"></div>
         <div class="tbl-wrap"><table class="lmstats"><thead><tr><th>Line</th><th>Open</th><th>Current</th><th>Change</th><th>Biggest move</th><th>Last change</th></tr></thead><tbody>${stats()}</tbody></table></div>
         ${changes()}
@@ -1194,7 +1194,7 @@
       if (!isNum(open)) return "";
       const f = isSpread ? line(open) : am(open);
       if (!isNum(cur) || cur === open) return `<div class="move">open ${esc(f)}</div>`;
-      return `<div class="move ${cur > open ? "up" : "down"}">open ${esc(f)} → ${esc(isSpread ? line(cur) : am(cur))}</div>`;
+      return `<div class="move ${cur > open ? "up" : "down"}">open ${esc(f)} ${ICON("arrow", "ic ic-arr")} ${esc(isSpread ? line(cur) : am(cur))}</div>`;
     };
     const r = (label, a, h, extra = "") => `<tr><td>${label}</td><td class="num">${a}</td><td class="num">${h}</td>${extra}</tr>`;
     const spreadLabel = kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread";
@@ -1203,7 +1203,7 @@
       body += r(spreadLabel, `${line(o.awaySpread) ?? NA} <span class="na">${am(o.awaySpreadOdds) ?? ""}</span>${mv(o.awaySpread, o.awaySpreadOpen, true)}`, `${line(o.homeSpread) ?? NA} <span class="na">${am(o.homeSpreadOdds) ?? ""}</span>${mv(o.homeSpread, o.homeSpreadOpen, true)}`);
     body += r(kind === "soccer" ? "Moneyline (3-way)" : "Moneyline", `${am(o.awayML) ?? NA}${mv(o.awayML, o.awayMLOpen, false)}`, `${am(o.homeML) ?? NA}${mv(o.homeML, o.homeMLOpen, false)}`);
     if (kind === "soccer") body += `<tr><td>Draw</td><td class="num" colspan="2" style="text-align:center">${am(o.drawML) ?? NA}${mv(o.drawML, o.drawMLOpen, false)}</td></tr>`;
-    body += `<tr><td>${kind === "mma" ? "Total rounds" : "Total"}</td><td class="num">O ${fx(o.total) ?? NA} <span class="na">${am(o.overOdds) ?? ""}</span></td><td class="num">U ${fx(o.total) ?? NA} <span class="na">${am(o.underOdds) ?? ""}</span>${isNum(o.totalOpen) && o.totalOpen !== o.total ? `<div class="move">open ${o.totalOpen} → ${o.total}</div>` : ""}</td></tr>`;
+    body += `<tr><td>${kind === "mma" ? "Total rounds" : "Total"}</td><td class="num">O ${fx(o.total) ?? NA} <span class="na">${am(o.overOdds) ?? ""}</span></td><td class="num">U ${fx(o.total) ?? NA} <span class="na">${am(o.underOdds) ?? ""}</span>${isNum(o.totalOpen) && o.totalOpen !== o.total ? `<div class="move">open ${o.totalOpen} ${ICON("arrow", "ic ic-arr")} ${o.total}</div>` : ""}</td></tr>`;
     const pk = GEO() ? GEO().providerKey(o.provider) : null, pNa = pk && !bookAvail(pk);
     return `<div class="card${pNa ? " na-st-card" : ""}"><h3>Current line · ${esc(bookLabel(o.provider) || "provider n/a")}${pk ? naTag(pk) : ""}</h3>
       <table class="books"><thead><tr><th>Market</th><th>${esc(g.away.abbr)}</th><th>${esc(g.home.abbr)}</th></tr></thead><tbody>${body}</tbody></table>

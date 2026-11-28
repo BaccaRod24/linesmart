@@ -65,7 +65,7 @@
   /** Opening-line note, only when it moved. */
   function moveText(line, open) {
     if (!isNum(open) || !isNum(line) || open === line) return "";
-    return `opened ${fmtNum(open)} ${line > open ? "▲" : "▼"}`;
+    return `opened ${fmtNum(open)} <i class="tri ${line > open ? "up" : "dn"}" aria-hidden="true"></i><span class="sr-only">${line > open ? "up" : "down"}</span>`;
   }
 
   const BOOK_ORDER = ["hardrockbet", "draftkings", "fanduel"];

@@ -162,7 +162,7 @@
     el.innerHTML = `<div class="section-title" id="props">Prop lines <span class="st-sub">${subTitle(doc)}</span></div><div class="pp">${legend}` + games.map(({ gid, player }) => {
       const g = byId.get(String(gid));
       const opp = g ? (String(g.home.id) === String(player.t) ? `vs ${g.away.abbr}` : `@ ${g.home.abbr}`) : "";
-      const hdr = g ? `<a class="pp-game" href="#/g/${esc(lg)}/${esc(gid)}"><b>${esc(opp)}</b><span>${esc(A().fullET(g.date))}</span><span class="pp-go">Game →</span></a>` : "";
+      const hdr = g ? `<a class="pp-game" href="#/g/${esc(lg)}/${esc(gid)}"><b>${esc(opp)}</b><span>${esc(A().fullET(g.date))}</span><span class="pp-go">Game <svg class="ic ic-arr" aria-hidden="true"><use href="#i-arrow"/></svg></span></a>` : "";
       return hdr + playerCard(lg, player, { noLink: true, gid: g && g.state === "pre" ? gid : null });
     }).join("") + foot(doc) + `</div>`;
   }

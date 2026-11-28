@@ -18,7 +18,7 @@
   const ePct = e => (isNum(e) ? (e > 0 ? "+" : e < 0 ? "−" : "") + Math.abs(e).toFixed(1) + "%" : "—");
   const ord = n => (isNum(n) ? n + (["th", "st", "nd", "rd"][(n % 100 - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th") : "");
   const rkTag = (r, of = 32) => (isNum(r) ? `<span class="av-rk ${r <= Math.ceil(of / 4) ? "top" : r > of - Math.ceil(of / 4) ? "bot" : ""}">${ord(r)}</span>` : "");
-  const arrow = t => (t === "up" ? '<span class="av-tr up" title="Trending up">▲</span>' : t === "down" ? '<span class="av-tr down" title="Trending down">▼</span>' : t === "flat" ? '<span class="av-tr flat" title="Steady">▬</span>' : "");
+  const arrow = t => (t === "up" ? '<i class="av-tr up" title="Trending up" aria-hidden="true"></i>' : t === "down" ? '<i class="av-tr down" title="Trending down" aria-hidden="true"></i>' : t === "flat" ? '<i class="av-tr flat" title="Steady" aria-hidden="true"></i>' : "");
   const day = iso => (A() ? A().fmt(iso, { month: "short", day: "numeric" }) : iso);
 
   const docs = {};

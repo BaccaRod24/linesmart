@@ -49,7 +49,7 @@ button{font-family:inherit}
 .brand{display:flex;align-items:center;flex:none}
 .brand-logo{display:block;height:30px;width:auto}
 .brand-tag{color:var(--dim);font-size:13px;font-weight:500;padding-left:14px;border-left:1px solid var(--line2);white-space:nowrap}
-.updated{margin-left:auto;display:inline-flex;align-items:center;gap:8px;color:var(--mute);font-size:12.5px;font-weight:500;white-space:nowrap;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--tint) 2%,transparent);min-width:116px;box-sizing:border-box}
+.updated{margin-left:auto;display:inline-flex;align-items:center;gap:8px;color:var(--mute);font-size:12.5px;font-weight:500;white-space:nowrap;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--tint) 2%,transparent);min-width:116px;flex-shrink:0;box-sizing:border-box}
 .updated:empty{visibility:hidden}
 .updated .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
 .updated .u-short{display:none}
@@ -2352,9 +2352,19 @@ body::before{opacity:.55}
 .updated{font-size:12px;padding:5px 11px}
 /* The stamp is the last odds refresh, not a live clock. Wide screens say "Odds updated 7:45 AM ET".
    Narrower desktops drop "Odds" once the header has no spare gap. Phones say "Updated 7:45 AM".
-   title and aria-label always keep the full "Odds updated … ET" line, including the date. */
+   title and aria-label always keep the full "Odds updated … ET" line, including the date.
+   The 116px min-width only reserves the empty pill so the bar does not jump on load. flex-shrink:0
+   keeps that floor from crushing the filled label onto the state pill. Below 1024px, if the row is
+   still short, the label ellipsizes inside the pill instead of painting over State. */
 .updated .u-short{display:none}
-@media (max-width:1099px){
+.updated .dot{flex:none}
+.updated .u-txt{min-width:0}
+/* Between the phone bar and 1024px the row can be shorter than the label. Shrink the words inside the pill; the phone bar never does this. */
+@media (max-width:1023px) and (min-width:761px){
+  .updated{flex-shrink:1}
+  .updated .u-txt{overflow:hidden;text-overflow:ellipsis}
+}
+@media (max-width:1179px){
   .updated .u-long{display:none}
   .updated .u-short{display:inline}
 }

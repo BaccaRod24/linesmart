@@ -7,7 +7,10 @@
 <script>
 try{if(localStorage.getItem("ls-age-ok"))document.documentElement.classList.add("age-dismissed");else document.documentElement.classList.add("age-open")}catch(e){document.documentElement.classList.add("age-open")}
 </script>
-<style>html.age-dismissed #ageNotice{display:none}</style>
+<script>
+try{var h=(location.hash||"").replace(/^#\/?/,"").split("/")[0].split("?")[0];if(h==="props"||h==="stats"||h==="value"||h==="live")document.documentElement.classList.add("ls-sub")}catch(e){}
+</script>
+<style>html.age-dismissed #ageNotice{display:none}html.ls-sub #intro,html.ls-sub #homeStates{display:none}</style>
 <meta name="google-site-verification" content="3lyBfOgne-TNZGThZi2Td8dj8MLspp56974uH4BrARA" />
 <meta name="theme-color" content="#050b1c">
 <meta name="ls-build-label" content="dev">

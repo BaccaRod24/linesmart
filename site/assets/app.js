@@ -2089,7 +2089,12 @@
     const def = (META.leagues[CFG.defaultLeague]?.upcoming ? CFG.defaultLeague : META.order.find(k => META.leagues[k]?.upcoming)) || META.order[0];
     return viewLeague(def, true);
   }
+  function syncSubRoute() {
+    const h0 = (location.hash || "").replace(/^#\/?/, "").split("/")[0].split("?")[0];
+    document.documentElement.classList.toggle("ls-sub", h0 === "props" || h0 === "stats" || h0 === "value" || h0 === "live");
+  }
   async function route() {
+    syncSubRoute();
     if (window.LSLoad) { try { await window.LSLoad.prepare(location.hash, PAGE, PAGE_ROUTE); } catch (e) { console.warn(e); } }
     await routeBody();
     const P = window.LSProApp, Gt = window.LSProGate;

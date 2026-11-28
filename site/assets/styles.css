@@ -1320,6 +1320,25 @@ html.ls-js .intro p,.intro.js p{font-size:13px;margin-bottom:6px}
   .books .lv-fair-m{display:block;margin-top:4px;font-size:10.5px;font-weight:700;color:var(--accent2);white-space:nowrap}
   .books .lv-fair-m i{display:block;font-style:normal;font-weight:600;color:var(--dim)}
 }
+/* Phone odds comparison: three books (Hard Rock Bet, DraftKings, FanDuel) share the card.
+   The track button sits under the price so the third column is not cut off at 390px. */
+@media (max-width:640px){
+  .cols>.card>.tbl-wrap table.books,
+  table.pv-books{width:100%;table-layout:fixed}
+  .cols>.card>.tbl-wrap table.books th:first-child,
+  .cols>.card>.tbl-wrap table.books td:first-child,
+  table.pv-books th:first-child,
+  table.pv-books td:first-child{width:28%;min-width:0;max-width:none}
+  .cols>.card>.tbl-wrap table.books .px,
+  table.pv-books .px{min-width:0;max-width:100%;box-sizing:border-box}
+  .cols>.card>.tbl-wrap table.books a.trk,
+  table.pv-books a.trk{display:flex;margin:4px auto 0}
+  .cols>.card>.tbl-wrap table.books .lv,
+  .cols>.card>.tbl-wrap table.books .lv-fair-m,
+  .cols>.card>.tbl-wrap table.books .src,
+  table.pv-books .lv,
+  table.pv-books .src{white-space:normal;overflow-wrap:anywhere}
+}
 
 /* ---------- bet tracker: player-prop picker, needs-review, "+ Track" shortcuts ---------- */
 .bt-psearch{width:100%;margin:2px 0 8px;min-height:44px;padding:0 12px;border-radius:var(--r-sm);border:1px solid var(--line2);background:var(--bg2);color:var(--txt);font:500 15px var(--font)}

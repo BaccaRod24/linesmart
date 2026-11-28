@@ -142,6 +142,36 @@
     document.querySelectorAll("[data-lnav]").forEach(b => b.addEventListener("click", () =>
       nav.scrollBy({ left: (b.dataset.lnav === "r" ? 1 : -1) * Math.max(160, nav.clientWidth * 0.7), behavior: "smooth" })));
   })();
+  // Phone only: hide the league chip row while the page scrolls down, and show it again on the way up.
+  // The row stays in the tab order; focusing a chip opens it. Desktop keeps the row put.
+  (() => {
+    const bar = document.querySelector(".topbar");
+    const nav = document.getElementById("leagueNav");
+    if (!bar || !nav || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width:760px)");
+    let last = window.scrollY, acc = 0, lockUntil = 0, lockY = 0;
+    // Growing or shrinking the sticky row moves the page, and the browser's scroll anchoring
+    // nudges scroll the other way by about the row's height. Ignore that nudge. A real
+    // reversal (the reader flicks back) is much larger and still counts.
+    const setAway = (away, y) => {
+      if (bar.classList.contains("chips-away") === away) return;
+      bar.classList.toggle("chips-away", away);
+      acc = 0;
+      lockY = y;
+      lockUntil = performance.now() + 400;
+    };
+    const onScroll = () => {
+      const y = window.scrollY, dy = y - last;
+      last = y;
+      if (!mq.matches || y < 12 || nav.matches(":focus-within")) { setAway(false, y); return; }
+      if (performance.now() < lockUntil && Math.abs(y - lockY) < 80) return;
+      acc += dy;
+      if (acc > 24) setAway(true, y);
+      else if (acc < -24) setAway(false, y);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    if (mq.addEventListener) mq.addEventListener("change", () => { if (!mq.matches) bar.classList.remove("chips-away"); });
+  })();
 
   // ---------- odds snippets
   // ---------- line movement helpers
@@ -193,9 +223,23 @@
   }
 
   // odds chip: main value (+ move arrow) and an optional price underneath
-  const chip = (main, sub, extra = "") => (main === null || main === undefined
+  const chip = (main, sub, extra = "", open = "") => (main === null || main === undefined
     ? `<span class="oc na-oc" aria-label="not available">—</span>`
-    : `<span class="oc"><b>${main}${extra}</b>${sub ? `<small>${sub}</small>` : ""}</span>`);
+    : `<span class="oc${open ? " has-open" : ""}"><b>${main}${extra}</b>${sub ? `<small>${sub}</small>` : ""}${open}</span>`);
+  // Home spread we first recorded. move.first is that snapshot. A one-point history has no separate
+  // first field on older builds: move.spread.cur is that only point, while move.spread.open can still be ESPN's.
+  function firstHomeSpread(g) {
+    const m = moveOf(g);
+    if (!m) return null;
+    if (m.first && isNum(m.first.spread)) return +m.first.spread;
+    if (m.points === 1 && m.spread && isNum(m.spread.cur)) return +m.spread.cur;
+    return null;
+  }
+  const openHtml = (g, side) => {
+    const hs = firstHomeSpread(g);
+    if (!isNum(hs)) return "";
+    return `<span class="oc-open">Open ${esc(line(side === "home" ? hs : -hs))}</span>`;
+  };
   const spreadLabelOf = kind => (kind === "hockey" ? "Puck line" : kind === "baseball" ? "Run line" : "Spread");
 
   // final-score labels ("Final/OT", "Final/12"...): assets/live-core.js
@@ -221,7 +265,7 @@
       const tot = side === "away" ? chip(isNum(o.total) ? "O " + fx(o.total, 1) : null, am(o.overOdds), totalArrow(g))
                                   : chip(isNum(o.total) ? "U " + fx(o.total, 1) : null, am(o.underOdds));
       chips = kind === "soccer" ? chip(am(o[side + "ML"])) + tot
-        : chip(line(o[side + "Spread"]), am(o[side + "SpreadOdds"]), spreadArrow(g, side)) + chip(am(o[side + "ML"])) + tot;
+        : chip(line(o[side + "Spread"]), am(o[side + "SpreadOdds"]), spreadArrow(g, side), openHtml(g, side)) + chip(am(o[side + "ML"])) + tot;
     }
     const poss = g.state === "in" && g.live && g.live.situation && g.live.situation.possession && String(g.live.situation.possession) === String(t.id) ? `<span class="poss" title="Possession"><span class="sr-only">(has the ball)</span></span>` : "";
     return `<div class="trow ${lose ? "lose" : ""}">${logo(t, "tl")}<div class="tn"><div class="tname">${t.rank ? `<span class="rk">#${t.rank}</span>` : ""}<span class="nm-l">${esc(t.name)}</span><span class="nm-s">${esc(t.short || t.name)}</span>${poss}</div>
@@ -336,6 +380,25 @@
   const skelLeague = () => `<div class="loading" aria-busy="true"><span class="sr-only">Loading games…</span><div class="skel-head"><span class="sk"></span><span class="sk"></span></div><div class="grid">${skTile.repeat(6)}</div></div>`;
   const skelGame = () => `<div class="loading" aria-busy="true"><span class="sr-only">Loading matchup…</span><span class="sk skel-hero"></span><div class="skel-cols"><span class="sk"></span><span class="sk"></span></div></div>`;
   const showSkel = html => { if (!app.querySelector(".loading")) app.innerHTML = html; };
+  // A generated game page already paints its article, with section.seo-more after #app.
+  // Swapping in the short skeleton pulls that block into the viewport and back out (desktop CLS ~0.37).
+  // Keep the static height until the live view is ready, then drop the lock only if the new view is at least as tall.
+  function holdAppBox() {
+    if (!app || app.dataset.lsHold) return;
+    const h = Math.ceil(app.getBoundingClientRect().height);
+    if (h < 240) return;
+    app.style.minHeight = h + "px";
+    app.dataset.lsHold = "1";
+  }
+  function releaseAppBox() {
+    if (!app || !app.dataset.lsHold) return;
+    const locked = parseFloat(app.style.minHeight) || 0;
+    app.style.minHeight = "";
+    const natural = app.offsetHeight;
+    if (natural + 2 >= locked) delete app.dataset.lsHold;
+    else app.style.minHeight = locked + "px";
+  }
+  const seoGameHere = (key, id) => !!(document.querySelector(".seo-more") && PAGE_ROUTE === `g/${key}/${id}` && app && app.querySelector("article, .seo-head"));
   const teamColor = (t, fb) => (/^[0-9a-f]{6}$/i.test(t.color || "") ? "#" + t.color : fb);
 
   // ---------- home: scores ticker + "Today's slate" (meta.slate from scripts/slate.py; falls back to meta counts)
@@ -422,11 +485,25 @@
     const side = t => { if (!t) return t; const r = byId.get(String(t.id)); return Object.assign({}, t, { rank: r ? r.rank : null }); };
     return Object.assign({}, g, { home: side(g.home), away: side(g.away) });
   }
+  async function viewFutures(key, home) {
+    if (key !== "golf") rememberLg(key);
+    renderTabs(key === "golf" ? null : (home ? HOME : key));
+    if (!window.LSFutures) {
+      app.innerHTML = `<div class="empty"><h3>Futures didn't load</h3>Reload the page to try again.</div>`;
+      return;
+    }
+    const seg = key === "golf" ? "" : key === "ufc" ? ufcFuturesSeg() : leagueSeg(key, "futures");
+    await window.LSFutures.view({ key, home, seg, app });
+    if (key !== "golf" && key !== "ufc") wireLeagueSeg(key, home);
+  }
   async function viewLeague(key, home = false, sub = "") {
+    if (key === "golf" || sub === "futures") return viewFutures(key, home);
     rememberLg(key);
     renderTabs(home ? HOME : key);
     const L = META.leagues[key];
-    if (!cache[`data/${key}/index.json`]) showSkel(skelLeague());
+    // A hub already painted its article in #app. Swapping that for a short skeleton pulls the
+    // SEO block below #app up into the viewport and back down when the cards arrive.
+    if (!cache[`data/${key}/index.json`] && !app.querySelector("article.pv")) showSkel(skelLeague());
     if (!L) return (app.innerHTML = `<div class="empty"><h3>Unknown league</h3></div>`);
     let data;
     try { data = await getJSON(`data/${key}/index.json`); }
@@ -440,6 +517,7 @@
     if (kind === "mma" && window.LSUfc) {   // UFC: fight cards grouped by event and main card / prelims, plus the public rankings tab (assets/ufc.js)
       let uf = sessionStorage.getItem("filter-" + key) || "upcoming";
       if (uf !== "all") uf = "upcoming";
+      if (sub === "all") uf = "all";
       if (sub === "rankings") uf = "rankings";
       app.innerHTML = window.LSUfc.league(data, key, uf);
       addStale(data.stale, "fights");
@@ -670,11 +748,19 @@
 
   const STANDINGS_LGS = new Set(["nfl", "nba", "nhl", "mlb", "ncaaf", "ncaab"]);
   function leagueSeg(key, filter) {
-    const extra = (key === "ncaaf" ? 1 : 0) + (STANDINGS_LGS.has(key) ? 1 : 0);
-    const cls = "seg" + (extra ? " seg-stand" : "") + (key === "ncaaf" ? " seg-4" : "");
+    const extra = 1 + (key === "ncaaf" ? 1 : 0) + (STANDINGS_LGS.has(key) ? 1 : 0);
+    const cls = "seg" + (extra >= 2 ? " seg-stand" : "") + (key === "ncaaf" ? " seg-4" : "");
     const btn = (f, label) => `<button type="button" data-f="${f}" class="${filter === f ? "on" : ""}">${label}</button>`;
+    const fut = `<a href="#/l/${key}/futures" data-f="futures" class="${filter === "futures" ? "on" : ""}"${filter === "futures" ? ' aria-current="page"' : ""}>Futures</a>`;
     const stand = STANDINGS_LGS.has(key) ? `<a href="#/l/${key}/standings" data-f="standings" class="${filter === "standings" ? "on" : ""}"${filter === "standings" ? ' aria-current="page"' : ""}>Standings</a>` : "";
-    return `<div class="${cls}" role="tablist">${btn("upcoming", "Upcoming & live")}${btn("all", "This week")}${key === "ncaaf" ? btn("top25", "Top 25") : ""}${stand}</div>`;
+    return `<div class="${cls}" role="tablist">${btn("upcoming", "Upcoming & live")}${btn("all", "This week")}${fut}${key === "ncaaf" ? btn("top25", "Top 25") : ""}${stand}</div>`;
+  }
+  function ufcFuturesSeg() {
+    return `<div class="seg seg-stand" role="tablist" aria-label="UFC"><a href="#/l/ufc">Upcoming &amp; live</a><a href="#/l/ufc/all">Incl. recent results</a><a href="#/l/ufc/futures" class="on" aria-current="page">Futures</a><a href="#/l/ufc/rankings">Rankings</a></div>`;
+  }
+  function onFuturesPage(key) {
+    if (PAGE_ROUTE === `l/${key}/futures`) return true;
+    return (location.hash || "").replace(/\/$/, "") === `#/l/${key}/futures`;
   }
   function onStandingsPage(key) {
     if (PAGE_ROUTE === `l/${key}/standings`) return true;
@@ -684,6 +770,14 @@
     app.querySelectorAll(".page-head .seg button").forEach(b => (b.onclick = () => {
       const f = b.dataset.f;
       sessionStorage.setItem("filter-" + key, f === "standings" ? "upcoming" : f);
+      if (onFuturesPage(key) && f !== "futures") {
+        if (PAGE_ROUTE === `l/${key}/futures`) {
+          location.href = new URL(key === "ncaaf" && f === "top25" ? `${key}/#/l/${key}/top25` : `${key}/`, document.baseURI).href;
+          return;
+        }
+        location.hash = key === "ncaaf" && f === "top25" ? "#/l/ncaaf/top25" : `#/l/${key}`;
+        return;
+      }
       if (onStandingsPage(key) && f !== "standings") {
         if (PAGE_ROUTE === `l/${key}/standings`) {
           location.href = new URL(key === "ncaaf" && f === "top25" ? `${key}/#/l/${key}/top25` : `${key}/`, document.baseURI).href;
@@ -825,7 +919,11 @@
     rememberLg(key);
     renderTabs(key);
     const file = `data/${key}/games/${id}.json`;
-    if (!cache[file]) { showSkel(skelGame()); window.scrollTo(0, 0); }
+    const keepStatic = seoGameHere(key, id);
+    if (!cache[file]) {
+      if (keepStatic) holdAppBox();
+      else { showSkel(skelGame()); window.scrollTo(0, 0); }
+    }
     let d, idx;
     try { idx = await getJSON(`data/${key}/index.json`); }
     catch (e) { idx = null; }
@@ -837,19 +935,22 @@
       catch (e) { d = null; }
     }
     if (!d || !idx) {
-      if (focus === "box" && key !== "ufc") return viewBoxRemote(key, id);
-      return (app.innerHTML = `<a class="back" href="#/l/${key}">← Back</a><div class="empty"><h3>Game not found</h3>It may have dropped out of the data window. Refresh the data.</div>`);
+      if (focus === "box" && key !== "ufc") { await viewBoxRemote(key, id); releaseAppBox(); return; }
+      app.innerHTML = `<a class="back" href="#/l/${key}">← Back</a><div class="empty"><h3>Game not found</h3>It may have dropped out of the data window. Refresh the data.</div>`;
+      releaseAppBox();
+      return;
     }
     if (idx.league.kind === "mma" && window.LSUfc) {
       const at = location.hash;
       await window.LSUfc.fight(d, idx, key, focus);
       if (location.hash === at) addStale(d.game.stale, "fight details");
+      releaseAppBox();
       return;
     }
     const g0 = d.game, det = d.detail || {}, kind = idx.league.kind;
     const g = liveG(key, g0);
     if (focus === "box" && kind !== "mma" && heldGame(g)) focus = "";
-    if (focus === "box" && kind !== "mma") return showBox(key, id, idx.league.full, g0, g, det, kind);
+    if (focus === "box" && kind !== "mma") { await showBox(key, id, idx.league.full, g0, g, det, kind); releaseAppBox(); return; }
     const H = g.home, A = g.away;
     const held = heldGame(g);
     const mid = held
@@ -874,6 +975,7 @@
       if (tok !== NAV) return;
       html += matchupPanel(key, g, d, kind, roster);
       app.innerHTML = html;
+      releaseAppBox();
       linkLeaders(key, NAV);
       window.scrollTo(0, 0);
       const km = document.getElementById("keyMu");
@@ -899,6 +1001,7 @@
     if (window.LSProps && focus !== "props") html += window.LSProps.gameSlot(key, g);
     if (window.LSWeather) html += window.LSWeather.section(g, kind);
     app.innerHTML = html;
+    releaseAppBox();
     lm.wire();
     window.scrollTo(0, 0);
     wireLive();

@@ -166,11 +166,13 @@ def check_page_ld(rel, h, hrefs, kind):
     missing = LD_TYPES.get(kind, set()) - types
     check(not missing, f"{rel}: JSON-LD types {sorted(types)} missing {sorted(missing)}")
     check("SearchAction" not in types, f"{rel}: no SearchAction")
-    # The week crawl block sits above #app and repeats game URLs so new pages get found. The ItemList is the
-    # hub's own schedule and results, in that order, so those extra links are not part of the comparison.
+    # The week crawl block repeats game URLs so new pages get found. It sits below #app (the app
+    # replaces #app). The ItemList is the hub's own schedule and results, in that order, so those
+    # extra links are not part of the comparison.
     scan_hrefs = hrefs
-    if kind == "hub" and ('class="sx-pre' in h or 'class="wrap sx-week"' in h):
+    if kind == "hub" and ('class="sx-pre' in h or 'sx-week:start' in h or 'class="wrap sx-week"' in h):
         body = re.sub(r'<section class="sx-pre\b.*?</section>\s*', "", h, count=1, flags=re.S)
+        body = re.sub(r'<!-- sx-week:start -->.*?<!-- sx-week:end -->', "", body, count=1, flags=re.S)
         body = re.sub(r'<div class="wrap sx-week">.*?(?=<main)', "", body, count=1, flags=re.S)
         scan_hrefs = re.findall(r'href="([^"]*)"', body)
     elif kind == "lines" and 'class="sx-discover sx-board"' in h:
@@ -493,6 +495,27 @@ def _slate_league(lg, games, now):
     L.games = {str(g["id"]): g for g in games}
     L.paths = {str(g["id"]): f"{lg}/games/{g['id']}/" for g in games}
     return L
+
+
+def top_games_order_tests():
+    """Top games today: live first, then kickoff, not league priority. The label says so."""
+    now = pv.parse_dt("2026-10-31T16:00:00Z")  # noon ET
+    live = _slate_game("live", "2026-10-31T15:00:00Z", state="in")   # 11:00 AM ET, in progress
+    mid = _slate_game("mid", "2026-10-31T17:00:00Z")                 # 1:00 PM ET
+    late = _slate_game("late", "2026-10-31T21:00:00Z")               # 5:00 PM ET
+    Ls = {
+        "nfl": _slate_league("nfl", [late], now),
+        "nba": _slate_league("nba", [mid], now),
+        "ncaaf": _slate_league("ncaaf", [live], now),
+    }
+    # rows are (liveFlag, dt, pri, gidStr, lg, gid, g)
+    ids = [r[5] for r in SP.top_game_picks(Ls, now)]
+    check(ids == ["live", "mid", "late"], f"live, then kickoff, not NFL-first ({ids})")
+    html = SP.home_cards(Ls, now)
+    check(SP.TOP_ORDER_LABEL in html and "Best line across books" not in html, "the strip says it is ordered live first, then kickoff")
+    strip = html.split('id="hcTop"', 1)[1].split("</section>", 1)[0]
+    pos = [strip.find(f'href="{lg}/games/{gid}/"') for lg, gid in (("ncaaf", "live"), ("nba", "mid"), ("nfl", "late"))]
+    check(pos[0] != -1 and pos[0] < pos[1] < pos[2], f"top-game cards follow kickoff order ({pos})")
 
 
 def discover_link_tests():
@@ -1048,16 +1071,19 @@ def age_notice_shell_tests():
     index = (ROOT / "site" / "index.html").read_text()
     head, body = index.split("</head>", 1)
     check("ls-age-ok" in head and "age-dismissed" in head, "homepage hides a dismissed 21+ notice before first paint")
+    check("html.age-dismissed #ageNotice{display:none}" in head, "dismissed notice is hidden before styles.css loads")
     check(body.count('id="ageNotice"') == 1, "homepage has one static 21+ notice")
     notice = body.split('id="ageNotice"', 1)[1].split("<svg", 1)[0]
     check("1-800-GAMBLER" in notice and "tel:18004262537" in notice, "static notice keeps 1-800-GAMBLER")
     check("1-833-PLAYWISE" in notice and "tel:18337529947" in notice, "static notice keeps the Florida 1-833-PLAYWISE line")
     check("For adults 21 and over" in notice and "I'm 21 or older" in notice and "responsible-gambling.html" in notice, "static notice keeps the dialog copy and the responsible-gambling link")
+    check('getElementById("ageOk")' in notice and "touchend" in notice and "pointerup" in notice and 'localStorage.setItem("ls-age-ok",new Date().toISOString())' in notice, "static notice binds confirm on click, touchend, and pointerup before site.js")
     sh = SP.Shell(index, SP.BASE_URL)
     html = sh.page("nfl/games/example/", "Example", "Example game.", "<p>Game</p>", kind="game", lg="nfl")
-    check(html.count('id="ageNotice"') == 1, "generated game shell keeps exactly one static 21+ notice")
+    check(html.count('id="ageNotice"') == 1 and html.count('id="ageOk"') == 1, "generated game shell keeps exactly one static 21+ notice")
     gnotice = html.split('id="ageNotice"', 1)[1].split('id="app"', 1)[0]
     check("1-800-GAMBLER" in gnotice and "1-833-PLAYWISE" in gnotice and "tel:18004262537" in gnotice and "tel:18337529947" in gnotice, "generated game notice keeps both helplines")
+    check("touchend" in gnotice and "pointerup" in gnotice and 'localStorage.setItem("ls-age-ok",new Date().toISOString())' in gnotice, "generated pages keep the early confirm binding")
 
 
 def state_date_tests():
@@ -1658,7 +1684,7 @@ def _line_books():
 
 
 def board_link_tests():
-    """Hubs link later games and the teams that are playing above #app. Best Lines Today links the same four sports."""
+    """Hubs link later games and the teams that are playing. Best Lines Today links the same four sports."""
     now = pv.parse_dt("2026-10-31T20:00:00Z")
     week = [_slate_game(f"w{i}", "2026-11-01T23:00:00Z") for i in range(13)]
     far = _slate_game("far", "2026-11-12T23:00:00Z")
@@ -1806,6 +1832,7 @@ def main():
     title_limit_tests()
     book_name_tests()
     game_title_tests()
+    top_games_order_tests()
     discover_link_tests()
     week_live_tests()
     snippet_copy_tests()
@@ -1863,13 +1890,15 @@ def main():
             check('class="sx-discover"' in main_h and 'class="sx-discover"' in more_h, f"{lg}: crawlable league links in the page and again outside #app")
             check(all(f'href="{o}/"' in more_h for o in SP.ORDER if o != lg), f"{lg}: other league hubs are plain links outside #app")
             lead_h = h.split("<main", 1)[0]
+            after_h = h.split("</main>", 1)[1].split("<footer", 1)[0]
             today = re.search(r'class="pv-list sx-today">(.*?)</ul>', main_h, re.S)
             if today:
                 hrefs = re.findall(r'href="([^"]+)"', today.group(1))
                 if hrefs:
-                    check('class="wrap sx-week"' in lead_h and "games this week" in lead_h, f"{lg}: this week's links sit above #app")
-                    check(any(href in lead_h for href in hrefs), f"{lg}: an upcoming game is linked above #app")
-                    week = lead_h.split('class="wrap sx-week"', 1)[-1]
+                    check('class="wrap sx-week"' not in lead_h, f"{lg}: week links are not above #app")
+                    check('class="wrap sx-week"' in after_h and "games this week" in after_h, f"{lg}: this week's links sit below #app")
+                    check(any(href in after_h for href in hrefs), f"{lg}: an upcoming game is linked below #app")
+                    week = after_h.split('class="wrap sx-week"', 1)[-1]
                     if "/games/" in week or "/fights/" in week:
                         check('data-start="' in week and 'data-state="' in week and 'data-when="' in week, f"{lg}: week rows carry start and state for the live badge")
                         if "sx-live" in week:
@@ -1891,11 +1920,12 @@ def main():
         check("epl" not in man["l"] and not (site / "epl").exists(), "soccer has no SEO pages")
 
         # Upcoming NBA, NFL, NCAAF and NCAAB games and the teams playing them are plain <a href>
-        # links in the static HTML: above #app on the hub (the app replaces #app), and on Best Lines Today.
+        # links in the static HTML: below #app on the hub (the app replaces #app), and on Best Lines Today.
         bl = (site / "best-lines-today" / "index.html").read_text()
         for lg in ("nfl", "nba", "ncaaf", "ncaab"):
             hub_html = (site / lg / "index.html").read_text()
-            lead = hub_html.split("<main", 1)[0]
+            week_m = re.search(r'<!-- sx-week:start -->.*?<!-- sx-week:end -->', hub_html, re.S)
+            lead = week_m.group(0) if week_m else ""
             by_id = {str(g["id"]): g for g in json.loads((data / lg / "index.json").read_text()).get("games") or []}
             up_paths, team_ids = [], set()
             for gid, path in (man["g"].get(lg) or {}).items():
@@ -1927,8 +1957,8 @@ def main():
             missing_t = [p for p in playing if f'href="{p}"' not in lead]
             missing_bg = [p for p in up_paths if f'href="{p}"' not in bl + sched_html(bl)]
             missing_bt = [p for p in playing if f'href="{p}"' not in bl]
-            check(not missing_g, f"{lg} hub links every upcoming game above #app or from the schedule ({len(up_paths)} games, missing {missing_g[:2]})")
-            check(not missing_t, f"{lg} hub links every playing team above #app ({len(playing)} teams, missing {missing_t[:2]})")
+            check(not missing_g, f"{lg} hub links every upcoming game below #app or from the schedule ({len(up_paths)} games, missing {missing_g[:2]})")
+            check(not missing_t, f"{lg} hub links every playing team below #app ({len(playing)} teams, missing {missing_t[:2]})")
             check(not missing_bg, f"best lines links every upcoming {lg} game ({missing_bg[:2]})")
             check(not missing_bt, f"best lines links every playing {lg} team ({missing_bt[:2]})")
             if up_paths:
@@ -2372,7 +2402,9 @@ def main():
             props_close = block.find("</details>", props_at)
             check(props_open != -1 and props_close != -1 and not re.search(r"\bopen\b", block[props_open:block.find(">", props_open) + 1]) and "<a href=" in block[props_at:props_close], "homepage prop links stay inside a collapsed details")
         check('href="ncaaf/"' in block and 'href="ncaab/"' in block and block.lower().count("odds, lines and spreads") >= 2, "homepage links NCAAF and NCAAB with lines, spreads and odds")
-        disc = block.split('class="sx-discover"', 1)[1].split('class="home-cards"', 1)[0]
+        check(block.find('class="home-cards"') < block.find('class="sx-discover"'), "homepage odds cards sit above the SEO link blocks")
+        disc_m = re.search(r'<nav class="sx-discover".*?</nav>', block, re.S)
+        disc = disc_m.group(0) if disc_m else ""
         game_hrefs = re.findall(r'href="([^"]*/(?:games|fights)/[^"]*)"', disc)
         check(game_hrefs and all(resolve(site, "", None, x).exists() for x in game_hrefs), f"homepage upcoming links are real game pages ({len(game_hrefs)})")
         check(any(h.startswith("ncaaf/games/") for h in game_hrefs) and any(h.startswith("ncaab/games/") for h in game_hrefs), "homepage links an NCAAF game and an NCAAB game")

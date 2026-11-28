@@ -587,6 +587,15 @@ def summarize(gh, kind, league):
     pts = gh["books"][bk]; op = (gh.get("open") or {}).get(bk) or {}
     cur = pts[-1][1]
     out = dict(book=bk, since=pts[0][0], points=len(pts))
+    # First recorded snapshot. This is the line we actually saw, which can differ from ESPN's open.
+    first_pt = pts[0][1] if pts and isinstance(pts[0][1], dict) else {}
+    seen = {}
+    if first_pt.get("hs") is not None:
+        seen["spread"] = first_pt["hs"]
+    if first_pt.get("tot") is not None:
+        seen["total"] = first_pt["tot"]
+    if seen:
+        out["first"] = seen
     for key, label in (("hs", "spread"), ("tot", "total"), ("hml", "homeML"), ("aml", "awayML")):
         series = [p[1].get(key) for p in pts if p[1].get(key) is not None]
         o = op.get(key)
@@ -620,6 +629,11 @@ def apply_dir(snap_dir, history_dir):
         h = load(path, lg); n = merge(h, s["games"], s["t"]); pr = prune(h); save(path, h)
         print(f"[{lg}] +{n} points, pruned {pr}, games {len(h['games'])}")
 
+def apply_futures(snap_dir, history_dir):
+    """Merge a run's futures snapshot onto history/futures (race retry). See scripts/futures.py."""
+    import futures as FU
+    return FU.apply_dir(snap_dir, history_dir)
+
 def apply_odds(src_dir, dst_dir):
     """Merge a run's persisted-pull snapshot (hardrockbet.json game lines, props_oddsapi.json props) into the branch copy:
     newer pulledAt per league wins; quota/usage: newer t wins."""
@@ -645,6 +659,8 @@ if __name__ == "__main__":
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("apply"); a.add_argument("--snap-dir", required=True); a.add_argument("--history-dir", required=True)
     o = sub.add_parser("apply-odds"); o.add_argument("--src", required=True); o.add_argument("--dst", required=True)
+    f = sub.add_parser("apply-futures"); f.add_argument("--snap-dir", required=True); f.add_argument("--history-dir", required=True)
     args = ap.parse_args()
     if args.cmd == "apply": apply_dir(args.snap_dir, args.history_dir)
     elif args.cmd == "apply-odds": apply_odds(args.src, args.dst)
+    elif args.cmd == "apply-futures": apply_futures(args.snap_dir, args.history_dir)

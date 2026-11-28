@@ -170,25 +170,29 @@
   const LAND_SHOW = 4;
 
   /** Props landing: today's (or the next upcoming) player lines, one block per game, using the same player cards as the game page. */
-  async function mountLanding(el, lg, slate, allGames, alive = () => true) {
+  async function mountLanding(el, lg, slate, allGames, alive = () => true, opts = {}) {
     if (!el || !SUPPORTED.has(lg)) return;
     let doc = null;
     try { doc = await load(lg); } catch (e) { /* no props file */ }
     if (!alive()) return;
     if (!doc || !doc.games) { el.innerHTML = ""; return; }
     MULTI = multi(doc);
+    const hotOnly = !!(opts && opts.hot);
+    const hotProps = p => (p.props || []).filter(x => C.isHot(p.log, x.mk, x.line));
     const hasLines = g => {
       const slot = g && doc.games[String(g.id)];
-      return !!(slot && (slot.props || []).length);
+      if (!slot || !(slot.props || []).length) return false;
+      if (!hotOnly) return true;
+      return C.byPlayer(doc, g.id, [], prefer()).some(p => hotProps(p).length);
     };
     let list = (slate || []).filter(hasLines);
-    let head = "Today's prop lines";
+    let head = hotOnly ? "Hot props" : "Today's prop lines";
     if (!list.length) {
       list = (allGames || []).filter(g => g && g.state === "pre" && hasLines(g)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
-      head = "Upcoming prop lines";
+      head = hotOnly ? "Hot props" : "Upcoming prop lines";
     }
     if (!list.length) {
-      el.innerHTML = `<div class="section-title" id="psProps">Today's prop lines</div><div class="card note ps-empty">No player props are posted for these games yet. The games below still open, and Stats still opens.</div>`;
+      el.innerHTML = `<div class="section-title" id="psProps">${esc(head)}</div><div class="card note ps-empty">${hotOnly ? "No props went over in 4 of the last 5 games on this slate. The games below still open." : "No player props are posted for these games yet. The games below still open, and Stats still opens."}</div>`;
       return;
     }
     const when = g => (window.LiveCore && window.LiveCore.isCanceledOrPostponed && window.LiveCore.isCanceledOrPostponed(g)) ? (window.LiveCore.heldStatus ? window.LiveCore.heldStatus(g) : (g.statusDetail || "Canceled")) : g.state === "in" ? (g.statusDetail || "Live") : g.state === "post" ? "Final" : A().timeET(g.date);
@@ -196,17 +200,19 @@
     const blocks = [];
     let nLines = 0;
     for (const g of list) {
-      const players = C.byPlayer(doc, g.id, [String((g.away || {}).id || ""), String((g.home || {}).id || "")], prefer());
+      let players = C.byPlayer(doc, g.id, [String((g.away || {}).id || ""), String((g.home || {}).id || "")], prefer());
+      if (hotOnly) players = players.map(p => Object.assign({}, p, { props: hotProps(p) })).filter(p => p.props.length);
       if (!players.length) continue;
       nLines += players.reduce((a, p) => a + p.props.length, 0);
       blocks.push({ g, players });
     }
     if (!alive()) return;
     if (!blocks.length) {
-      el.innerHTML = `<div class="section-title" id="psProps">Today's prop lines</div><div class="card note ps-empty">No player props are posted for these games yet. The games below still open, and Stats still opens.</div>`;
+      el.innerHTML = `<div class="section-title" id="psProps">${esc(head)}</div><div class="card note ps-empty">${hotOnly ? "No props went over in 4 of the last 5 games on this slate. The games below still open." : "No player props are posted for these games yet. The games below still open, and Stats still opens."}</div>`;
       return;
     }
-    el.innerHTML = `<div class="section-title" id="psProps">${esc(head)} <span class="st-sub">${nLines} lines · ${blocks.length} ${blocks.length === 1 ? "game" : "games"}</span></div><div class="ps-prop-sub">${subTitle(doc)}</div><div class="pp ps-props">${legend}`
+    const subBits = hotOnly ? `${nLines} at 4/5+ over · ${blocks.length} ${blocks.length === 1 ? "game" : "games"}` : `${nLines} lines · ${blocks.length} ${blocks.length === 1 ? "game" : "games"}`;
+    el.innerHTML = `<div class="section-title" id="psProps">${esc(head)} <span class="st-sub">${subBits}</span></div><div class="ps-prop-sub">${subTitle(doc)}</div><div class="pp ps-props">${legend}`
       + blocks.map(({ g, players }) => `<section class="ps-prop-g" aria-label="${esc(nm(g))}">
           <a class="pp-game" href="#/g/${esc(lg)}/${esc(g.id)}/props"><b>${esc(nm(g))}</b><span>${esc(when(g))}</span><span class="pp-go">All props</span></a>
           <div class="pp-list pp-players">${players.map(p => playerCard(lg, p, { gid: g.state === "pre" ? g.id : null })).join('<hr class="pp-player-rule">')}</div>

@@ -170,8 +170,9 @@ def check_page_ld(rel, h, hrefs, kind):
     # replaces #app). The ItemList is the hub's own schedule and results, in that order, so those
     # extra links are not part of the comparison.
     scan_hrefs = hrefs
-    if kind == "hub" and ('sx-week:start' in h or 'class="wrap sx-week"' in h):
-        body = re.sub(r'<!-- sx-week:start -->.*?<!-- sx-week:end -->', "", h, count=1, flags=re.S)
+    if kind == "hub" and ('class="sx-pre' in h or 'sx-week:start' in h or 'class="wrap sx-week"' in h):
+        body = re.sub(r'<section class="sx-pre\b.*?</section>\s*', "", h, count=1, flags=re.S)
+        body = re.sub(r'<!-- sx-week:start -->.*?<!-- sx-week:end -->', "", body, count=1, flags=re.S)
         body = re.sub(r'<div class="wrap sx-week">.*?(?=<main)', "", body, count=1, flags=re.S)
         scan_hrefs = re.findall(r'href="([^"]*)"', body)
     elif kind == "lines" and 'class="sx-discover sx-board"' in h:

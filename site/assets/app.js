@@ -422,7 +422,19 @@
     const side = t => { if (!t) return t; const r = byId.get(String(t.id)); return Object.assign({}, t, { rank: r ? r.rank : null }); };
     return Object.assign({}, g, { home: side(g.home), away: side(g.away) });
   }
+  async function viewFutures(key, home) {
+    if (key !== "golf") rememberLg(key);
+    renderTabs(key === "golf" ? null : (home ? HOME : key));
+    if (!window.LSFutures) {
+      app.innerHTML = `<div class="empty"><h3>Futures didn't load</h3>Reload the page to try again.</div>`;
+      return;
+    }
+    const seg = key === "golf" ? "" : key === "ufc" ? ufcFuturesSeg() : leagueSeg(key, "futures");
+    await window.LSFutures.view({ key, home, seg, app });
+    if (key !== "golf" && key !== "ufc") wireLeagueSeg(key, home);
+  }
   async function viewLeague(key, home = false, sub = "") {
+    if (key === "golf" || sub === "futures") return viewFutures(key, home);
     rememberLg(key);
     renderTabs(home ? HOME : key);
     const L = META.leagues[key];
@@ -440,6 +452,7 @@
     if (kind === "mma" && window.LSUfc) {   // UFC: fight cards grouped by event and main card / prelims, plus the public rankings tab (assets/ufc.js)
       let uf = sessionStorage.getItem("filter-" + key) || "upcoming";
       if (uf !== "all") uf = "upcoming";
+      if (sub === "all") uf = "all";
       if (sub === "rankings") uf = "rankings";
       app.innerHTML = window.LSUfc.league(data, key, uf);
       addStale(data.stale, "fights");
@@ -670,11 +683,19 @@
 
   const STANDINGS_LGS = new Set(["nfl", "nba", "nhl", "mlb", "ncaaf", "ncaab"]);
   function leagueSeg(key, filter) {
-    const extra = (key === "ncaaf" ? 1 : 0) + (STANDINGS_LGS.has(key) ? 1 : 0);
-    const cls = "seg" + (extra ? " seg-stand" : "") + (key === "ncaaf" ? " seg-4" : "");
+    const extra = 1 + (key === "ncaaf" ? 1 : 0) + (STANDINGS_LGS.has(key) ? 1 : 0);
+    const cls = "seg" + (extra >= 2 ? " seg-stand" : "") + (key === "ncaaf" ? " seg-4" : "");
     const btn = (f, label) => `<button type="button" data-f="${f}" class="${filter === f ? "on" : ""}">${label}</button>`;
+    const fut = `<a href="#/l/${key}/futures" data-f="futures" class="${filter === "futures" ? "on" : ""}"${filter === "futures" ? ' aria-current="page"' : ""}>Futures</a>`;
     const stand = STANDINGS_LGS.has(key) ? `<a href="#/l/${key}/standings" data-f="standings" class="${filter === "standings" ? "on" : ""}"${filter === "standings" ? ' aria-current="page"' : ""}>Standings</a>` : "";
-    return `<div class="${cls}" role="tablist">${btn("upcoming", "Upcoming & live")}${btn("all", "This week")}${key === "ncaaf" ? btn("top25", "Top 25") : ""}${stand}</div>`;
+    return `<div class="${cls}" role="tablist">${btn("upcoming", "Upcoming & live")}${btn("all", "This week")}${fut}${key === "ncaaf" ? btn("top25", "Top 25") : ""}${stand}</div>`;
+  }
+  function ufcFuturesSeg() {
+    return `<div class="seg seg-stand" role="tablist" aria-label="UFC"><a href="#/l/ufc">Upcoming &amp; live</a><a href="#/l/ufc/all">Incl. recent results</a><a href="#/l/ufc/futures" class="on" aria-current="page">Futures</a><a href="#/l/ufc/rankings">Rankings</a></div>`;
+  }
+  function onFuturesPage(key) {
+    if (PAGE_ROUTE === `l/${key}/futures`) return true;
+    return (location.hash || "").replace(/\/$/, "") === `#/l/${key}/futures`;
   }
   function onStandingsPage(key) {
     if (PAGE_ROUTE === `l/${key}/standings`) return true;
@@ -684,6 +705,14 @@
     app.querySelectorAll(".page-head .seg button").forEach(b => (b.onclick = () => {
       const f = b.dataset.f;
       sessionStorage.setItem("filter-" + key, f === "standings" ? "upcoming" : f);
+      if (onFuturesPage(key) && f !== "futures") {
+        if (PAGE_ROUTE === `l/${key}/futures`) {
+          location.href = new URL(key === "ncaaf" && f === "top25" ? `${key}/#/l/${key}/top25` : `${key}/`, document.baseURI).href;
+          return;
+        }
+        location.hash = key === "ncaaf" && f === "top25" ? "#/l/ncaaf/top25" : `#/l/${key}`;
+        return;
+      }
       if (onStandingsPage(key) && f !== "standings") {
         if (PAGE_ROUTE === `l/${key}/standings`) {
           location.href = new URL(key === "ncaaf" && f === "top25" ? `${key}/#/l/${key}/top25` : `${key}/`, document.baseURI).href;

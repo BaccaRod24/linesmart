@@ -346,8 +346,12 @@ def outcome_row(name, oc, board_books):
                 best=best_px, bestBook=best_bk,
                 implied=implied_pct(best_px),
                 open=open_px, openBook=best_bk,
+                openDraftkings=price_of(opens.get("draftkings")),
+                openFanduel=price_of(opens.get("fanduel")),
                 move=LH.ml_cents(open_px, best_px),
-                firstRecorded=open_at.get(best_bk) or (oc or {}).get("lastSeen"))
+                firstRecorded=open_at.get(best_bk) or (oc or {}).get("lastSeen"),
+                firstDraftkings=open_at.get("draftkings"),
+                firstFanduel=open_at.get("fanduel"))
 
 def publish_market(hist):
     """Site market object, or None when this file has nothing to show."""

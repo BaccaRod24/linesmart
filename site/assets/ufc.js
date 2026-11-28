@@ -171,7 +171,7 @@
     const byId = Object.fromEntries(data.games.map(g => [g.id, g]));
     let evs = data.events || [];
     if (filter === "upcoming") evs = evs.filter(e => e.state !== "post");
-    const seg = `<div class="seg seg-3" role="tablist" aria-label="UFC"><button type="button" data-f="upcoming" class="${filter === "upcoming" ? "on" : ""}">Upcoming & live</button><button type="button" data-f="all" class="${filter === "all" ? "on" : ""}">Incl. recent results</button><button type="button" data-f="rankings" class="${filter === "rankings" ? "on" : ""}"${filter === "rankings" ? ' aria-current="page"' : ""}>Rankings</button></div>`;
+    const seg = `<div class="seg seg-stand" role="tablist" aria-label="UFC"><button type="button" data-f="upcoming" class="${filter === "upcoming" ? "on" : ""}">Upcoming & live</button><button type="button" data-f="all" class="${filter === "all" ? "on" : ""}">Incl. recent results</button><a href="#/l/ufc/futures" data-f="futures">Futures</a><button type="button" data-f="rankings" class="${filter === "rankings" ? "on" : ""}"${filter === "rankings" ? ' aria-current="page"' : ""}>Rankings</button></div>`;
     const sub = filter === "rankings" ? "Official UFC rankings by weight class" : `Fight cards, fighter moneylines and results · times in ${esc((window.SITE_CONFIG || {}).tzLabel || "ET")}`;
     let html = `<div class="page-head"><div><h1>${esc(data.league.full)}</h1><div class="sub">${sub}</div></div>${seg}</div>`;
     if (filter === "rankings") return html + `<div id="ufRank" aria-live="polite"><div class="loading" aria-busy="true"><span class="sr-only">Loading rankings…</span></div></div>`;

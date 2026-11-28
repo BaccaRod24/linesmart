@@ -142,6 +142,36 @@
     document.querySelectorAll("[data-lnav]").forEach(b => b.addEventListener("click", () =>
       nav.scrollBy({ left: (b.dataset.lnav === "r" ? 1 : -1) * Math.max(160, nav.clientWidth * 0.7), behavior: "smooth" })));
   })();
+  // Phone only: hide the league chip row while the page scrolls down, and show it again on the way up.
+  // The row stays in the tab order; focusing a chip opens it. Desktop keeps the row put.
+  (() => {
+    const bar = document.querySelector(".topbar");
+    const nav = document.getElementById("leagueNav");
+    if (!bar || !nav || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width:760px)");
+    let last = window.scrollY, acc = 0, lockUntil = 0, lockY = 0;
+    // Growing or shrinking the sticky row moves the page, and the browser's scroll anchoring
+    // nudges scroll the other way by about the row's height. Ignore that nudge. A real
+    // reversal (the reader flicks back) is much larger and still counts.
+    const setAway = (away, y) => {
+      if (bar.classList.contains("chips-away") === away) return;
+      bar.classList.toggle("chips-away", away);
+      acc = 0;
+      lockY = y;
+      lockUntil = performance.now() + 400;
+    };
+    const onScroll = () => {
+      const y = window.scrollY, dy = y - last;
+      last = y;
+      if (!mq.matches || y < 12 || nav.matches(":focus-within")) { setAway(false, y); return; }
+      if (performance.now() < lockUntil && Math.abs(y - lockY) < 80) return;
+      acc += dy;
+      if (acc > 24) setAway(true, y);
+      else if (acc < -24) setAway(false, y);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    if (mq.addEventListener) mq.addEventListener("change", () => { if (!mq.matches) bar.classList.remove("chips-away"); });
+  })();
 
   // ---------- odds snippets
   // ---------- line movement helpers

@@ -1114,14 +1114,14 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 /* ---------- mobile bottom nav */
 .bnav{display:none}
 @media (max-width:760px){
-  :root{--bnav-h:62px}
-  /* Eight items (Home through Account) share the bar. They grow into leftover space and do not shrink below the label, so Value and Account stay on screen at 360–430px. The row is at least 44px tall. */
-  .bnav{display:flex;position:fixed;z-index:40;left:4px;right:4px;bottom:calc(8px + env(safe-area-inset-bottom,0px));height:var(--bnav-h);padding:6px 2px;gap:0;border-radius:20px;overflow:hidden;scrollbar-width:none;
+  :root{--bnav-h:54px}
+  /* Eight items (Home through Account) share the bar. They grow into leftover space and do not shrink below the label, so Value and Account stay on screen at 360–430px. Labels are 11px sentence case (the old 9px capitals were hard to read) and the row stays at least 44px tall. */
+  .bnav{display:flex;position:fixed;z-index:40;left:4px;right:4px;bottom:calc(8px + env(safe-area-inset-bottom,0px));height:var(--bnav-h);padding:4px 2px;gap:0;border-radius:18px;overflow:hidden;scrollbar-width:none;
     border:1px solid var(--glass-brd);background:color-mix(in srgb,var(--bg2) 72%,transparent);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
     box-shadow:var(--inner),0 18px 40px -12px color-mix(in srgb,var(--shade) 90%,transparent)}
   .bnav::-webkit-scrollbar{display:none}
-  .bnav a{flex:1 0 auto;min-width:min-content;padding:0 1px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border-radius:14px;color:var(--dim);font-size:9px;font-weight:700;letter-spacing:0;text-transform:uppercase;white-space:nowrap;transition:color .15s,background .15s,transform .1s}
-  .bnav a .ic{width:16px;height:16px}
+  .bnav a{flex:1 0 auto;min-width:min-content;padding:0 1px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:14px;color:var(--mute);font-size:11px;font-weight:650;letter-spacing:-0.01em;line-height:1.05;text-transform:none;white-space:nowrap;transition:color .15s,background .15s,transform .1s}
+  .bnav a .ic{width:15px;height:15px}
   .bnav a:active{transform:scale(.94)}
   .bnav a.on{color:var(--txt);background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 22%,transparent),color-mix(in srgb,var(--accent) 8%,transparent));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent)}
   .bnav a.on .ic{color:var(--accent2);filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accent2) 60%,transparent))}
@@ -1922,7 +1922,7 @@ body:has(.news-bets) .footer .news-foot{display:none}
   .vf-lbl{white-space:normal}
   .vf-frow{gap:8px}.vf-mks{width:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}.vf-mks a{white-space:nowrap}
 }
-@media (max-width:420px){.bnav a{font-size:9px;letter-spacing:0;min-width:min-content}}
+@media (max-width:420px){.bnav a{letter-spacing:-0.02em;min-width:min-content}}
 
 /* ---------- nav polish: "All" (home) pill, swipe affordance on the league row, home tools row */
 .tab-all{padding-left:13px}
@@ -2320,9 +2320,20 @@ body::before{opacity:.55}
   .updated .u-short{display:none}
 }
 @media (max-width:760px){
+  html{scroll-padding-top:96px}
   .updated{font-size:11px;padding:4px 8px;gap:5px}
   .updated .u-long,.updated .u-tz{display:none}
   .updated .u-short{display:inline}
+  /* Slim the sticky bar: 48px logo row + a 40px chip row (was 60 + 50). The chip row's min-height matches its filled height so the first paint does not shift. */
+  .topbar-inner{height:48px}
+  .league-nav-inner{padding:0 12px 4px;min-height:40px}
+  /* Scroll down hides the chips; scroll up (or keyboard focus) brings them back. Desktop never gets this. */
+  .topbar .lnav{max-height:44px;overflow:hidden;transition:max-height .22s var(--ease)}
+  .topbar.chips-away .lnav{max-height:0}
+  .topbar.chips-away .lnav:focus-within{max-height:44px}
+}
+@media (max-width:760px) and (prefers-reduced-motion:reduce){
+  .topbar .lnav{transition:none}
 }
 @media (max-width:480px){
   .topbar-inner{gap:6px}
